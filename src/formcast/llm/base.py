@@ -26,6 +26,10 @@ _sleep: Callable[[float], None] = time.sleep
 class Provider(Protocol):
     def complete(self, messages: list[Message], tools: list[ToolSpec]) -> LLMResponse: ...
 
+    def close(self) -> None:
+        """Release network resources. Safe to call more than once."""
+        ...
+
 
 def parse_arguments(raw: str | None) -> tuple[dict | None, str]:
     """Parse tool-call arguments. Returns (None, raw) when malformed or not an object.
@@ -41,6 +45,20 @@ def parse_arguments(raw: str | None) -> tuple[dict | None, str]:
     except json.JSONDecodeError:
         return None, raw
     return (parsed if isinstance(parsed, dict) else None), raw
+
+
+def wire_arguments(call: ToolCall) -> str:
+    """Arguments string to send back for a prior tool call: always a JSON object.
+
+    Malformed (or non-object) arguments are replaced by "{}" because strict
+    compatibility layers reject invalid JSON in history; `call.raw_arguments`
+    stays untouched for error reporting.
+    """
+    if call.arguments is None:
+        return "{}"
+    if parse_arguments(call.raw_arguments)[0] is not None and call.raw_arguments.strip():
+        return call.raw_arguments
+    return json.dumps(call.arguments)
 
 
 def make_tool_call(call_id: str, name: str, raw_arguments: str | None) -> ToolCall:
@@ -76,6 +94,17 @@ class HTTPProvider:
     def close(self) -> None:
         self._client.close()
 
+    def redact(self, text: str) -> str:
+        """Mask the API key and extra-header values (gateways may echo them back)."""
+        secrets = [self.cfg.api_key, *self.cfg.extra_headers.values()]
+        for secret in sorted({x for x in secrets if x}, key=len, reverse=True):
+            text = text.replace(secret, "***")
+        return text
+
+    def _excerpt(self, text: str) -> str:
+        # Redact before truncating so a secret cut at the boundary cannot leak.
+        return self.redact(text)[:_BODY_EXCERPT]
+
     def _url(self, path: str) -> str:
         return f"{self.cfg.base_url.rstrip('/')}/{path}"
 
@@ -101,11 +130,11 @@ class HTTPProvider:
             last = attempt == attempts - 1
             try:
                 response = self._client.post(url, headers=self._headers(), json=body)
-            except (httpx.TimeoutException, httpx.NetworkError) as exc:
+            except httpx.TransportError as exc:
                 if last:
                     raise FormcastError(
                         f"LLM request to {url} failed after {attempts} attempt(s): "
-                        f"{type(exc).__name__}: {exc}"
+                        f"{type(exc).__name__}: {self.redact(str(exc))}"
                     ) from exc
                 self._wait(attempt, None)
                 continue
@@ -115,13 +144,13 @@ class HTTPProvider:
             if response.status_code >= 400:
                 raise FormcastError(
                     f"LLM request to {url} failed with HTTP {response.status_code}: "
-                    f"{response.text[:_BODY_EXCERPT]}"
+                    f"{self._excerpt(response.text)}"
                 )
             try:
                 payload = response.json()
             except ValueError as exc:
                 raise FormcastError(
-                    f"LLM response from {url} is not JSON: {response.text[:_BODY_EXCERPT]}"
+                    f"LLM response from {url} is not JSON: {self._excerpt(response.text)}"
                 ) from exc
             if not isinstance(payload, dict):
                 raise FormcastError(f"LLM response from {url} is not a JSON object")

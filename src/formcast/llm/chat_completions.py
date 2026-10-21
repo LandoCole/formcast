@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from formcast.errors import FormcastError
-from formcast.llm.base import HTTPProvider, make_tool_call
+from formcast.llm.base import HTTPProvider, make_tool_call, wire_arguments
 from formcast.llm.types import LLMResponse, Message, ToolSpec, Usage
 
 
@@ -18,7 +18,7 @@ def _message_to_wire(m: Message) -> dict:
                 {
                     "id": c.id,
                     "type": "function",
-                    "function": {"name": c.name, "arguments": c.raw_arguments},
+                    "function": {"name": c.name, "arguments": wire_arguments(c)},
                 }
                 for c in m.tool_calls
             ],
@@ -55,7 +55,7 @@ class ChatCompletionsProvider(HTTPProvider):
         raw = self.post_json("chat/completions", body)
         choices = raw.get("choices")
         if not isinstance(choices, list) or not choices:
-            raise FormcastError(f"chat completions reply has no choices: {str(raw)[:300]}")
+            raise FormcastError(f"chat completions reply has no choices: {self.redact(str(raw))[:300]}")
         message = choices[0].get("message") or {}
         calls = [
             make_tool_call(

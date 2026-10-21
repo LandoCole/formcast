@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from formcast.errors import FormcastError
-from formcast.llm.base import HTTPProvider, make_tool_call
+from formcast.llm.base import HTTPProvider, make_tool_call, wire_arguments
 from formcast.llm.types import LLMResponse, Message, ToolSpec, Usage
 
 
@@ -31,7 +31,7 @@ def _input_items(messages: list[Message]) -> tuple[str | None, list[dict]]:
                         "type": "function_call",
                         "call_id": c.id,
                         "name": c.name,
-                        "arguments": c.raw_arguments,
+                        "arguments": wire_arguments(c),
                     }
                 )
         else:
@@ -68,10 +68,10 @@ class ResponsesProvider(HTTPProvider):
         raw = self.post_json("responses", body)
         if raw.get("status") == "failed":
             error = raw.get("error") or {}
-            raise FormcastError(f"responses call failed: {error.get('message') or str(raw)[:300]}")
+            raise FormcastError(f"responses call failed: {self.redact(str(error.get('message') or raw))[:300]}")
         output = raw.get("output")
         if not isinstance(output, list):
-            raise FormcastError(f"responses reply has no output list: {str(raw)[:300]}")
+            raise FormcastError(f"responses reply has no output list: {self.redact(str(raw))[:300]}")
 
         texts: list[str] = []
         calls = []

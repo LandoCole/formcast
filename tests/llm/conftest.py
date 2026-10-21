@@ -1,7 +1,7 @@
 """Fixtures for LLM provider tests.
 
 The `@pytest.mark.llm` tests need real credentials. `load_dotenv` is a tiny
-parser that copies KEY=VALUE lines from the repo's git-ignored `.env` into
+parser that copies KEY=VALUE lines (only OPENAI_EVAL_*/ANTHROPIC_EVAL_*) from the repo's git-ignored `.env` into
 os.environ for the test process only. Values are never printed or logged.
 """
 
@@ -23,6 +23,8 @@ def load_dotenv(path: Path = ENV_PATH) -> None:
             continue
         key, _, value = line.partition("=")
         key = key.strip().removeprefix("export ").strip()
+        if not key.startswith(tuple(f"{p}_" for p in EVAL_PREFIXES)):
+            continue  # load only the eval configs, nothing else from .env
         value = value.strip()
         if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
             value = value[1:-1]

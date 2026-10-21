@@ -480,7 +480,98 @@ def test_400_raises_with_status_and_excerpt_without_key(fmt, no_sleep):
     text = str(exc.value)
     assert "bad request" in text
     assert len(text) < 1500
-    assert "sk-secret-value" not in text
+
+
+@pytest.mark.parametrize("fmt", ["chat_completions", "responses"])
+@pytest.mark.parametrize("status", [400, 401, 503])
+def test_error_excerpts_redact_key_and_header_values(fmt, status, no_sleep):
+    body = "invalid key sk-secret-value; header header-secret; again sk-secret-value"
+    rec = Recorder(httpx.Response(status, text=body))
+    provider = make_provider(
+        cfg(fmt, max_retries=1, extra_headers={"X-Token": "header-secret"}),
+        transport=rec.transport,
+    )
+    with pytest.raises(FormcastError, match=str(status)) as exc:
+        provider.complete([Message(role="user", content="go")], [])
+    text = str(exc.value)
+    assert "sk-secret-value" not in text and "header-secret" not in text
+    assert "invalid key ***" in text
+
+
+def test_non_json_200_excerpt_is_redacted(no_sleep):
+    rec = Recorder(httpx.Response(200, text="<html>echo sk-secret-value</html>"))
+    with pytest.raises(FormcastError, match="not JSON") as exc:
+        make_provider(cfg(), transport=rec.transport).complete(
+            [Message(role="user", content="go")], []
+        )
+    assert "sk-secret-value" not in str(exc.value)
+
+
+def test_remote_protocol_error_is_retried(no_sleep):
+    rec = Recorder(httpx.RemoteProtocolError("server disconnected"), chat_reply())
+    out = make_provider(cfg(), transport=rec.transport).complete(
+        [Message(role="user", content="go")], []
+    )
+    assert out.text == "hi"
+    assert len(rec.requests) == 2 and len(no_sleep) == 1
+
+
+def test_remote_protocol_error_exhausted_raises_formcast_error(no_sleep):
+    rec = Recorder(httpx.RemoteProtocolError("server disconnected"))
+    with pytest.raises(FormcastError, match="RemoteProtocolError"):
+        make_provider(cfg(max_retries=1), transport=rec.transport).complete(
+            [Message(role="user", content="go")], []
+        )
+    assert len(rec.requests) == 2
+
+
+# ---- malformed prior tool calls are sent back as valid JSON objects ---------
+
+
+@pytest.mark.parametrize("raw", ["{bad", "", "[1, 2]"])
+def test_chat_resends_malformed_arguments_as_json_object(raw):
+    rec = Recorder(chat_reply())
+    bad = ToolCall("call_1", "echo", None if raw != "" else {}, raw)
+    history = [
+        Message(role="user", content="go"),
+        Message(role="assistant", tool_calls=[bad]),
+        Message(role="tool", content="error", tool_call_id="call_1"),
+    ]
+    make_provider(cfg(), transport=rec.transport).complete(history, [ECHO])
+    sent = rec.body()["messages"][1]["tool_calls"][0]["function"]["arguments"]
+    assert json.loads(sent) == {}
+    assert bad.raw_arguments == raw  # kept for error reporting
+
+
+@pytest.mark.parametrize("raw", ["{bad", "", "[1, 2]"])
+def test_responses_resends_malformed_arguments_as_json_object(raw):
+    rec = Recorder(resp_reply([]))
+    bad = ToolCall("call_1", "echo", None if raw != "" else {}, raw)
+    history = [
+        Message(role="user", content="go"),
+        Message(role="assistant", tool_calls=[bad]),
+        Message(role="tool", content="error", tool_call_id="call_1"),
+    ]
+    make_provider(cfg("responses"), transport=rec.transport).complete(history, [ECHO])
+    call_item = rec.body()["input"][1]
+    assert call_item["type"] == "function_call"
+    assert json.loads(call_item["arguments"]) == {}
+
+
+def test_valid_arguments_are_resent_unchanged():
+    rec = Recorder(chat_reply())
+    ok = ToolCall("call_1", "echo", {"text": "x"}, '{"text":   "x"}')
+    make_provider(cfg(), transport=rec.transport).complete(
+        [Message(role="assistant", tool_calls=[ok])], []
+    )
+    sent = rec.body()["messages"][0]["tool_calls"][0]["function"]["arguments"]
+    assert json.loads(sent) == {"text": "x"}
+
+
+def test_provider_protocol_has_close():
+    for fmt in ("chat_completions", "responses"):
+        p = make_provider(cfg(fmt), transport=Recorder(chat_reply()).transport)
+        p.close()
 
 
 # ---- real round trip --------------------------------------------------------
