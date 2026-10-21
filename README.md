@@ -88,7 +88,7 @@ for w in report.warnings:                              # a checklist, sorted by 
 smart = to_smart_pdf(tpl, "intake.pdf")                # same form, empty fields to fill by hand
 ```
 
-Templates built before commit e2afa94 (which folded a coarse ink map into the fingerprint) no longer match their PDF's fingerprint: fill them with `check_fingerprint=False`, or rebuild them.
+Templates built before 2026-10-21 (before the ink-map fingerprint) no longer match their PDF's fingerprint: fill them with `check_fingerprint=False`, or rebuild them.
 
 `report.warnings` is a flat list sorted by page and position. Record-level warnings
 come first. For example (rects omitted):
@@ -123,6 +123,11 @@ The report also has:
   filled-in values, so a filled copy still matches its template. The exception
   is a blank form whose text fields already carry default values: its filled
   copies no longer match, so refill those with `check_fingerprint=False`.
+- **Nothing is dropped silently.** A record value that no box ends up showing
+  (say an enum value no checkbox stands for) is reported as `not_shown`, unless
+  another warning already explains it. `False` and `0` are exempt: an unticked
+  box shows them. A template that uses an unknown transform raises
+  `FormcastError`.
 - **Validation is lenient by default.** Bad data is reported as `invalid` and
   the rest is filled. `strict=True` raises `FormcastError` instead.
   `check_fingerprint=False` fills a PDF whose fingerprint differs from the
