@@ -274,6 +274,13 @@ class _Run:
         seg, where = f.segments[i], f"table field {f.id!r} segment {i}"
         self.check_rect(f.id, seg.page, seg.rect, what=f"segment {i} rect")
         x0, y0, x1, y1 = seg.rect
+        # NaN/inf pass every comparison below and serialize as null, so reject them first.
+        for name, value in (("row_top", seg.row_top), ("row_height", seg.row_height)):
+            if not math.isfinite(value):
+                self.fail(f"{where}: {name} {value!r} is non-finite; give a number of PDF points")
+        for col in seg.columns:
+            if not all(math.isfinite(v) for v in col.x):
+                self.fail(f"{where}: column {col.key!r} x {list(col.x)} has non-finite coordinates")
         if seg.row_height <= 0 or seg.max_rows < 1:
             self.fail(f"{where}: row_height must be > 0 and max_rows >= 1 "
                       f"(got row_height={seg.row_height:g}, max_rows={seg.max_rows})")

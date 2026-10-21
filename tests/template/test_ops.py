@@ -1,3 +1,5 @@
+import math
+
 import pytest
 
 from formcast.errors import OpError
@@ -263,6 +265,21 @@ def test_add_table():
     f = t.fields[0]
     assert (f.id, f.type, f.source.paths, f.page, f.rect) == ("f1", "table", ["medications"], None, None)
     assert [c.key for c in f.segments[0].columns] == ["drug", "dose"]
+
+
+@pytest.mark.parametrize("bad", [math.nan, math.inf, -math.inf])
+def test_non_finite_table_rows_and_columns_are_rejected(bad):
+    rows = {**SEGMENT, "row_top": bad}
+    _rejects(_template(), {"op": "add_table", "source_path": "medications", "segments": [rows]},
+             "row_top", repr(bad))
+    cols = {**SEGMENT, "columns": [{"key": "drug", "x": [72, bad]}, {"key": "dose", "x": [300, 540]}]}
+    _rejects(_template(), {"op": "add_table", "source_path": "medications", "segments": [cols]},
+             "column 'drug'", repr(bad))
+    for key in ("row_top", "row_height"):
+        op = {"op": "set_table_rows", "id": "f1", "segment": 0, "row_top": 320, "row_height": 18, "max_rows": 10}
+        _rejects(_table(), {**op, key: bad}, key, repr(bad), "non-finite")
+    t = _table()
+    assert Template.from_json(t.to_json()) == t
 
 
 def test_add_table_on_string_path_raises():
