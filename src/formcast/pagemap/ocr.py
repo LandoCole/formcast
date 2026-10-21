@@ -159,7 +159,8 @@ def ocr_page(page: pymupdf.Page, dpi: int = 300) -> tuple[list[Word], list[TextL
     """OCR one page into words and lines (``source="ocr"``, rects in points).
 
     Raises:
-        FormcastError: when pytesseract or the Tesseract binary is missing.
+        FormcastError: when pytesseract or the Tesseract binary is missing, or
+            Tesseract fails ("OCR failed: <Tesseract's message>").
     """
     if not ocr_available():
         raise FormcastError(NOT_INSTALLED)
@@ -170,6 +171,9 @@ def ocr_page(page: pymupdf.Page, dpi: int = 300) -> tuple[list[Word], list[TextL
         data = pytesseract.image_to_data(scan, output_type=pytesseract.Output.DICT)
     except pytesseract.TesseractNotFoundError as exc:
         raise FormcastError(NOT_INSTALLED) from exc
+    except (pytesseract.TesseractError, RuntimeError) as exc:  # bad install/language data, timeout
+        detail = exc.message if isinstance(exc, pytesseract.TesseractError) else str(exc)
+        raise FormcastError(f"OCR failed: {str(detail).strip() or type(exc).__name__}") from exc
 
     groups: dict[tuple[int, int, int], list[tuple[str, Rect, float]]] = defaultdict(list)
     for i, raw in enumerate(data["text"]):

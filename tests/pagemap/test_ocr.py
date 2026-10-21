@@ -193,6 +193,31 @@ def test_missing_tesseract_raises(flat_form_pdf, monkeypatch):
     )
 
 
+@pytest.mark.parametrize(
+    "error",
+    [
+        pytest.param(lambda pt: pt.TesseractError(1, "Error opening data file eng.traineddata"), id="tesseract"),
+        pytest.param(lambda pt: RuntimeError("Tesseract process timeout"), id="timeout"),
+    ],
+)
+def test_tesseract_runtime_errors_become_formcast_errors(flat_form_pdf, monkeypatch, error):
+    pytesseract = pytest.importorskip("pytesseract")
+    monkeypatch.setattr(ocr, "ocr_available", lambda: True)
+    raised = error(pytesseract)
+
+    def fail(*args, **kwargs):
+        raise raised
+
+    monkeypatch.setattr(pytesseract, "image_to_data", fail)
+    with pymupdf.open(flat_form_pdf) as doc:
+        with pytest.raises(FormcastError) as exc:
+            ocr_page(doc[0], dpi=50)
+    assert str(exc.value).startswith("OCR failed: ")
+    expected = raised.message if isinstance(raised, pytesseract.TesseractError) else str(raised)
+    assert expected in str(exc.value)
+    assert exc.value.__cause__ is raised
+
+
 def test_unrotate_box_is_the_normalized_bounds_of_the_mapped_corners():
     size = (400, 300)
     # No rotation: just normalization.
