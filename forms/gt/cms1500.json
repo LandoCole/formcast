@@ -14,7 +14,8 @@
    "path": "insurance_program",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "medicare"
   },
   {
    "page": 0,
@@ -29,7 +30,8 @@
    "path": "insurance_program",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "medicaid"
   },
   {
    "page": 0,
@@ -44,7 +46,8 @@
    "path": "insurance_program",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "tricare"
   },
   {
    "page": 0,
@@ -59,7 +62,8 @@
    "path": "insurance_program",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "champva"
   },
   {
    "page": 0,
@@ -74,7 +78,8 @@
    "path": "insurance_program",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "group_health_plan"
   },
   {
    "page": 0,
@@ -89,7 +94,8 @@
    "path": "insurance_program",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "feca_black_lung"
   },
   {
    "page": 0,
@@ -104,7 +110,8 @@
    "path": "insurance_program",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "other"
   },
   {
    "page": 0,
@@ -195,7 +202,8 @@
    "path": "patient.sex",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "M"
   },
   {
    "page": 0,
@@ -210,7 +218,8 @@
    "path": "patient.sex",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "F"
   },
   {
    "page": 0,
@@ -256,7 +265,8 @@
    "path": "patient.relationship_to_insured",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "self"
   },
   {
    "page": 0,
@@ -271,7 +281,8 @@
    "path": "patient.relationship_to_insured",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "spouse"
   },
   {
    "page": 0,
@@ -286,7 +297,8 @@
    "path": "patient.relationship_to_insured",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "child"
   },
   {
    "page": 0,
@@ -301,7 +313,8 @@
    "path": "patient.relationship_to_insured",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "other"
   },
   {
    "page": 0,
@@ -673,7 +686,8 @@
    "path": "insured.sex",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "M"
   },
   {
    "page": 0,
@@ -688,7 +702,8 @@
    "path": "insured.sex",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "F"
   },
   {
    "page": 0,
@@ -3152,7 +3167,8 @@
    "path": "billing_provider.tax_id_type",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "ssn"
   },
   {
    "page": 0,
@@ -3167,7 +3183,8 @@
    "path": "billing_provider.tax_id_type",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "ein"
   },
   {
    "page": 0,

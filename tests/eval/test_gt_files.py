@@ -209,7 +209,6 @@ def test_widget_value_objects_are_keyed_by_the_widgets_on_state_names(form_id):
             assert set(entry["value"]) <= states[name], (name, sorted(states[name]))
 
 
-@pytest.mark.xfail(strict=True, reason="labels added in Task 8 step 4")
 def test_choice_entries_have_valid_value():
     problems = []
     group_size = {}

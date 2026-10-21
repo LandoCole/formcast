@@ -34,19 +34,22 @@
    "path": "withholding.filing_status",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "single_or_married_separately"
   },
   "topmostSubform[0].Page1[0].c1_1[1]": {
    "path": "withholding.filing_status",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "married_jointly_or_surviving_spouse"
   },
   "topmostSubform[0].Page1[0].c1_1[2]": {
    "path": "withholding.filing_status",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "head_of_household"
   },
   "topmostSubform[0].Page1[0].c1_2[0]": {
    "path": "withholding.two_jobs_only",

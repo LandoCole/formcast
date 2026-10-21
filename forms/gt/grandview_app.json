@@ -230,7 +230,8 @@
    "path": "referral.source",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "walk_in"
   },
   {
    "page": 0,
@@ -257,7 +258,8 @@
    "path": "referral.source",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "school"
   },
   {
    "page": 0,
@@ -284,7 +286,8 @@
    "path": "referral.source",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "employee"
   },
   {
    "page": 0,
@@ -311,7 +314,8 @@
    "path": "referral.source",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "job_fair"
   },
   {
    "page": 0,
@@ -338,7 +342,8 @@
    "path": "referral.source",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "advertisement"
   },
   {
    "page": 0,
@@ -365,7 +370,8 @@
    "path": "referral.source",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "staffing_agency"
   },
   {
    "page": 0,
@@ -392,7 +398,8 @@
    "path": "referral.source",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "city_website"
   },
   {
    "page": 0,
@@ -419,7 +426,8 @@
    "path": "referral.source",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "government_agency"
   },
   {
    "page": 0,
@@ -446,7 +454,8 @@
    "path": "referral.source",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "other_internet"
   },
   {
    "page": 0,
@@ -473,7 +482,8 @@
    "path": "referral.source",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "other"
   },
   {
    "page": 0,
@@ -961,7 +971,8 @@
    "path": "employment_types_desired",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "full_time"
   },
   {
    "page": 0,
@@ -976,7 +987,8 @@
    "path": "employment_types_desired",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "part_time"
   },
   {
    "page": 0,
@@ -991,7 +1003,8 @@
    "path": "employment_types_desired",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "educational_co_op"
   },
   {
    "page": 0,
@@ -1006,7 +1019,8 @@
    "path": "employment_types_desired",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "seasonal"
   },
   {
    "page": 0,
@@ -1021,7 +1035,8 @@
    "path": "employment_types_desired",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "temporary"
   },
   {
    "page": 0,
@@ -1096,7 +1111,8 @@
    "path": "applicant.meets_attendance_requirements",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "not_applicable"
   },
   {
    "page": 0,
@@ -1111,7 +1127,8 @@
    "path": "applicant.meets_attendance_requirements",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "yes"
   },
   {
    "page": 0,
@@ -1126,7 +1143,8 @@
    "path": "applicant.meets_attendance_requirements",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "no"
   },
   {
    "page": 0,
@@ -1193,7 +1211,8 @@
    "path": "applicant.can_perform_essential_functions",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "yes"
   },
   {
    "page": 0,
@@ -1208,7 +1227,8 @@
    "path": "applicant.can_perform_essential_functions",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "no"
   },
   {
    "page": 0,
@@ -1223,7 +1243,8 @@
    "path": "applicant.can_perform_essential_functions",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "need_more_information"
   },
   {
    "page": 0,
@@ -2957,7 +2978,8 @@
    "path": "computer_skills.word_processing.software",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": "Word Processing"
   },
   {
    "page": 2,
@@ -2996,7 +3018,8 @@
    "path": "computer_skills.internet.software",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": "Internet"
   },
   {
    "page": 2,
@@ -3035,7 +3058,8 @@
    "path": "computer_skills.spreadsheet.software",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": "Spreadsheet"
   },
   {
    "page": 2,
@@ -3109,7 +3133,8 @@
    "path": "computer_skills.presentation.software",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": "Presentation"
   },
   {
    "page": 2,
@@ -3183,7 +3208,8 @@
    "path": "computer_skills.email.software",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": "E-mail"
   },
   {
    "page": 2,
@@ -4063,7 +4089,8 @@
    "path": "wrote_instructions",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "yes"
   },
   {
    "page": 3,
@@ -4078,7 +4105,8 @@
    "path": "wrote_instructions",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "no"
   },
   {
    "page": 3,
@@ -4093,7 +4121,8 @@
    "path": "wrote_instructions",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "not_applicable"
   },
   {
    "page": 3,

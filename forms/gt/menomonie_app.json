@@ -47,7 +47,8 @@
    "path": "applicant.us_born_citizen",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   "Have you previously applied with the city": {
    "path": "previous_application.applied_before",
@@ -59,7 +60,8 @@
    "path": "previous_application.applied_before",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   "If yes give position applied for and date of application": {
    "path": "previous_application.position",
@@ -93,7 +95,8 @@
    "path": "drivers_license.valid",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   "If yes what state": {
    "path": "drivers_license.state"
@@ -108,16 +111,25 @@
    "path": "commercial_drivers_license.valid",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   "If yes what state_2": {
    "path": "commercial_drivers_license.state"
   },
   "group_1": {
-   "path": "may_contact_current_employer"
+   "path": "may_contact_current_employer",
+   "value": {
+    "Yes_5": true,
+    "No": false
+   }
   },
   "undefined_4": {
-   "path": "accepts_temporary_employment"
+   "path": "accepts_temporary_employment",
+   "value": {
+    "Yes_6": true,
+    "No_2": false
+   }
   },
   "Yes_7": {
    "path": "criminal_history.has_record",
@@ -129,7 +141,8 @@
    "path": "criminal_history.has_record",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   "No If yes state in full County": {
    "path": "criminal_history.county"

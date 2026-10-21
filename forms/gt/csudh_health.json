@@ -59,7 +59,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "insomnia"
   },
   {
    "page": 0,
@@ -74,7 +75,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "sinus_trouble"
   },
   {
    "page": 0,
@@ -89,7 +91,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "dizziness"
   },
   {
    "page": 0,
@@ -104,7 +107,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "ent_trouble"
   },
   {
    "page": 0,
@@ -119,7 +123,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "severe_headaches"
   },
   {
    "page": 0,
@@ -134,7 +139,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "stroke"
   },
   {
    "page": 0,
@@ -149,7 +155,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "seizure_disorder"
   },
   {
    "page": 0,
@@ -164,7 +171,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "thyroid_disease"
   },
   {
    "page": 0,
@@ -179,7 +187,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "neck_problems"
   },
   {
    "page": 0,
@@ -194,7 +203,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "blood_clots"
   },
   {
    "page": 0,
@@ -209,7 +219,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "chronic_cough"
   },
   {
    "page": 0,
@@ -224,7 +235,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "back_problems"
   },
   {
    "page": 0,
@@ -239,7 +251,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "breast_lump"
   },
   {
    "page": 0,
@@ -254,7 +267,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "nipple_discharge"
   },
   {
    "page": 0,
@@ -269,7 +283,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "heart_disease"
   },
   {
    "page": 0,
@@ -284,7 +299,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "high_blood_pressure"
   },
   {
    "page": 0,
@@ -299,7 +315,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "bronchitis_influenza"
   },
   {
    "page": 0,
@@ -314,7 +331,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "sickle_cell_disease"
   },
   {
    "page": 0,
@@ -329,7 +347,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "anemia"
   },
   {
    "page": 0,
@@ -344,7 +363,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "liver_disease"
   },
   {
    "page": 0,
@@ -359,7 +379,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "gall_bladder_disease"
   },
   {
    "page": 0,
@@ -374,7 +395,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "diabetes"
   },
   {
    "page": 0,
@@ -389,7 +411,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "weight_change"
   },
   {
    "page": 0,
@@ -404,7 +427,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "cancer"
   },
   {
    "page": 0,
@@ -419,7 +443,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "bladder_kidney_infections"
   },
   {
    "page": 0,
@@ -434,7 +459,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "pid"
   },
   {
    "page": 0,
@@ -449,7 +475,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "ectopic_pregnancy"
   },
   {
    "page": 0,
@@ -464,7 +491,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "vaginal_infections"
   },
   {
    "page": 0,
@@ -479,7 +507,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "recurrent_diarrhea"
   },
   {
    "page": 0,
@@ -494,7 +523,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "rectal_bleeding"
   },
   {
    "page": 0,
@@ -509,7 +539,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "other"
   },
   {
    "page": 0,
@@ -524,7 +555,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "hepatitis"
   },
   {
    "page": 0,
@@ -539,7 +571,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "ovarian_tumors"
   },
   {
    "page": 0,
@@ -1417,7 +1450,8 @@
    "path": "sexual_history.stds",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "genital_warts"
   },
   {
    "page": 1,
@@ -1432,7 +1466,8 @@
    "path": "sexual_history.stds",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "herpes"
   },
   {
    "page": 1,
@@ -1447,7 +1482,8 @@
    "path": "sexual_history.stds",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "chlamydia"
   },
   {
    "page": 1,
@@ -1462,7 +1498,8 @@
    "path": "sexual_history.stds",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "other"
   },
   {
    "page": 1,
@@ -1477,7 +1514,8 @@
    "path": "sexual_history.stds",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "syphilis"
   },
   {
    "page": 1,
@@ -1492,7 +1530,8 @@
    "path": "sexual_history.stds",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "hiv_aids"
   },
   {
    "page": 1,
@@ -1507,7 +1546,8 @@
    "path": "sexual_history.stds",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "gonorrhea"
   },
   {
    "page": 1,
@@ -1620,7 +1660,8 @@
    "path": "female_health.pelvic_exam.result",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "normal"
   },
   {
    "page": 1,
@@ -1635,7 +1676,8 @@
    "path": "female_health.pelvic_exam.result",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "abnormal"
   },
   {
    "page": 1,
@@ -2202,7 +2244,8 @@
    "path": "female_health.contraception.methods_used",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "pill"
   },
   {
    "page": 1,
@@ -2217,7 +2260,8 @@
    "path": "female_health.contraception.methods_used",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "condoms"
   },
   {
    "page": 1,
@@ -2232,7 +2276,8 @@
    "path": "female_health.contraception.methods_used",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "diaphragm_cervical_cap"
   },
   {
    "page": 1,
@@ -2247,7 +2292,8 @@
    "path": "female_health.contraception.methods_used",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "iud"
   },
   {
    "page": 1,
@@ -2262,7 +2308,8 @@
    "path": "female_health.contraception.methods_used",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "withdrawal"
   },
   {
    "page": 1,
@@ -2277,7 +2324,8 @@
    "path": "female_health.contraception.methods_used",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "sponge"
   },
   {
    "page": 1,
@@ -2292,7 +2340,8 @@
    "path": "female_health.contraception.methods_used",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "rhythm"
   },
   {
    "page": 1,
@@ -2307,7 +2356,8 @@
    "path": "female_health.contraception.methods_used",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "norplant"
   },
   {
    "page": 1,
@@ -2322,7 +2372,8 @@
    "path": "female_health.contraception.methods_used",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "spermicidal"
   },
   {
    "page": 1,
@@ -2337,7 +2388,8 @@
    "path": "female_health.contraception.methods_used",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "other"
   },
   {
    "page": 1,

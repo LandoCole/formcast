@@ -160,7 +160,8 @@
    "path": "felony_conviction",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -175,7 +176,8 @@
    "path": "felony_conviction",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 1,
@@ -866,7 +868,8 @@
    "path": "availability.objects_to_overtime",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 3,
@@ -881,7 +884,8 @@
    "path": "availability.objects_to_overtime",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 3,
@@ -896,7 +900,8 @@
    "path": "availability.overtime_without_notice",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 3,
@@ -911,7 +916,8 @@
    "path": "availability.overtime_without_notice",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 3,
@@ -926,7 +932,8 @@
    "path": "availability.saturdays",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 3,
@@ -941,7 +948,8 @@
    "path": "availability.saturdays",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 3,
@@ -956,7 +964,8 @@
    "path": "availability.sundays",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 3,
@@ -971,7 +980,8 @@
    "path": "availability.sundays",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 3,
@@ -986,7 +996,8 @@
    "path": "availability.can_travel",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 3,
@@ -1001,7 +1012,8 @@
    "path": "availability.can_travel",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 3,
