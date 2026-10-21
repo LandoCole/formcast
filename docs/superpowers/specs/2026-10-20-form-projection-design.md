@@ -420,3 +420,136 @@ Recall and precision at IoU .3. FFDetr's boxes are looser, so its recall at IoU 
   - partially detected table rows (CMS-1500 rows 4–6)
 - **Text layers can't be trusted on "digital" PDFs.** The CMS-1500 needs OCR for its labels (see §7.1).
 - **Speed** on CPU: FFDNet-L about 1.5 s/page, FFDetr about 0.2 s/page.
+
+### 14.3 Plan 1 results: agent layer vs detector baseline (2026-10-21)
+
+**Read this first: the held-out evaluation is incomplete.** The Anthropic account hit its API usage limit during the one held-out Haiku run (HTTP 400, "You will regain access on 2026-11-01"). Of 9 held-out sessions, one finished (`ics211`, as published). Three were cut off mid-session (both `ds11` variants, `ics211` fake scan). The other five never made a call. A retry of one failed session hit the same limit. The OpenAI account was already out of credits, so there is no Luna held-out run either. No code or prompt was changed after the dev rounds. Held-out agent numbers are therefore a single session, which is not enough to say anything about generalization. Everything below separates what was measured from what was not.
+
+**How to read the tables.**
+- *fillable*: fillable forms as published (the template starts from the widgets; GT is the widgets).
+- *digital*: flat digital forms as published.
+- *scanned*: fake-scan variants of the same forms (plus native scans on held-out).
+- *bare det.* is the detector alone on the same pages: FFDNet-L for fillable and digital, FFDetr for scanned.
+- All figures are micro-averaged over GT fields. Precision is at IoU .3, because the agent's and detector's boxes are looser than the author's at .5.
+- *path* is the share of GT fields with a schema path whose matched template field has that path. *joint* is path and transforms both right. *exact path set* is the matched field's source paths equal to the GT path plus also-paths. These three are over fields with a schema path.
+
+#### Dev split (12 forms, 24 sessions per full round)
+
+Haiku 5.5, final code (round3-gen, 24 sessions, 10.8M input tokens):
+
+| group | sessions | recall@.5 (bare det.) | recall@.3 (bare det.) | precision@.3 (bare det.) | path | joint | exact path set | steps/session | input tok/session |
+|---|---|---|---|---|---|---|---|---|---|
+| fillable | 7 | 0.78 (0.81) | 0.99 (0.99) | 0.99 (0.98) | 1.00 | 0.95 | 0.99 | 9.0 | 174K |
+| digital | 5 | 0.63 (0.72) | 0.74 (0.74) | 0.84 (0.92) | 0.71 | 0.66 | 0.68 | 28.6 | 770K |
+| scanned | 12 | 0.41 (0.45) | 0.64 (0.65) | 0.91 (0.89) | 0.56 | 0.50 | 0.54 | 22.8 | 477K |
+| **all** | 24 | 0.56 (0.60) | 0.75 (0.75) | 0.91 (0.92) | 0.70 | 0.64 | 0.68 | 20.0 | 450K |
+
+Luna 6 (gpt-6-luna), round 1 (24 sessions, earlier code: before the seeding, `fm.grid`, finish-check and prompt changes):
+
+| group | sessions | recall@.5 (bare det.) | recall@.3 (bare det.) | precision@.3 (bare det.) | path | joint | exact path set | steps/session | input tok/session |
+|---|---|---|---|---|---|---|---|---|---|
+| fillable | 7 | 0.76 (0.81) | 0.97 (0.99) | 0.99 (0.98) | 0.79 | 0.73 | 0.79 | 9.4 | 174K |
+| digital | 5 | 0.47 (0.72) | 0.59 (0.74) | 0.72 (0.92) | 0.60 | 0.52 | 0.59 | 16.8 | 372K |
+| scanned | 12 | 0.34 (0.45) | 0.59 (0.65) | 0.72 (0.89) | 0.56 | 0.48 | 0.55 | 18.4 | 337K |
+| **all** | 24 | 0.47 (0.60) | 0.67 (0.75) | 0.79 (0.92) | 0.62 | 0.55 | 0.61 | 15.5 | 297K |
+
+Luna 6, round 2 (later code, partial: the OpenAI credits ran out after 14 of 24 sessions; the 10 failed sessions are excluded). The round-1 line on the same 14 sessions is the fair comparison:
+
+| run (14 paired sessions) | recall@.5 | recall@.3 | precision@.3 | path | joint | steps/session | input tok/session |
+|---|---|---|---|---|---|---|---|
+| Luna round 1 | 0.42 | 0.69 | 0.82 | 0.57 | 0.49 | 13.1 | 233K |
+| Luna round 2 | 0.45 | 0.70 | 0.89 | 0.68 | 0.66 | 18.2 | 312K |
+
+Luna has not been run on the final code (round 3 and the generalization fixes); this is blocked on OpenAI credits. Haiku's progression on the same dev set: round 1 path 0.52, round 2 0.61, round 3 0.66, round3-gen 0.70 (recall@.5 0.35, 0.54, 0.55, 0.56). Haiku's run-to-run variance is about plus or minus 0.1 path per form, so differences under about 0.05 are noise.
+
+#### Held-out split (5 forms, 9 sessions planned)
+
+Forms: `ds11` and `ics211` (fillable), `pacific_app` and `uwosh_health` (flat), `dagsboro_permit` (native scan). Fake-scan variants exist for the four non-scanned forms.
+
+Agent, Haiku 5.5 (completed sessions only; one session):
+
+| group | sessions | recall@.5 (bare det.) | recall@.3 (bare det.) | precision@.3 (bare det.) | path | joint | exact path set | steps/session | input tok/session |
+|---|---|---|---|---|---|---|---|---|---|
+| fillable (`ics211` only) | 1 | 1.00 (0.94) | 1.00 (0.94) | 1.00 (0.96) | 1.00 | 0.94 | 1.00 | 6.0 | 132K |
+| digital | 0 | not run | | | | | | | |
+| scanned | 0 | not run | | | | | | | |
+
+Session status (infrastructure failures are the usage cap, not model behavior):
+
+| session | outcome |
+|---|---|
+| ics211 as published | finished, 6 steps |
+| ds11 as published, ds11 fake scan, ics211 fake scan | cut off by the cap after 9, 12 and 11 steps (not finished; partial templates exist but are not scored as results) |
+| pacific_app (both), uwosh_health (both), dagsboro_permit | no call succeeded |
+
+The result files score failed sessions on the untouched seeded template (path 0), so their rows and the "all" totals in `eval/results/agent_anthropic_eval_heldout_2026-10-21_heldout.md` are not agent results. Use the table above.
+
+Bare detector on the same held-out pages (measured on all 9 session inputs; this part of the run is complete):
+
+| group | sessions | recall@.5 | recall@.3 | precision@.3 |
+|---|---|---|---|---|
+| fillable | 2 | 0.89 | 0.91 | 0.73 |
+| digital | 2 | 0.66 | 0.75 | 0.93 |
+| scanned | 5 | 0.45 | 0.56 | 0.83 |
+| all | 9 | 0.59 | 0.68 | 0.83 |
+
+For comparison, the same bare detector on dev scores recall@.5 of 0.81 (fillable), 0.72 (digital) and 0.45 (scanned). The held-out set is therefore about as hard for the detector as dev: easier on fillable, harder on digital, equal on scans.
+
+#### Against the v1 finish line (§6)
+
+The bar: with both reference models, on the held-out set, (a) recall@.5 of at least 0.90 on fillable and digital and at least 0.80 on scanned; (b) at least 0.90 of detected fields mapped to the correct path and transforms; (c) every success-list mapping type shown working on at least one held-out form. Because the held-out run is incomplete and Luna has no held-out run, **none of (a)–(c) can be declared met on the held-out set.** The dev numbers (Haiku, final code) say where we stand:
+
+| bar | dev, Haiku | status |
+|---|---|---|
+| (a) recall@.5 fillable ≥ 0.90 | 0.78 (0.99 at IoU .3; bare detector 0.81) | not met |
+| (a) recall@.5 digital ≥ 0.90 | 0.63 (bare detector 0.72) | not met |
+| (a) recall@.5 scanned ≥ 0.80 | 0.41 (bare detector 0.45) | not met |
+| (b) path ≥ 0.90 | fillable 1.00, digital 0.71, scanned 0.56, all 0.70 | met on fillable only |
+| (b) path and transforms (joint) ≥ 0.90 | fillable 0.95, digital 0.66, scanned 0.50, all 0.64 | met on fillable only |
+| (c) every mapping type shown on a held-out form | not assessed | open |
+
+- The recall bar is out of reach for the current detectors, not just for the agent: even the bare detector misses it on every group on dev, and the agent sits within 0.04 of it (0.56 against 0.60 overall). Most of the recall@.5 loss on fillable forms is box geometry: recall@.3 is 0.99 on fillable forms, so the fields are found but their rectangles differ from the author's (for example 24 pt table rows over 12 pt widget cells).
+- The agent's value so far is on mapping, not detection. On fillable forms it reaches path 1.00 and joint 0.95. On digital and scanned forms it is held back by detector misses and by long-form behavior, not by the mapping itself.
+- Both reference models are required by the bar. Luna's last dev numbers (partial round 2: path 0.68, joint 0.66) were on earlier code.
+- The numbers were stated in §6 as "a starting bar to revisit after the first eval run". This run suggests revisiting (a) per kind, since the bare detector alone is at 0.45 on scans.
+
+#### Generalization (dev vs held-out)
+
+There is no valid dev/held-out gap to report. One completed held-out session (`ics211`, fillable) is consistent with dev (path 1.00 against 1.00, joint 0.94 against 0.95), but a fillable form seeded from its own widgets is the easiest case and one session is not an estimate. Recall of 1.00 is largely a consequence of seeding from the widgets. Bare-detector difficulty is comparable across the splits (above), which suggests the held-out forms are not unusually hard or easy, but that is not evidence about the agent. The dev set was used for tuning across three rounds plus targeted checks, so dev numbers are optimistic by an unknown amount; see the generalization review of the prompts in `.superpowers/sdd/2026-10-20-formcast-agent-layer/task-15-genreview.md`.
+
+#### Known scoring caveats
+
+- **Multi-line rule.** A text field counts as multi-line if it has `style.multiline` or is at least 1.8 times the page's median GT text-box height. It then also covers any unmatched GT text box at least 70% inside it. The field counts once for precision and gets path credit through the GT line box that carries the path. A very large "multiline" field could inflate recall; none was seen in any run, and no guard exists.
+- **Table-per-column loophole.** Cells are scored by rectangle and column path only. A table with one segment per column scores as correct but flows rows wrongly at fill time. Only a fill-correctness metric (§11) catches it. Path and joint on table-heavy forms may be optimistic.
+- **Fillable false positives.** On fillable forms as published, GT is the widgets. Boxes the agent adds on real blanks that have no widget (for example printed checkbox groups) count as false positives, so fillable precision understates the agent.
+- **GT conventions the agent cannot infer:** one box versus two for from/to dates; whether office-use blanks are included (widgets include them, one flat form excludes them); 12 pt widget cells inside 24 pt table rows.
+- **Fake scans.** The seeded degradation shifts boxes by about 4 pt, so small checkboxes fail IoU .5. The bare detector sees the same images, so this does not favor either side.
+- **Noise.** Haiku varies by about plus or minus 0.1 path per form between runs on the same code, and the dev set has 24 sessions per round.
+- **Harness.** A session that errors out is scored on the untouched seeded template (path 0) and counted in the "all" totals. In this report such sessions are excluded. The held-out baseline run reused the stamp 2026-10-21 and briefly overwrote the dev baseline file; dev was restored and the held-out baseline is saved as `baseline_detection_2026-10-21_heldout.{json,md}`. The held-out agent md names `baseline_detection_2026-10-21.json` as its baseline file; its baseline columns were computed from the held-out file.
+
+#### Top remaining failure categories (from the dev rounds)
+
+1. **The detector misses most boxes on some scanned pages** (CMS-1500 fake scan: FFDetr finds 28 boxes, about 3% recall@.5; W-9 fake scan about 48%). Scanned pages have no vector rules, so the agent has nothing to place the missed boxes against. The fix is image-based line and box detection in the page map; that is new feature work.
+2. **Drawn input boxes are not a page-map signal.** A rectangle's short vertical edges are dropped, so a 9 pt box drawn as a rectangle appears only as two rules, and the agent puts fields on the label row above it. A `boxes` signal from rectangle drawing items would address this.
+3. **Haiku stops early or gives up on long, OCR-noisy forms** and burns 0.6–1.2M input tokens per long session, because the first message (about 15–17K tokens) is resent each step. Prompt caching or a leaner first message is the cost lever.
+4. **Ambiguous GT conventions** listed under the caveats above.
+5. **Template-model limits.** Records printed as multi-line blocks are representable only as one table per block line with one segment per record. This works (path 1.00 on the I-9) but is clumsy.
+6. **Fake-scan box offset** of about 4 pt, which is a detector and preprocessing matter, not an agent matter.
+
+#### Pending, and how to complete the evaluation
+
+Both providers are now out of budget (OpenAI credits; Anthropic usage cap until 2026-11-01 00:00 UTC). After topping up or the cap resets, from the repo root, with **no code changes** (use a new `--stamp` so nothing is overwritten, and `--baseline-stamp 2026-10-21_heldout` for held-out runs so the held-out bare-detector columns are filled in):
+
+```
+# 1. Finish the Haiku held-out run: sessions that failed or were cut off (one rerun each)
+.venv/bin/python eval/agent_eval.py --split heldout --model-env ANTHROPIC_EVAL --forms ds11,pacific_app,uwosh_health,dagsboro_permit --variant both --tag heldout-rerun --stamp <date> --baseline-stamp 2026-10-21_heldout
+.venv/bin/python eval/agent_eval.py --split heldout --model-env ANTHROPIC_EVAL --forms ics211 --variant fake_scan --tag heldout-rerun-ics211 --stamp <date> --baseline-stamp 2026-10-21_heldout
+
+# 2. Luna 6 held-out (its first and only held-out run)
+.venv/bin/python eval/agent_eval.py --split heldout --model-env OPENAI_EVAL --variant both --tag heldout --stamp <date> --baseline-stamp 2026-10-21_heldout
+
+# 3. Luna round 3 on dev, on the final code
+.venv/bin/python eval/agent_eval.py --split dev --model-env OPENAI_EVAL --variant both --tag round3-gen --stamp <date>
+```
+
+Expect roughly 5–9M input tokens for the Haiku reruns, 5–8M for the Luna held-out run and about 10M for Luna dev round 3. Whether a rerun of the cut-off sessions still counts as "the" one-time held-out run is the controller's call; it was cut off by the spending limit, not by any change to the code or prompts. Update this section with the results when they exist.
