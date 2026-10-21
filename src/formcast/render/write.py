@@ -47,10 +47,7 @@ def read_existing(doc: pymupdf.Document) -> list[ExistingWidget]:
             kind = WIDGET_KINDS.get(w.field_type)
             if kind is None:
                 continue
-            on_state = None
-            if kind in ("checkbox", "radio"):
-                s = w.on_state()
-                on_state = s if isinstance(s, str) else None
+            on_state = _on_state(w) if kind in ("checkbox", "radio") else None
             r = w.rect
             out.append(
                 ExistingWidget(
@@ -66,6 +63,35 @@ def read_existing(doc: pymupdf.Document) -> list[ExistingWidget]:
                 )
             )
     return out
+
+
+_ESCAPE = re.compile(r"#([0-9A-Fa-f]{2})")
+
+
+def _decode_name(spelling: str) -> str:
+    """A PDF name as written (``Yes#205``) decoded to the name itself (``Yes 5``)."""
+    if "#" not in spelling:
+        return spelling
+    raw = _ESCAPE.sub(lambda m: chr(int(m.group(1), 16)), spelling).encode("latin-1")
+    try:
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return raw.decode("latin-1")
+
+
+def _on_state(w: pymupdf.Widget) -> str | None:
+    """The button's "on" appearance name, decoded (``Yes#205`` -> ``Yes 5``); ``None`` if it has none.
+
+    PyMuPDF's ``on_state()`` returns the escaped spelling of the /AP key, returns ``True`` (and
+    prints a warning) when there is no on-state, and raises when /AP /D is absent and /N has only
+    /Off; this reads ``button_states()`` instead.
+    """
+    states = w.button_states() or {}
+    for key in ("normal", "down"):
+        for name in states.get(key) or ():
+            if name != "Off":
+                return _decode_name(name)
+    return None
 
 
 def _kept_font(name: str | None) -> str | None:
@@ -260,14 +286,14 @@ def _settle_button_value(doc: pymupdf.Document, xref: int, value: str) -> None:
 def _refresh_button_siblings(page: pymupdf.Page, xref: int) -> None:
     """Point every sibling checkbox kid's /AS at the field's new value (Ruling J)."""
     doc = page.parent
-    kind, value = _inherited(doc, xref, "V")
-    value = value.lstrip("/") if kind == "name" else "Off"
+    kind, value = _inherited(doc, xref, "V")  # PyMuPDF reads a name back decoded ("/Yes 5")
+    value = value[1:] if kind == "name" else "Off"
     for kid in _sibling_kids(doc, xref):
         found = _load_any(page, kid)
         if found is None:
             continue
-        on = found[1].on_state()
-        doc.xref_set_key(kid, "AS", f"/{value}" if isinstance(on, str) and on == value else "/Off")
+        on = _on_state(found[1])
+        doc.xref_set_key(kid, "AS", _pdf_name(value) if on is not None and on == value else "/Off")
 
 
 # ---------------------------------------------------------------- text
@@ -405,12 +431,14 @@ def write_choice(
     if binding.widget.kind not in ("checkbox", "radio"):
         raise ValueError(f"widget {binding.widget.name!r} is a {binding.widget.kind} widget, not a button")
     w = _load(page, binding.widget)
-    # Never the string "Off": PyMuPDF treats any truthy value as "on" for a radio kid.
-    w.field_value = w.on_state() if on else False
+    on_state = _on_state(w)
+    on = on and on_state is not None  # a box with no "on" appearance can't show on (fill: not_shown)
+    # True, not the on-state string: PyMuPDF compares a checkbox's value with the decoded on-state
+    # name, and treats any truthy value (even "Off") as "on" for a radio kid.
+    w.field_value = bool(on)
     w.update()
     if binding.widget.kind == "checkbox":  # PyMuPDF already sets every radio kid's /AS
-        on_state = w.on_state()
-        _settle_button_value(page.parent, w.xref, on_state if on and isinstance(on_state, str) else "Off")
+        _settle_button_value(page.parent, w.xref, on_state if on else "Off")
         _refresh_button_siblings(page, w.xref)
     name, got = _read_back(page, w.xref)
     return name, got, []
@@ -444,11 +472,10 @@ def _set_mark_appearance(doc: pymupdf.Document, w: pymupdf.Widget) -> None:
     on_src = f"q\n0 G\n{MARK_LINE_WIDTH:g} w\n{path}S\nQ\n".encode()
     on_x = _form_xobject(doc, width, height, on_src)
     off_x = _form_xobject(doc, width, height, b"")
-    on_name = w.on_state()
-    on_name = on_name if isinstance(on_name, str) else "Yes"
+    on_name = _pdf_name(_on_state(w) or "Yes")
     # The whole /AP is replaced (no /D down look), and a /MK /CA check caption is dropped, so
     # viewers never flash a check mark.
-    doc.xref_set_key(w.xref, "AP", f"<</N<</{on_name} {on_x} 0 R/Off {off_x} 0 R>>>>")
+    doc.xref_set_key(w.xref, "AP", f"<</N<<{on_name} {on_x} 0 R/Off {off_x} 0 R>>>>")
     if doc.xref_get_key(w.xref, "MK/CA")[0] != "null":
         pdf = mupdf.pdf_document_from_fz_document(doc.this)
         mk = mupdf.pdf_dict_gets(mupdf.pdf_load_object(pdf, w.xref), "MK")
@@ -477,7 +504,7 @@ def write_choice_mark(
         if binding.widget.kind != "checkbox":
             raise ValueError(f"choice_mark widget {binding.widget.name!r} must be a checkbox")
         w = _load(page, binding.widget)
-        w.field_value = w.on_state() if on else False
+        w.field_value = bool(on)
         w.update()
     w = page.load_widget(w.xref)
     _set_mark_appearance(doc, w)

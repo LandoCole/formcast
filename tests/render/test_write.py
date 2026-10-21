@@ -535,3 +535,63 @@ def test_checkbox_kid_value_lives_on_the_field(make_pdf):
     parent = int(d2.xref_get_key(kids[0].xref, "Parent")[1].split()[0])
     assert d2.xref_get_key(parent, "V") == ("name", "/B")
     assert [w.field_value for w in kids] == ["B", "B"]  # the field's value, no stale "A"
+
+
+# ---------------------------------------------------------------- #xx-escaped on-states (C1)
+
+
+def _field_v(doc: pymupdf.Document, xref: int) -> tuple[str, str]:
+    kind, _ = doc.xref_get_key(xref, "Parent")
+    return doc.xref_get_key(xref, "Parent/V" if kind == "xref" else "V")
+
+
+def test_escaped_checkbox_on_state_is_decoded_and_turned_on(make_pdf):
+    # /AP /N << /Off … /Yes#205 … >>: the on-state name is "Yes 5"
+    doc = _open(make_pdf(widgets=[
+        {"type": "checkbox", "name": "cb", "rect": (72, 100, 84, 112), "on_state": "Yes#205"},
+    ]))  # fmt: skip
+    (ew,) = read_existing(doc)
+    assert ew.on_state == "Yes 5"
+    write_choice(doc[0], Binding("cb", "named", widget=ew), on=True, style_circle=False)
+    d2 = _reopen(doc)
+    assert d2.xref_get_key(ew.xref, "AS") == ("name", "/Yes 5")
+    assert _field_v(d2, ew.xref) == ("name", "/Yes 5")
+    assert _widget(d2, "cb").field_value == "Yes 5"
+    write_choice(d2[0], Binding("cb", "named", widget=ew), on=False, style_circle=False)
+    d3 = _reopen(d2)
+    assert d3.xref_get_key(ew.xref, "AS") == ("name", "/Off")
+
+
+def test_escaped_checkbox_siblings_follow_the_field(make_pdf):
+    doc = _open(make_pdf(pages=2, widgets=[
+        {"page": 0, "type": "checkbox", "name": "agree", "rect": (72, 100, 84, 112), "on_state": "Yes#205"},
+        {"page": 1, "type": "checkbox", "name": "agree", "rect": (72, 100, 84, 112), "on_state": "Yes#205"},
+    ]))  # fmt: skip
+    k0, k1 = _named_on(doc, "agree", 0), _named_on(doc, "agree", 1)
+    write_choice(doc[0], k0, on=True, style_circle=False)
+    d2 = _reopen(doc)
+    assert d2.xref_get_key(k1.widget.xref, "AS") == ("name", "/Yes 5")
+
+
+def test_escaped_radio_on_state_regression(make_pdf):
+    doc = _open(make_pdf(widgets=[
+        {"type": "radio", "name": "job", "rect": (72, 72, 84, 84), "on_state": "Full#20Time"},
+        {"type": "radio", "name": "job", "rect": (100, 72, 112, 84), "on_state": "Part"},
+    ]))  # fmt: skip
+    full, part = sorted(read_existing(doc), key=lambda w: w.rect[0])
+    assert full.on_state == "Full Time"
+    write_choice(doc[0], Binding("f", "named", widget=full), on=True, style_circle=False)
+    d2 = _reopen(doc)
+    assert [d2.xref_get_key(w.xref, "AS")[1] for w in (full, part)] == ["/Full Time", "/Off"]
+
+
+def test_checkbox_without_on_state_is_left_off(make_pdf):
+    # a box whose appearance has no "on" state can't be shown on; it stays off (fill reports not_shown)
+    doc = _open(make_pdf(widgets=[{"type": "checkbox", "name": "cb", "rect": (72, 100, 84, 112)}]))
+    xref = _widget(doc, "cb").xref
+    off = doc.xref_get_key(xref, "AP/N/Off")[1]
+    doc.xref_set_key(xref, "AP", f"<</N<</Off {off}>>>>")
+    (ew,) = read_existing(doc)
+    assert ew.on_state is None
+    write_choice(doc[0], Binding("cb", "named", widget=ew), on=True, style_circle=False)
+    assert _reopen(doc).xref_get_key(xref, "AS") == ("name", "/Off")
