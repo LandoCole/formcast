@@ -69,7 +69,13 @@ ID_PATTERN = re.compile(r"[A-Za-z][A-Za-z0-9_\-]{0,63}")
 _GENERATED_ID = re.compile(r"f(\d+)")
 _ADAPTER: TypeAdapter = TypeAdapter(Op)
 # Ops after which the touched field is checked for overlap / checkbox-source warnings.
-_WARN_OPS = {"add_field", "move", "resize", "set_type", "set_source"}
+_WARN_OPS = {
+    "add_field", "move", "resize", "set_type", "set_source",
+    "add_table", "set_table_rows", "set_table_columns", "add_table_segment",
+}  # fmt: skip
+# A plain field this much inside one table cell is covered by the table.
+CELL_COVER_SHARE = 0.7
+MAX_WARN_IDS = 20
 
 
 class OpContext(BaseModel):
@@ -343,7 +349,31 @@ class _Run:
 
     # -- warnings
 
+    def table_cover_warning(self, f: Field) -> list[str]:
+        """Plain fields that the table's cells cover, so the table may duplicate them."""
+        cells = [
+            (seg.page, (col.x[0], top, col.x[1], top + seg.row_height))
+            for seg in f.segments
+            for r in range(seg.max_rows)
+            for top in [seg.row_top + r * seg.row_height]
+            for col in seg.columns
+        ]
+        covered = [
+            g.id
+            for g in self.t.fields
+            if g is not f and g.rect is not None
+            and any(p == g.page and _inside_share(g.rect, c) >= CELL_COVER_SHARE for p, c in cells)
+        ]
+        if not covered:
+            return []
+        shown = ", ".join(repr(i) for i in covered[:MAX_WARN_IDS])
+        more = f" and {len(covered) - MAX_WARN_IDS} more" if len(covered) > MAX_WARN_IDS else ""
+        return [f"table {f.id!r} covers field(s) {shown}{more}; if its cells replace them, "
+                "remove_field them so each blank is filled once"]
+
     def warnings(self, f: Field) -> list[str]:
+        if f.type == "table":
+            return self.table_cover_warning(f)
         out = []
         if f.rect is not None:
             for g in self.t.fields:
@@ -364,6 +394,14 @@ class _Run:
                                "bool_to_check transform; add when (e.g. equals/contains) or bool_to_check "
                                "so the box state is explicit")
         return out
+
+
+def _inside_share(inner: Rect, outer: Rect) -> float:
+    """Share of ``inner``'s area inside ``outer``."""
+    w = min(inner[2], outer[2]) - max(inner[0], outer[0])
+    h = min(inner[3], outer[3]) - max(inner[1], outer[1])
+    area = (inner[2] - inner[0]) * (inner[3] - inner[1])
+    return w * h / area if w > 0 and h > 0 and area > 0 else 0.0
 
 
 # ------------------------------------------------------------------ handlers

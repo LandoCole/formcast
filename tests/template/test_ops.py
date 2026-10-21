@@ -412,3 +412,15 @@ def test_diff_reports_changes():
         {"id": "f3", "change": "added"},
     ]
     assert diff(t1, t1) == []
+
+
+def test_a_table_warns_about_plain_fields_its_cells_cover():
+    t, _ = _add(_template(), rect=[75, 321, 298, 337])  # f1: inside row 0's drug cell
+    t, _ = _add(t, rect=[302, 340, 538, 356])  # f2: row 1's dose cell
+    t, _ = _add(t, rect=[75, 520, 298, 536])  # f3: below the table
+    op = {"op": "add_table", "label": "Meds", "source_path": "medications", "segments": [SEGMENT]}
+    t, warnings = apply(t, op, author="agent", context=CTX)
+    covering = [w for w in warnings if "covers" in w]
+    assert len(covering) == 1
+    assert "'f1'" in covering[0] and "'f2'" in covering[0] and "'f3'" not in covering[0]
+    assert "remove_field" in covering[0]
