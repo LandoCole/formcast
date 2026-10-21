@@ -107,8 +107,12 @@ def deskew(image: Image.Image, angle: float) -> Image.Image:
     return image.rotate(-angle, resample=Image.BICUBIC, fillcolor=fill)
 
 
-def _to_original(x: float, y: float, angle: float, size: tuple[int, int]) -> tuple[float, float]:
-    """Map a pixel position in ``deskew(image, angle)`` back into ``image``."""
+def unrotate_point(x: float, y: float, angle: float, size: tuple[int, int]) -> tuple[float, float]:
+    """Map a pixel position in ``deskew(image, angle)`` back into ``image``.
+
+    ``size`` is the ``(width, height)`` of the image, which ``deskew`` keeps
+    unchanged; the rotation is about its center.
+    """
     cx, cy = size[0] / 2, size[1] / 2
     t = math.radians(angle)
     dx, dy = x - cx, y - cy
@@ -153,7 +157,7 @@ def ocr_page(page: pymupdf.Page, dpi: int = 300) -> tuple[list[Word], list[TextL
             continue
         left, top = data["left"][i], data["top"][i]
         corners = [
-            _to_original(x, y, angle, scan.size)
+            unrotate_point(x, y, angle, scan.size)
             for x, y in (
                 (left, top),
                 (left + data["width"][i], top),

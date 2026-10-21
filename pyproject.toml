@@ -39,4 +39,6 @@ markers = [
 filterwarnings = [
   # PyMuPDF's SWIG bindings warn on import under Python 3.12 (dependency issue).
   "ignore:builtin type .* has no __module__ attribute:DeprecationWarning",
+  # torch warns on import inside ultralytics/rfdetr (dependency issue).
+  "ignore:`torch.jit.script` is deprecated:FutureWarning",
 ]

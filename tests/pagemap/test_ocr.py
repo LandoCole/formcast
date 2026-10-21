@@ -143,7 +143,7 @@ def test_unrotate_point_inverts_deskew():
         ((x, y) for x in range(400) for y in range(300)),
         key=lambda p: fixed.getpixel(p),
     )
-    x, y = ocr._to_original(px[0] + 0.5, px[1] + 0.5, angle, fixed.size)
+    x, y = ocr.unrotate_point(px[0] + 0.5, px[1] + 0.5, angle, fixed.size)
     sx, sy = min(
         ((x_, y_) for x_ in range(400) for y_ in range(300)),
         key=lambda p: skewed.getpixel(p),
