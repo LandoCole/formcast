@@ -6,12 +6,13 @@
 Notes:
 
 - Detection is scored on the manifest's scored pages that have at least one GT field (the baseline's pages); tables count one box per cell.
-- Multi-line answer areas are representation-neutral: a plain template text field with style.multiline or at least 1.8x the page's median GT text-box height also covers every unmatched GT text box at least 70% inside it (recall), counts once for precision, and gets path credit through the GT line box that carries the path.
+- Multi-line answer areas are representation-neutral: a plain template text field with style.multiline or at least 1.8x the page's median GT text-box height also covers every unmatched GT text box at least 70% inside it (recall), counts once for precision, and gets path credit through the GT line box that carries the path. It only does so when at least two such GT boxes are stacked in one column inside it (horizontal overlap of 50% or more); a single loose box is scored by the normal IoU threshold.
 - Fillable forms as published: the template starts with one field per PDF widget (the real use case is mapping existing fields), and GT is the widgets, so agent-added boxes on blanks without a widget count as false positives.
 - fake_scan: an image-only PDF of the baseline's seeded fake-scan renders (widgets stripped), so the agent faces the scanned-page path (deskew, FFDetr, OCR); on fillable forms it is a detection + mapping test.
 - Baseline: bare-detector numbers from the baseline run on the same images: FFDNet-L (default for digital pages) for as_published digital/fillable forms, FFDetr (default for scanned pages) for fake_scan and scanned forms. On fillable as_published forms the baseline detects on the widget-stripped page.
 - Mapping is over GT fields with a schema path. Transform credit uses equivalence groups {slice, split, char_at}, {date_part, date_format}, {equals, contains}, and a when equals true also credits bool_to_check; a template's join and when count as ops. joint = path and transforms right; exact = the matched field's source paths equal GT path + also_paths.
-- Totals are micro-averaged over forms (sums of counts).
+- Totals are micro-averaged over forms (sums of counts). Sessions that ended in an error (infrastructure or harness) are listed in the per-form table but excluded from the totals' detection and mapping figures; their templates are partial or untouched seeds.
+- The agent's form map carries the neutral source name 'form.pdf', not the file name.
 
 ## Per form
 
@@ -26,9 +27,9 @@ Notes:
 | i9 | fillable | as_published | 130 | 130 | 1.00 (1.00) | 1.00 | 1.00 | FFDNet-L | 0.95 (0.95) | 0.96 | 1.00 | 0.43 | 0.79 | 1.00 | 114 | 8 | 199,599 / 20,388 | 108 | finish | 2 |
 | i9 | fillable | fake_scan | 130 | 116 | 0.87 (0.83) | 0.97 | 0.97 | FFDetr | 0.94 (0.92) | 0.94 | 0.59 | 0.17 | 0.44 | 0.59 | 114 | 34 | 800,511 / 86,056 | 443 | finish | 14 |
 | f8949 | fillable | as_published | 202 | 180 | 0.89 (0.24) | 1.00 | 1.00 | FFDNet-L | 0.99 (0.98) | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 170 | 8 | 200,516 / 14,545 | 78 | finish | 2 |
-| f8949 | fillable | fake_scan | 202 | 194 | 0.86 (0.26) | 0.89 | 1.00 | FFDetr | 0.83 (0.44) | 0.83 | 0.88 | 0.83 | 0.88 | 0.88 | 170 | 14 | 320,442 / 54,536 | 262 | finish | 2 |
+| f8949 | fillable | fake_scan | 202 | 194 | 0.86 (0.23) | 0.89 | 1.00 | FFDetr | 0.83 (0.44) | 0.83 | 0.88 | 0.83 | 0.88 | 0.88 | 170 | 14 | 320,442 / 54,536 | 262 | finish | 2 |
 | cms1500 | flat | as_published | 254 | 116 | 0.41 (0.22) | 0.89 | 0.97 | FFDNet-L | 0.52 (0.50) | 0.83 | 0.30 | 0.24 | 0.28 | 0.30 | 227 | 40 | 1,171,187 / 97,679 | 499 | budget | 0 |
-| cms1500 | flat | fake_scan | 254 | 25 | 0.06 (0.04) | 0.64 | 1.00 | FFDetr | 0.04 (0.01) | 0.61 | 0.07 | 0.09 | 0.07 | 0.07 | 227 | 16 | 337,753 / 25,262 | 129 | finish | 81 |
+| cms1500 | flat | fake_scan | 254 | 25 | 0.06 (0.03) | 0.64 | 1.00 | FFDetr | 0.04 (0.01) | 0.61 | 0.07 | 0.09 | 0.07 | 0.07 | 227 | 16 | 337,753 / 25,262 | 129 | finish | 81 |
 | menomonie_app | fillable | as_published | 56 | 54 | 1.00 (1.00) | 1.00 | 1.00 | FFDNet-L | 1.00 (1.00) | 1.00 | 1.00 | 1.00 | 1.00 | 0.98 | 50 | 19 | 365,341 / 45,823 | 230 | finish | 2 |
 | menomonie_app | fillable | fake_scan | 56 | 56 | 0.80 (0.52) | 0.77 | 1.00 | FFDetr | 0.98 (0.91) | 0.98 | 0.66 | 0.65 | 0.58 | 0.58 | 50 | 39 | 677,411 / 84,377 | 426 | finish | 8 |
 | columbus_medhist | fillable | as_published | 160 | 160 | 1.00 (1.00) | 1.00 | 1.00 | FFDNet-L | 0.99 (0.29) | 0.99 | 0.99 | 0.84 | 0.85 | 0.99 | 142 | 10 | 248,210 / 25,189 | 115 | finish | 3 |
@@ -48,4 +49,6 @@ Notes:
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
 | all | 24 (0) | 23 | 2906 | 2293 | 0.73 (0.55) | 0.92 | 0.99 | 0.75 (0.60) | 0.92 | 0.66 | 0.56 | 0.59 | 0.64 | 480 | 10,791,801 / 1,099,069 | 5520 |
 | as_published | 12 (0) | 11 | 1453 | 1266 | 0.82 (0.69) | 0.94 | 1.00 | 0.85 (0.76) | 0.95 | 0.79 | 0.68 | 0.72 | 0.77 | 199 | 4,771,100 / 455,792 | 2300 |
-| fake_scan | 12 (0) | 12 | 1453 | 1027 | 0.63 (0.41) | 0.89 | 0.99 | 0.65 (0.45) | 0.89 | 0.53 | 0.45 | 0.46 | 0.52 | 281 | 6,020,701 / 643,277 | 3220 |
+| fake_scan | 12 (0) | 12 | 1453 | 1027 | 0.63 (0.40) | 0.89 | 0.99 | 0.65 (0.45) | 0.89 | 0.53 | 0.45 | 0.46 | 0.52 | 281 | 6,020,701 / 643,277 | 3220 |
+
+Re-scored: 2026-10-21 at commit 6b01f29-dirty: the saved templates were scored again with the stacked-lines rule for multi-line fields; model output is unchanged.

@@ -47,6 +47,15 @@ Usage:
     python eval/agent_eval.py --split dev --model-env ANTHROPIC_EVAL,OPENAI_EVAL
         [--forms id,...] [--variant as_published|fake_scan|both] [--jobs 3]
         [--stamp YYYY-MM-DD] [--tag round1] [--max-steps N]
+
+No-model modes (no API calls):
+    python eval/agent_eval.py --split dev|heldout --seed-only [--forms ...] [--variant ...] [--tag ...]
+        scores the untouched seeded template (``new_template(..., candidates=True)``: one field per
+        widget and per detector candidate, before any agent step) per form/variant, written to
+        ``agent_seed_<split>_<run>.{json,md}``; it is the floor the agent's edits are measured against.
+    python eval/agent_eval.py --rescore eval/results/agent_<...>.json [--baseline-stamp STAMP]
+        re-scores the saved templates of a results file with the current scorer and rewrites its
+        json/md in place (baseline columns are recomputed from ``baseline_detection_<STAMP>.json``).
 """
 
 from __future__ import annotations
@@ -103,7 +112,8 @@ NOTES = [
     "Multi-line answer areas are representation-neutral: a plain template text field with style.multiline or "
     "at least 1.8x the page's median GT text-box height also covers every unmatched GT text box at least 70% "
     "inside it (recall), counts once for precision, and gets path credit through the GT line box that carries "
-    "the path.",
+    "the path. It only does so when at least two such GT boxes are stacked in one column inside it (horizontal "
+    "overlap of 50% or more); a single loose box is scored by the normal IoU threshold.",
     "Fillable forms as published: the template starts with one field per PDF widget (the real use case is "
     "mapping existing fields), and GT is the widgets, so agent-added boxes on blanks without a widget count as "
     "false positives.",
@@ -116,7 +126,9 @@ NOTES = [
     "char_at}, {date_part, date_format}, {equals, contains}, and a when equals true also credits bool_to_check; "
     "a template's join and when count as ops. joint = "
     "path and transforms right; exact = the matched field's source paths equal GT path + also_paths.",
-    "Totals are micro-averaged over forms (sums of counts).",
+    "Totals are micro-averaged over forms (sums of counts). Sessions that ended in an error (infrastructure or "
+    "harness) are listed in the per-form table but excluded from the totals' detection and mapping figures; "
+    "their templates are partial or untouched seeds.",
     f"The agent's form map carries the neutral source name {ANON_SOURCE_NAME!r}, not the file name.",
 ]
 
@@ -287,8 +299,10 @@ def _mapping_totals(parts: list[dict]) -> dict:
 def totals(rows: list[dict]) -> dict:
     """Micro-averaged totals per variant and over all rows ("all").
 
-    Rows without scores (a harness error or no GT) count as ``failed``.
-    ``baseline`` sums the scored rows that have baseline numbers (None when none do).
+    Rows without scores (a harness error or no GT) and rows whose session ended
+    in an error (``error`` set: cut off by the provider, partial template) count as
+    ``failed`` and are left out of the detection, baseline and mapping figures;
+    ``errored`` lists them as "form/variant". ``baseline`` sums the scored rows that have baseline numbers (None when none do).
     """
     groups = {"all": rows}
     for v in VARIANTS:
@@ -296,11 +310,12 @@ def totals(rows: list[dict]) -> dict:
             groups[v] = [r for r in rows if r["variant"] == v]
     out = {}
     for name, rs in groups.items():
-        ok = [r for r in rs if r.get("detection") and r.get("mapping")]
+        ok = [r for r in rs if r.get("detection") and r.get("mapping") and not r.get("error")]
         based = [r for r in ok if r.get("baseline")]
         out[name] = {
             "forms": len(ok),
             "failed": len(rs) - len(ok),
+            "errored": [f"{r.get('form')}/{r['variant']}" for r in rs if r.get("error")],
             "finished": sum(bool(r.get("finished")) for r in rs),
             "detection": {k: _det_totals([r["detection"][k] for r in ok]) for k in IOU_KEYS},
             "baseline": (
@@ -403,6 +418,18 @@ def prepare(form: dict, variant: str, run_dir: str) -> dict:
     }
 
 
+def score_row(row: dict, t, form: dict):
+    """Fill ``row``'s detection, mapping and scored pages from template ``t``; returns the GT (None without any)."""
+    gt = score.load_gt(form, FORMS / form["split"] / f"{form['id']}.pdf")
+    if gt:
+        row["detection"] = detection_scores(gt, t)
+        row["mapping"] = {
+            k: (round(v, 4) if isinstance(v, float) else v) for k, v in score.score_mapping(gt, t).items()
+        }
+        row["scored_pages"] = sorted({g.page for g in gt})
+    return gt
+
+
 def _draw_gt(png: bytes, page: pymupdf.Page, gt: list[score.GTField]) -> bytes:
     image = Image.open(io.BytesIO(png)).convert("RGB")
     draw = ImageDraw.Draw(image)
@@ -480,14 +507,7 @@ def run_one(job: dict) -> dict:
         _write(template_path, t.to_json(), redactor)
         row["template_path"] = str(template_path.relative_to(ROOT))
 
-        original = FORMS / form["split"] / f"{form['id']}.pdf"
-        gt = score.load_gt(form, original)
-        if gt:
-            row["detection"] = detection_scores(gt, t)
-            row["mapping"] = {
-                k: (round(v, 4) if isinstance(v, float) else v) for k, v in score.score_mapping(gt, t).items()
-            }
-            row["scored_pages"] = sorted({g.page for g in gt})
+        gt = score_row(row, t, form)
 
         overlay_dir = Path(job["overlays_dir"]) / tag_dir
         overlay_dir.mkdir(parents=True, exist_ok=True)
@@ -552,7 +572,7 @@ def render_markdown(meta: dict, rows: list[dict], tot: dict) -> str:
         d, m, b = r["detection"], r["mapping"], r.get("baseline")
         rec, prec, tacc = _det_cell(d)
         brec, bprec, _ = _det_cell(b)
-        stop = r["stop_reason"] + (f" ({r['error'][:60]})" if r.get("error") else "")
+        stop = r["stop_reason"] + (f" (EXCLUDED from totals: {r['error'][:60]})" if r.get("error") else "")
         lines.append(
             f"| {r['form']} | {r['kind']} | {r['variant']} | {d['iou0.3']['gt']} | {d['iou0.3']['pred']} | {rec} | "
             f"{prec} | {tacc} | {b['detector'] if b else '–'} | {brec} | {bprec} | {_pct(m['path_acc'])} | "
@@ -577,6 +597,11 @@ def render_markdown(meta: dict, rows: list[dict], tot: dict) -> str:
             f"{_pct(m['joint_acc'])} | {_pct(m['exact_path_set_acc'])} | {t['steps']} | "
             f"{t['input_tokens']:,} / {t['output_tokens']:,} | {t['wall_s']:.0f} |"
         )
+    errored = tot["all"].get("errored") if "all" in tot else None
+    if errored:
+        lines += ["", f"Excluded from the totals above (session ended in an error): {', '.join(errored)}."]
+    if meta.get("rescored"):
+        lines += ["", f"Re-scored: {meta['rescored']}"]
     return "\n".join(lines) + "\n"
 
 
@@ -600,9 +625,14 @@ def _split_list(values: list[str] | None) -> list[str]:
 
 def parse_args(argv=None) -> argparse.Namespace:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--split", required=True, choices=["dev", "heldout"])
-    ap.add_argument("--model-env", action="append", required=True,
-                    help="LLM config env prefix, e.g. ANTHROPIC_EVAL; repeatable or comma-separated")
+    ap.add_argument("--split", choices=["dev", "heldout"], help="required unless --rescore")
+    ap.add_argument("--model-env", action="append",
+                    help="LLM config env prefix, e.g. ANTHROPIC_EVAL; repeatable or comma-separated "
+                         "(required unless --seed-only or --rescore)")
+    ap.add_argument("--seed-only", action="store_true",
+                    help="score the untouched seeded template of each form/variant; no model, no API calls")
+    ap.add_argument("--rescore", metavar="RESULTS_JSON", default=None,
+                    help="re-score the saved templates of a results file with the current scorer; no API calls")
     ap.add_argument("--forms", default=None, help="comma-separated form ids (default: the whole split)")
     ap.add_argument("--variant", default="as_published", choices=["as_published", "fake_scan", "both"])
     ap.add_argument("--jobs", type=int, default=3, help="sessions run in parallel processes")
@@ -612,6 +642,12 @@ def parse_args(argv=None) -> argparse.Namespace:
     ap.add_argument("--baseline-stamp", default=DEFAULT_BASELINE_STAMP)
     args = ap.parse_args(argv)
     args.model_env = _split_list(args.model_env)
+    if args.rescore and args.seed_only:
+        ap.error("--rescore and --seed-only are separate modes")
+    if not args.rescore and not args.split:
+        ap.error("--split is required")
+    if not args.rescore and not args.seed_only and not args.model_env:
+        ap.error("--model-env is required (or use --seed-only / --rescore)")
     if args.jobs < 1:
         ap.error("--jobs must be at least 1")
     return args
@@ -640,8 +676,107 @@ def variants_for(form: dict, variant: str) -> list[str]:
     return [v for v in wanted if v == "as_published" or form["kind"] != "scanned"]
 
 
+def _load_baseline_rows(stamp: str) -> tuple[Path, list[dict]]:
+    path = RESULTS / f"baseline_detection_{stamp}.json"
+    rows = json.loads(path.read_text()) if path.exists() else []
+    if not rows:
+        print(f"warning: no baseline rows in {path.name}; baseline columns stay empty", flush=True)
+    return path, rows
+
+
+def rescore_main(args) -> None:
+    """Re-score the saved templates of a results file in place (no model, no API calls)."""
+    from formcast.template.model import Template
+
+    path = Path(args.rescore)
+    if not path.is_absolute():
+        path = ROOT / path
+    data = json.loads(path.read_text())
+    meta, rows = data["meta"], data["rows"]
+    baseline_file, baseline_rows = _load_baseline_rows(args.baseline_stamp)
+    manifest = {f["id"]: f for f in json.loads((FORMS / "manifest.json").read_text())["forms"]}
+    done = 0
+    for r in rows:
+        tp = r.get("template_path")
+        if not tp or not (ROOT / tp).is_file():
+            print(f"  no saved template for {r['form']} {r['variant']}; row left as it was", flush=True)
+            continue
+        form = manifest[r["form"]]
+        r["baseline"] = baseline_scores(baseline_rows, form["id"], r["variant"],
+                                        baseline_detector(form["kind"], r["variant"]))
+        r["detection"] = r["mapping"] = None
+        score_row(r, Template.from_json((ROOT / tp).read_text()), form)
+        done += 1
+    tot = totals(rows)
+    meta.update({
+        "notes": NOTES, "baseline_file": baseline_file.name,
+        "rescored": f"{dt.date.today().isoformat()} at commit {_git_commit()}: the saved templates were scored again "
+                    "with the stacked-lines rule for multi-line fields; model output is unchanged.",
+    })  # fmt: skip
+    _write_json(path, {"meta": meta, "rows": rows, "totals": tot}, Redactor([]))
+    _write(path.with_suffix(".md"), render_markdown(meta, rows, tot), Redactor([]))
+    print(f"re-scored {done} of {len(rows)} rows; wrote {path.relative_to(ROOT)} and .md", flush=True)
+
+
+def seed_main(args) -> None:
+    """Score the seeded template of each form/variant, with no agent step (no model, no API calls)."""
+    from formcast.pagemap.model import FormMap
+    from formcast.template.model import new_template
+
+    stamp = args.stamp or dt.date.today().isoformat()
+    run = _run_name(stamp, args.tag)
+    manifest = json.loads((FORMS / "manifest.json").read_text())["forms"]
+    forms = select_forms(manifest, args.split, args.forms)
+    pairs = [(f, v) for f in forms for v in variants_for(f, args.variant)]
+    if not pairs:
+        raise SystemExit("nothing to run (fake_scan is not run on scanned forms)")
+    run_dir = RESULTS / "logs" / f"seed_{run}"
+    baseline_file, baseline_rows = _load_baseline_rows(args.baseline_stamp)
+    ctx = multiprocessing.get_context("spawn")
+    print(f"preparing {len(pairs)} form/variant inputs with {args.jobs} jobs", flush=True)
+    with ProcessPoolExecutor(max_workers=args.jobs, mp_context=ctx) as pool:
+        futures = {(f["id"], v): pool.submit(prepare, f, v, str(run_dir)) for f, v in pairs}
+        prepared = {k: fut.result() for k, fut in futures.items()}
+    rows = []
+    for f, v in pairs:
+        prep = prepared[(f["id"], v)]
+        schema = json.loads((FORMS / "schemas" / f"{f['id']}.json").read_text())
+        fm = FormMap.model_validate_json(Path(prep["formmap_path"]).read_text())
+        row = {
+            "form": f["id"], "split": f["split"], "kind": f["kind"], "variant": v, "model_env": "SEED",
+            "model": "seed-only", "detection": None, "mapping": None,
+            "baseline": baseline_scores(baseline_rows, f["id"], v, baseline_detector(f["kind"], v)),
+            "stop_reason": "seed_only", "finished": False, "error": None, "steps": 0, "input_tokens": 0,
+            "output_tokens": 0, "wall_s": 0.0, "unplaceable": 0,
+            **{k: prep[k] for k in ("formmap_s", "page_kinds", "text_sources", "candidates")},
+        }  # fmt: skip
+        t = new_template(schema, fm, candidates=True)
+        row["fields"] = len(t.fields)
+        score_row(row, t, f)
+        rows.append(row)
+        d, m = row["detection"]["iou0.3"], row["detection"]["iou0.5"]
+        print(f"  {f['id']} {v}: seeded recall@.5={m['recall']} recall@.3={d['recall']} precision@.3={d['precision']}",
+              flush=True)
+    tot = totals(rows)
+    meta = {
+        "model_env": "SEED", "model": "seed-only (no model; untouched seeded template)", "api_format": "none",
+        "split": args.split, "variant": args.variant, "forms": [f["id"] for f in forms], "stamp": stamp,
+        "tag": args.tag, "run": run, "commit": _git_commit(), "budget": {}, "baseline_file": baseline_file.name,
+        "jobs": args.jobs, "argv": sys.argv[1:], "notes": NOTES,
+        "finished_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
+    }  # fmt: skip
+    base = RESULTS / f"agent_seed_{args.split}_{run}"
+    _write_json(base.with_suffix(".json"), {"meta": meta, "rows": rows, "totals": tot}, Redactor([]))
+    _write(base.with_suffix(".md"), render_markdown(meta, rows, tot), Redactor([]))
+    print(f"wrote {base.with_suffix('.json').relative_to(ROOT)} and .md", flush=True)
+
+
 def main(argv=None) -> None:
     args = parse_args(argv)
+    if args.rescore:
+        return rescore_main(args)
+    if args.seed_only:
+        return seed_main(args)
     from formcast.agent.session import SessionBudget
 
     load_eval_env(args.model_env)

@@ -30,7 +30,7 @@ from collections.abc import Callable
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from formcast.errors import OpError
-from formcast.geometry import Rect, iou
+from formcast.geometry import Rect, contained_fraction, iou
 from formcast.schema import SchemaPath
 from formcast.template.model import Field, HistoryEntry, Source, Style, TableSegment, Template
 from formcast.template.op_models import (
@@ -384,7 +384,7 @@ class _Run:
             g.id
             for g in self.t.fields
             if g is not f and g.rect is not None
-            and any(p == g.page and _inside_share(g.rect, c) >= CELL_COVER_SHARE for p, c in cells)
+            and any(p == g.page and contained_fraction(g.rect, c) >= CELL_COVER_SHARE for p, c in cells)
         ]
         if not covered:
             return []
@@ -416,14 +416,6 @@ class _Run:
                                "bool_to_check transform; add when (e.g. equals/contains) or bool_to_check "
                                "so the box state is explicit")
         return out
-
-
-def _inside_share(inner: Rect, outer: Rect) -> float:
-    """Share of ``inner``'s area inside ``outer``."""
-    w = min(inner[2], outer[2]) - max(inner[0], outer[0])
-    h = min(inner[3], outer[3]) - max(inner[1], outer[1])
-    area = (inner[2] - inner[0]) * (inner[3] - inner[1])
-    return w * h / area if w > 0 and h > 0 and area > 0 else 0.0
 
 
 # ------------------------------------------------------------------ handlers

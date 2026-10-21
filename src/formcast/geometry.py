@@ -29,6 +29,15 @@ def iou(a: Rect, b: Rect) -> float:
     return inter_area / union if union > 0 else 0.0
 
 
+def contained_fraction(inner: Rect, outer: Rect) -> float:
+    """Share (0..1) of ``inner``'s area that lies inside ``outer``; 0.0 for disjoint or empty ``inner``."""
+    a = area(inner)
+    inter = intersect(inner, outer)
+    if inter is None or a <= 0:
+        return 0.0
+    return area(inter) / a
+
+
 def norm_to_points(box: Rect, page_rect: Rect) -> Rect:
     """Map a box normalized to ``page_rect`` (0..1 on both axes) into point space."""
     px0, py0, px1, py1 = page_rect

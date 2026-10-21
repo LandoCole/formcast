@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pydantic import BaseModel
 
-from formcast.geometry import Rect, iou
+from formcast.geometry import Rect, contained_fraction, iou
 from formcast.pagemap.model import FormMap
 from formcast.schema import SchemaPath
 from formcast.template.model import Field, Template
@@ -47,15 +47,8 @@ def _field_regions(f: Field) -> list[tuple[int, Rect]]:
     return out
 
 
-def _inside_share(inner: Rect, outer: Rect) -> float:
-    w = min(inner[2], outer[2]) - max(inner[0], outer[0])
-    h = min(inner[3], outer[3]) - max(inner[1], outer[1])
-    area = (inner[2] - inner[0]) * (inner[3] - inner[1])
-    return w * h / area if w > 0 and h > 0 and area > 0 else 0.0
-
-
 def _covers(region: Rect, cand: Rect) -> bool:
-    return iou(cand, region) >= CANDIDATE_IOU or _inside_share(cand, region) >= CANDIDATE_INSIDE
+    return iou(cand, region) >= CANDIDATE_IOU or contained_fraction(cand, region) >= CANDIDATE_INSIDE
 
 
 def coverage(template: Template, form_map: FormMap, schema_paths: list[SchemaPath]) -> Coverage:

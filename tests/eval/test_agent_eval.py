@@ -294,3 +294,23 @@ def test_form_maps_given_to_the_agent_do_not_carry_the_file_name():
     anon = agent_eval.anonymized(fm)
     assert anon.source_name == agent_eval.ANON_SOURCE_NAME and anon.fingerprint == "x"
     assert "some_known_form" not in summarize(anon)
+
+
+def test_totals_leave_out_sessions_that_ended_in_an_error_and_list_them():
+    bad = {**_row("as_published", 10, 10, 9, 4, 4, 100, 10), "form": "cut", "error": "usage limit"}
+    good = {**_row("as_published", 10, 10, 9, 4, 4, 100, 10), "form": "ok"}
+    out = agent_eval.totals([good, bad])
+    assert out["all"]["forms"] == 1 and out["all"]["failed"] == 1
+    assert out["all"]["detection"]["iou0.3"]["gt"] == 10  # the cut-off session's template is not counted
+    assert out["all"]["errored"] == ["cut/as_published"]
+    assert out["all"]["input_tokens"] == 200  # spend is still counted
+
+
+def test_parse_args_modes_that_need_no_model():
+    seed = agent_eval.parse_args(["--split", "dev", "--seed-only"])
+    assert seed.seed_only and seed.model_env == []
+    rescore = agent_eval.parse_args(["--rescore", "eval/results/x.json"])
+    assert rescore.rescore == "eval/results/x.json" and rescore.split is None
+    for bad in (["--split", "dev"], ["--model-env", "A_EVAL"], ["--rescore", "x", "--seed-only"]):
+        with pytest.raises(SystemExit):
+            agent_eval.parse_args(bad)

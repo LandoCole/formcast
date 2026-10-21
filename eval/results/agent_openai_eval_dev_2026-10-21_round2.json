@@ -46,14 +46,16 @@
   ],
   "notes": [
    "Detection is scored on the manifest's scored pages that have at least one GT field (the baseline's pages); tables count one box per cell.",
-   "Multi-line answer areas are representation-neutral: a plain template text field with style.multiline or at least 1.8x the page's median GT text-box height also covers every unmatched GT text box at least 70% inside it (recall), counts once for precision, and gets path credit through the GT line box that carries the path.",
+   "Multi-line answer areas are representation-neutral: a plain template text field with style.multiline or at least 1.8x the page's median GT text-box height also covers every unmatched GT text box at least 70% inside it (recall), counts once for precision, and gets path credit through the GT line box that carries the path. It only does so when at least two such GT boxes are stacked in one column inside it (horizontal overlap of 50% or more); a single loose box is scored by the normal IoU threshold.",
    "Fillable forms as published: the template starts with one field per PDF widget (the real use case is mapping existing fields), and GT is the widgets, so agent-added boxes on blanks without a widget count as false positives.",
    "fake_scan: an image-only PDF of the baseline's seeded fake-scan renders (widgets stripped), so the agent faces the scanned-page path (deskew, FFDetr, OCR); on fillable forms it is a detection + mapping test.",
    "Baseline: bare-detector numbers from the baseline run on the same images: FFDNet-L (default for digital pages) for as_published digital/fillable forms, FFDetr (default for scanned pages) for fake_scan and scanned forms. On fillable as_published forms the baseline detects on the widget-stripped page.",
    "Mapping is over GT fields with a schema path. Transform credit uses equivalence groups {slice, split, char_at}, {date_part, date_format}, {equals, contains}, and a when equals true also credits bool_to_check; a template's join and when count as ops. joint = path and transforms right; exact = the matched field's source paths equal GT path + also_paths.",
-   "Totals are micro-averaged over forms (sums of counts)."
+   "Totals are micro-averaged over forms (sums of counts). Sessions that ended in an error (infrastructure or harness) are listed in the per-form table but excluded from the totals' detection and mapping figures; their templates are partial or untouched seeds.",
+   "The agent's form map carries the neutral source name 'form.pdf', not the file name."
   ],
-  "finished_at": "2026-10-21T08:30:08+00:00"
+  "finished_at": "2026-10-21T08:30:08+00:00",
+  "rescored": "2026-10-21 at commit 6b01f29-dirty: the saved templates were scored again with the stacked-lines rule for multi-line fields; model output is unchanged."
  },
  "rows": [
   {
@@ -591,14 +593,14 @@
     "iou0.3": {
      "gt": 33,
      "pred": 38,
-     "matched": 32,
-     "pred_matched": 32,
-     "recall": 0.9697,
-     "precision": 0.8421,
-     "type_ok": 32,
+     "matched": 31,
+     "pred_matched": 31,
+     "recall": 0.9394,
+     "precision": 0.8158,
+     "type_ok": 31,
      "type_acc": 1.0,
      "missed_by_type": {
-      "text": 1,
+      "text": 2,
       "choice": 0,
       "signature": 0
      }
@@ -606,14 +608,14 @@
     "iou0.5": {
      "gt": 33,
      "pred": 38,
-     "matched": 25,
-     "pred_matched": 25,
-     "recall": 0.7576,
-     "precision": 0.6579,
-     "type_ok": 25,
+     "matched": 24,
+     "pred_matched": 24,
+     "recall": 0.7273,
+     "precision": 0.6316,
+     "type_ok": 24,
      "type_acc": 1.0,
      "missed_by_type": {
-      "text": 7,
+      "text": 8,
       "choice": 0,
       "signature": 1
      }
@@ -648,16 +650,16 @@
    "mapping": {
     "n_path": 29,
     "n_transform": 16,
-    "matched": 29,
-    "path_ok": 29,
+    "matched": 28,
+    "path_ok": 28,
     "transform_ok": 13,
-    "joint_ok": 26,
-    "exact_ok": 26,
-    "matched_rate": 1.0,
-    "path_acc": 1.0,
+    "joint_ok": 25,
+    "exact_ok": 25,
+    "matched_rate": 0.9655,
+    "path_acc": 0.9655,
     "transform_acc": 0.8125,
-    "joint_acc": 0.8966,
-    "exact_path_set_acc": 0.8966
+    "joint_acc": 0.8621,
+    "exact_path_set_acc": 0.8621
    },
    "formmap_s": 6.4,
    "page_kinds": [
@@ -1050,14 +1052,14 @@
     "iou0.5": {
      "gt": 202,
      "pred": 181,
-     "matched": 42,
-     "pred_matched": 42,
-     "recall": 0.2079,
-     "precision": 0.232,
-     "type_ok": 42,
+     "matched": 39,
+     "pred_matched": 39,
+     "recall": 0.1931,
+     "precision": 0.2155,
+     "type_ok": 39,
      "type_acc": 1.0,
      "missed_by_type": {
-      "text": 154,
+      "text": 157,
       "choice": 6,
       "signature": 0
      }
@@ -1255,14 +1257,14 @@
     "iou0.3": {
      "gt": 254,
      "pred": 34,
-     "matched": 21,
-     "pred_matched": 19,
-     "recall": 0.0827,
-     "precision": 0.5588,
-     "type_ok": 21,
+     "matched": 17,
+     "pred_matched": 17,
+     "recall": 0.0669,
+     "precision": 0.5,
+     "type_ok": 17,
      "type_acc": 1.0,
      "missed_by_type": {
-      "text": 211,
+      "text": 215,
       "choice": 19,
       "signature": 3
      }
@@ -1270,14 +1272,14 @@
     "iou0.5": {
      "gt": 254,
      "pred": 34,
-     "matched": 14,
-     "pred_matched": 12,
-     "recall": 0.0551,
-     "precision": 0.3529,
-     "type_ok": 14,
+     "matched": 8,
+     "pred_matched": 8,
+     "recall": 0.0315,
+     "precision": 0.2353,
+     "type_ok": 8,
      "type_acc": 1.0,
      "missed_by_type": {
-      "text": 212,
+      "text": 218,
       "choice": 25,
       "signature": 3
      }
@@ -1312,16 +1314,16 @@
    "mapping": {
     "n_path": 227,
     "n_transform": 118,
-    "matched": 21,
-    "path_ok": 20,
+    "matched": 17,
+    "path_ok": 17,
     "transform_ok": 13,
-    "joint_ok": 18,
-    "exact_ok": 20,
-    "matched_rate": 0.0925,
-    "path_acc": 0.0881,
+    "joint_ok": 17,
+    "exact_ok": 17,
+    "matched_rate": 0.0749,
+    "path_acc": 0.0749,
     "transform_acc": 0.1102,
-    "joint_acc": 0.0793,
-    "exact_path_set_acc": 0.0881
+    "joint_acc": 0.0749,
+    "exact_path_set_acc": 0.0749
    },
    "formmap_s": 29.8,
    "page_kinds": [
@@ -1927,14 +1929,14 @@
     "iou0.3": {
      "gt": 323,
      "pred": 213,
-     "matched": 202,
-     "pred_matched": 199,
-     "recall": 0.6254,
-     "precision": 0.9343,
-     "type_ok": 201,
-     "type_acc": 0.995,
+     "matched": 198,
+     "pred_matched": 198,
+     "recall": 0.613,
+     "precision": 0.9296,
+     "type_ok": 197,
+     "type_acc": 0.9949,
      "missed_by_type": {
-      "text": 79,
+      "text": 83,
       "choice": 41,
       "signature": 1
      }
@@ -1942,14 +1944,14 @@
     "iou0.5": {
      "gt": 323,
      "pred": 213,
-     "matched": 160,
-     "pred_matched": 157,
-     "recall": 0.4954,
-     "precision": 0.7371,
-     "type_ok": 159,
-     "type_acc": 0.9938,
+     "matched": 156,
+     "pred_matched": 156,
+     "recall": 0.483,
+     "precision": 0.7324,
+     "type_ok": 155,
+     "type_acc": 0.9936,
      "missed_by_type": {
-      "text": 100,
+      "text": 104,
       "choice": 62,
       "signature": 1
      }
@@ -1987,12 +1989,12 @@
    "mapping": {
     "n_path": 247,
     "n_transform": 117,
-    "matched": 82,
+    "matched": 78,
     "path_ok": 0,
     "transform_ok": 0,
     "joint_ok": 0,
     "exact_ok": 0,
-    "matched_rate": 0.332,
+    "matched_rate": 0.3158,
     "path_acc": 0.0,
     "transform_acc": 0.0,
     "joint_acc": 0.0,
@@ -2719,66 +2721,78 @@
  ],
  "totals": {
   "all": {
-   "forms": 24,
-   "failed": 0,
+   "forms": 14,
+   "failed": 10,
+   "errored": [
+    "columbus_medhist/as_published",
+    "columbus_medhist/fake_scan",
+    "grandview_app/as_published",
+    "grandview_app/fake_scan",
+    "csudh_health/as_published",
+    "csudh_health/fake_scan",
+    "fw9/as_published",
+    "fw9/fake_scan",
+    "fw4/as_published",
+    "fw4/fake_scan"
+   ],
    "finished": 13,
    "detection": {
     "iou0.3": {
-     "gt": 2906,
-     "pred": 2336,
-     "matched": 2170,
-     "pred_matched": 2145,
-     "type_ok": 2143,
-     "recall": 0.7467,
-     "precision": 0.9182,
-     "type_acc": 0.9876
+     "gt": 1448,
+     "pred": 1113,
+     "matched": 1003,
+     "pred_matched": 983,
+     "type_ok": 995,
+     "recall": 0.6927,
+     "precision": 0.8832,
+     "type_acc": 0.992
     },
     "iou0.5": {
-     "gt": 2906,
-     "pred": 2336,
-     "matched": 1634,
-     "pred_matched": 1609,
-     "type_ok": 1607,
-     "recall": 0.5623,
-     "precision": 0.6888,
-     "type_acc": 0.9835
+     "gt": 1448,
+     "pred": 1113,
+     "matched": 644,
+     "pred_matched": 624,
+     "type_ok": 636,
+     "recall": 0.4448,
+     "precision": 0.5606,
+     "type_acc": 0.9876
     }
    },
    "baseline": {
-    "forms": 24,
+    "forms": 14,
     "iou0.3": {
-     "gt": 2906,
-     "pred": 2355,
-     "matched": 2177,
-     "pred_matched": 2177,
-     "type_ok": 2106,
-     "recall": 0.7491,
-     "precision": 0.9244,
-     "type_acc": 0.9674
+     "gt": 1448,
+     "pred": 1118,
+     "matched": 1011,
+     "pred_matched": 1011,
+     "type_ok": 961,
+     "recall": 0.6982,
+     "precision": 0.9043,
+     "type_acc": 0.9505
     },
     "iou0.5": {
-     "gt": 2906,
-     "pred": 2355,
-     "matched": 1757,
-     "pred_matched": 1757,
-     "type_ok": 1687,
-     "recall": 0.6046,
-     "precision": 0.7461,
-     "type_acc": 0.9602
+     "gt": 1448,
+     "pred": 1118,
+     "matched": 889,
+     "pred_matched": 889,
+     "type_ok": 840,
+     "recall": 0.614,
+     "precision": 0.7952,
+     "type_acc": 0.9449
     }
    },
    "mapping": {
-    "n_path": 2394,
-    "n_transform": 1336,
-    "matched": 1621,
-    "path_ok": 1110,
-    "transform_ok": 544,
-    "joint_ok": 1090,
-    "exact_ok": 1098,
-    "path_acc": 0.4637,
-    "transform_acc": 0.4072,
-    "joint_acc": 0.4553,
-    "exact_path_set_acc": 0.4586
+    "n_path": 1232,
+    "n_transform": 514,
+    "matched": 849,
+    "path_ok": 832,
+    "transform_ok": 304,
+    "joint_ok": 814,
+    "exact_ok": 820,
+    "path_acc": 0.6753,
+    "transform_acc": 0.5914,
+    "joint_acc": 0.6607,
+    "exact_path_set_acc": 0.6656
    },
    "steps": 307,
    "input_tokens": 5265982,
@@ -2786,66 +2800,73 @@
    "wall_s": 2600.3
   },
   "as_published": {
-   "forms": 12,
-   "failed": 0,
+   "forms": 7,
+   "failed": 5,
+   "errored": [
+    "columbus_medhist/as_published",
+    "grandview_app/as_published",
+    "csudh_health/as_published",
+    "fw9/as_published",
+    "fw4/as_published"
+   ],
    "finished": 7,
    "detection": {
     "iou0.3": {
-     "gt": 1453,
-     "pred": 1305,
-     "matched": 1225,
-     "pred_matched": 1214,
-     "type_ok": 1201,
-     "recall": 0.8431,
-     "precision": 0.9303,
-     "type_acc": 0.9804
+     "gt": 724,
+     "pred": 651,
+     "matched": 578,
+     "pred_matched": 567,
+     "type_ok": 570,
+     "recall": 0.7983,
+     "precision": 0.871,
+     "type_acc": 0.9862
     },
     "iou0.5": {
-     "gt": 1453,
-     "pred": 1305,
-     "matched": 1019,
-     "pred_matched": 1008,
-     "type_ok": 995,
-     "recall": 0.7013,
-     "precision": 0.7724,
-     "type_acc": 0.9764
+     "gt": 724,
+     "pred": 651,
+     "matched": 380,
+     "pred_matched": 369,
+     "type_ok": 372,
+     "recall": 0.5249,
+     "precision": 0.5668,
+     "type_acc": 0.9789
     }
    },
    "baseline": {
-    "forms": 12,
+    "forms": 7,
     "iou0.3": {
-     "gt": 1453,
-     "pred": 1291,
-     "matched": 1229,
-     "pred_matched": 1229,
-     "type_ok": 1180,
-     "recall": 0.8458,
-     "precision": 0.952,
-     "type_acc": 0.9601
+     "gt": 724,
+     "pred": 626,
+     "matched": 582,
+     "pred_matched": 582,
+     "type_ok": 552,
+     "recall": 0.8039,
+     "precision": 0.9297,
+     "type_acc": 0.9485
     },
     "iou0.5": {
-     "gt": 1453,
-     "pred": 1291,
-     "matched": 1100,
-     "pred_matched": 1100,
-     "type_ok": 1051,
-     "recall": 0.7571,
-     "precision": 0.8521,
-     "type_acc": 0.9555
+     "gt": 724,
+     "pred": 626,
+     "matched": 573,
+     "pred_matched": 573,
+     "type_ok": 543,
+     "recall": 0.7914,
+     "precision": 0.9153,
+     "type_acc": 0.9476
     }
    },
    "mapping": {
-    "n_path": 1197,
-    "n_transform": 668,
-    "matched": 894,
-    "path_ok": 617,
-    "transform_ok": 309,
-    "joint_ok": 604,
-    "exact_ok": 610,
-    "path_acc": 0.5155,
-    "transform_acc": 0.4626,
-    "joint_acc": 0.5046,
-    "exact_path_set_acc": 0.5096
+    "n_path": 616,
+    "n_transform": 257,
+    "matched": 471,
+    "path_ok": 458,
+    "transform_ok": 171,
+    "joint_ok": 445,
+    "exact_ok": 451,
+    "path_acc": 0.7435,
+    "transform_acc": 0.6654,
+    "joint_acc": 0.7224,
+    "exact_path_set_acc": 0.7321
    },
    "steps": 133,
    "input_tokens": 2413672,
@@ -2853,66 +2874,73 @@
    "wall_s": 1165.3
   },
   "fake_scan": {
-   "forms": 12,
-   "failed": 0,
+   "forms": 7,
+   "failed": 5,
+   "errored": [
+    "columbus_medhist/fake_scan",
+    "grandview_app/fake_scan",
+    "csudh_health/fake_scan",
+    "fw9/fake_scan",
+    "fw4/fake_scan"
+   ],
    "finished": 6,
    "detection": {
     "iou0.3": {
-     "gt": 1453,
-     "pred": 1031,
-     "matched": 945,
-     "pred_matched": 931,
-     "type_ok": 942,
-     "recall": 0.6504,
-     "precision": 0.903,
-     "type_acc": 0.9968
+     "gt": 724,
+     "pred": 462,
+     "matched": 425,
+     "pred_matched": 416,
+     "type_ok": 425,
+     "recall": 0.587,
+     "precision": 0.9004,
+     "type_acc": 1.0
     },
     "iou0.5": {
-     "gt": 1453,
-     "pred": 1031,
-     "matched": 615,
-     "pred_matched": 601,
-     "type_ok": 612,
-     "recall": 0.4233,
-     "precision": 0.5829,
-     "type_acc": 0.9951
+     "gt": 724,
+     "pred": 462,
+     "matched": 264,
+     "pred_matched": 255,
+     "type_ok": 264,
+     "recall": 0.3646,
+     "precision": 0.5519,
+     "type_acc": 1.0
     }
    },
    "baseline": {
-    "forms": 12,
+    "forms": 7,
     "iou0.3": {
-     "gt": 1453,
-     "pred": 1064,
-     "matched": 948,
-     "pred_matched": 948,
-     "type_ok": 926,
-     "recall": 0.6524,
-     "precision": 0.891,
-     "type_acc": 0.9768
+     "gt": 724,
+     "pred": 492,
+     "matched": 429,
+     "pred_matched": 429,
+     "type_ok": 409,
+     "recall": 0.5925,
+     "precision": 0.872,
+     "type_acc": 0.9534
     },
     "iou0.5": {
-     "gt": 1453,
-     "pred": 1064,
-     "matched": 657,
-     "pred_matched": 657,
-     "type_ok": 636,
-     "recall": 0.4522,
-     "precision": 0.6175,
-     "type_acc": 0.968
+     "gt": 724,
+     "pred": 492,
+     "matched": 316,
+     "pred_matched": 316,
+     "type_ok": 297,
+     "recall": 0.4365,
+     "precision": 0.6423,
+     "type_acc": 0.9399
     }
    },
    "mapping": {
-    "n_path": 1197,
-    "n_transform": 668,
-    "matched": 727,
-    "path_ok": 493,
-    "transform_ok": 235,
-    "joint_ok": 486,
-    "exact_ok": 488,
-    "path_acc": 0.4119,
-    "transform_acc": 0.3518,
-    "joint_acc": 0.406,
-    "exact_path_set_acc": 0.4077
+    "n_path": 616,
+    "n_transform": 257,
+    "matched": 378,
+    "path_ok": 374,
+    "transform_ok": 133,
+    "joint_ok": 369,
+    "exact_ok": 369,
+    "path_acc": 0.6071,
+    "transform_acc": 0.5175,
+    "joint_acc": 0.599,
+    "exact_path_set_acc": 0.599
    },
    "steps": 174,
    "input_tokens": 2852310,

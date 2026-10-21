@@ -46,14 +46,16 @@
   ],
   "notes": [
    "Detection is scored on the manifest's scored pages that have at least one GT field (the baseline's pages); tables count one box per cell.",
-   "Multi-line answer areas are representation-neutral: a plain template text field with style.multiline or at least 1.8x the page's median GT text-box height also covers every unmatched GT text box at least 70% inside it (recall), counts once for precision, and gets path credit through the GT line box that carries the path.",
+   "Multi-line answer areas are representation-neutral: a plain template text field with style.multiline or at least 1.8x the page's median GT text-box height also covers every unmatched GT text box at least 70% inside it (recall), counts once for precision, and gets path credit through the GT line box that carries the path. It only does so when at least two such GT boxes are stacked in one column inside it (horizontal overlap of 50% or more); a single loose box is scored by the normal IoU threshold.",
    "Fillable forms as published: the template starts with one field per PDF widget (the real use case is mapping existing fields), and GT is the widgets, so agent-added boxes on blanks without a widget count as false positives.",
    "fake_scan: an image-only PDF of the baseline's seeded fake-scan renders (widgets stripped), so the agent faces the scanned-page path (deskew, FFDetr, OCR); on fillable forms it is a detection + mapping test.",
    "Baseline: bare-detector numbers from the baseline run on the same images: FFDNet-L (default for digital pages) for as_published digital/fillable forms, FFDetr (default for scanned pages) for fake_scan and scanned forms. On fillable as_published forms the baseline detects on the widget-stripped page.",
    "Mapping is over GT fields with a schema path. Transform credit uses equivalence groups {slice, split, char_at}, {date_part, date_format}, {equals, contains}, and a when equals true also credits bool_to_check; a template's join and when count as ops. joint = path and transforms right; exact = the matched field's source paths equal GT path + also_paths.",
-   "Totals are micro-averaged over forms (sums of counts)."
+   "Totals are micro-averaged over forms (sums of counts). Sessions that ended in an error (infrastructure or harness) are listed in the per-form table but excluded from the totals' detection and mapping figures; their templates are partial or untouched seeds.",
+   "The agent's form map carries the neutral source name 'form.pdf', not the file name."
   ],
-  "finished_at": "2026-10-21T07:03:58+00:00"
+  "finished_at": "2026-10-21T07:03:58+00:00",
+  "rescored": "2026-10-21 at commit 6b01f29-dirty: the saved templates were scored again with the stacked-lines rule for multi-line fields; model output is unchanged."
  },
  "rows": [
   {
@@ -591,14 +593,14 @@
     "iou0.3": {
      "gt": 33,
      "pred": 31,
-     "matched": 30,
-     "pred_matched": 30,
-     "recall": 0.9091,
-     "precision": 0.9677,
-     "type_ok": 30,
+     "matched": 29,
+     "pred_matched": 29,
+     "recall": 0.8788,
+     "precision": 0.9355,
+     "type_ok": 29,
      "type_acc": 1.0,
      "missed_by_type": {
-      "text": 3,
+      "text": 4,
       "choice": 0,
       "signature": 0
      }
@@ -606,14 +608,14 @@
     "iou0.5": {
      "gt": 33,
      "pred": 31,
-     "matched": 24,
-     "pred_matched": 24,
-     "recall": 0.7273,
-     "precision": 0.7742,
-     "type_ok": 24,
+     "matched": 23,
+     "pred_matched": 23,
+     "recall": 0.697,
+     "precision": 0.7419,
+     "type_ok": 23,
      "type_acc": 1.0,
      "missed_by_type": {
-      "text": 7,
+      "text": 8,
       "choice": 1,
       "signature": 1
      }
@@ -648,16 +650,16 @@
    "mapping": {
     "n_path": 29,
     "n_transform": 16,
-    "matched": 28,
-    "path_ok": 28,
+    "matched": 27,
+    "path_ok": 27,
     "transform_ok": 11,
-    "joint_ok": 23,
-    "exact_ok": 25,
-    "matched_rate": 0.9655,
-    "path_acc": 0.9655,
+    "joint_ok": 22,
+    "exact_ok": 24,
+    "matched_rate": 0.931,
+    "path_acc": 0.931,
     "transform_acc": 0.6875,
-    "joint_acc": 0.7931,
-    "exact_path_set_acc": 0.8621
+    "joint_acc": 0.7586,
+    "exact_path_set_acc": 0.8276
    },
    "formmap_s": 8.4,
    "page_kinds": [
@@ -826,14 +828,14 @@
     "iou0.5": {
      "gt": 130,
      "pred": 42,
-     "matched": 30,
-     "pred_matched": 30,
-     "recall": 0.2308,
-     "precision": 0.7143,
-     "type_ok": 30,
+     "matched": 29,
+     "pred_matched": 29,
+     "recall": 0.2231,
+     "precision": 0.6905,
+     "type_ok": 29,
      "type_acc": 1.0,
      "missed_by_type": {
-      "text": 88,
+      "text": 89,
       "choice": 5,
       "signature": 7
      }
@@ -1050,14 +1052,14 @@
     "iou0.5": {
      "gt": 202,
      "pred": 164,
-     "matched": 36,
-     "pred_matched": 36,
-     "recall": 0.1782,
-     "precision": 0.2195,
-     "type_ok": 36,
+     "matched": 26,
+     "pred_matched": 26,
+     "recall": 0.1287,
+     "precision": 0.1585,
+     "type_ok": 26,
      "type_acc": 1.0,
      "missed_by_type": {
-      "text": 160,
+      "text": 170,
       "choice": 6,
       "signature": 0
      }
@@ -1144,14 +1146,14 @@
     "iou0.3": {
      "gt": 254,
      "pred": 199,
-     "matched": 141,
-     "pred_matched": 133,
-     "recall": 0.5551,
-     "precision": 0.6683,
-     "type_ok": 141,
+     "matched": 126,
+     "pred_matched": 126,
+     "recall": 0.4961,
+     "precision": 0.6332,
+     "type_ok": 126,
      "type_acc": 1.0,
      "missed_by_type": {
-      "text": 106,
+      "text": 121,
       "choice": 4,
       "signature": 3
      }
@@ -1159,14 +1161,14 @@
     "iou0.5": {
      "gt": 254,
      "pred": 199,
-     "matched": 63,
-     "pred_matched": 55,
-     "recall": 0.248,
-     "precision": 0.2764,
-     "type_ok": 63,
+     "matched": 44,
+     "pred_matched": 44,
+     "recall": 0.1732,
+     "precision": 0.2211,
+     "type_ok": 44,
      "type_acc": 1.0,
      "missed_by_type": {
-      "text": 184,
+      "text": 203,
       "choice": 4,
       "signature": 3
      }
@@ -1201,16 +1203,16 @@
    "mapping": {
     "n_path": 227,
     "n_transform": 118,
-    "matched": 103,
-    "path_ok": 92,
-    "transform_ok": 31,
-    "joint_ok": 76,
-    "exact_ok": 91,
-    "matched_rate": 0.4537,
-    "path_acc": 0.4053,
-    "transform_acc": 0.2627,
-    "joint_acc": 0.3348,
-    "exact_path_set_acc": 0.4009
+    "matched": 92,
+    "path_ok": 86,
+    "transform_ok": 22,
+    "joint_ok": 71,
+    "exact_ok": 85,
+    "matched_rate": 0.4053,
+    "path_acc": 0.3789,
+    "transform_acc": 0.1864,
+    "joint_acc": 0.3128,
+    "exact_path_set_acc": 0.3744
    },
    "formmap_s": 33.2,
    "page_kinds": [
@@ -1255,14 +1257,14 @@
     "iou0.3": {
      "gt": 254,
      "pred": 182,
-     "matched": 82,
-     "pred_matched": 65,
-     "recall": 0.3228,
-     "precision": 0.3571,
-     "type_ok": 81,
-     "type_acc": 0.9878,
+     "matched": 64,
+     "pred_matched": 57,
+     "recall": 0.252,
+     "precision": 0.3132,
+     "type_ok": 63,
+     "type_acc": 0.9844,
      "missed_by_type": {
-      "text": 155,
+      "text": 173,
       "choice": 14,
       "signature": 3
      }
@@ -1270,14 +1272,14 @@
     "iou0.5": {
      "gt": 254,
      "pred": 182,
-     "matched": 53,
-     "pred_matched": 36,
-     "recall": 0.2087,
-     "precision": 0.1978,
-     "type_ok": 53,
+     "matched": 27,
+     "pred_matched": 20,
+     "recall": 0.1063,
+     "precision": 0.1099,
+     "type_ok": 27,
      "type_acc": 1.0,
      "missed_by_type": {
-      "text": 173,
+      "text": 199,
       "choice": 25,
       "signature": 3
      }
@@ -1312,16 +1314,16 @@
    "mapping": {
     "n_path": 227,
     "n_transform": 118,
-    "matched": 66,
-    "path_ok": 46,
-    "transform_ok": 24,
-    "joint_ok": 38,
-    "exact_ok": 44,
-    "matched_rate": 0.2907,
-    "path_acc": 0.2026,
-    "transform_acc": 0.2034,
-    "joint_acc": 0.1674,
-    "exact_path_set_acc": 0.1938
+    "matched": 48,
+    "path_ok": 39,
+    "transform_ok": 15,
+    "joint_ok": 35,
+    "exact_ok": 37,
+    "matched_rate": 0.2115,
+    "path_acc": 0.1718,
+    "transform_acc": 0.1271,
+    "joint_acc": 0.1542,
+    "exact_path_set_acc": 0.163
    },
    "formmap_s": 30.0,
    "page_kinds": [
@@ -2721,27 +2723,28 @@
   "all": {
    "forms": 24,
    "failed": 0,
+   "errored": [],
    "finished": 23,
    "detection": {
     "iou0.3": {
      "gt": 2906,
      "pred": 2404,
-     "matched": 1953,
-     "pred_matched": 1896,
-     "type_ok": 1940,
-     "recall": 0.6721,
-     "precision": 0.7887,
-     "type_acc": 0.9933
+     "matched": 1919,
+     "pred_matched": 1880,
+     "type_ok": 1906,
+     "recall": 0.6604,
+     "precision": 0.782,
+     "type_acc": 0.9932
     },
     "iou0.5": {
      "gt": 2906,
      "pred": 2404,
-     "matched": 1364,
-     "pred_matched": 1307,
-     "type_ok": 1353,
-     "recall": 0.4694,
-     "precision": 0.5437,
-     "type_acc": 0.9919
+     "matched": 1307,
+     "pred_matched": 1268,
+     "type_ok": 1296,
+     "recall": 0.4498,
+     "precision": 0.5275,
+     "type_acc": 0.9916
     }
    },
    "baseline": {
@@ -2770,15 +2773,15 @@
    "mapping": {
     "n_path": 2394,
     "n_transform": 1336,
-    "matched": 1568,
-    "path_ok": 1496,
-    "transform_ok": 747,
-    "joint_ok": 1311,
-    "exact_ok": 1472,
-    "path_acc": 0.6249,
-    "transform_acc": 0.5591,
-    "joint_acc": 0.5476,
-    "exact_path_set_acc": 0.6149
+    "matched": 1538,
+    "path_ok": 1482,
+    "transform_ok": 729,
+    "joint_ok": 1302,
+    "exact_ok": 1458,
+    "path_acc": 0.619,
+    "transform_acc": 0.5457,
+    "joint_acc": 0.5439,
+    "exact_path_set_acc": 0.609
    },
    "steps": 371,
    "input_tokens": 7124360,
@@ -2788,27 +2791,28 @@
   "as_published": {
    "forms": 12,
    "failed": 0,
+   "errored": [],
    "finished": 12,
    "detection": {
     "iou0.3": {
      "gt": 1453,
      "pred": 1265,
-     "matched": 1102,
-     "pred_matched": 1078,
-     "type_ok": 1093,
-     "recall": 0.7584,
-     "precision": 0.8522,
-     "type_acc": 0.9918
+     "matched": 1087,
+     "pred_matched": 1071,
+     "type_ok": 1078,
+     "recall": 0.7481,
+     "precision": 0.8466,
+     "type_acc": 0.9917
     },
     "iou0.5": {
      "gt": 1453,
      "pred": 1265,
-     "matched": 866,
-     "pred_matched": 842,
-     "type_ok": 857,
-     "recall": 0.596,
-     "precision": 0.6656,
-     "type_acc": 0.9896
+     "matched": 847,
+     "pred_matched": 831,
+     "type_ok": 838,
+     "recall": 0.5829,
+     "precision": 0.6569,
+     "type_acc": 0.9894
     }
    },
    "baseline": {
@@ -2837,15 +2841,15 @@
    "mapping": {
     "n_path": 1197,
     "n_transform": 668,
-    "matched": 854,
-    "path_ok": 820,
-    "transform_ok": 409,
-    "joint_ok": 731,
-    "exact_ok": 808,
-    "path_acc": 0.685,
-    "transform_acc": 0.6123,
-    "joint_acc": 0.6107,
-    "exact_path_set_acc": 0.675
+    "matched": 843,
+    "path_ok": 814,
+    "transform_ok": 400,
+    "joint_ok": 726,
+    "exact_ok": 802,
+    "path_acc": 0.68,
+    "transform_acc": 0.5988,
+    "joint_acc": 0.6065,
+    "exact_path_set_acc": 0.67
    },
    "steps": 150,
    "input_tokens": 3079487,
@@ -2855,27 +2859,28 @@
   "fake_scan": {
    "forms": 12,
    "failed": 0,
+   "errored": [],
    "finished": 11,
    "detection": {
     "iou0.3": {
      "gt": 1453,
      "pred": 1139,
-     "matched": 851,
-     "pred_matched": 818,
-     "type_ok": 847,
-     "recall": 0.5857,
-     "precision": 0.7182,
-     "type_acc": 0.9953
+     "matched": 832,
+     "pred_matched": 809,
+     "type_ok": 828,
+     "recall": 0.5726,
+     "precision": 0.7103,
+     "type_acc": 0.9952
     },
     "iou0.5": {
      "gt": 1453,
      "pred": 1139,
-     "matched": 498,
-     "pred_matched": 465,
-     "type_ok": 496,
-     "recall": 0.3427,
-     "precision": 0.4083,
-     "type_acc": 0.996
+     "matched": 460,
+     "pred_matched": 437,
+     "type_ok": 458,
+     "recall": 0.3166,
+     "precision": 0.3837,
+     "type_acc": 0.9957
     }
    },
    "baseline": {
@@ -2904,15 +2909,15 @@
    "mapping": {
     "n_path": 1197,
     "n_transform": 668,
-    "matched": 714,
-    "path_ok": 676,
-    "transform_ok": 338,
-    "joint_ok": 580,
-    "exact_ok": 664,
-    "path_acc": 0.5647,
-    "transform_acc": 0.506,
-    "joint_acc": 0.4845,
-    "exact_path_set_acc": 0.5547
+    "matched": 695,
+    "path_ok": 668,
+    "transform_ok": 329,
+    "joint_ok": 576,
+    "exact_ok": 656,
+    "path_acc": 0.5581,
+    "transform_acc": 0.4925,
+    "joint_acc": 0.4812,
+    "exact_path_set_acc": 0.548
    },
    "steps": 221,
    "input_tokens": 4044873,

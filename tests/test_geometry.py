@@ -64,3 +64,12 @@ def test_horizontal_overlap():
 def test_vertical_gap():
     assert vertical_gap((0, 0, 10, 10), (0, 15, 10, 25)) == 5
     assert vertical_gap((0, 0, 10, 10), (0, 8, 10, 25)) == -2
+
+
+def test_contained_fraction():
+    from formcast.geometry import contained_fraction
+
+    assert contained_fraction((0, 0, 10, 10), (0, 0, 20, 20)) == 1.0
+    assert contained_fraction((0, 0, 10, 10), (5, 0, 20, 10)) == pytest.approx(0.5)
+    assert contained_fraction((0, 0, 10, 10), (20, 20, 30, 30)) == 0.0
+    assert contained_fraction((0, 0, 0, 10), (0, 0, 20, 20)) == 0.0  # empty inner

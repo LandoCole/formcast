@@ -41,7 +41,7 @@ sys.path.insert(0, str(ROOT / "src"))  # eval scripts do not rely on the editabl
 
 import pymupdf  # noqa: E402
 
-from formcast.geometry import Rect, iou  # noqa: E402
+from formcast.geometry import Rect, contained_fraction, horizontal_overlap, intersect, iou  # noqa: E402
 from formcast.pagemap.extract import open_pdf  # noqa: E402
 from formcast.template.model import Template  # noqa: E402
 
@@ -83,6 +83,10 @@ _OP_ALTERNATIVES = {WHEN_EQUALS_TRUE: frozenset({_CANONICAL_OP["equals"], "bool_
 MULTILINE_HEIGHT_RATIO = 1.8
 # ... and covers every GT text box with at least this share of its area inside it.
 MULTILINE_CONTAINED = 0.7
+# A multi-line field only counts when it holds at least two such GT boxes stacked in one
+# column (horizontal overlap of at least this share of the narrower box); one loose tall
+# box over a single GT box is scored by the normal IoU threshold.
+MULTILINE_COLUMN_OVERLAP = 0.5
 
 
 @dataclass
@@ -242,14 +246,39 @@ def _greedy_match(
     return matched
 
 
-def _contained_fraction(inner: Rect, outer: Rect) -> float:
-    """Share of ``inner``'s area that lies inside ``outer``."""
-    w = min(inner[2], outer[2]) - max(inner[0], outer[0])
-    h = min(inner[3], outer[3]) - max(inner[1], outer[1])
-    area = (inner[2] - inner[0]) * (inner[3] - inner[1])
-    if w <= 0 or h <= 0 or area <= 0:
-        return 0.0
-    return w * h / area
+def _stacked(a: Rect, b: Rect) -> bool:
+    """Two boxes in one column, one above the other."""
+    if horizontal_overlap(a, b) < MULTILINE_COLUMN_OVERLAP:
+        return False
+    inter = intersect(a, b)
+    return inter is None or (inter[3] - inter[1]) < 0.5 * min(a[3] - a[1], b[3] - b[1])
+
+
+def _multiline_cover(gt: list[GTField], pred: list[tuple[int, Rect]], multiline: list[bool], allowed=None):
+    """For each multi-line pred: {gt index: share} of the GT text boxes it may cover.
+
+    Candidates are GT text boxes on the pred's page with at least ``MULTILINE_CONTAINED``
+    of their area inside it. The pred counts only when two or more candidates are stacked
+    in one column; then the stacked candidates are the ones it can cover.
+    """
+    out: dict[int, dict[int, float]] = {}
+    for pi, (page, rect) in enumerate(pred):
+        if not multiline[pi]:
+            continue
+        cands = {}
+        for gi, g in enumerate(gt):
+            if g.type != "text" or g.page != page or (allowed is not None and not allowed(gi, pi)):
+                continue
+            share = contained_fraction(g.rect, rect)
+            if share >= MULTILINE_CONTAINED:
+                cands[gi] = share
+        stacked = {
+            gi for gi in cands
+            if any(gj != gi and _stacked(gt[gi].rect, gt[gj].rect) for gj in cands)
+        }
+        if stacked:
+            out[pi] = {gi: cands[gi] for gi in stacked}
+    return out
 
 
 def _match(
@@ -260,21 +289,21 @@ def _match(
     First the one-to-one IoU match (``_greedy_match``). Then each GT text box
     still unmatched goes to the multi-line pred (``multiline[pi]`` true) on its
     page that holds the largest share of it, when that share is at least
-    ``MULTILINE_CONTAINED``. A multi-line pred can so cover several GT boxes,
+    ``MULTILINE_CONTAINED`` and the pred holds two or more GT text boxes stacked
+    in one column (``_multiline_cover``). A multi-line pred can so cover several GT boxes,
     including one it already matched by IoU.
     """
     matched = dict(_greedy_match([(g.page, g.rect) for g in gt], pred, thr, allowed))
     if not multiline:
         return matched
-    for gi, g in enumerate(gt):
-        if gi in matched or g.type != "text":
+    cover = _multiline_cover(gt, pred, multiline, allowed)
+    for gi in range(len(gt)):
+        if gi in matched:
             continue
         best = None
-        for pi, (page, rect) in enumerate(pred):
-            if not multiline[pi] or page != g.page or (allowed is not None and not allowed(gi, pi)):
-                continue
-            share = _contained_fraction(g.rect, rect)
-            if share >= MULTILINE_CONTAINED and (best is None or share > best[0]):
+        for pi, shares in cover.items():
+            share = shares.get(gi)
+            if share is not None and (best is None or share > best[0]):
                 best = (share, pi)
         if best is not None:
             matched[gi] = best[1]

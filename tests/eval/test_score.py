@@ -506,3 +506,24 @@ def test_score_detection_without_multiline_flags_is_one_to_one():
     gt = _lines_gt()
     out = score.score_detection(gt, [("text", 0, AREA)], 0.5)
     assert out["matched"] == 0 and out["pred_matched"] == 0
+
+
+def test_a_single_loose_tall_box_is_not_a_multiline_field_cover():
+    # one 14pt GT line; a 30pt box that holds it but only has IoU .47 with it
+    gt = [score.GTField(0, LINES[0], "text", path="p.notes")]
+    loose = (36.0, 300.0, 576.0, 330.0)
+    out = _detect(gt, _template([_field("big", loose, ["p.notes"])]), 0.5)
+    assert out["matched"] == 0 and out["pred_matched"] == 0
+    assert _detect(gt, _template([_field("big", loose, ["p.notes"])]), 0.3)["matched"] == 1  # plain IoU still applies
+
+
+def test_a_tall_box_over_boxes_side_by_side_is_not_a_multiline_cover():
+    # two GT boxes in the same row (different columns): nothing is stacked
+    gt = [score.GTField(0, (36.0, 300.0, 200.0, 314.0), "text"), score.GTField(0, (300.0, 300.0, 460.0, 314.0), "text")]
+    tall = (30.0, 298.0, 470.0, 340.0)
+    assert _detect(gt, _template([_field("big", tall)]), 0.5)["matched"] == 0
+
+
+def test_a_tall_box_over_two_stacked_lines_is_a_cover():
+    gt = [score.GTField(0, LINES[0], "text"), score.GTField(0, LINES[1], "text")]
+    assert _detect(gt, _template([_field("big", (36.0, 299.0, 576.0, 332.0))]), 0.5)["matched"] == 2

@@ -40,14 +40,16 @@
   ],
   "notes": [
    "Detection is scored on the manifest's scored pages that have at least one GT field (the baseline's pages); tables count one box per cell.",
-   "Multi-line answer areas are representation-neutral: a plain template text field with style.multiline or at least 1.8x the page's median GT text-box height also covers every unmatched GT text box at least 70% inside it (recall), counts once for precision, and gets path credit through the GT line box that carries the path.",
+   "Multi-line answer areas are representation-neutral: a plain template text field with style.multiline or at least 1.8x the page's median GT text-box height also covers every unmatched GT text box at least 70% inside it (recall), counts once for precision, and gets path credit through the GT line box that carries the path. It only does so when at least two such GT boxes are stacked in one column inside it (horizontal overlap of 50% or more); a single loose box is scored by the normal IoU threshold.",
    "Fillable forms as published: the template starts with one field per PDF widget (the real use case is mapping existing fields), and GT is the widgets, so agent-added boxes on blanks without a widget count as false positives.",
    "fake_scan: an image-only PDF of the baseline's seeded fake-scan renders (widgets stripped), so the agent faces the scanned-page path (deskew, FFDetr, OCR); on fillable forms it is a detection + mapping test.",
    "Baseline: bare-detector numbers from the baseline run on the same images: FFDNet-L (default for digital pages) for as_published digital/fillable forms, FFDetr (default for scanned pages) for fake_scan and scanned forms. On fillable as_published forms the baseline detects on the widget-stripped page.",
    "Mapping is over GT fields with a schema path. Transform credit uses equivalence groups {slice, split, char_at}, {date_part, date_format}, {equals, contains}, and a when equals true also credits bool_to_check; a template's join and when count as ops. joint = path and transforms right; exact = the matched field's source paths equal GT path + also_paths.",
-   "Totals are micro-averaged over forms (sums of counts)."
+   "Totals are micro-averaged over forms (sums of counts). Sessions that ended in an error (infrastructure or harness) are listed in the per-form table but excluded from the totals' detection and mapping figures; their templates are partial or untouched seeds.",
+   "The agent's form map carries the neutral source name 'form.pdf', not the file name."
   ],
-  "finished_at": "2026-10-21T07:55:07+00:00"
+  "finished_at": "2026-10-21T07:55:07+00:00",
+  "rescored": "2026-10-21 at commit 6b01f29-dirty: the saved templates were scored again with the stacked-lines rule for multi-line fields; model output is unchanged."
  },
  "rows": [
   {
@@ -177,14 +179,14 @@
     "iou0.3": {
      "gt": 323,
      "pred": 262,
-     "matched": 208,
-     "pred_matched": 205,
-     "recall": 0.644,
-     "precision": 0.7824,
-     "type_ok": 207,
-     "type_acc": 0.9952,
+     "matched": 204,
+     "pred_matched": 204,
+     "recall": 0.6316,
+     "precision": 0.7786,
+     "type_ok": 203,
+     "type_acc": 0.9951,
      "missed_by_type": {
-      "text": 73,
+      "text": 77,
       "choice": 41,
       "signature": 1
      }
@@ -192,14 +194,14 @@
     "iou0.5": {
      "gt": 323,
      "pred": 262,
-     "matched": 162,
-     "pred_matched": 159,
-     "recall": 0.5015,
-     "precision": 0.6069,
-     "type_ok": 162,
+     "matched": 158,
+     "pred_matched": 158,
+     "recall": 0.4892,
+     "precision": 0.6031,
+     "type_ok": 158,
      "type_acc": 1.0,
      "missed_by_type": {
-      "text": 98,
+      "text": 102,
       "choice": 62,
       "signature": 1
      }
@@ -237,15 +239,15 @@
    "mapping": {
     "n_path": 247,
     "n_transform": 117,
-    "matched": 139,
-    "path_ok": 131,
+    "matched": 135,
+    "path_ok": 127,
     "transform_ok": 41,
-    "joint_ok": 110,
+    "joint_ok": 106,
     "exact_ok": 119,
-    "matched_rate": 0.5628,
-    "path_acc": 0.5304,
+    "matched_rate": 0.5466,
+    "path_acc": 0.5142,
     "transform_acc": 0.3504,
-    "joint_acc": 0.4453,
+    "joint_acc": 0.4291,
     "exact_path_set_acc": 0.4818
    },
    "formmap_s": 34.1,
@@ -853,14 +855,14 @@
     "iou0.3": {
      "gt": 23,
      "pred": 22,
-     "matched": 13,
-     "pred_matched": 10,
-     "recall": 0.5652,
-     "precision": 0.4545,
-     "type_ok": 13,
+     "matched": 9,
+     "pred_matched": 9,
+     "recall": 0.3913,
+     "precision": 0.4091,
+     "type_ok": 9,
      "type_acc": 1.0,
      "missed_by_type": {
-      "text": 3,
+      "text": 7,
       "choice": 7,
       "signature": 0
      }
@@ -868,14 +870,14 @@
     "iou0.5": {
      "gt": 23,
      "pred": 22,
-     "matched": 11,
-     "pred_matched": 8,
-     "recall": 0.4783,
-     "precision": 0.3636,
-     "type_ok": 11,
+     "matched": 7,
+     "pred_matched": 7,
+     "recall": 0.3043,
+     "precision": 0.3182,
+     "type_ok": 7,
      "type_acc": 1.0,
      "missed_by_type": {
-      "text": 4,
+      "text": 8,
       "choice": 8,
       "signature": 0
      }
@@ -910,16 +912,16 @@
    "mapping": {
     "n_path": 20,
     "n_transform": 15,
-    "matched": 12,
-    "path_ok": 11,
+    "matched": 8,
+    "path_ok": 7,
     "transform_ok": 2,
     "joint_ok": 5,
-    "exact_ok": 11,
-    "matched_rate": 0.6,
-    "path_acc": 0.55,
+    "exact_ok": 7,
+    "matched_rate": 0.4,
+    "path_acc": 0.35,
     "transform_acc": 0.1333,
     "joint_acc": 0.25,
-    "exact_path_set_acc": 0.55
+    "exact_path_set_acc": 0.35
    },
    "formmap_s": 44.7,
    "page_kinds": [
@@ -963,26 +965,27 @@
   "all": {
    "forms": 8,
    "failed": 0,
+   "errored": [],
    "finished": 8,
    "detection": {
     "iou0.3": {
      "gt": 1154,
      "pred": 1007,
-     "matched": 869,
-     "pred_matched": 860,
-     "type_ok": 866,
-     "recall": 0.753,
-     "precision": 0.854,
+     "matched": 861,
+     "pred_matched": 858,
+     "type_ok": 858,
+     "recall": 0.7461,
+     "precision": 0.852,
      "type_acc": 0.9965
     },
     "iou0.5": {
      "gt": 1154,
      "pred": 1007,
-     "matched": 718,
-     "pred_matched": 709,
-     "type_ok": 716,
-     "recall": 0.6222,
-     "precision": 0.7041,
+     "matched": 710,
+     "pred_matched": 707,
+     "type_ok": 708,
+     "recall": 0.6153,
+     "precision": 0.7021,
      "type_acc": 0.9972
     }
    },
@@ -1012,15 +1015,15 @@
    "mapping": {
     "n_path": 944,
     "n_transform": 580,
-    "matched": 720,
-    "path_ok": 681,
+    "matched": 712,
+    "path_ok": 673,
     "transform_ok": 380,
-    "joint_ok": 628,
-    "exact_ok": 653,
-    "path_acc": 0.7214,
+    "joint_ok": 624,
+    "exact_ok": 649,
+    "path_acc": 0.7129,
     "transform_acc": 0.6552,
-    "joint_acc": 0.6653,
-    "exact_path_set_acc": 0.6917
+    "joint_acc": 0.661,
+    "exact_path_set_acc": 0.6875
    },
    "steps": 186,
    "input_tokens": 3636089,
@@ -1030,6 +1033,7 @@
   "as_published": {
    "forms": 4,
    "failed": 0,
+   "errored": [],
    "finished": 4,
    "detection": {
     "iou0.3": {
@@ -1097,26 +1101,27 @@
   "fake_scan": {
    "forms": 4,
    "failed": 0,
+   "errored": [],
    "finished": 4,
    "detection": {
     "iou0.3": {
      "gt": 577,
      "pred": 503,
-     "matched": 400,
-     "pred_matched": 392,
-     "type_ok": 399,
-     "recall": 0.6932,
-     "precision": 0.7793,
-     "type_acc": 0.9975
+     "matched": 392,
+     "pred_matched": 390,
+     "type_ok": 391,
+     "recall": 0.6794,
+     "precision": 0.7753,
+     "type_acc": 0.9974
     },
     "iou0.5": {
      "gt": 577,
      "pred": 503,
-     "matched": 282,
-     "pred_matched": 274,
-     "type_ok": 282,
-     "recall": 0.4887,
-     "precision": 0.5447,
+     "matched": 274,
+     "pred_matched": 272,
+     "type_ok": 274,
+     "recall": 0.4749,
+     "precision": 0.5408,
      "type_acc": 1.0
     }
    },
@@ -1146,15 +1151,15 @@
    "mapping": {
     "n_path": 472,
     "n_transform": 290,
-    "matched": 310,
-    "path_ok": 285,
+    "matched": 302,
+    "path_ok": 277,
     "transform_ok": 155,
-    "joint_ok": 258,
-    "exact_ok": 272,
-    "path_acc": 0.6038,
+    "joint_ok": 254,
+    "exact_ok": 268,
+    "path_acc": 0.5869,
     "transform_acc": 0.5345,
-    "joint_acc": 0.5466,
-    "exact_path_set_acc": 0.5763
+    "joint_acc": 0.5381,
+    "exact_path_set_acc": 0.5678
    },
    "steps": 110,
    "input_tokens": 2135388,

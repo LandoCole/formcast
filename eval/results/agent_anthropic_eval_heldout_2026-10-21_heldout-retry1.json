@@ -19,7 +19,7 @@
    "max_output_tokens": 200000,
    "wall_clock_s": 900
   },
-  "baseline_file": "baseline_detection_2026-10-21.json",
+  "baseline_file": "baseline_detection_2026-10-21_heldout.json",
   "jobs": 3,
   "argv": [
    "--split",
@@ -37,15 +37,16 @@
   ],
   "notes": [
    "Detection is scored on the manifest's scored pages that have at least one GT field (the baseline's pages); tables count one box per cell.",
-   "Multi-line answer areas are representation-neutral: a plain template text field with style.multiline or at least 1.8x the page's median GT text-box height also covers every unmatched GT text box at least 70% inside it (recall), counts once for precision, and gets path credit through the GT line box that carries the path.",
+   "Multi-line answer areas are representation-neutral: a plain template text field with style.multiline or at least 1.8x the page's median GT text-box height also covers every unmatched GT text box at least 70% inside it (recall), counts once for precision, and gets path credit through the GT line box that carries the path. It only does so when at least two such GT boxes are stacked in one column inside it (horizontal overlap of 50% or more); a single loose box is scored by the normal IoU threshold.",
    "Fillable forms as published: the template starts with one field per PDF widget (the real use case is mapping existing fields), and GT is the widgets, so agent-added boxes on blanks without a widget count as false positives.",
    "fake_scan: an image-only PDF of the baseline's seeded fake-scan renders (widgets stripped), so the agent faces the scanned-page path (deskew, FFDetr, OCR); on fillable forms it is a detection + mapping test.",
    "Baseline: bare-detector numbers from the baseline run on the same images: FFDNet-L (default for digital pages) for as_published digital/fillable forms, FFDetr (default for scanned pages) for fake_scan and scanned forms. On fillable as_published forms the baseline detects on the widget-stripped page.",
    "Mapping is over GT fields with a schema path. Transform credit uses equivalence groups {slice, split, char_at}, {date_part, date_format}, {equals, contains}, and a when equals true also credits bool_to_check; a template's join and when count as ops. joint = path and transforms right; exact = the matched field's source paths equal GT path + also_paths.",
-   "Totals are micro-averaged over forms (sums of counts).",
+   "Totals are micro-averaged over forms (sums of counts). Sessions that ended in an error (infrastructure or harness) are listed in the per-form table but excluded from the totals' detection and mapping figures; their templates are partial or untouched seeds.",
    "The agent's form map carries the neutral source name 'form.pdf', not the file name."
   ],
-  "finished_at": "2026-10-21T10:32:54+00:00"
+  "finished_at": "2026-10-21T10:32:54+00:00",
+  "rescored": "2026-10-21 at commit 6b01f29-dirty: the saved templates were scored again with the stacked-lines rule for multi-line fields; model output is unchanged."
  },
  "rows": [
   {
@@ -73,14 +74,14 @@
     "iou0.5": {
      "gt": 83,
      "pred": 68,
-     "matched": 32,
-     "pred_matched": 32,
-     "recall": 0.3855,
-     "precision": 0.4706,
-     "type_ok": 32,
+     "matched": 28,
+     "pred_matched": 28,
+     "recall": 0.3373,
+     "precision": 0.4118,
+     "type_ok": 28,
      "type_acc": 1.0,
      "missed_by_type": {
-      "text": 48,
+      "text": 52,
       "choice": 2,
       "signature": 1
      }
@@ -168,58 +169,39 @@
  ],
  "totals": {
   "all": {
-   "forms": 1,
-   "failed": 0,
+   "forms": 0,
+   "failed": 1,
+   "errored": [
+    "pacific_app/as_published"
+   ],
    "finished": 0,
    "detection": {
     "iou0.3": {
-     "gt": 83,
-     "pred": 68,
-     "matched": 63,
-     "pred_matched": 63,
-     "type_ok": 62,
-     "recall": 0.759,
-     "precision": 0.9265,
-     "type_acc": 0.9841
+     "gt": 0,
+     "pred": 0,
+     "matched": 0,
+     "pred_matched": 0,
+     "type_ok": 0,
+     "recall": 0.0,
+     "precision": 0.0,
+     "type_acc": 0.0
     },
     "iou0.5": {
-     "gt": 83,
-     "pred": 68,
-     "matched": 32,
-     "pred_matched": 32,
-     "type_ok": 32,
-     "recall": 0.3855,
-     "precision": 0.4706,
-     "type_acc": 1.0
+     "gt": 0,
+     "pred": 0,
+     "matched": 0,
+     "pred_matched": 0,
+     "type_ok": 0,
+     "recall": 0.0,
+     "precision": 0.0,
+     "type_acc": 0.0
     }
    },
-   "baseline": {
-    "forms": 1,
-    "iou0.3": {
-     "gt": 83,
-     "pred": 68,
-     "matched": 63,
-     "pred_matched": 63,
-     "type_ok": 62,
-     "recall": 0.759,
-     "precision": 0.9265,
-     "type_acc": 0.9841
-    },
-    "iou0.5": {
-     "gt": 83,
-     "pred": 68,
-     "matched": 28,
-     "pred_matched": 28,
-     "type_ok": 28,
-     "recall": 0.3373,
-     "precision": 0.4118,
-     "type_acc": 1.0
-    }
-   },
+   "baseline": null,
    "mapping": {
-    "n_path": 74,
-    "n_transform": 24,
-    "matched": 24,
+    "n_path": 0,
+    "n_transform": 0,
+    "matched": 0,
     "path_ok": 0,
     "transform_ok": 0,
     "joint_ok": 0,
@@ -235,58 +217,39 @@
    "wall_s": 0.6
   },
   "as_published": {
-   "forms": 1,
-   "failed": 0,
+   "forms": 0,
+   "failed": 1,
+   "errored": [
+    "pacific_app/as_published"
+   ],
    "finished": 0,
    "detection": {
     "iou0.3": {
-     "gt": 83,
-     "pred": 68,
-     "matched": 63,
-     "pred_matched": 63,
-     "type_ok": 62,
-     "recall": 0.759,
-     "precision": 0.9265,
-     "type_acc": 0.9841
+     "gt": 0,
+     "pred": 0,
+     "matched": 0,
+     "pred_matched": 0,
+     "type_ok": 0,
+     "recall": 0.0,
+     "precision": 0.0,
+     "type_acc": 0.0
     },
     "iou0.5": {
-     "gt": 83,
-     "pred": 68,
-     "matched": 32,
-     "pred_matched": 32,
-     "type_ok": 32,
-     "recall": 0.3855,
-     "precision": 0.4706,
-     "type_acc": 1.0
+     "gt": 0,
+     "pred": 0,
+     "matched": 0,
+     "pred_matched": 0,
+     "type_ok": 0,
+     "recall": 0.0,
+     "precision": 0.0,
+     "type_acc": 0.0
     }
    },
-   "baseline": {
-    "forms": 1,
-    "iou0.3": {
-     "gt": 83,
-     "pred": 68,
-     "matched": 63,
-     "pred_matched": 63,
-     "type_ok": 62,
-     "recall": 0.759,
-     "precision": 0.9265,
-     "type_acc": 0.9841
-    },
-    "iou0.5": {
-     "gt": 83,
-     "pred": 68,
-     "matched": 28,
-     "pred_matched": 28,
-     "type_ok": 28,
-     "recall": 0.3373,
-     "precision": 0.4118,
-     "type_acc": 1.0
-    }
-   },
+   "baseline": null,
    "mapping": {
-    "n_path": 74,
-    "n_transform": 24,
-    "matched": 24,
+    "n_path": 0,
+    "n_transform": 0,
+    "matched": 0,
     "path_ok": 0,
     "transform_ok": 0,
     "joint_ok": 0,
