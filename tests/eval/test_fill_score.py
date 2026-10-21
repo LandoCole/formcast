@@ -245,21 +245,33 @@ def test_plain_number_box_accepts_any_number_formatting(pdf):
     assert fill_score.score_fill(gt, cut, pdf, recs)["correct"] == 0
 
 
-def _join_ok(text, own=("ABCDEF", "1987-05-14"), record_words=("abcdef", "1987", "05", "14", "qwerty")):
+OTHER_VALUES = ("QWERTYUIOP", "1990-03-22", 57509)  # the record's values on other paths
+
+
+def _join_ok(text, own=("ABCDEF", "1987-05-14"), others=OTHER_VALUES):
     g = score.GTField(page=0, rect=NAME, type="text", path="name", also_paths=["dob"], transforms=["join"])
     seen = fill_score.Observed(0, NAME, "n", text, None, "text")
-    return fill_score._text_ok(g, seen, list(own), lambda: [], lambda: set(record_words))
+    record_words = set(fill_score._words([str(v) for v in (*own, *others)]))
+    return fill_score._text_ok(g, seen, list(own), lambda: list(others), lambda: record_words)
 
 
 def test_join_box_needs_every_own_value_and_no_other_record_word():
     assert _join_ok("ABCDEF 1987-05-14") and _join_ok("1987-05-14, ABCDEF")
     assert _join_ok("ABCDEF on 1987-05-14")  # a literal separator word is in no record value
     assert _join_ok("ABCDEF 05/14/1987") and _join_ok("ABCDEF May 14, 1987") and _join_ok("ABCDEF 05141987")
-    assert _join_ok("WIDGET 57,509.00", own=("WIDGET", 57509), record_words=("widget", "57509"))
+    assert _join_ok("WIDGET 57,509.00", own=("WIDGET", 57509), others=("QWERTYUIOP",))
     assert not _join_ok("ABCDEF")  # a path missing
-    assert not _join_ok("ABCDEF 1987-05-14 QWERTY")  # another path's value
+    assert not _join_ok("ABCDEF 1987-05-14 QWERTYUIOP")  # another path's value
     assert not _join_ok("ABCDEF ABCDEF 1987-05-14")  # stuffing: an own word twice
     assert not _join_ok("ABCDEF 05/14/1988")  # the wrong year
+
+
+def test_join_box_rejects_another_paths_value_however_it_is_written():
+    assert not _join_ok("ABCDEF 05141987 03221990")  # another date, run together
+    assert not _join_ok("ABCDEF 1987-05-14 Mar 90")  # another date as %b %y
+    assert not _join_ok("ABCDEF 1987-05-14 $57,509.00")  # another number, number_format
+    assert not _join_ok("ABCDEF 1987-05-14 QWE")  # a slice of another path's value
+    assert _join_ok("ABCDEF on 1987-05-14") and _join_ok("c/o ABCDEF, born 1987-05-14 #")  # decoration passes
 
 
 def test_join_box_with_a_literal_separator_scores_right(pdf, recs):

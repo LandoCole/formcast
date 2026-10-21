@@ -165,9 +165,19 @@ def _is_own(path: str, row: int | None, own_paths: list[str], own_row: int | Non
     return False
 
 
-def _others(leaves: list, shared: set[str], own_paths: list[str], row: int | None) -> list[str]:
-    """Casefolded text of every distinctive record value that isn't the box's own."""
-    return [str(v).casefold() for p, r, v in leaves if p not in shared and not _is_own(p, r, own_paths, row)]
+def _others(leaves: list, shared: set[str], own_paths: list[str], row: int | None) -> list[Any]:
+    """Every distinctive record value that isn't the box's own."""
+    return [v for p, r, v in leaves if p not in shared and not _is_own(p, r, own_paths, row)]
+
+
+def _from_other_value(word: str, others: list[Any]) -> bool:
+    """``word`` comes from another path's value: a 3+ character substring of its text, a part of
+    another date in any format (also run together), or a rendering of another number."""
+    if len(word) >= 3 and any(word in str(o).casefold() for o in others):
+        return True
+    if _from_date(word, _date_parts([o for o in others if isinstance(o, str)])):
+        return True
+    return word in _words([s for o in others if _is_number(o) for s in (str(o), f"{o:,}")])
 
 
 def _texts(value: Any) -> list[str]:
@@ -242,7 +252,7 @@ def _provenance_ok(observed: str, own_values: list[Any], others) -> bool:
     or year of an own date in any format, also run together as in "05141987", a thousands group of
     an own number, or zeros: a number's decimals) or a fragment of it (a substring, casefolded). Generated values can share a whole
     part (two dates with one year), so only a fragment is checked against the other paths' values
-    (``others()``: their casefolded texts).
+    (``others()``: those values).
     """
     words = _WORD.findall(observed.casefold())
     if not words:
@@ -252,13 +262,17 @@ def _provenance_ok(observed: str, own_values: list[Any], others) -> bool:
     whole = set(_words(own)) | set(_words([f"{n:,}" for n in numbers]))
     dates = _date_parts(own)
     own_cf = [t.casefold() for t in own]
+    other_cf: list[str] | None = None
     for w in words:
         if w in whole or _from_date(w, dates) or (numbers and set(w) == {"0"}):
             continue
         if not any(w in t for t in own_cf):
             return False
-        if len(w) >= 3 and any(w in o for o in others()):
-            return False
+        if len(w) >= 3:
+            if other_cf is None:
+                other_cf = [str(o).casefold() for o in others()]
+            if any(w in o for o in other_cf):
+                return False
     return True
 
 
@@ -313,15 +327,21 @@ def _take_value(bag: Counter, value: Any) -> bool:
     return False
 
 
-def _join_ok(observed: str, own_values: list[Any], record_words) -> bool:
+def _join_ok(observed: str, own_values: list[Any], others, record_words) -> bool:
     """A join (or list) box: every own value shows (``_take_value``), and every other word is
-    decoration found in no record value (a separator like "on", a number's decimal zeros)."""
+    decoration (a separator like "on", a number's decimal zeros): not a word of any record value
+    (so no own word twice) and not from another path's value however written (``_from_other_value``)."""
     bag = _words([observed])
     if not all(_take_value(bag, v) for v in own_values):
         return False
     numeric = any(_is_number(v) for v in own_values)
     extra = [w for w, n in bag.items() if n > 0 and not (numeric and set(w) == {"0"})]
-    return not set(extra) & record_words()
+    if not extra:
+        return True
+    if set(extra) & record_words():
+        return False
+    other = others()
+    return not any(_from_other_value(w, other) for w in extra)
 
 
 def _is_number(value: Any) -> bool:
@@ -334,9 +354,9 @@ def _format_ops(g: score.GTField) -> list[str]:
 
 
 def _text_ok(g: score.GTField, observed: Observed | None, own_values: list[Any], others, record_words) -> bool:
-    """Whether a text or cell box shows its own value(s). ``others`` gives the other paths'
-    casefolded texts (provenance) and ``record_words`` every word of the record (joins); both are
-    callables, computed only when needed."""
+    """Whether a text or cell box shows its own value(s). ``others`` gives the other paths' values
+    (provenance, joins) and ``record_words`` every word of the record (joins); both are callables,
+    computed only when needed."""
     if observed is None or observed.text is None:
         return False
     own = [t for v in own_values for t in _texts(v)]
@@ -347,7 +367,7 @@ def _text_ok(g: score.GTField, observed: Observed | None, own_values: list[Any],
     if len(own_values) == 1 and not isinstance(own_values[0], list):
         # a number is its value in any number formatting (GT can leave number_format unlabelled)
         return _norm(observed.text) == _norm(own[0]) or _same_number(observed.text, own_values[0])
-    return _join_ok(observed.text, own_values, record_words)
+    return _join_ok(observed.text, own_values, others, record_words)
 
 
 def _same(a: Any, b: Any) -> bool:
