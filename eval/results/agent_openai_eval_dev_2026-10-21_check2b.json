@@ -1,0 +1,1165 @@
+{
+ "meta": {
+  "model_env": "OPENAI_EVAL",
+  "model": "gpt-6-luna",
+  "api_format": "responses",
+  "base_url": "https://api.openai.com/v1",
+  "split": "dev",
+  "variant": "both",
+  "forms": [
+   "grandview_app",
+   "csudh_health",
+   "menomonie_app",
+   "fw9"
+  ],
+  "stamp": "2026-10-21",
+  "tag": "check2b",
+  "run": "2026-10-21_check2b",
+  "commit": "9aae83a",
+  "budget": {
+   "max_steps": 40,
+   "max_input_tokens": 1500000,
+   "max_output_tokens": 200000,
+   "wall_clock_s": 900
+  },
+  "baseline_file": "baseline_detection_2026-10-21.json",
+  "jobs": 4,
+  "argv": [
+   "--split",
+   "dev",
+   "--model-env",
+   "ANTHROPIC_EVAL,OPENAI_EVAL",
+   "--variant",
+   "both",
+   "--forms",
+   "grandview_app,csudh_health,menomonie_app,fw9",
+   "--tag",
+   "check2b",
+   "--jobs",
+   "4"
+  ],
+  "notes": [
+   "Detection is scored on the manifest's scored pages that have at least one GT field (the baseline's pages); tables count one box per cell.",
+   "Multi-line answer areas are representation-neutral: a plain template text field with style.multiline or at least 1.8x the page's median GT text-box height also covers every unmatched GT text box at least 70% inside it (recall), counts once for precision, and gets path credit through the GT line box that carries the path.",
+   "Fillable forms as published: the template starts with one field per PDF widget (the real use case is mapping existing fields), and GT is the widgets, so agent-added boxes on blanks without a widget count as false positives.",
+   "fake_scan: an image-only PDF of the baseline's seeded fake-scan renders (widgets stripped), so the agent faces the scanned-page path (deskew, FFDetr, OCR); on fillable forms it is a detection + mapping test.",
+   "Baseline: bare-detector numbers from the baseline run on the same images: FFDNet-L (default for digital pages) for as_published digital/fillable forms, FFDetr (default for scanned pages) for fake_scan and scanned forms. On fillable as_published forms the baseline detects on the widget-stripped page.",
+   "Mapping is over GT fields with a schema path. Transform credit uses equivalence groups {slice, split, char_at}, {date_part, date_format}, {equals, contains}, and a when equals true also credits bool_to_check; a template's join and when count as ops. joint = path and transforms right; exact = the matched field's source paths equal GT path + also_paths.",
+   "Totals are micro-averaged over forms (sums of counts)."
+  ],
+  "finished_at": "2026-10-21T07:55:07+00:00"
+ },
+ "rows": [
+  {
+   "form": "grandview_app",
+   "split": "dev",
+   "kind": "flat",
+   "variant": "as_published",
+   "model_env": "OPENAI_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 323,
+     "pred": 247,
+     "matched": 220,
+     "pred_matched": 219,
+     "recall": 0.6811,
+     "precision": 0.8866,
+     "type_ok": 218,
+     "type_acc": 0.9909,
+     "missed_by_type": {
+      "text": 61,
+      "choice": 42,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 323,
+     "pred": 247,
+     "matched": 192,
+     "pred_matched": 191,
+     "recall": 0.5944,
+     "precision": 0.7733,
+     "type_ok": 190,
+     "type_acc": 0.9896,
+     "missed_by_type": {
+      "text": 88,
+      "choice": 42,
+      "signature": 1
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDNet-L",
+    "pages": [
+     0,
+     1,
+     2,
+     3
+    ],
+    "iou0.3": {
+     "gt": 323,
+     "pred": 260,
+     "matched": 246,
+     "pred_matched": 246,
+     "type_ok": 229,
+     "recall": 0.7616,
+     "precision": 0.9462,
+     "type_acc": 0.9309
+    },
+    "iou0.5": {
+     "gt": 323,
+     "pred": 260,
+     "matched": 238,
+     "pred_matched": 238,
+     "type_ok": 221,
+     "recall": 0.7368,
+     "precision": 0.9154,
+     "type_acc": 0.9286
+    }
+   },
+   "mapping": {
+    "n_path": 247,
+    "n_transform": 117,
+    "matched": 187,
+    "path_ok": 176,
+    "transform_ok": 59,
+    "joint_ok": 153,
+    "exact_ok": 162,
+    "matched_rate": 0.7571,
+    "path_acc": 0.7126,
+    "transform_acc": 0.5043,
+    "joint_acc": 0.6194,
+    "exact_path_set_acc": 0.6559
+   },
+   "formmap_s": 24.6,
+   "page_kinds": [
+    "digital",
+    "digital",
+    "digital",
+    "digital"
+   ],
+   "text_sources": [
+    "pdf",
+    "pdf",
+    "pdf",
+    "pdf"
+   ],
+   "candidates": 249,
+   "model": "gpt-6-luna",
+   "steps": 20,
+   "input_tokens": 454057,
+   "output_tokens": 10779,
+   "wall_s": 130.0,
+   "stop_reason": "finish",
+   "finished": true,
+   "error": null,
+   "unplaceable": 2,
+   "fields": 145,
+   "fields_with_source": 115,
+   "schema_mapped": 103,
+   "schema_mappable": 105,
+   "template_path": "eval/results/templates/2026-10-21_check2b/openai_eval/grandview_app_as_published.json",
+   "scored_pages": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "log_path": "eval/results/logs/2026-10-21_check2b/openai_eval/grandview_app_as_published.json"
+  },
+  {
+   "form": "grandview_app",
+   "split": "dev",
+   "kind": "flat",
+   "variant": "fake_scan",
+   "model_env": "OPENAI_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 323,
+     "pred": 262,
+     "matched": 208,
+     "pred_matched": 205,
+     "recall": 0.644,
+     "precision": 0.7824,
+     "type_ok": 207,
+     "type_acc": 0.9952,
+     "missed_by_type": {
+      "text": 73,
+      "choice": 41,
+      "signature": 1
+     }
+    },
+    "iou0.5": {
+     "gt": 323,
+     "pred": 262,
+     "matched": 162,
+     "pred_matched": 159,
+     "recall": 0.5015,
+     "precision": 0.6069,
+     "type_ok": 162,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 98,
+      "choice": 62,
+      "signature": 1
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDetr",
+    "pages": [
+     0,
+     1,
+     2,
+     3
+    ],
+    "iou0.3": {
+     "gt": 323,
+     "pred": 209,
+     "matched": 192,
+     "pred_matched": 192,
+     "type_ok": 192,
+     "recall": 0.5944,
+     "precision": 0.9187,
+     "type_acc": 1.0
+    },
+    "iou0.5": {
+     "gt": 323,
+     "pred": 209,
+     "matched": 157,
+     "pred_matched": 157,
+     "type_ok": 157,
+     "recall": 0.4861,
+     "precision": 0.7512,
+     "type_acc": 1.0
+    }
+   },
+   "mapping": {
+    "n_path": 247,
+    "n_transform": 117,
+    "matched": 139,
+    "path_ok": 131,
+    "transform_ok": 41,
+    "joint_ok": 110,
+    "exact_ok": 119,
+    "matched_rate": 0.5628,
+    "path_acc": 0.5304,
+    "transform_acc": 0.3504,
+    "joint_acc": 0.4453,
+    "exact_path_set_acc": 0.4818
+   },
+   "formmap_s": 34.1,
+   "page_kinds": [
+    "scanned",
+    "scanned",
+    "scanned",
+    "scanned"
+   ],
+   "text_sources": [
+    "ocr",
+    "ocr",
+    "ocr",
+    "ocr"
+   ],
+   "candidates": 213,
+   "model": "gpt-6-luna",
+   "steps": 24,
+   "input_tokens": 576304,
+   "output_tokens": 18199,
+   "wall_s": 196.6,
+   "stop_reason": "finish",
+   "finished": true,
+   "error": null,
+   "unplaceable": 11,
+   "fields": 187,
+   "fields_with_source": 97,
+   "schema_mapped": 94,
+   "schema_mappable": 105,
+   "template_path": "eval/results/templates/2026-10-21_check2b/openai_eval/grandview_app_fake_scan.json",
+   "scored_pages": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "log_path": "eval/results/logs/2026-10-21_check2b/openai_eval/grandview_app_fake_scan.json"
+  },
+  {
+   "form": "csudh_health",
+   "split": "dev",
+   "kind": "flat",
+   "variant": "as_published",
+   "model_env": "OPENAI_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 175,
+     "pred": 176,
+     "matched": 172,
+     "pred_matched": 172,
+     "recall": 0.9829,
+     "precision": 0.9773,
+     "type_ok": 172,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 3,
+      "choice": 0,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 175,
+     "pred": 176,
+     "matched": 169,
+     "pred_matched": 169,
+     "recall": 0.9657,
+     "precision": 0.9602,
+     "type_ok": 169,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 4,
+      "choice": 2,
+      "signature": 0
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDNet-L",
+    "pages": [
+     0,
+     1
+    ],
+    "iou0.3": {
+     "gt": 175,
+     "pred": 173,
+     "matched": 171,
+     "pred_matched": 171,
+     "type_ok": 169,
+     "recall": 0.9771,
+     "precision": 0.9884,
+     "type_acc": 0.9883
+    },
+    "iou0.5": {
+     "gt": 175,
+     "pred": 173,
+     "matched": 171,
+     "pred_matched": 171,
+     "type_ok": 169,
+     "recall": 0.9771,
+     "precision": 0.9884,
+     "type_acc": 0.9883
+    }
+   },
+   "mapping": {
+    "n_path": 155,
+    "n_transform": 141,
+    "matched": 153,
+    "path_ok": 150,
+    "transform_ok": 135,
+    "joint_ok": 148,
+    "exact_ok": 150,
+    "matched_rate": 0.9871,
+    "path_acc": 0.9677,
+    "transform_acc": 0.9574,
+    "joint_acc": 0.9548,
+    "exact_path_set_acc": 0.9677
+   },
+   "formmap_s": 19.2,
+   "page_kinds": [
+    "digital",
+    "digital"
+   ],
+   "text_sources": [
+    "pdf",
+    "pdf"
+   ],
+   "candidates": 173,
+   "model": "gpt-6-luna",
+   "steps": 25,
+   "input_tokens": 575206,
+   "output_tokens": 15288,
+   "wall_s": 174.3,
+   "stop_reason": "finish",
+   "finished": true,
+   "error": null,
+   "unplaceable": 2,
+   "fields": 176,
+   "fields_with_source": 159,
+   "schema_mapped": 78,
+   "schema_mappable": 80,
+   "template_path": "eval/results/templates/2026-10-21_check2b/openai_eval/csudh_health_as_published.json",
+   "scored_pages": [
+    0,
+    1
+   ],
+   "log_path": "eval/results/logs/2026-10-21_check2b/openai_eval/csudh_health_as_published.json"
+  },
+  {
+   "form": "csudh_health",
+   "split": "dev",
+   "kind": "flat",
+   "variant": "fake_scan",
+   "model_env": "OPENAI_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 175,
+     "pred": 162,
+     "matched": 124,
+     "pred_matched": 124,
+     "recall": 0.7086,
+     "precision": 0.7654,
+     "type_ok": 124,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 9,
+      "choice": 42,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 175,
+     "pred": 162,
+     "matched": 62,
+     "pred_matched": 62,
+     "recall": 0.3543,
+     "precision": 0.3827,
+     "type_ok": 62,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 15,
+      "choice": 98,
+      "signature": 0
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDetr",
+    "pages": [
+     0,
+     1
+    ],
+    "iou0.3": {
+     "gt": 175,
+     "pred": 132,
+     "matched": 117,
+     "pred_matched": 117,
+     "type_ok": 115,
+     "recall": 0.6686,
+     "precision": 0.8864,
+     "type_acc": 0.9829
+    },
+    "iou0.5": {
+     "gt": 175,
+     "pred": 132,
+     "matched": 55,
+     "pred_matched": 55,
+     "type_ok": 53,
+     "recall": 0.3143,
+     "precision": 0.4167,
+     "type_acc": 0.9636
+    }
+   },
+   "mapping": {
+    "n_path": 155,
+    "n_transform": 141,
+    "matched": 110,
+    "path_ok": 95,
+    "transform_ok": 97,
+    "joint_ok": 95,
+    "exact_ok": 95,
+    "matched_rate": 0.7097,
+    "path_acc": 0.6129,
+    "transform_acc": 0.6879,
+    "joint_acc": 0.6129,
+    "exact_path_set_acc": 0.6129
+   },
+   "formmap_s": 23.0,
+   "page_kinds": [
+    "scanned",
+    "scanned"
+   ],
+   "text_sources": [
+    "ocr",
+    "ocr"
+   ],
+   "candidates": 134,
+   "model": "gpt-6-luna",
+   "steps": 34,
+   "input_tokens": 774357,
+   "output_tokens": 26705,
+   "wall_s": 303.4,
+   "stop_reason": "finish",
+   "finished": true,
+   "error": null,
+   "unplaceable": 2,
+   "fields": 162,
+   "fields_with_source": 148,
+   "schema_mapped": 78,
+   "schema_mappable": 80,
+   "template_path": "eval/results/templates/2026-10-21_check2b/openai_eval/csudh_health_fake_scan.json",
+   "scored_pages": [
+    0,
+    1
+   ],
+   "log_path": "eval/results/logs/2026-10-21_check2b/openai_eval/csudh_health_fake_scan.json"
+  },
+  {
+   "form": "menomonie_app",
+   "split": "dev",
+   "kind": "fillable",
+   "variant": "as_published",
+   "model_env": "OPENAI_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 56,
+     "pred": 58,
+     "matched": 56,
+     "pred_matched": 56,
+     "recall": 1.0,
+     "precision": 0.9655,
+     "type_ok": 56,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 56,
+     "pred": 58,
+     "matched": 54,
+     "pred_matched": 54,
+     "recall": 0.9643,
+     "precision": 0.931,
+     "type_ok": 54,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 2,
+      "choice": 0,
+      "signature": 0
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDNet-L",
+    "pages": [
+     0,
+     1,
+     2
+    ],
+    "iou0.3": {
+     "gt": 56,
+     "pred": 56,
+     "matched": 56,
+     "pred_matched": 56,
+     "type_ok": 55,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_acc": 0.9821
+    },
+    "iou0.5": {
+     "gt": 56,
+     "pred": 56,
+     "matched": 56,
+     "pred_matched": 56,
+     "type_ok": 55,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_acc": 0.9821
+    }
+   },
+   "mapping": {
+    "n_path": 50,
+    "n_transform": 17,
+    "matched": 50,
+    "path_ok": 50,
+    "transform_ok": 17,
+    "joint_ok": 50,
+    "exact_ok": 49,
+    "matched_rate": 1.0,
+    "path_acc": 1.0,
+    "transform_acc": 1.0,
+    "joint_acc": 1.0,
+    "exact_path_set_acc": 0.98
+   },
+   "formmap_s": 0.1,
+   "page_kinds": [
+    "fillable",
+    "fillable",
+    "fillable"
+   ],
+   "text_sources": [
+    "pdf",
+    "pdf",
+    "pdf"
+   ],
+   "candidates": 0,
+   "model": "gpt-6-luna",
+   "steps": 16,
+   "input_tokens": 242344,
+   "output_tokens": 7293,
+   "wall_s": 90.6,
+   "stop_reason": "finish",
+   "finished": true,
+   "error": null,
+   "unplaceable": 2,
+   "fields": 46,
+   "fields_with_source": 45,
+   "schema_mapped": 46,
+   "schema_mappable": 48,
+   "template_path": "eval/results/templates/2026-10-21_check2b/openai_eval/menomonie_app_as_published.json",
+   "scored_pages": [
+    0,
+    1,
+    2
+   ],
+   "log_path": "eval/results/logs/2026-10-21_check2b/openai_eval/menomonie_app_as_published.json"
+  },
+  {
+   "form": "menomonie_app",
+   "split": "dev",
+   "kind": "fillable",
+   "variant": "fake_scan",
+   "model_env": "OPENAI_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 56,
+     "pred": 57,
+     "matched": 55,
+     "pred_matched": 53,
+     "recall": 0.9821,
+     "precision": 0.9298,
+     "type_ok": 55,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 1,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 56,
+     "pred": 57,
+     "matched": 47,
+     "pred_matched": 45,
+     "recall": 0.8393,
+     "precision": 0.7895,
+     "type_ok": 47,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 3,
+      "choice": 6,
+      "signature": 0
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDetr",
+    "pages": [
+     0,
+     1,
+     2
+    ],
+    "iou0.3": {
+     "gt": 56,
+     "pred": 56,
+     "matched": 55,
+     "pred_matched": 55,
+     "type_ok": 54,
+     "recall": 0.9821,
+     "precision": 0.9821,
+     "type_acc": 0.9818
+    },
+    "iou0.5": {
+     "gt": 56,
+     "pred": 56,
+     "matched": 51,
+     "pred_matched": 51,
+     "type_ok": 50,
+     "recall": 0.9107,
+     "precision": 0.9107,
+     "type_acc": 0.9804
+    }
+   },
+   "mapping": {
+    "n_path": 50,
+    "n_transform": 17,
+    "matched": 49,
+    "path_ok": 48,
+    "transform_ok": 15,
+    "joint_ok": 48,
+    "exact_ok": 47,
+    "matched_rate": 0.98,
+    "path_acc": 0.96,
+    "transform_acc": 0.8824,
+    "joint_acc": 0.96,
+    "exact_path_set_acc": 0.94
+   },
+   "formmap_s": 15.0,
+   "page_kinds": [
+    "scanned",
+    "scanned",
+    "scanned"
+   ],
+   "text_sources": [
+    "ocr",
+    "ocr",
+    "ocr"
+   ],
+   "candidates": 56,
+   "model": "gpt-6-luna",
+   "steps": 32,
+   "input_tokens": 482201,
+   "output_tokens": 12977,
+   "wall_s": 172.9,
+   "stop_reason": "finish",
+   "finished": true,
+   "error": null,
+   "unplaceable": 2,
+   "fields": 45,
+   "fields_with_source": 44,
+   "schema_mapped": 46,
+   "schema_mappable": 48,
+   "template_path": "eval/results/templates/2026-10-21_check2b/openai_eval/menomonie_app_fake_scan.json",
+   "scored_pages": [
+    0,
+    1,
+    2
+   ],
+   "log_path": "eval/results/logs/2026-10-21_check2b/openai_eval/menomonie_app_fake_scan.json"
+  },
+  {
+   "form": "fw9",
+   "split": "dev",
+   "kind": "fillable",
+   "variant": "as_published",
+   "model_env": "OPENAI_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 23,
+     "pred": 23,
+     "matched": 21,
+     "pred_matched": 21,
+     "recall": 0.913,
+     "precision": 0.913,
+     "type_ok": 21,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 2,
+      "choice": 0,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 23,
+     "pred": 23,
+     "matched": 21,
+     "pred_matched": 21,
+     "recall": 0.913,
+     "precision": 0.913,
+     "type_ok": 21,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 2,
+      "choice": 0,
+      "signature": 0
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDNet-L",
+    "pages": [
+     0
+    ],
+    "iou0.3": {
+     "gt": 23,
+     "pred": 23,
+     "matched": 23,
+     "pred_matched": 23,
+     "type_ok": 23,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_acc": 1.0
+    },
+    "iou0.5": {
+     "gt": 23,
+     "pred": 23,
+     "matched": 23,
+     "pred_matched": 23,
+     "type_ok": 23,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_acc": 1.0
+    }
+   },
+   "mapping": {
+    "n_path": 20,
+    "n_transform": 15,
+    "matched": 20,
+    "path_ok": 20,
+    "transform_ok": 14,
+    "joint_ok": 19,
+    "exact_ok": 20,
+    "matched_rate": 1.0,
+    "path_acc": 1.0,
+    "transform_acc": 0.9333,
+    "joint_acc": 0.95,
+    "exact_path_set_acc": 1.0
+   },
+   "formmap_s": 13.2,
+   "page_kinds": [
+    "fillable",
+    "digital",
+    "digital",
+    "digital",
+    "digital",
+    "digital"
+   ],
+   "text_sources": [
+    "pdf",
+    "pdf",
+    "pdf",
+    "pdf",
+    "pdf",
+    "pdf"
+   ],
+   "candidates": 0,
+   "model": "gpt-6-luna",
+   "steps": 15,
+   "input_tokens": 229094,
+   "output_tokens": 6291,
+   "wall_s": 88.6,
+   "stop_reason": "finish",
+   "finished": true,
+   "error": null,
+   "unplaceable": 1,
+   "fields": 23,
+   "fields_with_source": 22,
+   "schema_mapped": 15,
+   "schema_mappable": 16,
+   "template_path": "eval/results/templates/2026-10-21_check2b/openai_eval/fw9_as_published.json",
+   "scored_pages": [
+    0
+   ],
+   "log_path": "eval/results/logs/2026-10-21_check2b/openai_eval/fw9_as_published.json"
+  },
+  {
+   "form": "fw9",
+   "split": "dev",
+   "kind": "fillable",
+   "variant": "fake_scan",
+   "model_env": "OPENAI_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 23,
+     "pred": 22,
+     "matched": 13,
+     "pred_matched": 10,
+     "recall": 0.5652,
+     "precision": 0.4545,
+     "type_ok": 13,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 3,
+      "choice": 7,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 23,
+     "pred": 22,
+     "matched": 11,
+     "pred_matched": 8,
+     "recall": 0.4783,
+     "precision": 0.3636,
+     "type_ok": 11,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 4,
+      "choice": 8,
+      "signature": 0
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDetr",
+    "pages": [
+     0
+    ],
+    "iou0.3": {
+     "gt": 23,
+     "pred": 27,
+     "matched": 13,
+     "pred_matched": 13,
+     "type_ok": 13,
+     "recall": 0.5652,
+     "precision": 0.4815,
+     "type_acc": 1.0
+    },
+    "iou0.5": {
+     "gt": 23,
+     "pred": 27,
+     "matched": 11,
+     "pred_matched": 11,
+     "type_ok": 11,
+     "recall": 0.4783,
+     "precision": 0.4074,
+     "type_acc": 1.0
+    }
+   },
+   "mapping": {
+    "n_path": 20,
+    "n_transform": 15,
+    "matched": 12,
+    "path_ok": 11,
+    "transform_ok": 2,
+    "joint_ok": 5,
+    "exact_ok": 11,
+    "matched_rate": 0.6,
+    "path_acc": 0.55,
+    "transform_acc": 0.1333,
+    "joint_acc": 0.25,
+    "exact_path_set_acc": 0.55
+   },
+   "formmap_s": 44.7,
+   "page_kinds": [
+    "scanned",
+    "scanned",
+    "scanned",
+    "scanned",
+    "scanned",
+    "scanned"
+   ],
+   "text_sources": [
+    "ocr",
+    "ocr",
+    "ocr",
+    "ocr",
+    "ocr",
+    "ocr"
+   ],
+   "candidates": 45,
+   "model": "gpt-6-luna",
+   "steps": 20,
+   "input_tokens": 302526,
+   "output_tokens": 8728,
+   "wall_s": 131.3,
+   "stop_reason": "finish",
+   "finished": true,
+   "error": null,
+   "unplaceable": 1,
+   "fields": 22,
+   "fields_with_source": 19,
+   "schema_mapped": 15,
+   "schema_mappable": 16,
+   "template_path": "eval/results/templates/2026-10-21_check2b/openai_eval/fw9_fake_scan.json",
+   "scored_pages": [
+    0
+   ],
+   "log_path": "eval/results/logs/2026-10-21_check2b/openai_eval/fw9_fake_scan.json"
+  }
+ ],
+ "totals": {
+  "all": {
+   "forms": 8,
+   "failed": 0,
+   "finished": 8,
+   "detection": {
+    "iou0.3": {
+     "gt": 1154,
+     "pred": 1007,
+     "matched": 869,
+     "pred_matched": 860,
+     "type_ok": 866,
+     "recall": 0.753,
+     "precision": 0.854,
+     "type_acc": 0.9965
+    },
+    "iou0.5": {
+     "gt": 1154,
+     "pred": 1007,
+     "matched": 718,
+     "pred_matched": 709,
+     "type_ok": 716,
+     "recall": 0.6222,
+     "precision": 0.7041,
+     "type_acc": 0.9972
+    }
+   },
+   "baseline": {
+    "forms": 8,
+    "iou0.3": {
+     "gt": 1154,
+     "pred": 936,
+     "matched": 873,
+     "pred_matched": 873,
+     "type_ok": 850,
+     "recall": 0.7565,
+     "precision": 0.9327,
+     "type_acc": 0.9737
+    },
+    "iou0.5": {
+     "gt": 1154,
+     "pred": 936,
+     "matched": 762,
+     "pred_matched": 762,
+     "type_ok": 739,
+     "recall": 0.6603,
+     "precision": 0.8141,
+     "type_acc": 0.9698
+    }
+   },
+   "mapping": {
+    "n_path": 944,
+    "n_transform": 580,
+    "matched": 720,
+    "path_ok": 681,
+    "transform_ok": 380,
+    "joint_ok": 628,
+    "exact_ok": 653,
+    "path_acc": 0.7214,
+    "transform_acc": 0.6552,
+    "joint_acc": 0.6653,
+    "exact_path_set_acc": 0.6917
+   },
+   "steps": 186,
+   "input_tokens": 3636089,
+   "output_tokens": 106260,
+   "wall_s": 1287.7
+  },
+  "as_published": {
+   "forms": 4,
+   "failed": 0,
+   "finished": 4,
+   "detection": {
+    "iou0.3": {
+     "gt": 577,
+     "pred": 504,
+     "matched": 469,
+     "pred_matched": 468,
+     "type_ok": 467,
+     "recall": 0.8128,
+     "precision": 0.9286,
+     "type_acc": 0.9957
+    },
+    "iou0.5": {
+     "gt": 577,
+     "pred": 504,
+     "matched": 436,
+     "pred_matched": 435,
+     "type_ok": 434,
+     "recall": 0.7556,
+     "precision": 0.8631,
+     "type_acc": 0.9954
+    }
+   },
+   "baseline": {
+    "forms": 4,
+    "iou0.3": {
+     "gt": 577,
+     "pred": 512,
+     "matched": 496,
+     "pred_matched": 496,
+     "type_ok": 476,
+     "recall": 0.8596,
+     "precision": 0.9688,
+     "type_acc": 0.9597
+    },
+    "iou0.5": {
+     "gt": 577,
+     "pred": 512,
+     "matched": 488,
+     "pred_matched": 488,
+     "type_ok": 468,
+     "recall": 0.8458,
+     "precision": 0.9531,
+     "type_acc": 0.959
+    }
+   },
+   "mapping": {
+    "n_path": 472,
+    "n_transform": 290,
+    "matched": 410,
+    "path_ok": 396,
+    "transform_ok": 225,
+    "joint_ok": 370,
+    "exact_ok": 381,
+    "path_acc": 0.839,
+    "transform_acc": 0.7759,
+    "joint_acc": 0.7839,
+    "exact_path_set_acc": 0.8072
+   },
+   "steps": 76,
+   "input_tokens": 1500701,
+   "output_tokens": 39651,
+   "wall_s": 483.5
+  },
+  "fake_scan": {
+   "forms": 4,
+   "failed": 0,
+   "finished": 4,
+   "detection": {
+    "iou0.3": {
+     "gt": 577,
+     "pred": 503,
+     "matched": 400,
+     "pred_matched": 392,
+     "type_ok": 399,
+     "recall": 0.6932,
+     "precision": 0.7793,
+     "type_acc": 0.9975
+    },
+    "iou0.5": {
+     "gt": 577,
+     "pred": 503,
+     "matched": 282,
+     "pred_matched": 274,
+     "type_ok": 282,
+     "recall": 0.4887,
+     "precision": 0.5447,
+     "type_acc": 1.0
+    }
+   },
+   "baseline": {
+    "forms": 4,
+    "iou0.3": {
+     "gt": 577,
+     "pred": 424,
+     "matched": 377,
+     "pred_matched": 377,
+     "type_ok": 374,
+     "recall": 0.6534,
+     "precision": 0.8892,
+     "type_acc": 0.992
+    },
+    "iou0.5": {
+     "gt": 577,
+     "pred": 424,
+     "matched": 274,
+     "pred_matched": 274,
+     "type_ok": 271,
+     "recall": 0.4749,
+     "precision": 0.6462,
+     "type_acc": 0.9891
+    }
+   },
+   "mapping": {
+    "n_path": 472,
+    "n_transform": 290,
+    "matched": 310,
+    "path_ok": 285,
+    "transform_ok": 155,
+    "joint_ok": 258,
+    "exact_ok": 272,
+    "path_acc": 0.6038,
+    "transform_acc": 0.5345,
+    "joint_acc": 0.5466,
+    "exact_path_set_acc": 0.5763
+   },
+   "steps": 110,
+   "input_tokens": 2135388,
+   "output_tokens": 66609,
+   "wall_s": 804.2
+  }
+ }
+}
