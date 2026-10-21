@@ -1,0 +1,5 @@
+{
+  "project": "RLM Lab",
+  "goal": "inspect recursive behavior",
+  "storage": "runs/*.json and runs/*.events.jsonl"
+}

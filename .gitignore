@@ -1,0 +1,11 @@
+.env
+.env.*
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.dspy_cache/
+*.egg-info/
+.DS_Store
+eval/results/overlays/
+.superpowers/

@@ -1,0 +1,2 @@
+The observability system should capture token usage, latency, retrieval activity, and recursive iteration traces.
+The baseline runner should share the same initial retrieved context as the recursive runner whenever possible.
