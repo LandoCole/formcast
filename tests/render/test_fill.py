@@ -715,3 +715,36 @@ def test_list_row_value_without_a_column_is_not_shown(make_pdf):
     _, rep = fill(tpl, pdf, {"rows": [["a", "b", "c"]]})
     ((path, msg),) = _not_shown(rep)
     assert path == "rows[]" and "'c'" in msg
+
+
+# ---------------------------------------------------------------- I2: unknown transforms raise
+
+
+@pytest.mark.parametrize("where", ["transforms", "when", "column", "bad_args"])
+def test_unknown_or_invalid_transform_raises(make_pdf, where):
+    pdf = make_pdf(text=TEXT)
+    bogus = Transform(op="no_such_op")
+    if where == "transforms":
+        f = _text("f_name", "name")
+        f.source.transforms = [Transform(op="upper"), bogus]
+    elif where == "when":
+        f = _choice("f_married", "married", (100, 130, 112, 142), when=bogus)
+    elif where == "column":
+        f = _meds()
+        f.segments[0].columns[1].transforms = [bogus]
+    else:
+        f = _text("f_name", "name")
+        f.source.transforms = [Transform(op="slice", args={"start": "x"})]
+    tpl = _tpl(pdf, f)
+    with pytest.raises(FormcastError, match="f_name|f_married|t_meds"):
+        fill(tpl, pdf, {"name": "x"})
+    with pytest.raises(FormcastError):
+        to_smart_pdf(tpl, pdf)
+
+
+def test_data_dependent_transform_failure_stays_a_report_entry(make_pdf):
+    pdf = make_pdf(text=TEXT)
+    f = _text("f_dob", "dob")
+    f.source.transforms = [Transform(op="date_format", args={"format": "%m/%d/%Y"})]
+    _, rep = fill(_tpl(pdf, f), pdf, {"dob": "next Tuesday"})
+    assert "transform_error" in _codes(rep)

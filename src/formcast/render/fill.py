@@ -25,6 +25,7 @@ from formcast.render.values import CellTarget, Resolved, resolve
 from formcast.render.write import read_existing, text_font_for, write_choice, write_choice_mark, write_text
 from formcast.schema import flatten_schema, validate_data
 from formcast.template.model import Style, Template
+from formcast.transforms import validate_chain
 
 __all__ = ["fill", "to_smart_pdf"]
 
@@ -46,8 +47,9 @@ def fill(
 
     Raises ``FormcastError`` when the PDF can't be opened or is encrypted, its page count differs
     from the template's, its fingerprint doesn't match (unless ``check_fingerprint=False``, which
-    records ``fingerprint_mismatch`` instead), or, with ``strict=True``, ``data`` fails the
-    template's schema. Every other problem is a report entry.
+    records ``fingerprint_mismatch`` instead), the template uses an unknown transform (or bad
+    transform arguments), or, with ``strict=True``, ``data`` fails the template's schema. Every
+    other problem is a report entry.
     """
     out, report = _run(template, pdf, data, check_fingerprint=check_fingerprint, strict=strict, smart=False)
     assert report is not None
@@ -69,6 +71,7 @@ def to_smart_pdf(template: Template, pdf: str | Path | bytes, *, check_fingerpri
 
 
 def _run(template, pdf, data, *, check_fingerprint: bool, strict: bool, smart: bool):
+    _check_transforms(template)
     doc = open_pdf(pdf)
     try:
         if doc.page_count != template.form.page_count:
@@ -105,6 +108,23 @@ def _run(template, pdf, data, *, check_fingerprint: bool, strict: bool, smart: b
     report = build_report(template, data, strict=strict, fingerprint_ok=not head, head=head, record=record,
                           slots=slots, fields=fields, tables=tables, cells=cells)  # fmt: skip
     return out, report
+
+
+def _check_transforms(template: Template) -> None:
+    """Raise ``FormcastError`` on the first unknown transform or bad transform arguments in the
+    template (source transforms, ``when``, table column transforms). Failures that depend on the
+    data stay per-field ``transform_error`` entries."""
+    for f in template.fields:
+        chains: list[tuple[str, list]] = []
+        if f.source is not None:
+            chains.append(("transforms", f.source.transforms))
+            if f.source.when is not None:
+                chains.append(("when", [f.source.when]))
+        chains += [(f"column {c.key!r} transforms", c.transforms) for seg in f.segments for c in seg.columns]
+        for where, chain in chains:
+            errors = validate_chain(chain)
+            if errors:
+                raise FormcastError(f"field {f.id!r} {where}: {errors[0]}")
 
 
 def _check_fingerprint(doc: pymupdf.Document, template: Template, check: bool) -> list[FillWarning]:
