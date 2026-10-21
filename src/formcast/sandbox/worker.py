@@ -452,11 +452,14 @@ def main(argv: list[str] | None = None) -> None:
 
     session: Session | None = None
     for line in sys.stdin.buffer:
+        seq = None
         try:
-            session, response = _handle(session, protocol.decode(line))
+            message = protocol.decode(line)
+            seq = message.get("seq")
+            session, response = _handle(session, message)
         except Exception as e:  # noqa: BLE001 - report, keep serving
             response = {"ok": False, "error": f"{type(e).__name__}: {e}"}
-        proto.write(protocol.encode(response))
+        proto.write(protocol.encode({**response, "seq": seq}))
 
 
 if __name__ == "__main__":

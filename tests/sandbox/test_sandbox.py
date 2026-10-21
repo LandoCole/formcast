@@ -321,3 +321,47 @@ def test_close_stops_the_worker():
     sb.close()
     assert proc.poll() is not None
     sb.close()  # idempotent
+
+
+# --- isolation from the parent ---
+
+
+def test_worker_does_not_inherit_parent_secrets(monkeypatch):
+    monkeypatch.setenv("FORMCAST_TEST_SECRET", "xyz")
+    with Sandbox() as sb:
+        sb.start(_form_map(), flatten_schema(SCHEMA), _template())
+        code = "import typing\nprint(typing.sys.modules['os'].environ.get('FORMCAST_TEST_SECRET'))"
+        assert _ok(sb.exec(code)).stdout == "None\n"
+
+
+# --- request/response correlation ---
+
+
+def test_stale_response_is_discarded(sandbox):
+    worker = sandbox._worker
+    stale = {"ok": True, "seq": worker.seq, "stdout": "stale\n", "truncated": False, "ops": [], "error": None}
+    worker.responses.put(stale)
+    assert _ok(sandbox.exec("print('fresh')")).stdout == "fresh\n"
+
+
+def test_interrupted_request_drops_the_worker_and_the_next_call_respawns(sandbox, monkeypatch):
+    _ok(sandbox.exec("x = 1"))
+    old_proc = sandbox._proc
+
+    def interrupt(*args, **kwargs):
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(sandbox._worker.responses, "get", interrupt)
+    with pytest.raises(KeyboardInterrupt):
+        sandbox.exec("print('slow')")
+    assert old_proc.poll() is not None
+    assert _ok(sandbox.exec("print(2)")).stdout == "2\n"
+    assert "NameError" in sandbox.exec("print(x)").error
+
+
+def test_exec_after_close_raises():
+    sb = Sandbox()
+    sb.start(_form_map(), flatten_schema(SCHEMA), _template())
+    sb.close()
+    with pytest.raises(FormcastError):
+        sb.exec("print(1)")

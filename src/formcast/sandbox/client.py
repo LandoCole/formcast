@@ -9,6 +9,7 @@ import queue
 import subprocess
 import sys
 import threading
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import IO, Any
@@ -22,6 +23,16 @@ from formcast.template.model import Template
 
 STARTUP_TIMEOUT_S = 60.0
 STDERR_TAIL_LINES = 40
+# The only parent environment variables the worker sees (the parent may hold API
+# keys in os.environ, and user code can reach the worker's os module).
+ENV_ALLOWLIST = ("PATH", "HOME", "TMPDIR", "LANG", "SYSTEMROOT")
+
+
+def _worker_env() -> dict[str, str]:
+    env = {k: v for k, v in os.environ.items() if k in ENV_ALLOWLIST or k.startswith("LC_")}
+    package_root = str(Path(formcast.__file__).resolve().parent.parent)
+    env["PYTHONPATH"] = os.pathsep.join(p for p in (package_root, os.environ.get("PYTHONPATH")) if p)
+    return env
 
 
 @dataclass
@@ -46,17 +57,15 @@ class _Worker:
     """One worker process with reader threads for its stdout and stderr."""
 
     def __init__(self, memory_mb: int):
-        package_root = str(Path(formcast.__file__).resolve().parent.parent)
-        env = dict(os.environ)
-        env["PYTHONPATH"] = os.pathsep.join(p for p in (package_root, env.get("PYTHONPATH")) if p)
         # -P: do not put the current directory on sys.path (it could shadow modules).
         self.proc = subprocess.Popen(
             [sys.executable, "-P", "-m", "formcast.sandbox.worker", "--memory-mb", str(memory_mb)],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            env=env,
+            env=_worker_env(),
         )
+        self.seq = 0
         self.responses: queue.Queue[dict | None] = queue.Queue()
         self.stderr_tail: collections.deque[str] = collections.deque(maxlen=STDERR_TAIL_LINES)
         self.threads = [
@@ -79,18 +88,29 @@ class _Worker:
             self.stderr_tail.append(line.decode("utf-8", "replace").rstrip("\n"))
 
     def request(self, message: dict[str, Any], timeout: float) -> tuple[str, dict | None]:
-        """Send one request; ``("ok", response)``, ``("timeout", None)`` or ``("exited", None)``."""
+        """Send one request; ``("ok", response)``, ``("timeout", None)`` or ``("exited", None)``.
+
+        Responses whose ``seq`` is not this request's (left over from a request
+        the caller stopped waiting for) are discarded.
+        """
+        self.seq += 1
+        seq = self.seq
         try:
             assert self.proc.stdin is not None
-            self.proc.stdin.write(protocol.encode(message))
+            self.proc.stdin.write(protocol.encode({**message, "seq": seq}))
             self.proc.stdin.flush()
         except (BrokenPipeError, OSError):
             return "exited", None
-        try:
-            response = self.responses.get(timeout=timeout)
-        except queue.Empty:
-            return "timeout", None
-        return ("exited", None) if response is None else ("ok", response)
+        deadline = time.monotonic() + timeout
+        while True:
+            try:
+                response = self.responses.get(timeout=max(0.0, deadline - time.monotonic()))
+            except queue.Empty:
+                return "timeout", None
+            if response is None:
+                return "exited", None
+            if response.get("seq") == seq:
+                return "ok", response
 
     def describe_exit(self) -> str:
         try:
@@ -159,8 +179,7 @@ class Sandbox:
         """Replace the snapshot behind ``tpl`` (and the base for new field ids)."""
         context = self._require_started()
         context["template"] = json.loads(template.to_json())
-        assert self._worker is not None
-        status, response = self._worker.request(
+        status, response = self._request(
             {"cmd": protocol.UPDATE_TEMPLATE, "template": context["template"]}, STARTUP_TIMEOUT_S
         )
         if status != "ok":
@@ -171,8 +190,7 @@ class Sandbox:
     def exec(self, code: str) -> ExecResult:
         """Run ``code`` in the persistent namespace."""
         self._require_started()
-        assert self._worker is not None
-        status, response = self._worker.request({"cmd": protocol.EXEC, "code": code}, self.timeout_s)
+        status, response = self._request({"cmd": protocol.EXEC, "code": code}, self.timeout_s)
         if status == "timeout":
             self._spawn()
             return ExecResult(
@@ -187,6 +205,7 @@ class Sandbox:
                 timed_out=True,
             )
         if status == "exited":
+            assert self._worker is not None
             detail = self._worker.describe_exit()
             self._spawn()
             return ExecResult(
@@ -210,14 +229,28 @@ class Sandbox:
 
     def close(self) -> None:
         """Stop the worker. Safe to call more than once."""
+        self._context = None
         if self._worker is not None:
             self._worker.stop(graceful=True)
             self._worker = None
 
     def _require_started(self) -> dict[str, Any]:
-        if self._context is None or self._worker is None:
+        if self._context is None:
             raise FormcastError("sandbox not started: call start() first")
+        if self._worker is None:  # killed by an interrupted request: start over from the context
+            self._spawn()
         return self._context
+
+    def _request(self, message: dict[str, Any], timeout: float) -> tuple[str, dict | None]:
+        assert self._worker is not None
+        try:
+            return self._worker.request(message, timeout)
+        except BaseException:
+            # Interrupted mid-request (e.g. KeyboardInterrupt): the worker may still
+            # be busy with it, so drop it; the next call respawns from the context.
+            self._worker.stop(graceful=False)
+            self._worker = None
+            raise
 
     def _spawn(self) -> None:
         """(Re)start the worker fresh from the last context."""

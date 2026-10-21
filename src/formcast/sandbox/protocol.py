@@ -13,9 +13,12 @@ Requests (``cmd``):
 * ``update_template``: ``template``. Replaces the snapshot behind ``tpl``.
 * ``exec``: ``code``. Runs it in the persistent namespace.
 
-Responses: ``{"ok": true, ...}`` or ``{"ok": false, "error": str}``. An ``exec``
-response carries ``stdout``, ``truncated``, ``ops`` and ``error`` (None when the
-code ran to the end).
+Every request carries an integer ``seq`` (increasing per worker); the response
+echoes it, so the parent can drop a stale response to a request it gave up on.
+
+Responses: ``{"ok": true, "seq": int, ...}`` or ``{"ok": false, "seq": int,
+"error": str}``. An ``exec`` response carries ``stdout``, ``truncated``, ``ops``
+and ``error`` (None when the code ran to the end).
 """
 
 from __future__ import annotations
