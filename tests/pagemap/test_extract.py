@@ -227,3 +227,44 @@ def test_image_norm_to_points_rotated_and_cropped(rotated_form_pdf):
         box = _pixmap_norm_box(page, name)
         assert _close(image_norm_to_points(page, box), name)
         assert _close(image_norm_to_points(page, (0, 0, 1, 1)), (0, 0, 540, 720))
+
+
+def _section_bar_page() -> pymupdf.Page:
+    """Born-digital page: a black section bar with white text and 12 checkboxes."""
+    doc = pymupdf.open()
+    page = doc.new_page(width=612, height=792)
+    page.draw_rect(pymupdf.Rect(36, 72, 576, 90), color=None, fill=(0, 0, 0))
+    page.insert_text((40, 85), "SECTION 1. HISTORY", fontsize=11, color=(1, 1, 1))
+    for i in range(12):
+        x, y = 40 + (i % 3) * 180, 110 + (i // 3) * 20
+        page.draw_rect(pymupdf.Rect(x, y, x + 10, y + 10), width=0.75)
+        page.insert_text((x + 14, y + 9), "Item", fontsize=9)
+    return page
+
+
+def test_dark_vector_shapes_do_not_make_a_digital_page_scanned():
+    page = _section_bar_page()
+    assert needs_ocr(page) is False
+    assert extract_page(page).kind == "digital"
+
+
+def test_labels_drawn_as_glyph_paths_need_ocr():
+    # Labels drawn as small filled outlines (curves and line polygons), as some
+    # born-digital forms do; only a few real words and some drawn rules.
+    doc = pymupdf.open()
+    page = doc.new_page(width=612, height=792)
+    for row in range(10):
+        y = 80 + row * 40
+        for col in range(20):
+            x = 40 + col * 8
+            if col % 2:
+                page.draw_oval(pymupdf.Rect(x, y, x + 5, y + 7), color=None, fill=(0, 0, 0))
+            else:
+                ell = [(x, y), (x + 1.5, y), (x + 1.5, y + 5.5), (x + 5, y + 5.5),
+                       (x + 5, y + 7), (x, y + 7), (x, y)]
+                page.draw_polyline(ell, color=None, fill=(0, 0, 0), closePath=True)
+        page.draw_line((40, y + 20), (560, y + 20), width=0.75)
+        page.draw_rect(pymupdf.Rect(400, y, 410, y + 10), width=0.75)
+    page.insert_text((40, 700), "Form 1", fontsize=8)
+    assert needs_ocr(page) is True
+    assert extract_page(page).kind == "scanned"

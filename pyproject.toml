@@ -30,6 +30,7 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
 addopts = "-m 'not slow and not llm'"
 markers = [
   "slow: downloads or loads models (run with -m slow)",

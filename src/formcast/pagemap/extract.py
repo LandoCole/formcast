@@ -29,6 +29,8 @@ MIN_TEXT_COVERAGE = 0.35
 COVERAGE_DPI = 50
 INK_THRESHOLD = 160  # gray level below which a pixel is ink
 RULE_MASK_PAD = 2.0  # points around a rule whose ink is ignored
+# Filled paths whose bbox fits in this many points may be glyph outlines.
+GLYPH_MAX_SIZE = 20.0
 
 # Expand ligatures into their letters so text matching works on plain words.
 _TEXT_FLAGS = pymupdf.TEXTFLAGS_RAWDICT & ~pymupdf.TEXT_PRESERVE_LIGATURES
@@ -72,11 +74,12 @@ def image_norm_to_points(page: pymupdf.Page, box: Rect) -> Rect:
 def extract_page(page: pymupdf.Page) -> PageMap:
     """Text, rules and widgets of one page. ``kind`` is provisional; no candidates."""
     words, lines, underscore_rules = _extract_text(page)
-    rules = _dedupe(_extract_drawn_rules(page) + underscore_rules)
+    drawings = page.get_drawings()
+    rules = _dedupe(_extract_drawn_rules(page, drawings) + underscore_rules)
     widgets = _extract_widgets(page)
     if widgets:
         kind = "fillable"
-    elif _needs_ocr(page, words, rules):
+    elif _needs_ocr(page, words, rules, drawings):
         kind = "scanned"
     else:
         kind = "digital"
@@ -96,24 +99,29 @@ def extract_page(page: pymupdf.Page) -> PageMap:
 
 
 def text_layer_coverage(page: pymupdf.Page, rules: list[Rule]) -> float:
-    """Fraction of the page's ink (outside ``rules``) that has extractable text over it.
+    """Fraction of the page's unexplained ink that has extractable text over it.
 
     Renders the page at low dpi, counts dark pixels, and compares those inside
-    word boxes against all dark pixels not on a rule. A page with no ink
-    counts as fully covered (1.0).
+    word boxes against all dark pixels except those on ``rules`` or on
+    geometric vector shapes (bars, boxes, frames; see :func:`_geometric_rects`).
+    Glyph-like vector outlines stay unexplained, so labels drawn as paths
+    still count against coverage. A page with no such ink counts as 1.0.
     """
     words, _, _ = _extract_text(page)
-    return _coverage(page, words, rules)
+    return _coverage(page, words, rules, page.get_drawings())
 
 
 def needs_ocr(page: pymupdf.Page) -> bool:
     """True when one image covers most of the page or the text layer covers little ink."""
     words, _, underscore_rules = _extract_text(page)
-    rules = _extract_drawn_rules(page) + underscore_rules
-    return _needs_ocr(page, words, rules)
+    drawings = page.get_drawings()
+    rules = _extract_drawn_rules(page, drawings) + underscore_rules
+    return _needs_ocr(page, words, rules, drawings)
 
 
-def _needs_ocr(page: pymupdf.Page, words: list[Word], rules: list[Rule]) -> bool:
+def _needs_ocr(
+    page: pymupdf.Page, words: list[Word], rules: list[Rule], drawings: list[dict]
+) -> bool:
     width, height = page_size(page)
     bounds = (0.0, 0.0, width, height)
     page_area = width * height
@@ -121,10 +129,12 @@ def _needs_ocr(page: pymupdf.Page, words: list[Word], rules: list[Rule]) -> bool
         inside = intersect(tuple(info["bbox"]), bounds)
         if inside is not None and area(inside) > IMAGE_DOMINANT_FRACTION * page_area:
             return True
-    return _coverage(page, words, rules) < MIN_TEXT_COVERAGE
+    return _coverage(page, words, rules, drawings) < MIN_TEXT_COVERAGE
 
 
-def _coverage(page: pymupdf.Page, words: list[Word], rules: list[Rule]) -> float:
+def _coverage(
+    page: pymupdf.Page, words: list[Word], rules: list[Rule], drawings: list[dict]
+) -> float:
     pix = page.get_pixmap(dpi=COVERAGE_DPI, colorspace=pymupdf.csGRAY, alpha=False)
     gray = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.stride)
     ink = gray[:, : pix.width] < INK_THRESHOLD
@@ -138,7 +148,8 @@ def _coverage(page: pymupdf.Page, words: list[Word], rules: list[Rule]) -> float
             m[max(0, ir.y0) : max(0, ir.y1), max(0, ir.x0) : max(0, ir.x1)] = True
         return m
 
-    counted = ink & ~mask([r.rect for r in rules], RULE_MASK_PAD)
+    explained = [r.rect for r in rules] + _geometric_rects(drawings)
+    counted = ink & ~mask(explained, RULE_MASK_PAD)
     total = int(counted.sum())
     if total == 0:
         return 1.0
@@ -241,11 +252,56 @@ def _extract_text(page: pymupdf.Page) -> tuple[list[Word], list[TextLine], list[
     return words, lines, rules
 
 
-def _extract_drawn_rules(page: pymupdf.Page) -> list[Rule]:
+def _geometric_rects(drawings: list[dict]) -> list[Rect]:
+    """Areas inked by geometric vector shapes, which need no text over them.
+
+    Stroked paths count edge by edge (a frame does not hide what it encloses);
+    filled paths count whole when they have no curves and are rects or larger
+    than a glyph, or when they are bigger than a glyph both ways. Small filled
+    outlines are left out: they may be label glyphs drawn as paths.
+    """
+    out: list[Rect] = []
+    for path in drawings:
+        items = path["items"]
+        ops = {item[0] for item in items}
+        bbox = path["rect"]
+        if "f" in path.get("type", ""):
+            rect_only = ops <= {"re", "qu"}
+            if (
+                ("c" not in ops and (rect_only or max(bbox.width, bbox.height) > GLYPH_MAX_SIZE))
+                or min(bbox.width, bbox.height) > GLYPH_MAX_SIZE
+            ):
+                out.append((bbox.x0, bbox.y0, bbox.x1, bbox.y1))
+        elif path.get("color") is not None:
+            pad = (path.get("width") or 1.0) / 2
+            for item in items:
+                if item[0] == "l":
+                    x0, y0, x1, y1 = _seg_rect(item[1], item[2])
+                    out.append((x0 - pad, y0 - pad, x1 + pad, y1 + pad))
+                elif item[0] in ("re", "qu"):
+                    r = item[1].rect if item[0] == "qu" else item[1]
+                    for x0, y0, x1, y1 in _edges(r):
+                        out.append((x0 - pad, y0 - pad, x1 + pad, y1 + pad))
+                else:  # curve: its control-point hull
+                    r = pymupdf.Rect(item[1], item[1]) | item[2] | item[3] | item[4]
+                    out.append((r.x0 - pad, r.y0 - pad, r.x1 + pad, r.y1 + pad))
+    return out
+
+
+def _edges(r: pymupdf.Rect) -> list[Rect]:
+    return [
+        (r.x0, r.y0, r.x1, r.y0),
+        (r.x0, r.y1, r.x1, r.y1),
+        (r.x0, r.y0, r.x0, r.y1),
+        (r.x1, r.y0, r.x1, r.y1),
+    ]
+
+
+def _extract_drawn_rules(page: pymupdf.Page, drawings: list[dict]) -> list[Rule]:
     """Thin drawn lines; rectangles contribute their four edges."""
     width, height = page_size(page)
     rules: list[Rule] = []
-    for path in page.get_drawings():
+    for path in drawings:
         if path.get("color") is None and path.get("fill") is None:
             continue  # invisible
         for item in path["items"]:
@@ -257,12 +313,7 @@ def _extract_drawn_rules(page: pymupdf.Page) -> list[Rule]:
                 if _classify(r.width, r.height):
                     segments = [(r.x0, r.y0, r.x1, r.y1)]
                 else:
-                    segments = [
-                        (r.x0, r.y0, r.x1, r.y0),
-                        (r.x0, r.y1, r.x1, r.y1),
-                        (r.x0, r.y0, r.x0, r.y1),
-                        (r.x1, r.y0, r.x1, r.y1),
-                    ]
+                    segments = _edges(r)
             else:
                 continue  # curves are not rules
             for seg in segments:
