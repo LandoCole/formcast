@@ -32,6 +32,10 @@ ADD_NAME = (
 )
 
 
+# finish() for build_template runs, which check that unmapped paths are accounted for
+NONE_PLACEABLE = [{"path": "name", "reason": "test"}, {"path": "date", "reason": "test"}]
+
+
 def _form_map() -> FormMap:
     page = PageMap(
         index=0,
@@ -124,6 +128,7 @@ def _run(responses, **kwargs):
     """Loop-mechanics runs start from an empty template (no seeded candidate fields)."""
     provider = ScriptedProvider(responses)
     kwargs.setdefault("seed_candidates", False)
+    kwargs.setdefault("unaccounted_refusals", 0)
     result = Session(_form_map(), SCHEMA, provider, **kwargs).run()
     return result, provider
 
@@ -394,7 +399,7 @@ def _flat_map(pdf):
 
 def test_build_template_with_fake_detector_form_map(flat_form_pdf):
     fm = _flat_map(flat_form_pdf)
-    provider = ScriptedProvider([code('set_source("c0_0", source={"paths": ["name"]})'), finish()])
+    provider = ScriptedProvider([code('set_source("c0_0", source={"paths": ["name"]})'), finish("d", NONE_PLACEABLE)])
     result = build_template(SCHEMA, flat_form_pdf, provider, form_map=fm)
     # the template starts with one field per candidate, named after it
     assert result.finished and [f.id for f in result.template.fields] == ["c0_0", "c0_1"]
@@ -413,14 +418,15 @@ def test_build_template_builds_the_form_map_when_not_given(flat_form_pdf, monkey
         return _flat_map(flat_form_pdf)
 
     monkeypatch.setattr(agent_api, "build_form_map", fake_build)
-    result = build_template(SCHEMA, flat_form_pdf, ScriptedProvider([finish()]))
+    result = build_template(SCHEMA, flat_form_pdf, ScriptedProvider([finish("d", NONE_PLACEABLE)]))
     assert seen["pdf"] == flat_form_pdf and result.finished
 
 
 def test_revise_puts_instruction_and_region_in_first_message(flat_form_pdf):
     fm = _flat_map(flat_form_pdf)
     first = build_template(
-        SCHEMA, flat_form_pdf, ScriptedProvider([code(ADD_NAME), finish()]), form_map=fm, seed_candidates=False
+        SCHEMA, flat_form_pdf, ScriptedProvider([code(ADD_NAME), finish("d", NONE_PLACEABLE)]), form_map=fm,
+        seed_candidates=False,
     )
     base_len = len(first.template.history)
     provider = ScriptedProvider([code('move("f1", dy=2)'), finish("moved")])
@@ -476,8 +482,9 @@ def test_printing_api_reaches_the_model_in_full():
 
 def test_fillable_form_widget_fields_are_named_after_the_widgets_in_the_first_message(fillable_form_pdf):
     fm = build_form_map(fillable_form_pdf, detectors={})
-    provider = ScriptedProvider([finish()])
+    provider = ScriptedProvider([finish("d", NONE_PLACEABLE)])
     result = build_template(SCHEMA, fillable_form_pdf, provider, form_map=fm)
+    assert result.finished
     msg = provider.calls[0][1].content
     assert "STARTING TEMPLATE: 2 unmapped field(s), 2 for the existing widgets" in msg
     ids = [f.id for f in result.template.fields]
@@ -535,7 +542,8 @@ def test_revise_region_lists_overlapping_template_fields(flat_form_pdf):
     fm = _flat_map(flat_form_pdf)
     src = ADD_NAME + 'add_field(type="text", page=0, rect=[72, 204, 250, 212], label="When")\n'
     first = build_template(
-        SCHEMA, flat_form_pdf, ScriptedProvider([code(src), finish()]), form_map=fm, seed_candidates=False
+        SCHEMA, flat_form_pdf, ScriptedProvider([code(src), finish("d", NONE_PLACEABLE)]), form_map=fm,
+        seed_candidates=False,
     )
     provider = ScriptedProvider([finish()])
     revise(
@@ -573,3 +581,26 @@ def test_first_message_carries_the_api_reference():
     _, provider = _run([finish()])
     msg = provider.calls[0][1].content
     assert api_text() in msg
+
+
+# --- finishing with unaccounted paths -----------------------------------------------
+
+
+def test_finish_is_refused_once_while_unmapped_paths_are_not_listed_as_unplaceable():
+    result, provider = _run([code(ADD_NAME), finish("early"), finish("really done")], unaccounted_refusals=1)
+    refusal = _tool_results(provider.calls[2])[-1].content
+    assert refusal.startswith("finish not accepted yet") and "date" in refusal and "steps left" in refusal
+    assert result.stop_reason == "finish" and result.summary == "really done" and len(result.steps) == 3
+
+
+def test_finish_listing_every_unmapped_path_is_accepted_at_once():
+    result, _ = _run(
+        [code(ADD_NAME), finish("done", [{"path": "date", "reason": "no date blank"}])], unaccounted_refusals=1
+    )
+    assert result.stop_reason == "finish" and len(result.steps) == 2
+
+
+def test_the_default_session_checks_unaccounted_paths_once():
+    import inspect
+
+    assert inspect.signature(Session).parameters["unaccounted_refusals"].default == 1

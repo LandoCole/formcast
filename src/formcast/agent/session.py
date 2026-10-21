@@ -132,6 +132,30 @@ FINISH_REFUSED = (
 )
 
 
+MAX_UNACCOUNTED_SHOWN = 25
+
+
+def _unaccounted_message(missing: list[str], steps_left: int) -> str:
+    shown = ", ".join(missing[:MAX_UNACCOUNTED_SHOWN])
+    if len(missing) > MAX_UNACCOUNTED_SHOWN:
+        shown += f", ... {len(missing) - MAX_UNACCOUNTED_SHOWN} more"
+    return (
+        f"finish not accepted yet: {len(missing)} schema path(s) are neither mapped nor listed in "
+        f"unplaceable: {shown}. Look for a place for each (fm.find_text with its key words, the fields "
+        "still without a source), map what you find, and list the rest in unplaceable with the reason. "
+        f"You have {steps_left} steps left; call finish again when done."
+    )
+
+
+def _accounted(path: str, listed: set[str]) -> bool:
+    """Whether ``path`` is named in finish's unplaceable list, directly or through its table."""
+    for entry in listed:
+        base = entry.removesuffix("*").removesuffix(".").removesuffix("[]")
+        if base and (path == base or path.startswith(base + "[]") or path.startswith(base + ".")):
+            return True
+    return False
+
+
 def _had_problems(record: StepRecord) -> bool:
     ex = record.exec
     return bool(record.rejected) or (ex is not None and (ex.error is not None or ex.timed_out))
@@ -159,6 +183,9 @@ class Session:
     rect) go into the first message, as for a reviewer's revision request.
     Without ``template`` the run starts from a fresh one: a field per widget
     and, with ``seed_candidates`` (the default), one per detector candidate.
+    Up to ``unaccounted_refusals`` times (not for a reviewer instruction) a
+    ``finish`` is refused while mappable schema paths are neither mapped nor
+    listed in its ``unplaceable``, unless fewer than 2 steps are left.
     """
 
     def __init__(
@@ -173,6 +200,7 @@ class Session:
         budget: SessionBudget = SessionBudget(),
         sandbox_factory=Sandbox,
         seed_candidates: bool = True,
+        unaccounted_refusals: int = 1,
     ):
         self.form_map = form_map
         self.schema = schema
@@ -191,6 +219,7 @@ class Session:
             page_sizes=[(p.width, p.height) for p in sorted(form_map.pages, key=lambda p: p.index)],
             widget_names=[w.name for p in form_map.pages for w in p.widgets],
         )
+        self._refusals_left = unaccounted_refusals if instruction is None else 0
         self.steps: list[StepRecord] = []
         self.usage = Usage()
         self._groups: list[list[Message]] = []  # messages of each step, in order
@@ -311,6 +340,18 @@ class Session:
             results[finish_index] = FINISH_REFUSED
             notes.append("finish refused")
             finish_call = None
+        if finish_call is not None and self._refusals_left > 0:
+            # Models tend to stop with many paths unmapped and most of the budget left: ask
+            # once for a search for each path, or a reason it has no place on the form.
+            listed = {u["path"] for u in _unplaceable((finish_call.arguments or {}).get("unplaceable"))}
+            unmapped = coverage(self.template, self.form_map, self.schema_paths).unmapped_paths
+            missing = [p for p in unmapped if not _accounted(p, listed)]
+            steps_left = self.budget.max_steps - n
+            if missing and steps_left >= 2:
+                self._refusals_left -= 1
+                results[finish_index] = _unaccounted_message(missing, steps_left)
+                notes.append("finish refused: unaccounted paths")
+                finish_call = None
         group.extend(
             Message(role="tool", content=text, tool_call_id=c.id)
             for c, text in zip(response.tool_calls, results, strict=True)
