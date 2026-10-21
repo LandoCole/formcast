@@ -104,9 +104,10 @@ signature, choice_mark (a mark drawn on or next to printed option text) and tabl
    in a region.
 6. Split blanks that hold parts of one value (separate boxes for month, day and year, or one
    box per character) and use transforms to fill each part.
-7. Give every field a short label from its printed text. Keep a field for every blank on the
-   form, office-use blanks included, even when no schema path fits (leave its source empty);
-   remove only boxes that are not blanks.
+7. Give every field a short label from its printed text. Keep every existing widget field and a
+   field for every blank a person is expected to fill, even when no schema path fits (leave its
+   source empty); remove only boxes that are not blanks (pre-printed content, decoration,
+   duplicates).
 8. Map every schema path you can, shaping values to what the box asks for:
    - schema dates are ISO (YYYY-MM-DD): a date box needs date_format with the format the form
      shows (a printed hint such as mm/dd/yyyy, else the usual convention of the form's
@@ -131,9 +132,10 @@ Python variables, and read `tpl` for the current state.
 # Finishing
 Call `finish` when coverage can't improve any more: give a short summary, and list each
 unplaceable schema path with the reason (for example: the form has no place for it). Before
-that, search for every unmapped path's key words (fm.find_text) and look at the fields still
-without a source: most forms have a place for most paths. Do not stop early to save effort; the
-step report shows how many steps are left, and there are usually plenty.
+that, search the page map for every unmapped path's key words and description (fm.find_text)
+and check the fields still without a source; list a path as unplaceable only when that search
+finds no matching blank. Do not stop early to save effort: use the steps left (shown in each
+step report).
 
 # Do not
 - Do not guess a position without evidence for it: candidates, widgets, rules, label and
