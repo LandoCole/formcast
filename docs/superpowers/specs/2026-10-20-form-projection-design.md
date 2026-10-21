@@ -270,23 +270,10 @@ Context stays small. Earlier step outputs are summarized or dropped, and the cur
 ### 7.8 Rendering (`formcast.render`)
 - `preview(template, pdf, data=None) -> list[PNG]`: each page with field boxes, ids and labels drawn on, optionally filled with sample or real data. This is what reviewers look at.
 - `to_smart_pdf(template, pdf) -> bytes`: the blank PDF with real AcroForm fields added at the template's positions, so it opens as a fillable form in any PDF viewer.
-- `fill(template, pdf, data, *, mode="flatten"|"fields") -> (bytes, FillReport)`:
-  - validates `data` against the embedded schema
-  - checks the PDF fingerprint (a mismatch is an error unless overridden)
-  - runs transforms, then writes the text, check marks and table rows
-  - `flatten` draws the content onto the page; `fields` fills form fields and keeps the result editable
-  - for fillable forms, it sets the existing widget values. An `existing_widget` name may be shared by several fields: PyMuPDF yields one widget per kid of a radio (or checkbox) group, all with the group's name, and the template has one `radio_option` (or `checkbox`) field per kid. Fill must pick the kid by the field's rect (and that kid's on-state), not by name alone.
-- **Text fitting:** auto-shrink to `min_font_size`. If the text still doesn't fit, it's truncated with a warning in the report, never silently.
+- `fill` and text fitting: superseded by `docs/superpowers/specs/2026-10-21-formcast-fill-design.md` (fields-only output, no flatten mode).
 
 ### 7.9 Fill report
-JSON, returned with every fill:
-- **Per schema path:**
-  - `mapped` (bool)
-  - `fields` (ids)
-  - `rendered` (the final text or check state per field)
-  - `warnings` (truncated, shrunk, overflowed rows, failed validation, missing value)
-- **Tables:** rows provided, rows written, rows dropped. Any rows dropped is also a top-level warning.
-- **Form-side gaps:** blanks or fields on the form that got no data.
+Superseded by `docs/superpowers/specs/2026-10-21-formcast-fill-design.md` (fields-only output, no flatten mode).
 
 ### 7.10 Fingerprint and similarity (`formcast.match`)
 - `fingerprint(pdf)`: a stable id for "this exact blank form", based on page count, sizes and normalized text and layout. It is not a file hash, because re-saved PDFs differ byte-for-byte. *Layout* is a coarse per-page ink map (a 32×44 grid of a low-resolution grayscale render without annotations, one bit per cell), so image-only scans, which have no text layer, are still told apart (`formcast/match.py`).
@@ -300,10 +287,11 @@ The core only computes these. The app decides what to do.
 from formcast import LLMConfig, build_template, revise, fill, preview, to_smart_pdf, apply, ops, fingerprint, similarity
 
 llm = LLMConfig(base_url=..., api_key=..., model=..., api_format="responses")
-tpl = build_template(schema, "intake.pdf", llm)
+result = build_template(schema, "intake.pdf", llm)  # SessionResult
+tpl = result.template
 pngs = preview(tpl, "intake.pdf")                     # human reviews
 tpl, warnings = apply(tpl, ops.Move("f_dob_month", dx=4), author="human")  # context derived from tpl
-tpl = revise(tpl, "intake.pdf", "Phone goes on the line under Address", llm, region=(0, [72, 300, 540, 330]))
+tpl = revise(tpl, "intake.pdf", "Phone goes on the line under Address", llm, region=(0, [72, 300, 540, 330])).template
 pdf_bytes, report = fill(tpl, "intake.pdf", record)
 tpl.model_dump_json()                                 # app stores this
 ```

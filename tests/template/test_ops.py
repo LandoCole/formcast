@@ -1,12 +1,13 @@
 import math
 
+import pydantic
 import pytest
 
 from formcast.errors import OpError
 from formcast.pagemap.build import build_form_map
 from formcast.schema import flatten_schema
 from formcast.template.model import Field, FormInfo, Template, linked_cells, new_template, table_cells
-from formcast.template.ops import AddField, Move, OpContext, apply, diff, replay
+from formcast.template.ops import AddField, LinkWidget, Move, OpContext, SetType, apply, diff, replay
 
 SCHEMA = {
     "type": "object",
@@ -425,6 +426,63 @@ def test_checkbox_kids_may_share_a_widget_but_not_with_text():
         t, _ = apply(t, {"op": "link_widget", "id": fid, "widget": "box"}, author="agent", context=ctx)
     with pytest.raises(OpError, match="already linked to field 'f1'"):
         apply(t, {"op": "link_widget", "id": "f3", "widget": "box"}, author="agent", context=ctx)
+
+
+# ------------------------------------------------------------------ hardening
+
+
+def test_set_style_nan_rejected():
+    t, _ = _add(_template())
+    with pytest.raises((OpError, pydantic.ValidationError)):
+        apply(t, {"op": "set_style", "id": "f1", "style": {"font_size": float("nan")}}, author="agent", context=CTX)
+
+
+def test_set_style_merge_that_breaks_min_above_size_rejected():
+    t, _ = _add(_template(), style={"font_size": 8})
+    with pytest.raises(OpError, match="min_font_size"):
+        apply(t, {"op": "set_style", "id": "f1", "style": {"min_font_size": 9}}, author="agent", context=CTX)
+    t, _ = apply(t, {"op": "set_style", "id": "f1", "style": {"min_font_size": 5}}, author="agent", context=CTX)
+    assert _field(t, "f1").style.min_font_size == 5 and _field(t, "f1").style.font_size == 8
+
+
+def _linked(kind, widget):
+    t, _ = _add(_template(), type=kind, rect=[100, 100, 110, 110])
+    return apply(t, {"op": "link_widget", "id": "f1", "widget": widget}, author="agent", context=CTX)[0]
+
+
+def test_set_type_rejects_kind_mismatch_with_widget_kinds():
+    ctx = CTX.model_copy(update={"widget_kinds": {"rg": ["radio"]}})
+    t_radio = _linked("radio_option", "rg")
+    with pytest.raises(OpError, match="radio"):
+        apply(t_radio, SetType(id="f1", type="text"), author="human", context=ctx)
+    apply(t_radio, SetType(id="f1", type="checkbox"), author="human", context=ctx)  # allowed
+
+
+def test_link_widget_rejects_kind_mismatch():
+    ctx = CTX.model_copy(update={"widget_names": ["sig"], "widget_kinds": {"sig": ["signature"]}})
+    t_checkbox, _ = _add(_template(), type="checkbox", rect=[100, 100, 110, 110])
+    with pytest.raises(OpError, match="signature"):
+        apply(t_checkbox, LinkWidget(id="f1", widget="sig"), author="human", context=ctx)
+
+
+def test_link_widget_accepts_matching_kind():
+    ctx = CTX.model_copy(update={"widget_names": ["sig"], "widget_kinds": {"sig": ["signature"]}})
+    t_sig, _ = _add(_template(), type="signature", rect=[100, 100, 200, 120])
+    t, _ = apply(t_sig, LinkWidget(id="f1", widget="sig"), author="human", context=ctx)
+    assert _field(t, "f1").existing_widget == "sig"
+
+
+def test_set_type_without_widget_kinds_still_allowed():
+    t_radio = _linked("radio_option", "rg")
+    t, _ = apply(t_radio, SetType(id="f1", type="text"), author="human", context=CTX)
+    assert _field(t, "f1").type == "text"
+
+
+def test_from_template_fills_widget_kinds(radio_form_pdf):
+    fm = build_form_map(radio_form_pdf, detectors={})
+    ctx = OpContext.from_template(new_template(SCHEMA, fm), fm)
+    assert ctx.widget_kinds["sex"] == ["radio", "radio"]
+    assert OpContext.from_template(new_template(SCHEMA, fm)).widget_kinds is None
 
 
 # ------------------------------------------------------------------ replay / diff

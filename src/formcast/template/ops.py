@@ -48,6 +48,7 @@ from formcast.geometry import Rect, contained_fraction, intersect, iou
 from formcast.pagemap.model import FormMap
 from formcast.schema import SchemaPath, flatten_schema
 from formcast.template.model import (
+    WIDGET_FIELD_TYPES,
     Column,
     Field,
     HistoryEntry,
@@ -111,19 +112,28 @@ MAX_WARN_IDS = 20
 
 
 class OpContext(BaseModel):
-    """What ops are validated against. ``widget_names``, when given, limits ``link_widget``."""
+    """What ops are validated against. ``widget_names``, when given, limits ``link_widget``;
+    ``widget_kinds`` (when it knows a name) limits which field types may use that widget."""
 
     schema_paths: list[SchemaPath]
     page_sizes: list[tuple[float, float]]
     widget_names: list[str] | None = None
+    widget_kinds: dict[str, list[str]] | None = None  # widget name -> kinds of every widget with that name
 
     @classmethod
     def from_template(cls, template: Template, form_map: FormMap | None = None) -> OpContext:
-        """Context from the template's own schema and page sizes; widget names from ``form_map`` if given."""
+        """Context from the template's own schema and page sizes; widget names and kinds from ``form_map`` if given."""
+        kinds: dict[str, list[str]] | None = None
+        if form_map is not None:
+            kinds = {}
+            for p in form_map.pages:
+                for w in p.widgets:
+                    kinds.setdefault(w.name, []).append(w.kind)
         return cls(
             schema_paths=flatten_schema(template.schema_),
             page_sizes=list(template.form.page_sizes),
             widget_names=None if form_map is None else [w.name for p in form_map.pages for w in p.widgets],
+            widget_kinds=kinds,
         )
 
 
@@ -240,6 +250,16 @@ class _Run:
 
     def fail(self, reason: str) -> None:
         raise OpError(self.raw, reason)
+
+    def check_widget_kind(self, f: Field, field_type: str, widget: str | None) -> None:
+        """Fail when ``field_type`` can't be backed by the kinds of the widget named ``widget``."""
+        kinds = (self.ctx.widget_kinds or {}).get(widget) if widget is not None else None
+        if not kinds:
+            return
+        allowed = set().union(*(WIDGET_FIELD_TYPES.get(k, frozenset()) for k in kinds))
+        if field_type not in allowed:
+            self.fail(f"field {f.id!r} is linked to widget {widget!r} ({', '.join(sorted(set(kinds)))}); "
+                      f"a {field_type} field can't use it - allowed types: {sorted(allowed) or 'none'}")
 
     # -- lookups
 
@@ -714,6 +734,7 @@ def _set_type(run: _Run, op: SetType) -> Field:
                  f"remove_field({f.id!r}) then add_table(source_path=..., segments=[...])")
     if f.type == "table":
         run.fail(f"field {f.id!r} is a table and has no page/rect; remove_field({f.id!r}) then add_field instead")
+    run.check_widget_kind(f, op.type, f.existing_widget)
     f.type = op.type
     run.check_source(f)
     return f
@@ -728,7 +749,11 @@ def _set_source(run: _Run, op: SetSource) -> Field:
 
 def _set_style(run: _Run, op: SetStyle) -> Field:
     f = run.field(op.id)
-    f.style = f.style.model_copy(update=op.style.model_dump(exclude_unset=True))
+    merged = {**f.style.model_dump(), **op.style.model_dump(exclude_unset=True)}
+    try:
+        f.style = Style.model_validate(merged)
+    except ValidationError as e:
+        run.fail(f"invalid style for field {f.id!r}: {_describe(e, 'style')}")
     return f
 
 
@@ -785,6 +810,7 @@ def _link_widget(run: _Run, op: LinkWidget) -> Field:
             if g is not f and g.existing_widget == op.widget and not _shared_widget_ok(f, g):
                 run.fail(f"widget {op.widget!r} is already linked to field {g.id!r}; "
                          f"unlink it first with link_widget({g.id!r}, None)")
+        run.check_widget_kind(f, f.type, op.widget)
     f.existing_widget = op.widget
     return f
 
