@@ -30,6 +30,7 @@ from __future__ import annotations
 import json
 import math
 import random
+import re
 import string
 import sys
 import uuid
@@ -67,22 +68,31 @@ _SCALARS = {"string", "integer", "number", "boolean", "date", "enum"}
 # ------------------------------------------------------------- ground truth rows
 
 
-def _column_groups(gt: list[GTField]) -> dict[str, list[int]]:
+def _table_of(column_path: str) -> str:
+    segments = parse_path(column_path)
+    last = max(i for i, s in enumerate(segments) if is_array_item(s))
+    return format_path(segments[:last])
+
+
+def _table_groups(gt: list[GTField]) -> dict[str, list[int]]:
+    """Table path -> GT indexes of all its column boxes (paths containing ``[]``)."""
     groups: dict[str, list[int]] = {}
     for i, g in enumerate(gt):
         if g.path and any(is_array_item(s) for s in parse_path(g.path)):
-            groups.setdefault(g.path, []).append(i)
+            groups.setdefault(_table_of(g.path), []).append(i)
     return groups
 
 
 def gt_rows(gt: list[GTField]) -> dict[int, int]:
     """GT index -> row index, for the boxes of table columns (paths containing ``[]``).
 
-    The boxes of one column path are ordered by page, then top, then left; boxes
-    whose tops are within 2 pt share a row.
+    Rows are clustered across ALL column boxes of one table (so a sparse column
+    stays aligned with the others): page by page in page order, top to bottom;
+    a box whose top is within 2 pt of the current row's first top joins that row.
+    The row counter continues across pages.
     """
     out: dict[int, int] = {}
-    for indexes in _column_groups(gt).values():
+    for indexes in _table_groups(gt).values():
         ordered = sorted(indexes, key=lambda i: (gt[i].page, gt[i].rect[1], gt[i].rect[0]))
         row = -1
         anchor: tuple[int, float] | None = None
@@ -95,20 +105,10 @@ def gt_rows(gt: list[GTField]) -> dict[int, int]:
     return out
 
 
-def _table_of(column_path: str) -> str:
-    segments = parse_path(column_path)
-    last = max(i for i, s in enumerate(segments) if is_array_item(s))
-    return format_path(segments[:last])
-
-
 def table_rows_in_gt(gt: list[GTField]) -> dict[str, int]:
-    """Table path -> number of ground-truth rows (the most rows any of its columns has)."""
+    """Table path -> number of ground-truth row clusters."""
     rows = gt_rows(gt)
-    out: dict[str, int] = {}
-    for column, indexes in _column_groups(gt).items():
-        table = _table_of(column)
-        out[table] = max(out.get(table, 0), len({rows[i] for i in indexes}))
-    return out
+    return {table: len({rows[i] for i in indexes}) for table, indexes in _table_groups(gt).items()}
 
 
 # ------------------------------------------------------------------- overrides
@@ -128,8 +128,49 @@ def load_overrides(form_id: str, probes_dir: Path | None = None) -> dict | None:
 # ------------------------------------------------------------------- generator
 
 
+def _strings(value: object):
+    """Every string inside a JSON value."""
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for v in value.values():
+            yield from _strings(v)
+    elif isinstance(value, list):
+        for v in value:
+            yield from _strings(v)
+
+
+def _option_trigrams(gen: "_Gen") -> set[str]:
+    """Trigrams of every alphabetic run in the schema's enum options and consts, uppercased.
+
+    Option text is given, not generated, so tokens must avoid sharing trigrams with it.
+    """
+    texts: list[str] = []
+    for sp in gen.paths:
+        for path in (sp.path, sp.path + "[]"):
+            node = gen.node(path) if path == sp.path or sp.type == "array" else {}
+            texts += [v for v in node.get("enum") or [] if isinstance(v, str)]
+            if isinstance(node.get("const"), str):
+                texts.append(node["const"])
+    grams: set[str] = set()
+    for run in re.findall(r"[A-Za-z]+", " ".join(texts).upper()):
+        grams |= {run[i : i + 3] for i in range(len(run) - 2)}
+    return grams
+
+
 class _Gen:
-    def __init__(self, schema: dict, gt: list[GTField] | None, overrides: dict | None, seed: str, form_id: str):
+    def __init__(
+        self,
+        schema: dict,
+        gt: list[GTField] | None,
+        overrides: dict | None,
+        seed: str,
+        form_id: str,
+        token_len: int = TOKEN_LEN,
+    ):
+        self.token_len = token_len
+        self.counting = False  # dry run: count tokens instead of making them
+        self.token_count = 0
         self.schema = schema
         self.form_id = form_id
         self.overrides = overrides or {}
@@ -145,13 +186,17 @@ class _Gen:
         if unknown:
             raise ValueError(f"{form_id}: overrides name paths the schema does not have: {unknown}")
         self.k_count = max([2] + [len(p.enum) for p in self.paths if p.enum])
-        self.used_trigrams: set[str] = set()
+        self.used_trigrams: set[str] = set(_option_trigrams(self))
         self.used_short: set[str] = set()
         self.used_numbers: set[int] = set()
         day_rng, month_rng, year_rng = (random.Random(f"{seed}:{n}") for n in ("day", "month", "year"))
         self.days = day_rng.sample(_DAYS_FIRST, len(_DAYS_FIRST)) + day_rng.sample(_DAYS_LAST, len(_DAYS_LAST))
         self.months = month_rng.sample(range(1, 13), 12)
-        self.years = year_rng.sample(_YEARS, len(_YEARS))
+        # Digit groups of override values (3+ digits) must not recur in generated numbers or years.
+        reserved = {int(m) for v in _strings(self.overrides) for m in re.findall(r"\d{3,}", v)}
+        self.used_numbers |= reserved
+        years = [y for y in _YEARS if y not in reserved] or _YEARS
+        self.years = year_rng.sample(years, len(years))
         self.date_slots: dict[str, int] = {}
         for sp in self.paths:
             if sp.type == "date" or (sp.type == "string" and self.node(sp.path).get("format") == "date-time"):
@@ -178,19 +223,47 @@ class _Gen:
     # --- values
 
     def token(self, max_len: int | None, min_len: int = 0) -> str:
-        length = max(min(TOKEN_LEN, max_len if max_len is not None else TOKEN_LEN), min_len, 1)
-        for attempt in range(500):
-            tok = "".join(self.rng.choice(_LETTERS) for _ in range(length))
-            if length < 3:  # too short for trigrams: just avoid repeats while the space allows
-                if tok in self.used_short and attempt < 400:
-                    continue
-                self.used_short.add(tok)
-                return tok
-            grams = {tok[i : i + 3] for i in range(length - 2)}
-            if len(grams) == length - 2 and not grams & self.used_trigrams:
-                self.used_trigrams |= grams
-                return tok
+        """A fresh uppercase token whose 3-letter substrings are all unused so far.
+
+        Letters are chosen one at a time among those that keep every new trigram unused,
+        so tokens stay findable when most of the trigram space is taken. If a token of
+        the wanted length no longer fits, a shorter one (down to 3 letters, never below
+        ``min_len``) is used.
+        """
+        if self.counting:
+            self.token_count += 1
+            return "AAA"
+        length = max(min(self.token_len, max_len if max_len is not None else self.token_len), min_len, 1)
+        if length < 3:  # too short for trigrams: just avoid repeats while the space allows
+            for attempt in range(500):
+                tok = "".join(self.rng.choice(_LETTERS) for _ in range(length))
+                if tok not in self.used_short or attempt == 499:
+                    self.used_short.add(tok)
+                    return tok
+        for want in range(length, max(min_len, 3) - 1, -1):
+            for _ in range(200):
+                tok = self._guided_token(want)
+                if tok is not None:
+                    self.used_trigrams |= {tok[i : i + 3] for i in range(want - 2)}
+                    return tok
         raise ValueError(f"{self.form_id}: ran out of distinct probe tokens")
+
+    def _guided_token(self, length: int) -> str | None:
+        for _ in range(50):
+            first = "".join(self.rng.choice(_LETTERS) for _ in range(3))
+            if first in self.used_trigrams:
+                continue
+            letters, taken = list(first), {first}
+            while len(letters) < length:
+                prefix = letters[-2] + letters[-1]
+                options = [c for c in _LETTERS if prefix + c not in self.used_trigrams and prefix + c not in taken]
+                if not options:
+                    break
+                letters.append(self.rng.choice(options))
+                taken.add(prefix + letters[-1])
+            else:
+                return "".join(letters)
+        return None
 
     def number(self, node: dict, integer: bool) -> int | float:
         lo, hi = node.get("minimum"), node.get("maximum")
@@ -307,6 +380,28 @@ def _key(sp: SchemaPath) -> str:
     return parse_path(sp.path)[-1]
 
 
+#: Share of the free trigram space the tokens may use; the rest keeps the search quick.
+_TRIGRAM_BUDGET = 0.8
+_TRIGRAM_SPACE = 26**3
+
+
+def _token_len(schema: dict, gt: list[GTField] | None, overrides: dict | None, seed: str, label: str) -> int:
+    """The longest token length (at most ``TOKEN_LEN``) for which all the form's tokens fit.
+
+    A token of L letters uses L-2 trigrams, and every token of every record needs its own,
+    so a big form (many table rows times many records) gets shorter tokens, not repeats.
+    """
+    dry = _Gen(schema, gt, overrides, seed, label)
+    dry.counting = True
+    for k in range(dry.k_count):
+        dry.record(k)
+    free = _TRIGRAM_SPACE - len(dry.used_trigrams)
+    for length in range(TOKEN_LEN, 3, -1):
+        if dry.token_count * (length - 2) <= free * _TRIGRAM_BUDGET:
+            return length
+    return 3
+
+
 def probe_records(
     schema: dict,
     gt: list[GTField] | None,
@@ -324,7 +419,8 @@ def probe_records(
         ValueError: when a ``pattern`` path has no override, an override is unusable, or
             a generated record fails ``validate_data``.
     """
-    gen = _Gen(schema, gt, overrides, seed, form_id or seed or "schema")
+    label = form_id or seed or "schema"
+    gen = _Gen(schema, gt, overrides, seed, label, _token_len(schema, gt, overrides, seed, label))
     records = [gen.record(k) for k in range(gen.k_count)]
     for k, rec in enumerate(records):
         errors = validate_data(schema, rec)

@@ -228,6 +228,34 @@ def test_gt_rows_order_by_page_then_top_and_share_tops_within_2pt():
     assert probe.table_rows_in_gt(gt) == {"t": 4}
 
 
+def test_gt_rows_keep_sparse_columns_aligned_with_the_table():
+    gt = [
+        _gt("t[].num", (10, 100.0, 50, 112)),
+        _gt("t[].num", (10, 200.0, 50, 212)),
+        _gt("t[].num", (10, 300.0, 50, 312)),
+        _gt("t[].title", (60, 100.5, 90, 112)),  # row 0
+        _gt("t[].title", (60, 300.0, 90, 312)),  # row 2, though it is the column's second box
+    ]
+    rows = probe.gt_rows(gt)
+    assert [rows[i] for i in range(5)] == [0, 1, 2, 0, 2]
+    assert probe.table_rows_in_gt(gt) == {"t": 3}
+
+
+def test_gt_rows_continue_across_pages_and_cluster_per_page():
+    gt = [
+        _gt("t[].a", (10, 700.0, 50, 712), page=0),
+        _gt("t[].b", (60, 40.0, 90, 52), page=1),
+        _gt("t[].a", (10, 40.5, 50, 52), page=1),
+    ]
+    rows = probe.gt_rows(gt)
+    assert (rows[0], rows[1], rows[2]) == (0, 1, 1)
+
+
+def test_two_tables_do_not_share_rows():
+    gt = [_gt("a[].x", (10, 10, 50, 20)), _gt("b[].x", (10, 10, 50, 20)), _gt("b[].x", (10, 40, 50, 50))]
+    assert probe.table_rows_in_gt(gt) == {"a": 1, "b": 2}
+
+
 def test_table_path_uses_last_array_marker():
     gt = [_gt("short_term.transactions[].description", (10, 10, 50, 20)),
           _gt("short_term.transactions[].description", (10, 30, 50, 40)),
@@ -271,6 +299,34 @@ def test_table_cell_override_is_per_record_list_of_rows():
     assert [[row["code"] for row in r["rows"]] for r in records] == [["11", "12"], ["21", "22"]]
 
 
+def test_tokens_share_no_trigram_with_enum_options_or_consts():
+    schema = _obj(
+        size={"enum": ["SMALL", "LARGE", "ABCDEF"]},
+        picks={"type": "array", "items": {"enum": ["Quick Brown", "fox-jumps"]}},
+        fixed={"const": "HELLO WORLD"},
+        **{f"tok{i}": {"type": "string"} for i in range(150)},
+    )
+    given = {"SMA", "MAL", "ALL", "LAR", "ARG", "RGE", "GE"} | {"ABC", "BCD", "CDE", "DEF"}
+    given |= {"QUI", "UIC", "ICK", "BRO", "ROW", "OWN", "FOX", "JUM", "UMP", "MPS", "HEL", "ELL", "LLO", "WOR", "ORL", "RLD"}
+    for r in probe.probe_records(schema, [], seed="t"):
+        for key, value in r.items():
+            if key.startswith("tok"):
+                assert not _trigrams(value) & given, value
+
+
+def test_override_digit_groups_are_kept_out_of_generated_numbers_and_years():
+    schema = _obj(
+        phone={"type": "string", "pattern": r"^\d{3}-\d{4}$"},
+        amount={"type": "integer", "minimum": 100, "maximum": 130},
+        when={"type": "string", "format": "date"},
+    )
+    overrides = {"phone": [f"{100 + i}-19{50 + i}" for i in range(2)] + [f"{110 + i}-2000" for i in range(0)]}
+    for r in probe.probe_records(schema, [], overrides=overrides, seed="t"):
+        reserved = {100, 101}
+        assert r["amount"] not in reserved
+        assert int(r["when"][:4]) not in {1950, 1951}
+
+
 def test_invalid_record_raises_with_messages():
     schema = _obj(b={"type": "string", "not": {}})  # nothing can satisfy this
     with pytest.raises(ValueError, match="invalid"):
@@ -304,10 +360,38 @@ def test_records_validate_for_every_corpus_schema(form):
         schema, gt, overrides=probe.load_overrides(form["id"]), seed=form["id"], form_id=form["id"]
     )
     assert again == records
-    options = {o for p in flatten_schema(schema) for o in p.enum or []}  # enum options are given, not generated
-    seen = set()
+    # Enum options are given, not generated: tokens must not share a trigram with their letters either.
+    option_text = " ".join(o for p in flatten_schema(schema) for o in p.enum or []).upper()
+    seen = {g for run in re.findall(r"[A-Z]+", option_text) for g in _trigrams(run)}
     for t in _tokens(records):
-        if len(t) >= 3 and t not in options:
+        if len(t) >= 3 and t not in set(option_text.split()):
             grams = _trigrams(t)
             assert not (grams & seen), (form["id"], t)
             seen |= grams
+
+
+def test_big_forms_get_shorter_tokens_instead_of_repeated_trigrams():
+    schema = _obj(**{f"s{i}": {"type": "string"} for i in range(1500)})
+    records = probe.probe_records(schema, [], seed="t")  # 3000 tokens of 6 letters would need 12000 trigrams
+    seen = set()
+    for t in _tokens(records):
+        assert 3 <= len(t) <= probe.TOKEN_LEN
+        assert not _trigrams(t) & seen
+        seen |= _trigrams(t)
+
+
+def test_i9_sparse_column_boxes_share_the_row_of_the_table():
+    form = next(f for f in MANIFEST if f["id"] == "i9")
+    gt = score.load_gt(form, _pdf(form))
+    rows = probe.gt_rows(gt)
+    by_path = {}
+    for i, g in enumerate(gt):
+        if g.path and g.path.startswith("reverifications[]."):
+            by_path.setdefault(g.path, []).append((g.page, g.rect[1], rows[i]))
+    number = sorted(by_path["reverifications[].document_number"])
+    title = sorted(by_path["reverifications[].document_title"])
+    # every document_title box sits in the row of the document_number box at the same height
+    for page, top, row in title:
+        assert any(p == page and abs(t - top) <= 2 and r == row for p, t, r in number), (page, top, row)
+    assert len({r for _, _, r in number}) == len(number)
+    assert title[-1][2] == number[-1][2]  # the second title box matches the third number box
