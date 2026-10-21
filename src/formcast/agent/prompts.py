@@ -133,7 +133,7 @@ Call `finish` when coverage can't improve any more: give a short summary, and li
 unplaceable schema path with the reason (for example: the form has no place for it). Before
 that, search for every unmapped path's key words (fm.find_text) and look at the fields still
 without a source: most forms have a place for most paths. Do not stop early to save effort; the
-step report shows how much of the step budget is left.
+step report shows how many steps are left, and there are usually plenty.
 
 # Do not
 - Do not guess a position without evidence for it: candidates, widgets, rules, label and

@@ -202,9 +202,9 @@ def test_step_report_states_the_budget_left_when_given():
                         warnings=[], usage=Usage())  # fmt: skip
     cov = Coverage(mappable_count=1)
     plain = step_report(record, cov, template=_template(), form_map=_form_map())
-    assert "budget" not in plain
+    assert "steps left" not in plain
     report = step_report(record, cov, template=_template(), form_map=_form_map(), budget=(7, 40))
-    assert "budget: step 7 of 40, 33 left" in report
+    assert "(step 7 of 40; 33 steps left)" in report
 
 
 def test_step_report_shortens_long_reasons_after_the_first_few():

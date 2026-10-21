@@ -77,7 +77,7 @@ def step_report(
     out: list[str] = [f"STEP {record.n} REPORT"]
     if budget is not None:
         used, limit = budget
-        out[0] += f" (budget: step {used} of {limit}, {max(0, limit - used)} left)"
+        out[0] += f" (step {used} of {limit}; {max(0, limit - used)} steps left)"
 
     stdout = ex.stdout if ex is not None else ""
     if len(stdout) > max_stdout:
