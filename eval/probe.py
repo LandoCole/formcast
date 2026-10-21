@@ -83,30 +83,48 @@ def _table_groups(gt: list[GTField]) -> dict[str, list[int]]:
     return groups
 
 
+def _cluster_rows(gt: list[GTField], indexes: list[int]) -> dict[int, int]:
+    """Row index per box, clustering tops across all of ``indexes`` (page by page)."""
+    out: dict[int, int] = {}
+    row = -1
+    anchor: tuple[int, float] | None = None
+    for i in sorted(indexes, key=lambda i: (gt[i].page, gt[i].rect[1], gt[i].rect[0])):
+        here = (gt[i].page, gt[i].rect[1])
+        if anchor is None or here[0] != anchor[0] or here[1] - anchor[1] > ROW_TOLERANCE:
+            row += 1
+            anchor = here
+        out[i] = row
+    return out
+
+
 def gt_rows(gt: list[GTField]) -> dict[int, int]:
     """GT index -> row index, for the boxes of table columns (paths containing ``[]``).
 
-    Rows are clustered across ALL column boxes of one table (so a sparse column
-    stays aligned with the others): page by page in page order, top to bottom;
-    a box whose top is within 2 pt of the current row's first top joins that row.
-    The row counter continues across pages.
+    Per table, row tops are first clustered across ALL its column boxes (page by page,
+    top to bottom; a top within 2 pt of the row's first top joins it; the counter
+    continues across pages), which keeps sparse columns aligned. If that gives more rows
+    than the table's largest column has rows of its own (that column's boxes clustered
+    alone), the table is block-style (one record's columns sit on different lines), so
+    each column's boxes are numbered in their own order (page, top, left; tops within
+    2 pt share a row) instead.
     """
     out: dict[int, int] = {}
     for indexes in _table_groups(gt).values():
-        ordered = sorted(indexes, key=lambda i: (gt[i].page, gt[i].rect[1], gt[i].rect[0]))
-        row = -1
-        anchor: tuple[int, float] | None = None
-        for i in ordered:
-            here = (gt[i].page, gt[i].rect[1])
-            if anchor is None or here[0] != anchor[0] or here[1] - anchor[1] > ROW_TOLERANCE:
-                row += 1
-                anchor = here
-            out[i] = row
+        clustered = _cluster_rows(gt, indexes)
+        columns: dict[str, list[int]] = {}
+        for i in indexes:
+            columns.setdefault(gt[i].path, []).append(i)
+        own = [_cluster_rows(gt, members) for members in columns.values()]
+        if len(set(clustered.values())) <= max(len(set(c.values())) for c in own):
+            out.update(clustered)
+        else:
+            for ordinals in own:
+                out.update(ordinals)
     return out
 
 
 def table_rows_in_gt(gt: list[GTField]) -> dict[str, int]:
-    """Table path -> number of ground-truth row clusters."""
+    """Table path -> number of ground-truth rows (whichever rule ``gt_rows`` applied)."""
     rows = gt_rows(gt)
     return {table: len({rows[i] for i in indexes}) for table, indexes in _table_groups(gt).items()}
 
@@ -166,11 +184,7 @@ class _Gen:
         overrides: dict | None,
         seed: str,
         form_id: str,
-        token_len: int = TOKEN_LEN,
     ):
-        self.token_len = token_len
-        self.counting = False  # dry run: count tokens instead of making them
-        self.token_count = 0
         self.schema = schema
         self.form_id = form_id
         self.overrides = overrides or {}
@@ -227,13 +241,10 @@ class _Gen:
 
         Letters are chosen one at a time among those that keep every new trigram unused,
         so tokens stay findable when most of the trigram space is taken. If a token of
-        the wanted length no longer fits, a shorter one (down to 3 letters, never below
-        ``min_len``) is used.
+        the wanted length no longer fits (a huge form), a shorter one (down to 3 letters,
+        never below ``min_len``) is used.
         """
-        if self.counting:
-            self.token_count += 1
-            return "AAA"
-        length = max(min(self.token_len, max_len if max_len is not None else self.token_len), min_len, 1)
+        length = max(min(TOKEN_LEN, max_len if max_len is not None else TOKEN_LEN), min_len, 1)
         if length < 3:  # too short for trigrams: just avoid repeats while the space allows
             for attempt in range(500):
                 tok = "".join(self.rng.choice(_LETTERS) for _ in range(length))
@@ -380,28 +391,6 @@ def _key(sp: SchemaPath) -> str:
     return parse_path(sp.path)[-1]
 
 
-#: Share of the free trigram space the tokens may use; the rest keeps the search quick.
-_TRIGRAM_BUDGET = 0.8
-_TRIGRAM_SPACE = 26**3
-
-
-def _token_len(schema: dict, gt: list[GTField] | None, overrides: dict | None, seed: str, label: str) -> int:
-    """The longest token length (at most ``TOKEN_LEN``) for which all the form's tokens fit.
-
-    A token of L letters uses L-2 trigrams, and every token of every record needs its own,
-    so a big form (many table rows times many records) gets shorter tokens, not repeats.
-    """
-    dry = _Gen(schema, gt, overrides, seed, label)
-    dry.counting = True
-    for k in range(dry.k_count):
-        dry.record(k)
-    free = _TRIGRAM_SPACE - len(dry.used_trigrams)
-    for length in range(TOKEN_LEN, 3, -1):
-        if dry.token_count * (length - 2) <= free * _TRIGRAM_BUDGET:
-            return length
-    return 3
-
-
 def probe_records(
     schema: dict,
     gt: list[GTField] | None,
@@ -419,8 +408,7 @@ def probe_records(
         ValueError: when a ``pattern`` path has no override, an override is unusable, or
             a generated record fails ``validate_data``.
     """
-    label = form_id or seed or "schema"
-    gen = _Gen(schema, gt, overrides, seed, label, _token_len(schema, gt, overrides, seed, label))
+    gen = _Gen(schema, gt, overrides, seed, form_id or seed or "schema")
     records = [gen.record(k) for k in range(gen.k_count)]
     for k, rec in enumerate(records):
         errors = validate_data(schema, rec)

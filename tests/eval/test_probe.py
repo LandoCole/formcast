@@ -370,28 +370,51 @@ def test_records_validate_for_every_corpus_schema(form):
             seen |= grams
 
 
-def test_big_forms_get_shorter_tokens_instead_of_repeated_trigrams():
-    schema = _obj(**{f"s{i}": {"type": "string"} for i in range(1500)})
-    records = probe.probe_records(schema, [], seed="t")  # 3000 tokens of 6 letters would need 12000 trigrams
+def test_nearly_full_trigram_space_still_gives_unique_tokens():
+    schema = _obj(**{f"s{i}": {"type": "string"} for i in range(1900)})
+    records = probe.probe_records(schema, [], seed="t")  # 3800 six-letter tokens would use 86% of all trigrams
     seen = set()
+    lengths = set()
     for t in _tokens(records):
-        assert 3 <= len(t) <= probe.TOKEN_LEN
+        lengths.add(len(t))
         assert not _trigrams(t) & seen
         seen |= _trigrams(t)
+    assert max(lengths) == probe.TOKEN_LEN and min(lengths) >= 3
 
 
-def test_i9_sparse_column_boxes_share_the_row_of_the_table():
-    form = next(f for f in MANIFEST if f["id"] == "i9")
-    gt = score.load_gt(form, _pdf(form))
+def test_block_layout_tables_use_per_column_ordinals():
+    # two records, each laid out on three lines (one column per line): union clustering
+    # would give 6 rows, so every column is numbered by its own order instead
+    gt = []
+    for rec in range(2):
+        top = 100.0 + 200 * rec
+        gt += [
+            _gt("t[].a", (10, top, 50, top + 12)),
+            _gt("t[].b", (10, top + 30, 50, top + 42)),
+            _gt("t[].c", (10, top + 60, 50, top + 72)),
+        ]
     rows = probe.gt_rows(gt)
-    by_path = {}
-    for i, g in enumerate(gt):
-        if g.path and g.path.startswith("reverifications[]."):
-            by_path.setdefault(g.path, []).append((g.page, g.rect[1], rows[i]))
-    number = sorted(by_path["reverifications[].document_number"])
-    title = sorted(by_path["reverifications[].document_title"])
-    # every document_title box sits in the row of the document_number box at the same height
-    for page, top, row in title:
-        assert any(p == page and abs(t - top) <= 2 and r == row for p, t, r in number), (page, top, row)
-    assert len({r for _, _, r in number}) == len(number)
-    assert title[-1][2] == number[-1][2]  # the second title box matches the third number box
+    assert [rows[i] for i in range(6)] == [0, 0, 0, 1, 1, 1]
+    assert probe.table_rows_in_gt(gt) == {"t": 2}
+
+
+def test_clustered_table_stays_clustered_when_rows_equal_the_largest_column():
+    gt = [_gt("t[].a", (10, 100, 50, 112)), _gt("t[].a", (10, 200, 50, 212)), _gt("t[].a", (10, 300, 50, 312)),
+          _gt("t[].b", (60, 100, 90, 112)), _gt("t[].b", (60, 300, 90, 312))]
+    assert [probe.gt_rows(gt)[i] for i in range(5)] == [0, 1, 2, 0, 2]
+
+
+def test_corpus_table_row_counts_follow_the_per_column_values():
+    counts = {}
+    for form in MANIFEST:
+        gt = score.load_gt(form, _pdf(form))
+        counts[form["id"]] = probe.table_rows_in_gt(gt or [])
+    assert counts["grandview_app"]["employment_history"] == 4
+    assert counts["cms1500"]["service_lines"] == 6
+    assert counts["i9"]["reverifications"] == 3
+    schema = json.loads((FORMS / "schemas" / "grandview_app.json").read_text())
+    form = next(f for f in MANIFEST if f["id"] == "grandview_app")
+    records = probe.probe_records(
+        schema, score.load_gt(form, _pdf(form)), overrides=probe.load_overrides("grandview_app"), seed="grandview_app"
+    )
+    assert all(len(r["employment_history"]) == 5 for r in records)
