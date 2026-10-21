@@ -53,6 +53,7 @@ __all__ = [
     "parse_path",
     "resolve",
     "validate_data",
+    "validate_data_located",
 ]
 
 PathType = Literal["string", "integer", "number", "boolean", "date", "enum", "array", "object"]
@@ -364,12 +365,11 @@ def _data_location(parts: list[Any]) -> str:
     return out
 
 
-def validate_data(schema: dict, data: Any) -> list[str]:
-    """Validate ``data`` against ``schema``; return error messages (empty when valid).
+def validate_data_located(schema: dict, data: Any) -> list[tuple[str, str]]:
+    """Validate ``data`` against ``schema``; return ``(location, message)`` pairs, sorted.
 
-    Each message is ``"<location>: <jsonschema message>"`` where the location uses
-    path syntax with concrete indices (``medications[0].dose``); errors at the
-    document root have no location prefix. ``format: date`` is checked. An invalid
+    The location uses path syntax with concrete indices (``medications[0].dose``) and is
+    ``""`` for an error at the document root. ``format: date`` is checked. An invalid
     schema or an unresolvable (dangling/remote) ``$ref`` raises ``FormcastError``.
     """
     cls = validator_for(schema)
@@ -383,4 +383,13 @@ def validate_data(schema: dict, data: Any) -> list[str]:
     except Unresolvable as e:  # dangling or remote $ref, only discovered while validating
         raise FormcastError(f"unresolvable $ref in JSON Schema: {e}") from e
     found.sort()
-    return [f"{loc}: {msg}" if loc else msg for loc, msg in found]
+    return found
+
+
+def validate_data(schema: dict, data: Any) -> list[str]:
+    """Validate ``data`` against ``schema``; return error messages (empty when valid).
+
+    Each message is ``"<location>: <jsonschema message>"`` (see
+    :func:`validate_data_located`); errors at the document root have no location prefix.
+    """
+    return [f"{loc}: {msg}" if loc else msg for loc, msg in validate_data_located(schema, data)]

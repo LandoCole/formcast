@@ -174,12 +174,16 @@ def _blanksafe(fn: Callable[..., Any]) -> Callable[..., Any]:
     return wrapper
 
 
-def _text(value: Any) -> str:
+def to_text(value: Any) -> str:
+    """Render a scalar as text; lists and dicts are an error (they need a transform first)."""
     if isinstance(value, str):
         return value
     if isinstance(value, (list, tuple, set, dict)):
         raise FormcastError(f"expected text but got {type(value).__name__}: {value!r}")
     return str(value)
+
+
+_text = to_text  # historical private name, kept so existing callers keep working
 
 
 _ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
