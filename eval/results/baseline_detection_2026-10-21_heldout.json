@@ -1,0 +1,1388 @@
+[
+ {
+  "form": "ds11",
+  "split": "heldout",
+  "kind": "fillable",
+  "page": 4,
+  "variant": "as_published",
+  "detector": "FFDNet-L",
+  "gt": 30,
+  "pred": 76,
+  "pred_by_type": {
+   "text": 52,
+   "choice": 24,
+   "signature": 0
+  },
+  "matched@0.5": 21,
+  "type_ok@0.5": 19,
+  "missed_by_type@0.5": {
+   "text": 9,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.5": 0.7,
+  "precision@0.5": 0.2763,
+  "matched@0.3": 24,
+  "type_ok@0.3": 22,
+  "missed_by_type@0.3": {
+   "text": 6,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.3": 0.8,
+  "precision@0.3": 0.3158
+ },
+ {
+  "form": "ds11",
+  "split": "heldout",
+  "kind": "fillable",
+  "page": 4,
+  "variant": "as_published",
+  "detector": "FFDetr",
+  "gt": 30,
+  "pred": 63,
+  "pred_by_type": {
+   "text": 43,
+   "choice": 20,
+   "signature": 0
+  },
+  "matched@0.5": 21,
+  "type_ok@0.5": 21,
+  "missed_by_type@0.5": {
+   "text": 9,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.5": 0.7,
+  "precision@0.5": 0.3333,
+  "matched@0.3": 24,
+  "type_ok@0.3": 24,
+  "missed_by_type@0.3": {
+   "text": 6,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.3": 0.8,
+  "precision@0.3": 0.381
+ },
+ {
+  "form": "ds11",
+  "split": "heldout",
+  "kind": "fillable",
+  "page": 4,
+  "variant": "fake_scan",
+  "detector": "FFDNet-L",
+  "gt": 30,
+  "pred": 16,
+  "pred_by_type": {
+   "text": 16,
+   "choice": 0,
+   "signature": 0
+  },
+  "matched@0.5": 11,
+  "type_ok@0.5": 11,
+  "missed_by_type@0.5": {
+   "text": 12,
+   "choice": 7,
+   "signature": 0
+  },
+  "recall@0.5": 0.3667,
+  "precision@0.5": 0.6875,
+  "matched@0.3": 14,
+  "type_ok@0.3": 14,
+  "missed_by_type@0.3": {
+   "text": 9,
+   "choice": 7,
+   "signature": 0
+  },
+  "recall@0.3": 0.4667,
+  "precision@0.3": 0.875
+ },
+ {
+  "form": "ds11",
+  "split": "heldout",
+  "kind": "fillable",
+  "page": 4,
+  "variant": "fake_scan",
+  "detector": "FFDetr",
+  "gt": 30,
+  "pred": 45,
+  "pred_by_type": {
+   "text": 32,
+   "choice": 13,
+   "signature": 0
+  },
+  "matched@0.5": 24,
+  "type_ok@0.5": 24,
+  "missed_by_type@0.5": {
+   "text": 5,
+   "choice": 1,
+   "signature": 0
+  },
+  "recall@0.5": 0.8,
+  "precision@0.5": 0.5333,
+  "matched@0.3": 26,
+  "type_ok@0.3": 26,
+  "missed_by_type@0.3": {
+   "text": 4,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.3": 0.8667,
+  "precision@0.3": 0.5778
+ },
+ {
+  "form": "ds11",
+  "split": "heldout",
+  "kind": "fillable",
+  "page": 5,
+  "variant": "as_published",
+  "detector": "FFDNet-L",
+  "gt": 68,
+  "pred": 85,
+  "pred_by_type": {
+   "text": 45,
+   "choice": 40,
+   "signature": 0
+  },
+  "matched@0.5": 59,
+  "type_ok@0.5": 59,
+  "missed_by_type@0.5": {
+   "text": 1,
+   "choice": 8,
+   "signature": 0
+  },
+  "recall@0.5": 0.8676,
+  "precision@0.5": 0.6941,
+  "matched@0.3": 59,
+  "type_ok@0.3": 59,
+  "missed_by_type@0.3": {
+   "text": 1,
+   "choice": 8,
+   "signature": 0
+  },
+  "recall@0.3": 0.8676,
+  "precision@0.3": 0.6941
+ },
+ {
+  "form": "ds11",
+  "split": "heldout",
+  "kind": "fillable",
+  "page": 5,
+  "variant": "as_published",
+  "detector": "FFDetr",
+  "gt": 68,
+  "pred": 61,
+  "pred_by_type": {
+   "text": 41,
+   "choice": 20,
+   "signature": 0
+  },
+  "matched@0.5": 50,
+  "type_ok@0.5": 50,
+  "missed_by_type@0.5": {
+   "text": 1,
+   "choice": 17,
+   "signature": 0
+  },
+  "recall@0.5": 0.7353,
+  "precision@0.5": 0.8197,
+  "matched@0.3": 52,
+  "type_ok@0.3": 52,
+  "missed_by_type@0.3": {
+   "text": 1,
+   "choice": 15,
+   "signature": 0
+  },
+  "recall@0.3": 0.7647,
+  "precision@0.3": 0.8525
+ },
+ {
+  "form": "ds11",
+  "split": "heldout",
+  "kind": "fillable",
+  "page": 5,
+  "variant": "fake_scan",
+  "detector": "FFDNet-L",
+  "gt": 68,
+  "pred": 68,
+  "pred_by_type": {
+   "text": 40,
+   "choice": 28,
+   "signature": 0
+  },
+  "matched@0.5": 61,
+  "type_ok@0.5": 61,
+  "missed_by_type@0.5": {
+   "text": 0,
+   "choice": 7,
+   "signature": 0
+  },
+  "recall@0.5": 0.8971,
+  "precision@0.5": 0.8971,
+  "matched@0.3": 61,
+  "type_ok@0.3": 61,
+  "missed_by_type@0.3": {
+   "text": 0,
+   "choice": 7,
+   "signature": 0
+  },
+  "recall@0.3": 0.8971,
+  "precision@0.3": 0.8971
+ },
+ {
+  "form": "ds11",
+  "split": "heldout",
+  "kind": "fillable",
+  "page": 5,
+  "variant": "fake_scan",
+  "detector": "FFDetr",
+  "gt": 68,
+  "pred": 59,
+  "pred_by_type": {
+   "text": 41,
+   "choice": 18,
+   "signature": 0
+  },
+  "matched@0.5": 39,
+  "type_ok@0.5": 39,
+  "missed_by_type@0.5": {
+   "text": 1,
+   "choice": 28,
+   "signature": 0
+  },
+  "recall@0.5": 0.5735,
+  "precision@0.5": 0.661,
+  "matched@0.3": 51,
+  "type_ok@0.3": 51,
+  "missed_by_type@0.3": {
+   "text": 1,
+   "choice": 16,
+   "signature": 0
+  },
+  "recall@0.3": 0.75,
+  "precision@0.3": 0.8644
+ },
+ {
+  "form": "ics211",
+  "split": "heldout",
+  "kind": "fillable",
+  "page": 0,
+  "variant": "as_published",
+  "detector": "FFDNet-L",
+  "gt": 157,
+  "pred": 154,
+  "pred_by_type": {
+   "text": 154,
+   "choice": 0,
+   "signature": 0
+  },
+  "matched@0.5": 148,
+  "type_ok@0.5": 147,
+  "missed_by_type@0.5": {
+   "text": 4,
+   "choice": 5,
+   "signature": 0
+  },
+  "recall@0.5": 0.9427,
+  "precision@0.5": 0.961,
+  "matched@0.3": 148,
+  "type_ok@0.3": 147,
+  "missed_by_type@0.3": {
+   "text": 4,
+   "choice": 5,
+   "signature": 0
+  },
+  "recall@0.3": 0.9427,
+  "precision@0.3": 0.961
+ },
+ {
+  "form": "ics211",
+  "split": "heldout",
+  "kind": "fillable",
+  "page": 0,
+  "variant": "as_published",
+  "detector": "FFDetr",
+  "gt": 157,
+  "pred": 132,
+  "pred_by_type": {
+   "text": 132,
+   "choice": 0,
+   "signature": 0
+  },
+  "matched@0.5": 113,
+  "type_ok@0.5": 113,
+  "missed_by_type@0.5": {
+   "text": 38,
+   "choice": 5,
+   "signature": 1
+  },
+  "recall@0.5": 0.7197,
+  "precision@0.5": 0.8561,
+  "matched@0.3": 114,
+  "type_ok@0.3": 114,
+  "missed_by_type@0.3": {
+   "text": 37,
+   "choice": 5,
+   "signature": 1
+  },
+  "recall@0.3": 0.7261,
+  "precision@0.3": 0.8636
+ },
+ {
+  "form": "ics211",
+  "split": "heldout",
+  "kind": "fillable",
+  "page": 0,
+  "variant": "fake_scan",
+  "detector": "FFDNet-L",
+  "gt": 157,
+  "pred": 0,
+  "pred_by_type": {
+   "text": 0,
+   "choice": 0,
+   "signature": 0
+  },
+  "matched@0.5": 0,
+  "type_ok@0.5": 0,
+  "missed_by_type@0.5": {
+   "text": 151,
+   "choice": 5,
+   "signature": 1
+  },
+  "recall@0.5": 0.0,
+  "precision@0.5": 0.0,
+  "matched@0.3": 0,
+  "type_ok@0.3": 0,
+  "missed_by_type@0.3": {
+   "text": 151,
+   "choice": 5,
+   "signature": 1
+  },
+  "recall@0.3": 0.0,
+  "precision@0.3": 0.0
+ },
+ {
+  "form": "ics211",
+  "split": "heldout",
+  "kind": "fillable",
+  "page": 0,
+  "variant": "fake_scan",
+  "detector": "FFDetr",
+  "gt": 157,
+  "pred": 157,
+  "pred_by_type": {
+   "text": 157,
+   "choice": 0,
+   "signature": 0
+  },
+  "matched@0.5": 143,
+  "type_ok@0.5": 143,
+  "missed_by_type@0.5": {
+   "text": 8,
+   "choice": 5,
+   "signature": 1
+  },
+  "recall@0.5": 0.9108,
+  "precision@0.5": 0.9108,
+  "matched@0.3": 144,
+  "type_ok@0.3": 144,
+  "missed_by_type@0.3": {
+   "text": 7,
+   "choice": 5,
+   "signature": 1
+  },
+  "recall@0.3": 0.9172,
+  "precision@0.3": 0.9172
+ },
+ {
+  "form": "pacific_app",
+  "split": "heldout",
+  "kind": "flat",
+  "page": 0,
+  "variant": "as_published",
+  "detector": "FFDNet-L",
+  "gt": 14,
+  "pred": 11,
+  "pred_by_type": {
+   "text": 11,
+   "choice": 0,
+   "signature": 0
+  },
+  "matched@0.5": 0,
+  "type_ok@0.5": 0,
+  "missed_by_type@0.5": {
+   "text": 12,
+   "choice": 2,
+   "signature": 0
+  },
+  "recall@0.5": 0.0,
+  "precision@0.5": 0.0,
+  "matched@0.3": 9,
+  "type_ok@0.3": 9,
+  "missed_by_type@0.3": {
+   "text": 3,
+   "choice": 2,
+   "signature": 0
+  },
+  "recall@0.3": 0.6429,
+  "precision@0.3": 0.8182
+ },
+ {
+  "form": "pacific_app",
+  "split": "heldout",
+  "kind": "flat",
+  "page": 0,
+  "variant": "as_published",
+  "detector": "FFDetr",
+  "gt": 14,
+  "pred": 13,
+  "pred_by_type": {
+   "text": 11,
+   "choice": 2,
+   "signature": 0
+  },
+  "matched@0.5": 10,
+  "type_ok@0.5": 10,
+  "missed_by_type@0.5": {
+   "text": 4,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.5": 0.7143,
+  "precision@0.5": 0.7692,
+  "matched@0.3": 12,
+  "type_ok@0.3": 12,
+  "missed_by_type@0.3": {
+   "text": 2,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.3": 0.8571,
+  "precision@0.3": 0.9231
+ },
+ {
+  "form": "pacific_app",
+  "split": "heldout",
+  "kind": "flat",
+  "page": 0,
+  "variant": "fake_scan",
+  "detector": "FFDNet-L",
+  "gt": 14,
+  "pred": 11,
+  "pred_by_type": {
+   "text": 11,
+   "choice": 0,
+   "signature": 0
+  },
+  "matched@0.5": 2,
+  "type_ok@0.5": 2,
+  "missed_by_type@0.5": {
+   "text": 10,
+   "choice": 2,
+   "signature": 0
+  },
+  "recall@0.5": 0.1429,
+  "precision@0.5": 0.1818,
+  "matched@0.3": 9,
+  "type_ok@0.3": 9,
+  "missed_by_type@0.3": {
+   "text": 3,
+   "choice": 2,
+   "signature": 0
+  },
+  "recall@0.3": 0.6429,
+  "precision@0.3": 0.8182
+ },
+ {
+  "form": "pacific_app",
+  "split": "heldout",
+  "kind": "flat",
+  "page": 0,
+  "variant": "fake_scan",
+  "detector": "FFDetr",
+  "gt": 14,
+  "pred": 12,
+  "pred_by_type": {
+   "text": 10,
+   "choice": 2,
+   "signature": 0
+  },
+  "matched@0.5": 7,
+  "type_ok@0.5": 7,
+  "missed_by_type@0.5": {
+   "text": 7,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.5": 0.5,
+  "precision@0.5": 0.5833,
+  "matched@0.3": 11,
+  "type_ok@0.3": 11,
+  "missed_by_type@0.3": {
+   "text": 3,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.3": 0.7857,
+  "precision@0.3": 0.9167
+ },
+ {
+  "form": "pacific_app",
+  "split": "heldout",
+  "kind": "flat",
+  "page": 1,
+  "variant": "as_published",
+  "detector": "FFDNet-L",
+  "gt": 29,
+  "pred": 25,
+  "pred_by_type": {
+   "text": 25,
+   "choice": 0,
+   "signature": 0
+  },
+  "matched@0.5": 2,
+  "type_ok@0.5": 2,
+  "missed_by_type@0.5": {
+   "text": 27,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.5": 0.069,
+  "precision@0.5": 0.08,
+  "matched@0.3": 22,
+  "type_ok@0.3": 22,
+  "missed_by_type@0.3": {
+   "text": 7,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.3": 0.7586,
+  "precision@0.3": 0.88
+ },
+ {
+  "form": "pacific_app",
+  "split": "heldout",
+  "kind": "flat",
+  "page": 1,
+  "variant": "as_published",
+  "detector": "FFDetr",
+  "gt": 29,
+  "pred": 24,
+  "pred_by_type": {
+   "text": 24,
+   "choice": 0,
+   "signature": 0
+  },
+  "matched@0.5": 16,
+  "type_ok@0.5": 16,
+  "missed_by_type@0.5": {
+   "text": 13,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.5": 0.5517,
+  "precision@0.5": 0.6667,
+  "matched@0.3": 20,
+  "type_ok@0.3": 20,
+  "missed_by_type@0.3": {
+   "text": 9,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.3": 0.6897,
+  "precision@0.3": 0.8333
+ },
+ {
+  "form": "pacific_app",
+  "split": "heldout",
+  "kind": "flat",
+  "page": 1,
+  "variant": "fake_scan",
+  "detector": "FFDNet-L",
+  "gt": 29,
+  "pred": 27,
+  "pred_by_type": {
+   "text": 27,
+   "choice": 0,
+   "signature": 0
+  },
+  "matched@0.5": 1,
+  "type_ok@0.5": 1,
+  "missed_by_type@0.5": {
+   "text": 28,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.5": 0.0345,
+  "precision@0.5": 0.037,
+  "matched@0.3": 26,
+  "type_ok@0.3": 26,
+  "missed_by_type@0.3": {
+   "text": 3,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.3": 0.8966,
+  "precision@0.3": 0.963
+ },
+ {
+  "form": "pacific_app",
+  "split": "heldout",
+  "kind": "flat",
+  "page": 1,
+  "variant": "fake_scan",
+  "detector": "FFDetr",
+  "gt": 29,
+  "pred": 24,
+  "pred_by_type": {
+   "text": 24,
+   "choice": 0,
+   "signature": 0
+  },
+  "matched@0.5": 8,
+  "type_ok@0.5": 8,
+  "missed_by_type@0.5": {
+   "text": 21,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.5": 0.2759,
+  "precision@0.5": 0.3333,
+  "matched@0.3": 23,
+  "type_ok@0.3": 23,
+  "missed_by_type@0.3": {
+   "text": 6,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.3": 0.7931,
+  "precision@0.3": 0.9583
+ },
+ {
+  "form": "pacific_app",
+  "split": "heldout",
+  "kind": "flat",
+  "page": 2,
+  "variant": "as_published",
+  "detector": "FFDNet-L",
+  "gt": 23,
+  "pred": 17,
+  "pred_by_type": {
+   "text": 17,
+   "choice": 0,
+   "signature": 0
+  },
+  "matched@0.5": 15,
+  "type_ok@0.5": 15,
+  "missed_by_type@0.5": {
+   "text": 8,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.5": 0.6522,
+  "precision@0.5": 0.8824,
+  "matched@0.3": 17,
+  "type_ok@0.3": 17,
+  "missed_by_type@0.3": {
+   "text": 6,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.3": 0.7391,
+  "precision@0.3": 1.0
+ },
+ {
+  "form": "pacific_app",
+  "split": "heldout",
+  "kind": "flat",
+  "page": 2,
+  "variant": "as_published",
+  "detector": "FFDetr",
+  "gt": 23,
+  "pred": 22,
+  "pred_by_type": {
+   "text": 22,
+   "choice": 0,
+   "signature": 0
+  },
+  "matched@0.5": 20,
+  "type_ok@0.5": 20,
+  "missed_by_type@0.5": {
+   "text": 3,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.5": 0.8696,
+  "precision@0.5": 0.9091,
+  "matched@0.3": 21,
+  "type_ok@0.3": 21,
+  "missed_by_type@0.3": {
+   "text": 2,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.3": 0.913,
+  "precision@0.3": 0.9545
+ },
+ {
+  "form": "pacific_app",
+  "split": "heldout",
+  "kind": "flat",
+  "page": 2,
+  "variant": "fake_scan",
+  "detector": "FFDNet-L",
+  "gt": 23,
+  "pred": 23,
+  "pred_by_type": {
+   "text": 23,
+   "choice": 0,
+   "signature": 0
+  },
+  "matched@0.5": 0,
+  "type_ok@0.5": 0,
+  "missed_by_type@0.5": {
+   "text": 23,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.5": 0.0,
+  "precision@0.5": 0.0,
+  "matched@0.3": 23,
+  "type_ok@0.3": 23,
+  "missed_by_type@0.3": {
+   "text": 0,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.3": 1.0,
+  "precision@0.3": 1.0
+ },
+ {
+  "form": "pacific_app",
+  "split": "heldout",
+  "kind": "flat",
+  "page": 2,
+  "variant": "fake_scan",
+  "detector": "FFDetr",
+  "gt": 23,
+  "pred": 22,
+  "pred_by_type": {
+   "text": 22,
+   "choice": 0,
+   "signature": 0
+  },
+  "matched@0.5": 20,
+  "type_ok@0.5": 20,
+  "missed_by_type@0.5": {
+   "text": 3,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.5": 0.8696,
+  "precision@0.5": 0.9091,
+  "matched@0.3": 21,
+  "type_ok@0.3": 21,
+  "missed_by_type@0.3": {
+   "text": 2,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.3": 0.913,
+  "precision@0.3": 0.9545
+ },
+ {
+  "form": "pacific_app",
+  "split": "heldout",
+  "kind": "flat",
+  "page": 3,
+  "variant": "as_published",
+  "detector": "FFDNet-L",
+  "gt": 17,
+  "pred": 15,
+  "pred_by_type": {
+   "text": 5,
+   "choice": 10,
+   "signature": 0
+  },
+  "matched@0.5": 11,
+  "type_ok@0.5": 11,
+  "missed_by_type@0.5": {
+   "text": 5,
+   "choice": 0,
+   "signature": 1
+  },
+  "recall@0.5": 0.6471,
+  "precision@0.5": 0.7333,
+  "matched@0.3": 15,
+  "type_ok@0.3": 14,
+  "missed_by_type@0.3": {
+   "text": 2,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.3": 0.8824,
+  "precision@0.3": 1.0
+ },
+ {
+  "form": "pacific_app",
+  "split": "heldout",
+  "kind": "flat",
+  "page": 3,
+  "variant": "as_published",
+  "detector": "FFDetr",
+  "gt": 17,
+  "pred": 15,
+  "pred_by_type": {
+   "text": 7,
+   "choice": 8,
+   "signature": 0
+  },
+  "matched@0.5": 13,
+  "type_ok@0.5": 12,
+  "missed_by_type@0.5": {
+   "text": 0,
+   "choice": 4,
+   "signature": 0
+  },
+  "recall@0.5": 0.7647,
+  "precision@0.5": 0.8667,
+  "matched@0.3": 14,
+  "type_ok@0.3": 13,
+  "missed_by_type@0.3": {
+   "text": 0,
+   "choice": 3,
+   "signature": 0
+  },
+  "recall@0.3": 0.8235,
+  "precision@0.3": 0.9333
+ },
+ {
+  "form": "pacific_app",
+  "split": "heldout",
+  "kind": "flat",
+  "page": 3,
+  "variant": "fake_scan",
+  "detector": "FFDNet-L",
+  "gt": 17,
+  "pred": 7,
+  "pred_by_type": {
+   "text": 0,
+   "choice": 7,
+   "signature": 0
+  },
+  "matched@0.5": 7,
+  "type_ok@0.5": 7,
+  "missed_by_type@0.5": {
+   "text": 6,
+   "choice": 3,
+   "signature": 1
+  },
+  "recall@0.5": 0.4118,
+  "precision@0.5": 1.0,
+  "matched@0.3": 7,
+  "type_ok@0.3": 7,
+  "missed_by_type@0.3": {
+   "text": 6,
+   "choice": 3,
+   "signature": 1
+  },
+  "recall@0.3": 0.4118,
+  "precision@0.3": 1.0
+ },
+ {
+  "form": "pacific_app",
+  "split": "heldout",
+  "kind": "flat",
+  "page": 3,
+  "variant": "fake_scan",
+  "detector": "FFDetr",
+  "gt": 17,
+  "pred": 13,
+  "pred_by_type": {
+   "text": 6,
+   "choice": 7,
+   "signature": 0
+  },
+  "matched@0.5": 9,
+  "type_ok@0.5": 9,
+  "missed_by_type@0.5": {
+   "text": 2,
+   "choice": 5,
+   "signature": 1
+  },
+  "recall@0.5": 0.5294,
+  "precision@0.5": 0.6923,
+  "matched@0.3": 13,
+  "type_ok@0.3": 13,
+  "missed_by_type@0.3": {
+   "text": 0,
+   "choice": 3,
+   "signature": 1
+  },
+  "recall@0.3": 0.7647,
+  "precision@0.3": 1.0
+ },
+ {
+  "form": "uwosh_health",
+  "split": "heldout",
+  "kind": "flat",
+  "page": 0,
+  "variant": "as_published",
+  "detector": "FFDNet-L",
+  "gt": 166,
+  "pred": 166,
+  "pred_by_type": {
+   "text": 136,
+   "choice": 30,
+   "signature": 0
+  },
+  "matched@0.5": 151,
+  "type_ok@0.5": 56,
+  "missed_by_type@0.5": {
+   "text": 6,
+   "choice": 9,
+   "signature": 0
+  },
+  "recall@0.5": 0.9096,
+  "precision@0.5": 0.9096,
+  "matched@0.3": 152,
+  "type_ok@0.3": 57,
+  "missed_by_type@0.3": {
+   "text": 5,
+   "choice": 9,
+   "signature": 0
+  },
+  "recall@0.3": 0.9157,
+  "precision@0.3": 0.9157
+ },
+ {
+  "form": "uwosh_health",
+  "split": "heldout",
+  "kind": "flat",
+  "page": 0,
+  "variant": "as_published",
+  "detector": "FFDetr",
+  "gt": 166,
+  "pred": 116,
+  "pred_by_type": {
+   "text": 62,
+   "choice": 54,
+   "signature": 0
+  },
+  "matched@0.5": 92,
+  "type_ok@0.5": 67,
+  "missed_by_type@0.5": {
+   "text": 20,
+   "choice": 54,
+   "signature": 0
+  },
+  "recall@0.5": 0.5542,
+  "precision@0.5": 0.7931,
+  "matched@0.3": 104,
+  "type_ok@0.3": 71,
+  "missed_by_type@0.3": {
+   "text": 16,
+   "choice": 46,
+   "signature": 0
+  },
+  "recall@0.3": 0.6265,
+  "precision@0.3": 0.8966
+ },
+ {
+  "form": "uwosh_health",
+  "split": "heldout",
+  "kind": "flat",
+  "page": 0,
+  "variant": "fake_scan",
+  "detector": "FFDNet-L",
+  "gt": 166,
+  "pred": 65,
+  "pred_by_type": {
+   "text": 65,
+   "choice": 0,
+   "signature": 0
+  },
+  "matched@0.5": 30,
+  "type_ok@0.5": 6,
+  "missed_by_type@0.5": {
+   "text": 38,
+   "choice": 98,
+   "signature": 0
+  },
+  "recall@0.5": 0.1807,
+  "precision@0.5": 0.4615,
+  "matched@0.3": 62,
+  "type_ok@0.3": 7,
+  "missed_by_type@0.3": {
+   "text": 37,
+   "choice": 67,
+   "signature": 0
+  },
+  "recall@0.3": 0.3735,
+  "precision@0.3": 0.9538
+ },
+ {
+  "form": "uwosh_health",
+  "split": "heldout",
+  "kind": "flat",
+  "page": 0,
+  "variant": "fake_scan",
+  "detector": "FFDetr",
+  "gt": 166,
+  "pred": 112,
+  "pred_by_type": {
+   "text": 72,
+   "choice": 40,
+   "signature": 0
+  },
+  "matched@0.5": 49,
+  "type_ok@0.5": 22,
+  "missed_by_type@0.5": {
+   "text": 27,
+   "choice": 90,
+   "signature": 0
+  },
+  "recall@0.5": 0.2952,
+  "precision@0.5": 0.4375,
+  "matched@0.3": 91,
+  "type_ok@0.3": 50,
+  "missed_by_type@0.3": {
+   "text": 16,
+   "choice": 59,
+   "signature": 0
+  },
+  "recall@0.3": 0.5482,
+  "precision@0.3": 0.8125
+ },
+ {
+  "form": "uwosh_health",
+  "split": "heldout",
+  "kind": "flat",
+  "page": 1,
+  "variant": "as_published",
+  "detector": "FFDNet-L",
+  "gt": 152,
+  "pred": 89,
+  "pred_by_type": {
+   "text": 89,
+   "choice": 0,
+   "signature": 0
+  },
+  "matched@0.5": 85,
+  "type_ok@0.5": 8,
+  "missed_by_type@0.5": {
+   "text": 13,
+   "choice": 54,
+   "signature": 0
+  },
+  "recall@0.5": 0.5592,
+  "precision@0.5": 0.9551,
+  "matched@0.3": 85,
+  "type_ok@0.3": 8,
+  "missed_by_type@0.3": {
+   "text": 13,
+   "choice": 54,
+   "signature": 0
+  },
+  "recall@0.3": 0.5592,
+  "precision@0.3": 0.9551
+ },
+ {
+  "form": "uwosh_health",
+  "split": "heldout",
+  "kind": "flat",
+  "page": 1,
+  "variant": "as_published",
+  "detector": "FFDetr",
+  "gt": 152,
+  "pred": 84,
+  "pred_by_type": {
+   "text": 24,
+   "choice": 60,
+   "signature": 0
+  },
+  "matched@0.5": 69,
+  "type_ok@0.5": 52,
+  "missed_by_type@0.5": {
+   "text": 16,
+   "choice": 67,
+   "signature": 0
+  },
+  "recall@0.5": 0.4539,
+  "precision@0.5": 0.8214,
+  "matched@0.3": 79,
+  "type_ok@0.3": 60,
+  "missed_by_type@0.3": {
+   "text": 15,
+   "choice": 58,
+   "signature": 0
+  },
+  "recall@0.3": 0.5197,
+  "precision@0.3": 0.9405
+ },
+ {
+  "form": "uwosh_health",
+  "split": "heldout",
+  "kind": "flat",
+  "page": 1,
+  "variant": "fake_scan",
+  "detector": "FFDNet-L",
+  "gt": 152,
+  "pred": 41,
+  "pred_by_type": {
+   "text": 41,
+   "choice": 0,
+   "signature": 0
+  },
+  "matched@0.5": 40,
+  "type_ok@0.5": 0,
+  "missed_by_type@0.5": {
+   "text": 21,
+   "choice": 90,
+   "signature": 1
+  },
+  "recall@0.5": 0.2632,
+  "precision@0.5": 0.9756,
+  "matched@0.3": 41,
+  "type_ok@0.3": 0,
+  "missed_by_type@0.3": {
+   "text": 21,
+   "choice": 89,
+   "signature": 1
+  },
+  "recall@0.3": 0.2697,
+  "precision@0.3": 1.0
+ },
+ {
+  "form": "uwosh_health",
+  "split": "heldout",
+  "kind": "flat",
+  "page": 1,
+  "variant": "fake_scan",
+  "detector": "FFDetr",
+  "gt": 152,
+  "pred": 15,
+  "pred_by_type": {
+   "text": 5,
+   "choice": 10,
+   "signature": 0
+  },
+  "matched@0.5": 12,
+  "type_ok@0.5": 10,
+  "missed_by_type@0.5": {
+   "text": 20,
+   "choice": 120,
+   "signature": 0
+  },
+  "recall@0.5": 0.0789,
+  "precision@0.5": 0.8,
+  "matched@0.3": 13,
+  "type_ok@0.3": 11,
+  "missed_by_type@0.3": {
+   "text": 20,
+   "choice": 119,
+   "signature": 0
+  },
+  "recall@0.3": 0.0855,
+  "precision@0.3": 0.8667
+ },
+ {
+  "form": "dagsboro_permit",
+  "split": "heldout",
+  "kind": "scanned",
+  "page": 0,
+  "variant": "as_published",
+  "detector": "FFDNet-L",
+  "gt": 65,
+  "pred": 9,
+  "pred_by_type": {
+   "text": 9,
+   "choice": 0,
+   "signature": 0
+  },
+  "matched@0.5": 9,
+  "type_ok@0.5": 9,
+  "missed_by_type@0.5": {
+   "text": 19,
+   "choice": 37,
+   "signature": 0
+  },
+  "recall@0.5": 0.1385,
+  "precision@0.5": 1.0,
+  "matched@0.3": 9,
+  "type_ok@0.3": 9,
+  "missed_by_type@0.3": {
+   "text": 19,
+   "choice": 37,
+   "signature": 0
+  },
+  "recall@0.3": 0.1385,
+  "precision@0.3": 1.0
+ },
+ {
+  "form": "dagsboro_permit",
+  "split": "heldout",
+  "kind": "scanned",
+  "page": 0,
+  "variant": "as_published",
+  "detector": "FFDetr",
+  "gt": 65,
+  "pred": 5,
+  "pred_by_type": {
+   "text": 5,
+   "choice": 0,
+   "signature": 0
+  },
+  "matched@0.5": 3,
+  "type_ok@0.5": 3,
+  "missed_by_type@0.5": {
+   "text": 25,
+   "choice": 37,
+   "signature": 0
+  },
+  "recall@0.5": 0.0462,
+  "precision@0.5": 0.6,
+  "matched@0.3": 5,
+  "type_ok@0.3": 5,
+  "missed_by_type@0.3": {
+   "text": 23,
+   "choice": 37,
+   "signature": 0
+  },
+  "recall@0.3": 0.0769,
+  "precision@0.3": 1.0
+ },
+ {
+  "form": "dagsboro_permit",
+  "split": "heldout",
+  "kind": "scanned",
+  "page": 1,
+  "variant": "as_published",
+  "detector": "FFDNet-L",
+  "gt": 34,
+  "pred": 12,
+  "pred_by_type": {
+   "text": 12,
+   "choice": 0,
+   "signature": 0
+  },
+  "matched@0.5": 12,
+  "type_ok@0.5": 12,
+  "missed_by_type@0.5": {
+   "text": 17,
+   "choice": 5,
+   "signature": 0
+  },
+  "recall@0.5": 0.3529,
+  "precision@0.5": 1.0,
+  "matched@0.3": 12,
+  "type_ok@0.3": 12,
+  "missed_by_type@0.3": {
+   "text": 17,
+   "choice": 5,
+   "signature": 0
+  },
+  "recall@0.3": 0.3529,
+  "precision@0.3": 1.0
+ },
+ {
+  "form": "dagsboro_permit",
+  "split": "heldout",
+  "kind": "scanned",
+  "page": 1,
+  "variant": "as_published",
+  "detector": "FFDetr",
+  "gt": 34,
+  "pred": 32,
+  "pred_by_type": {
+   "text": 31,
+   "choice": 1,
+   "signature": 0
+  },
+  "matched@0.5": 23,
+  "type_ok@0.5": 23,
+  "missed_by_type@0.5": {
+   "text": 7,
+   "choice": 4,
+   "signature": 0
+  },
+  "recall@0.5": 0.6765,
+  "precision@0.5": 0.7188,
+  "matched@0.3": 24,
+  "type_ok@0.3": 24,
+  "missed_by_type@0.3": {
+   "text": 6,
+   "choice": 4,
+   "signature": 0
+  },
+  "recall@0.3": 0.7059,
+  "precision@0.3": 0.75
+ },
+ {
+  "form": "dagsboro_permit",
+  "split": "heldout",
+  "kind": "scanned",
+  "page": 2,
+  "variant": "as_published",
+  "detector": "FFDNet-L",
+  "gt": 2,
+  "pred": 0,
+  "pred_by_type": {
+   "text": 0,
+   "choice": 0,
+   "signature": 0
+  },
+  "matched@0.5": 0,
+  "type_ok@0.5": 0,
+  "missed_by_type@0.5": {
+   "text": 1,
+   "choice": 0,
+   "signature": 1
+  },
+  "recall@0.5": 0.0,
+  "precision@0.5": 0.0,
+  "matched@0.3": 0,
+  "type_ok@0.3": 0,
+  "missed_by_type@0.3": {
+   "text": 1,
+   "choice": 0,
+   "signature": 1
+  },
+  "recall@0.3": 0.0,
+  "precision@0.3": 0.0
+ },
+ {
+  "form": "dagsboro_permit",
+  "split": "heldout",
+  "kind": "scanned",
+  "page": 2,
+  "variant": "as_published",
+  "detector": "FFDetr",
+  "gt": 2,
+  "pred": 13,
+  "pred_by_type": {
+   "text": 12,
+   "choice": 1,
+   "signature": 0
+  },
+  "matched@0.5": 1,
+  "type_ok@0.5": 1,
+  "missed_by_type@0.5": {
+   "text": 0,
+   "choice": 0,
+   "signature": 1
+  },
+  "recall@0.5": 0.5,
+  "precision@0.5": 0.0769,
+  "matched@0.3": 2,
+  "type_ok@0.3": 1,
+  "missed_by_type@0.3": {
+   "text": 0,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.3": 1.0,
+  "precision@0.3": 0.1538
+ }
+]
