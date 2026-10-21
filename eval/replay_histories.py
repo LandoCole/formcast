@@ -9,9 +9,8 @@ are dropped and counted, the rest apply, and the result is scored like a session
 Modes (rows are written for each):
 
 * ``original``: the saved final template as it is (sanity check: matches the results file);
-* ``guard``: the replay; it assumes the agent never retries a refused op (for example it
-  never passes ``not_a_blank=True``, which old histories do not carry), so it bounds what
-  the removal guard alone does to a run with the old prompt;
+* ``guard``: the replay; it assumes the agent never retries a refused op, so it bounds
+  what the removal guard alone does to a run with the old prompt;
 * ``guard+link``: the replay, then every computed cell of a table that holds a kept,
   unmapped seeded field (at least ``score``'s 70% inside the cell) is linked to that
   field (``Column.fields``);

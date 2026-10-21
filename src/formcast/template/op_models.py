@@ -46,7 +46,6 @@ class AddField(OpBase):
 class RemoveField(_FieldOp):
     op: Literal["remove_field"] = "remove_field"
     id: str
-    not_a_blank: bool = False  # the agent's judgment that a detected box is not a blank (see ops)
 
 
 class Move(_FieldOp):

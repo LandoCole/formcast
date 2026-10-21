@@ -77,12 +77,12 @@ signature, choice_mark (a mark drawn on or next to printed option text) and tabl
 1. The template starts with one unmapped field per existing widget (id `w<page>_<n>`) and per
    detector candidate (id `c<page>_<n>`): each field has the id of its item in the form summary.
    Work on these fields first: map each real blank with set_source and fix its label; move,
-   resize or set_type it when the geometry says so; remove_field the ones that are not blanks
-   (pre-printed content, decoration, duplicates). A detected field's seeded label is only the
-   nearest text line and is often wrong: judge a box by what is at its rect. Removing a seeded
-   field is refused unless another field or table cell covers the same box, or, for a detected
-   box you checked is not a blank, remove_field(id, not_a_blank=True); widget fields stay. To fix
-   a box's geometry, move or resize it rather than replacing it. Reinterpret where needed: a
+   resize or set_type it when the geometry says so. A detected field's seeded label is only the
+   nearest text line and is often wrong: judge a box by what is at its rect. Leave a seeded
+   field that is not a blank, or that no schema path fits, unmapped (an unmapped field fills
+   nothing); remove_field on a seeded field is refused unless another field or table cell
+   covers the same box (a duplicate). To fix a box's geometry, move or resize it rather than
+   replacing it. Reinterpret where needed: a
    short line printed right before option text is a box to mark (a checkbox), not a text blank.
    Use add_field only for blanks no field covers yet.
 2. Add the fields the detector missed, using text cues: prompts ending in ":", "#" or "?", lines
@@ -114,8 +114,7 @@ signature, choice_mark (a mark drawn on or next to printed option text) and tabl
    box per character) and use transforms to fill each part.
 7. Give every field a short label from its printed text. Keep every existing widget field and a
    field for every blank a person is expected to fill, even when no schema path fits (leave its
-   source empty); remove only boxes that are not blanks (pre-printed content, decoration,
-   duplicates).
+   source empty); remove only duplicates and fields you added by mistake.
 8. Map every schema path you can, shaping values to what the box asks for:
    - schema dates are ISO (YYYY-MM-DD): a date box needs date_format with the format the form
      shows (a printed hint such as mm/dd/yyyy, else the usual convention of the form's

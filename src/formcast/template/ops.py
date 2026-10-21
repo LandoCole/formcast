@@ -23,8 +23,9 @@ reasons name the field id, the offending value and what would be valid.
   or be removed until it is unlinked.
 * Seeded fields (``origin`` widget or detector) are evidence of a blank, so an
   agent's ``remove_field`` on one is rejected unless another field or table cell
-  covers the same box (IoU >= ``REPLACE_IOU``), or, for a detected box only, the op
-  says ``not_a_blank=True``. Human edits are not restricted.
+  covers the same box (IoU >= ``REPLACE_IOU``): a duplicate, or a cell that replaces
+  it. A seeded box that is not a blank stays unmapped (it fills nothing). Human edits
+  are not restricted.
 * History records the op as given (only the keys that were set) plus any
   generated id, so :func:`replay` reproduces the template exactly.
 """
@@ -517,10 +518,10 @@ class _Run:
                         best = (v, g.id)
         return best
 
-    def check_seed_removal(self, f: Field, not_a_blank: bool) -> None:
-        """An agent may drop a seeded box only when it is replaced, or (detected boxes) is judged not a blank."""
+    def check_seed_removal(self, f: Field) -> None:
+        """An agent may drop a seeded box only when another field or cell holds the same box."""
         best, nearest = self.best_cover(f)
-        if best >= REPLACE_IOU or (f.origin == "detector" and not_a_blank):
+        if best >= REPLACE_IOU:
             return
         if f.origin == "widget":
             what = f"the form's own widget {f.existing_widget!r}" if f.existing_widget else "a widget's field"
@@ -528,20 +529,19 @@ class _Run:
             what = "a detected box"
         closest = f" (the closest box is {nearest!r}, IoU {best:.2f})" if nearest is not None and best > 0 else ""
         reason = (f"field {f.id!r} is {what} and no second field or table cell covers the same box{closest}, so "
-                  "removing it would drop a blank. ")
+                  "removing it could drop a blank. Seeded fields can be removed only once another field or cell "
+                  f"covers the same box (IoU >= {REPLACE_IOU:g}), as for a duplicate. ")
         if best >= 0.1:
             reason += "To change a seeded box's geometry, move or resize it instead of replacing it. "
         if f.origin == "widget":
             reason += ("Keep it, with an empty source when no schema path fits. If a table holds it, link it as a "
                        "cell (the column's fields, one id per row; fm.grid(ids)['column_fields']) instead of "
-                       f"removing it. A widget field can be removed only once another field or cell covers the "
-                       f"same box (IoU >= {REPLACE_IOU:g}), as for a duplicate")
+                       "removing it")
         else:
             reason += ("Its seeded label is just the nearest text line and is often wrong, so judge the box itself "
-                       "(fm.region around its rect): empty space on a rule or inside a drawn box or cell is a blank; "
-                       "keep it (empty source when no schema path fits) or move/resize it. If the box is not a "
-                       "blank (printed text, a heading, decoration), "
-                       f"remove_field({f.id!r}, not_a_blank=True)")
+                       "(fm.region around its rect): map it if it is a blank, move/resize it to fix its geometry, "
+                       "and if it is not a blank or no schema path fits, leave it with an empty source (an "
+                       "unmapped field fills nothing)")
         self.fail(reason)
 
     def warnings(self, f: Field) -> list[str]:
@@ -596,7 +596,7 @@ def _remove_field(run: _Run, op: RemoveField) -> None:
         run.fail(f"field {f.id!r} is {link}; unlink it first (set_table_columns with None in its place in "
                  "that column's fields) or remove the table")
     if run.author == "agent" and f.origin in _SEEDED:
-        run.check_seed_removal(f, op.not_a_blank)
+        run.check_seed_removal(f)
     run.t.fields.remove(f)
 
 

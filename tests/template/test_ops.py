@@ -600,16 +600,13 @@ def test_replay_reproduces_a_template_with_linked_cells():
 def test_an_agent_cannot_remove_a_widget_field_that_nothing_replaces():
     t = _seeded_grid()
     _rejects(t, {"op": "remove_field", "id": "w0_0"}, "the form's own widget 'w0_0'", "link it as a cell")
-    _rejects(t, {"op": "remove_field", "id": "w0_0", "not_a_blank": True}, "the form's own widget")
     t2, _ = apply(t, {"op": "remove_field", "id": "w0_0"}, author="human", context=CTX)  # people may
     assert "w0_0" not in [f.id for f in t2.fields]
 
 
-def test_an_agent_removes_a_detected_box_only_when_replaced_or_judged_not_a_blank():
+def test_an_agent_removes_a_detected_box_only_when_another_box_replaces_it():
     t = _seeded_grid(origin="detector")
-    _rejects(t, {"op": "remove_field", "id": "c0_0"}, "a detected box", "not_a_blank=True")
-    t2, _ = apply(t, {"op": "remove_field", "id": "c0_0", "not_a_blank": True}, author="agent", context=CTX)
-    assert "c0_0" not in [f.id for f in t2.fields]
+    _rejects(t, {"op": "remove_field", "id": "c0_0"}, "a detected box", "leave it with an empty source")
     # a duplicate on the same box (IoU >= 0.6) replaces it
     t3, _ = _add(t, rect=[73, 329, 300, 338])
     t3, _ = apply(t3, {"op": "remove_field", "id": "c0_0"}, author="agent", context=CTX)
