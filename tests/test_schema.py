@@ -373,3 +373,39 @@ def test_awkward_property_names_flatten_and_round_trip(name):
 def test_parse_path_rejects_malformed(bad):
     with pytest.raises(ValueError):
         parse_path(bad)
+
+
+# ---- fix round 1 ----
+
+_REUSE_DEFS = {
+    "A": {"type": "object", "properties": {"q": {"type": "string"}}},
+    "B": {"type": "object", "properties": {"x": {"$ref": "#/$defs/A"}}},
+}
+
+
+@pytest.mark.parametrize(
+    "combo",
+    [
+        {"allOf": [{"$ref": "#/$defs/A"}, {"$ref": "#/$defs/B"}]},
+        {"oneOf": [{"$ref": "#/$defs/B"}, {"$ref": "#/$defs/A"}]},
+    ],
+)
+def test_ref_reused_by_sibling_branch_is_not_recursion(combo):
+    schema = {"type": "object", "$defs": _REUSE_DEFS, "properties": {"p": combo}}
+    paths = by_path(flatten_schema(schema))
+    assert paths["p.x"].type == "object"
+    assert paths["p.x.q"].type == "string"
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"type": "object", "properties": {"a": {"type": "nonsense"}}},
+        {"type": "object", "properties": {"a": {"$ref": "#/$defs/Missing"}}},
+        {"type": "object", "properties": {"a": {"$ref": "http://example.com/x.json"}}},
+    ],
+    ids=["invalid-schema", "dangling-ref", "remote-ref"],
+)
+def test_validate_data_bad_schema_raises_formcast_error(bad):
+    with pytest.raises(FormcastError):
+        validate_data(bad, {"a": 1})

@@ -40,6 +40,7 @@ from urllib.parse import unquote
 from jsonschema.exceptions import SchemaError
 from jsonschema.validators import validator_for
 from pydantic import BaseModel
+from referencing.exceptions import Unresolvable
 
 from formcast.errors import FormcastError
 
@@ -236,14 +237,16 @@ def _normalize(node: Any, root: dict, stack: tuple[str, ...]) -> tuple[dict, tup
         else:
             stack = stack + (ref,)
             result, stack = _normalize(target, root, stack)
+    # Sibling branches each start from this node's own ref chain; their stacks are
+    # discarded so a ref reused by a sibling or child is not mistaken for recursion.
     for part in node.get("allOf") or []:
-        sub, stack = _normalize(part, root, stack)
+        sub, _ = _normalize(part, root, stack)
         result = _merge(result, sub)
     union = node.get("anyOf") or node.get("oneOf")
     if isinstance(union, list) and union:
         branches = []
         for b in union:
-            sub, stack = _normalize(b, root, stack)
+            sub, _ = _normalize(b, root, stack)
             branches.append(sub)
         non_null = [b for b in branches if _single_type(b) != "null"]
         result = _merge(result, non_null[0] if non_null else {"type": "string"})
@@ -338,7 +341,8 @@ def validate_data(schema: dict, data: Any) -> list[str]:
 
     Each message is ``"<location>: <jsonschema message>"`` where the location uses
     path syntax with concrete indices (``medications[0].dose``); errors at the
-    document root have no location prefix. ``format: date`` is checked.
+    document root have no location prefix. ``format: date`` is checked. An invalid
+    schema or an unresolvable (dangling/remote) ``$ref`` raises ``FormcastError``.
     """
     cls = validator_for(schema)
     try:
@@ -346,6 +350,9 @@ def validate_data(schema: dict, data: Any) -> list[str]:
     except SchemaError as e:
         raise FormcastError(f"invalid JSON Schema: {e.message}") from e
     validator = cls(schema, format_checker=cls.FORMAT_CHECKER)
-    found = [(_data_location(list(e.absolute_path)), e.message) for e in validator.iter_errors(data)]
+    try:
+        found = [(_data_location(list(e.absolute_path)), e.message) for e in validator.iter_errors(data)]
+    except Unresolvable as e:  # dangling or remote $ref, only discovered while validating
+        raise FormcastError(f"unresolvable $ref in JSON Schema: {e}") from e
     found.sort()
     return [f"{loc}: {msg}" if loc else msg for loc, msg in found]
