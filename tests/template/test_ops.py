@@ -300,10 +300,67 @@ def test_set_table_columns_rows_and_segment():
                  "max_rows": 9}, "segment 2", "0..1")
 
 
-def test_table_ops_on_non_table_and_move_on_table_rejected():
+def test_table_ops_on_non_table_rejected():
     t, _ = _add(_table())
     _rejects(t, {"op": "set_table_columns", "id": "f2", "segment": 0, "columns": []}, "f2", "not a table")
-    _rejects(t, {"op": "move", "id": "f1", "dx": 1}, "table")
+    _rejects(t, {"op": "move", "id": "f2", "dx": 1, "segment": 0}, "f2", "segment=0", "table")
+    _rejects(t, {"op": "resize", "id": "f2", "rect": [0, 0, 50, 50], "segment": 0}, "f2", "table")
+
+
+def _two_segment_table():
+    t = _table()
+    return apply(t, {"op": "add_table_segment", "id": "f1", "segment": {**SEGMENT, "page": 1}},
+                 author="agent", context=CTX)[0]
+
+
+def test_move_table_by_offset_shifts_segments_rows_and_columns():
+    t, _ = apply(_two_segment_table(), {"op": "move", "id": "f1", "dx": 10, "dy": -5}, author="human", context=CTX)
+    for seg in t.fields[0].segments:
+        assert seg.rect == (82, 295, 550, 495) and seg.row_top == 315
+        assert [c.x for c in seg.columns] == [(82, 310), (310, 550)]
+    t, _ = apply(_two_segment_table(), {"op": "move", "id": "f1", "dy": 4, "segment": 1}, author="human", context=CTX)
+    assert [s.row_top for s in t.fields[0].segments] == [320, 324]
+    _rejects(_table(), {"op": "move", "id": "f1", "dy": 400}, "segment 0 rect", "off page")
+
+
+def test_move_table_segment_to_rect_carries_rows_and_columns():
+    t, _ = apply(_two_segment_table(), {"op": "move", "id": "f1", "rect": [82, 310, 550, 510], "segment": 1},
+                 author="human", context=CTX)
+    first, second = t.fields[0].segments
+    assert first.rect == (72, 300, 540, 500) and first.row_top == 320
+    assert second.rect == (82, 310, 550, 510) and second.row_top == 330
+    assert [c.x for c in second.columns] == [(82, 310), (310, 550)]
+
+
+def test_table_rect_needs_segment():
+    _rejects(_table(), {"op": "move", "id": "f1", "rect": [72, 300, 540, 500]}, "f1", "segment=")
+    _rejects(_table(), {"op": "resize", "id": "f1", "rect": [72, 300, 540, 500]}, "f1", "segment=")
+    _rejects(_table(), {"op": "resize", "id": "f1", "rect": [72, 300, 540, 500], "segment": 1},
+             "no segment 1", "0..0")
+
+
+def test_resize_table_segment_keeps_rows_and_columns_in_place():
+    t, _ = apply(_table(), {"op": "resize", "id": "f1", "rect": [72, 300, 560, 520], "segment": 0},
+                 author="human", context=CTX)
+    seg = t.fields[0].segments[0]
+    assert seg.rect == (72, 300, 560, 520) and seg.row_top == 320
+    assert [c.x for c in seg.columns] == [(72, 300), (300, 540)]
+
+
+def test_resize_table_too_small_names_what_no_longer_fits():
+    _rejects(_table(), {"op": "resize", "id": "f1", "rect": [72, 300, 540, 400], "segment": 0},
+             "segment 0", "10 rows", "at most 4 rows fit")
+    _rejects(_table(), {"op": "resize", "id": "f1", "rect": [72, 300, 400, 500], "segment": 0},
+             "column 'dose'", "[300, 540]")
+    _rejects(_table(), {"op": "resize", "id": "f1", "rect": [72, 330, 540, 500], "segment": 0},
+             "row_top 320")
+
+
+def test_stale_source_path_does_not_block_unrelated_edits():
+    stale = Field(id="c1", type="checkbox", page=0, rect=(100, 100, 110, 110), source={"paths": ["old_path"]})
+    t, warnings = apply(_template([stale]), {"op": "move", "id": "c1", "dx": 1}, author="human", context=CTX)
+    assert _field(t, "c1").rect == (101, 100, 111, 110)
+    assert len(warnings) == 1 and "'old_path'" in warnings[0] and "not in the schema" in warnings[0]
 
 
 # ------------------------------------------------------------------ widgets
@@ -333,6 +390,8 @@ def test_replay_reproduces_final_template():
         {"op": "move", "id": "f1", "dx": 2, "dy": -1},
         {"op": "set_style", "id": "f1", "style": {"font_size": 8}},
         {"op": "add_table", "source_path": "medications", "segments": [SEGMENT]},
+        {"op": "move", "id": "f3", "dx": 3},
+        {"op": "resize", "id": "f3", "rect": [75, 300, 543, 510], "segment": 0},
         {"op": "remove_field", "id": "f2"},
         {"op": "add_field", "type": "text", "page": 1, "rect": [72, 72, 200, 90]},
     ):

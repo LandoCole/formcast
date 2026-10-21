@@ -6,7 +6,10 @@ mutated) plus warnings, and appends the op to ``history``. A rejected op raises
 :class:`~formcast.errors.OpError`; its ``reason`` is shown back to the agent, so
 reasons name the field id, the offending value and what would be valid.
 
-* ``move`` takes either ``rect`` or ``dx``/``dy``; ``resize`` sets ``rect``.
+* ``move`` takes either ``rect`` or ``dx``/``dy``; ``resize`` sets ``rect``. On a
+  table, ``dx``/``dy`` shift every segment (or only ``segment`` if given) with its
+  rows and columns; a ``rect`` needs ``segment``. ``move`` carries that segment's
+  rows and columns along; ``resize`` keeps them in place and checks they still fit.
 * ``set_style`` merges: only the style keys given in the op change.
 * ``set_source`` with ``source=None`` unmaps a field; ``link_widget`` with
   ``widget=None`` unlinks it.
@@ -23,135 +26,47 @@ import difflib
 import math
 import re
 from collections.abc import Callable
-from typing import Annotated, Literal, Union
 
-import pydantic
-from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
+from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from formcast.errors import OpError
 from formcast.geometry import Rect, iou
 from formcast.schema import SchemaPath
-from formcast.template.model import Column, Field, HistoryEntry, Source, Style, TableSegment, Template
+from formcast.template.model import Field, HistoryEntry, Source, Style, TableSegment, Template
+from formcast.template.op_models import (
+    OP_CLASSES,
+    OP_NAMES,
+    AddField,
+    AddTable,
+    AddTableSegment,
+    FieldType,
+    LinkWidget,
+    Move,
+    Op,
+    OpBase,
+    RemoveField,
+    Resize,
+    SetLabel,
+    SetSource,
+    SetStyle,
+    SetTableColumns,
+    SetTableRows,
+    SetType,
+)
 from formcast.transforms import Transform, validate_chain
 
-FieldType = Literal["text", "checkbox", "radio_option", "signature", "choice_mark", "table"]
+__all__ = [  # op models are re-exported so ``from formcast.template.ops import Move`` keeps working
+    "OP_NAMES", "AddField", "AddTable", "AddTableSegment", "FieldType", "LinkWidget", "Move", "Op",
+    "OpContext", "RemoveField", "Resize", "SetLabel", "SetSource", "SetStyle", "SetTableColumns",
+    "SetTableRows", "SetType", "apply", "diff", "replay",
+]  # fmt: skip
+
 CHOICE_TYPES = ("checkbox", "radio_option", "choice_mark")
 EDGE_TOLERANCE = 2.0  # how far (pt) a rect may stick out past the page edge
 MIN_SIZE = 2.0  # minimum rect width and height (pt)
 OVERLAP_WARN_IOU = 0.5
 ID_PATTERN = re.compile(r"[A-Za-z][A-Za-z0-9_\-]{0,63}")
 _GENERATED_ID = re.compile(r"f(\d+)")
-
-
-class _Op(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-
-class AddField(_Op):
-    op: Literal["add_field"] = "add_field"
-    id: str | None = None
-    type: FieldType
-    page: int
-    rect: Rect
-    label: str = ""
-    source: Source | None = None
-    style: Style | None = None
-
-
-class RemoveField(_Op):
-    op: Literal["remove_field"] = "remove_field"
-    id: str
-
-
-class Move(_Op):
-    op: Literal["move"] = "move"
-    id: str
-    rect: Rect | None = None
-    dx: float | None = None
-    dy: float | None = None
-
-    @pydantic.model_validator(mode="after")
-    def _rect_or_offset(self) -> Move:
-        offset = self.dx is not None or self.dy is not None
-        if self.rect is None and not offset:
-            raise ValueError("move needs either rect=[x0, y0, x1, y1] or a dx/dy offset")
-        if self.rect is not None and offset:
-            raise ValueError("move takes rect or dx/dy, not both")
-        return self
-
-
-class Resize(_Op):
-    op: Literal["resize"] = "resize"
-    id: str
-    rect: Rect
-
-
-class SetLabel(_Op):
-    op: Literal["set_label"] = "set_label"
-    id: str
-    label: str
-
-
-class SetType(_Op):
-    op: Literal["set_type"] = "set_type"
-    id: str
-    type: FieldType
-
-
-class SetSource(_Op):
-    op: Literal["set_source"] = "set_source"
-    id: str
-    source: Source | None
-
-
-class SetStyle(_Op):
-    op: Literal["set_style"] = "set_style"
-    id: str
-    style: Style
-
-
-class AddTable(_Op):
-    op: Literal["add_table"] = "add_table"
-    id: str | None = None
-    label: str = ""
-    source_path: str
-    segments: list[TableSegment]
-
-
-class SetTableColumns(_Op):
-    op: Literal["set_table_columns"] = "set_table_columns"
-    id: str
-    segment: int
-    columns: list[Column]
-
-
-class SetTableRows(_Op):
-    op: Literal["set_table_rows"] = "set_table_rows"
-    id: str
-    segment: int
-    row_top: float
-    row_height: float
-    max_rows: int
-
-
-class AddTableSegment(_Op):
-    op: Literal["add_table_segment"] = "add_table_segment"
-    id: str
-    segment: TableSegment
-
-
-class LinkWidget(_Op):
-    op: Literal["link_widget"] = "link_widget"
-    id: str
-    widget: str | None
-
-
-_OP_CLASSES = (
-    AddField, RemoveField, Move, Resize, SetLabel, SetType, SetSource, SetStyle,
-    AddTable, SetTableColumns, SetTableRows, AddTableSegment, LinkWidget,
-)  # fmt: skip
-Op = Annotated[Union[_OP_CLASSES], pydantic.Field(discriminator="op")]  # noqa: UP007
-OP_NAMES = [c.model_fields["op"].default for c in _OP_CLASSES]
 _ADAPTER: TypeAdapter = TypeAdapter(Op)
 # Ops after which the touched field is checked for overlap / checkbox-source warnings.
 _WARN_OPS = {"add_field", "move", "resize", "set_type", "set_source"}
@@ -221,8 +136,8 @@ def _apply(
     return t, warnings
 
 
-def _parse(op: object) -> tuple[_Op, dict]:
-    if isinstance(op, _OP_CLASSES):
+def _parse(op: object) -> tuple[OpBase, dict]:
+    if isinstance(op, OP_CLASSES):
         return op.model_copy(deep=True), {"op": op.op, **op.model_dump(mode="json", exclude_unset=True)}
     if not isinstance(op, dict):
         raise OpError({}, f"an op must be a dict like {{'op': 'move', ...}} or an op model, got {type(op).__name__}")
@@ -252,7 +167,7 @@ def _describe(e: ValidationError, name: str) -> str:
     return "; ".join(parts)
 
 
-def _fmt(rect: Rect) -> str:
+def _fmt(rect: tuple[float, ...]) -> str:
     return "[" + ", ".join(f"{v:g}" for v in rect) + "]"
 
 
@@ -280,20 +195,21 @@ class _Run:
         listed = ", ".join(ids[:30]) + (", ..." if len(ids) > 30 else "") if ids else "none"
         self.fail(f"unknown field id {fid!r}; existing field ids: {listed}")
 
-    def placed(self, fid: str) -> Field:
-        f = self.field(fid)
-        if f.type == "table":
-            self.fail(
-                f"field {fid!r} is a table; tables are positioned by their segments "
-                "(set_table_rows, set_table_columns, add_table_segment), not move/resize"
-            )
-        return f
-
     def table(self, fid: str) -> Field:
         f = self.field(fid)
         if f.type != "table":
             self.fail(f"field {fid!r} is a {f.type} field, not a table; table ops need a field made by add_table")
         return f
+
+    def table_segment(self, f: Field, index: int | None, verb: str) -> TableSegment:
+        if index is None:
+            self.fail(f"table field {f.id!r}: {verb} with a rect needs segment=<index> (0..{len(f.segments) - 1}) "
+                      "to say which segment's rect to set; or move by dx/dy to shift the whole table")
+        return self.segment(f, index)
+
+    def no_segment(self, f: Field, index: int | None) -> None:
+        if index is not None:
+            self.fail(f"field {f.id!r} is a {f.type} field; segment={index} applies only to table fields")
 
     def segment(self, f: Field, index: int) -> TableSegment:
         if not 0 <= index < len(f.segments):
@@ -366,7 +282,7 @@ class _Run:
                 self.fail(f"{where}: column key {col.key!r} appears twice")
             seen.add(col.key)
             if cx1 - cx0 < MIN_SIZE or cx0 < x0 - EDGE_TOLERANCE or cx1 > x1 + EDGE_TOLERANCE:
-                self.fail(f"{where}: column {col.key!r} x {[cx0, cx1]} must be at least {MIN_SIZE:g}pt wide "
+                self.fail(f"{where}: column {col.key!r} x {_fmt(col.x)} must be at least {MIN_SIZE:g}pt wide "
                           f"and inside the segment rect's x range [{x0:g}, {x1:g}]")
             self.check_chain(f"{where} column {col.key!r} transforms", col.transforms)
 
@@ -437,10 +353,13 @@ class _Run:
                         out.append(f"field {f.id!r} overlaps field {g.id!r} on page {f.page} (IoU {v:.2f}); "
                                    "if they are the same blank, remove one")
         s = f.source
+        for p in s.paths if s else []:
+            if p not in self.paths:
+                out.append(f"field {f.id!r} maps {p!r}, which is not in the schema; set_source to a valid path")
         if f.type == "checkbox" and s and s.when is None and not any(tr.op == "bool_to_check" for tr in s.transforms):
             for p in s.paths:
-                sp = self.paths[p]
-                if sp.type not in ("boolean", "enum", "array"):
+                sp = self.paths.get(p)
+                if sp is not None and sp.type not in ("boolean", "enum", "array"):
                     out.append(f"checkbox field {f.id!r} maps {p!r} (type {sp.type}) with no when condition or "
                                "bool_to_check transform; add when (e.g. equals/contains) or bool_to_check "
                                "so the box state is explicit")
@@ -468,7 +387,11 @@ def _remove_field(run: _Run, op: RemoveField) -> None:
 
 
 def _move(run: _Run, op: Move) -> Field:
-    f = run.placed(op.id)
+    f = run.field(op.id)
+    if f.type == "table":
+        _move_table(run, f, op)
+        return f
+    run.no_segment(f, op.segment)
     if op.rect is not None:
         rect = op.rect
     else:
@@ -479,8 +402,37 @@ def _move(run: _Run, op: Move) -> Field:
     return f
 
 
+def _shift_segment(seg: TableSegment, dx: float, dy: float) -> None:
+    """Move a segment's rect, rows and columns together."""
+    x0, y0, x1, y1 = seg.rect
+    seg.rect = (x0 + dx, y0 + dy, x1 + dx, y1 + dy)
+    seg.row_top += dy
+    for col in seg.columns:
+        col.x = (col.x[0] + dx, col.x[1] + dx)
+
+
+def _move_table(run: _Run, f: Field, op: Move) -> None:
+    if op.rect is not None:
+        seg = run.table_segment(f, op.segment, "move")
+        x0, y0, *_ = seg.rect
+        _shift_segment(seg, op.rect[0] - x0, op.rect[1] - y0)
+        seg.rect = op.rect  # a different size is allowed; check_segment verifies rows/columns still fit
+        run.check_segment(f, op.segment)
+        return
+    if op.segment is not None:
+        run.segment(f, op.segment)  # validates the index
+    for i in range(len(f.segments)) if op.segment is None else [op.segment]:
+        _shift_segment(f.segments[i], op.dx or 0.0, op.dy or 0.0)
+        run.check_segment(f, i)
+
+
 def _resize(run: _Run, op: Resize) -> Field:
-    f = run.placed(op.id)
+    f = run.field(op.id)
+    if f.type == "table":
+        run.table_segment(f, op.segment, "resize").rect = op.rect  # rows and columns keep their positions
+        run.check_segment(f, op.segment)
+        return f
+    run.no_segment(f, op.segment)
     run.check_rect(f.id, f.page, op.rect)
     f.rect = op.rect
     return f
@@ -568,7 +520,7 @@ def _link_widget(run: _Run, op: LinkWidget) -> Field:
     return f
 
 
-_HANDLERS: dict[str, Callable[[_Run, _Op], Field | None]] = {
+_HANDLERS: dict[str, Callable[[_Run, OpBase], Field | None]] = {
     "add_field": _add_field,
     "remove_field": _remove_field,
     "move": _move,
