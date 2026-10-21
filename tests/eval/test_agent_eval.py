@@ -274,3 +274,13 @@ def test_markdown_lists_each_row_and_the_totals():
     assert "harness: Boom: x" in md
     assert "| as_published | 1 (1) |" in md
     assert "false positives" in md
+
+
+def test_totals_precision_counts_matched_boxes_not_matched_gt():
+    # a multi-line field matched 5 GT line boxes but is one predicted box
+    row = _row("as_published", 10, 6, 9, 4, 4, 100, 10)
+    for k in ("iou0.3", "iou0.5"):
+        row["detection"][k]["pred_matched"] = 5
+    out = agent_eval.totals([row])["as_published"]["detection"]["iou0.3"]
+    assert out["recall"] == pytest.approx(9 / 10)
+    assert out["precision"] == pytest.approx(5 / 6, abs=1e-4)

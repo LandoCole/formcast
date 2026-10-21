@@ -95,6 +95,10 @@ DEFAULT_BASELINE_STAMP = "2026-10-21"
 NOTES = [
     "Detection is scored on the manifest's scored pages that have at least one GT field (the baseline's pages); "
     "tables count one box per cell.",
+    "Multi-line answer areas are representation-neutral: a plain template text field with style.multiline or "
+    "at least 1.8x the page's median GT text-box height also covers every unmatched GT text box at least 70% "
+    "inside it (recall), counts once for precision, and gets path credit through the GT line box that carries "
+    "the path.",
     "Fillable forms as published: the template starts with one field per PDF widget (the real use case is "
     "mapping existing fields), and GT is the widgets, so agent-added boxes on blanks without a widget count as "
     "false positives.",
@@ -104,7 +108,8 @@ NOTES = [
     "pages) for as_published digital/fillable forms, FFDetr (default for scanned pages) for fake_scan and "
     "scanned forms. On fillable as_published forms the baseline detects on the widget-stripped page.",
     "Mapping is over GT fields with a schema path. Transform credit uses equivalence groups {slice, split, "
-    "char_at}, {date_part, date_format}, {equals, contains}; a template's join and when count as ops. joint = "
+    "char_at}, {date_part, date_format}, {equals, contains}, and a when equals true also credits bool_to_check; "
+    "a template's join and when count as ops. joint = "
     "path and transforms right; exact = the matched field's source paths equal GT path + also_paths.",
     "Totals are micro-averaged over forms (sums of counts).",
 ]
@@ -214,10 +219,9 @@ def fake_scan_pdf(form_id: str, pdf_path) -> bytes:
 def detection_scores(gt: list[score.GTField], template) -> dict:
     """``score_detection`` of the template's boxes at each IoU, on the pages that have GT."""
     pages = {g.page for g in gt}
-    boxes = [b for b in score.template_boxes(template) if b[1] in pages]
     out = {}
     for thr, key in zip(IOUS, IOU_KEYS):
-        s = score.score_detection(gt, boxes, thr)
+        s = score.score_template_detection(gt, template, thr, pages=pages)
         out[key] = {**s, **{k: round(s[k], 4) for k in ("recall", "precision", "type_acc")}}
     return out
 
@@ -231,11 +235,13 @@ def _det_totals(parts: list[dict]) -> dict:
     gt = sum(p["gt"] for p in parts)
     pred = sum(p["pred"] for p in parts)
     matched = sum(p["matched"] for p in parts)
+    # one multi-line field can match several GT boxes; baseline rows are one to one
+    pred_matched = sum(p.get("pred_matched", p["matched"]) for p in parts)
     type_ok = sum(p["type_ok"] for p in parts)
     return {
-        "gt": gt, "pred": pred, "matched": matched, "type_ok": type_ok,
+        "gt": gt, "pred": pred, "matched": matched, "pred_matched": pred_matched, "type_ok": type_ok,
         "recall": round(score._ratio(matched, gt), 4),
-        "precision": round(score._ratio(matched, pred), 4),
+        "precision": round(score._ratio(pred_matched, pred), 4),
         "type_acc": round(score._ratio(type_ok, matched), 4),
     }  # fmt: skip
 

@@ -13,6 +13,7 @@ from formcast.template.model import (  # noqa: E402
     Field,
     FormInfo,
     Source,
+    Style,
     TableSegment,
     Template,
 )
@@ -342,7 +343,7 @@ def test_mapping_credits_an_equivalent_transform(gt_op, field_op):
     assert out["transform_acc"] == 1.0
 
 
-@pytest.mark.parametrize("gt_op, field_op", [("date_part", "slice"), ("equals", "bool_to_check"), ("join", "upper")])
+@pytest.mark.parametrize("gt_op, field_op", [("date_part", "slice"), ("equals", "upper"), ("join", "upper")])
 def test_mapping_does_not_credit_a_transform_from_another_group(gt_op, field_op):
     gt = [score.GTField(0, A, "text", path="p.a", transforms=[gt_op])]
     out = score.score_mapping(gt, _template([_field("f", A, ["p.a"], [field_op])]))
@@ -391,3 +392,117 @@ def test_mapping_table_cell_is_exact_when_gt_has_no_also_paths():
     gt = [score.GTField(0, (50, 100, 150, 120), "text", path="items[].name")]
     out = score.score_mapping(gt, _template([_table({"name": (50, 150)})]))
     assert out["joint_acc"] == 1.0 and out["exact_path_set_acc"] == 1.0
+
+
+# ---------- bool_to_check == when equals true ----------
+
+
+def _when_box(value, op="equals", rect=A):
+    return Field(id="w", type="checkbox", page=0, rect=rect,
+                 source=Source(paths=["p.ok"], when=Transform(op=op, args={"value": value})))
+
+
+def test_mapping_credits_bool_to_check_with_a_when_equals_true():
+    gt = [score.GTField(0, A, "choice", path="p.ok", transforms=["bool_to_check"])]
+    assert score.score_mapping(gt, _template([_when_box(True)]))["transform_acc"] == 1.0
+    assert score.score_mapping(gt, _template([_field("f", A, ["p.ok"], ["bool_to_check"], type="checkbox")]))[
+        "transform_acc"] == 1.0
+
+
+def test_mapping_when_equals_true_still_credits_an_equals_gt():
+    gt = [score.GTField(0, A, "choice", path="p.ok", transforms=["equals"])]
+    assert score.score_mapping(gt, _template([_when_box(True)]))["transform_acc"] == 1.0
+
+
+def test_mapping_bool_to_check_is_not_credited_by_other_when_values():
+    gt = [score.GTField(0, A, "choice", path="p.ok", transforms=["bool_to_check"])]
+    assert score.score_mapping(gt, _template([_when_box(False)]))["transform_acc"] == 0.0
+    assert score.score_mapping(gt, _template([_when_box("yes")]))["transform_acc"] == 0.0
+
+
+def test_transforms_match_uses_each_field_op_once():
+    # one when-equals-true op cannot satisfy both an equals and a bool_to_check GT op
+    assert not score.transforms_match(["equals", "bool_to_check"], [score.WHEN_EQUALS_TRUE])
+    assert score.transforms_match(["equals", "bool_to_check"], [score.WHEN_EQUALS_TRUE, "contains"])
+
+
+# ---------- multi-line answer areas ----------
+
+# Five ruled lines, 14pt tall, 16.8pt apart: a multi-line answer area.
+LINES = [(36.0, 300.0 + 16.8 * i, 576.0, 314.0 + 16.8 * i) for i in range(5)]
+AREA = (36.0, 299.0, 576.0, 380.0)
+
+
+def _lines_gt():
+    gt = [score.GTField(0, LINES[0], "text", path="p.notes")]
+    gt += [score.GTField(0, r, "text") for r in LINES[1:]]
+    gt.append(score.GTField(0, (36.0, 500.0, 200.0, 514.0), "text", path="p.name"))
+    return gt
+
+
+def _detect(gt, t, thr=0.5):
+    return score.score_template_detection(gt, t, thr)
+
+
+def test_a_tall_text_field_covers_every_line_box_inside_it():
+    gt = _lines_gt()
+    t = _template([_field("big", AREA, ["p.notes"]), _field("n", (36.0, 500.0, 200.0, 514.0), ["p.name"])])
+    out = _detect(gt, t)
+    assert (out["gt"], out["matched"], out["pred"], out["pred_matched"]) == (6, 6, 2, 2)
+    assert out["recall"] == 1.0 and out["precision"] == 1.0
+    m = score.score_mapping(gt, t)
+    assert (m["n_path"], m["path_ok"], m["joint_ok"], m["exact_ok"]) == (2, 2, 2, 2)
+
+
+def test_per_line_fields_score_the_same_as_one_tall_field():
+    gt = _lines_gt()
+    t = _template([_field("l0", LINES[0], ["p.notes"])] + [_field(f"l{i}", r) for i, r in enumerate(LINES[1:], 1)]
+                  + [_field("n", (36.0, 500.0, 200.0, 514.0), ["p.name"])])
+    out = _detect(gt, t)
+    assert out["recall"] == 1.0 and out["precision"] == 1.0
+    assert score.score_mapping(gt, t)["path_ok"] == 2
+
+
+def test_a_multiline_style_field_covers_lines_even_when_short():
+    gt = [score.GTField(0, LINES[0], "text", path="p.notes"), score.GTField(0, LINES[1], "text")]
+    two = (36.0, 302.0, 576.0, 327.0)  # 25pt: under 1.8 x 14pt
+    plain = _template([_field("f", two, ["p.notes"])])
+    styled = _template([Field(id="f", type="text", page=0, rect=two, source=Source(paths=["p.notes"]),
+                              style=Style(multiline=True))])
+    assert _detect(gt, plain, 0.5)["matched"] == 0
+    assert _detect(gt, styled, 0.5)["matched"] == 2
+
+
+def test_lines_mostly_outside_a_tall_field_are_not_covered():
+    gt = _lines_gt()
+    half = (36.0, 299.0, 576.0, 350.0)  # lines 0-2 inside; 3 and 4 outside
+    out = _detect(gt, _template([_field("big", half, ["p.notes"])]))
+    assert out["matched"] == 3
+
+
+def test_a_tall_field_does_not_cover_choice_boxes_or_other_pages():
+    gt = [score.GTField(0, LINES[0], "text"), score.GTField(0, LINES[1], "text"), score.GTField(0, LINES[2], "text"),
+          score.GTField(0, (40.0, 340.0, 50.0, 350.0), "choice"), score.GTField(1, LINES[0], "text")]
+    out = _detect(gt, _template([_field("big", AREA)]))
+    assert out["matched"] == 3
+
+
+def test_a_line_matched_by_its_own_field_is_not_claimed_by_a_tall_one():
+    gt = _lines_gt()[:5]
+    t = _template([_field("big", AREA), _field("l0", LINES[0], ["p.notes"])])
+    m = score.score_mapping(gt, t)
+    assert m["path_ok"] == 1  # LINES[0] matched by l0 (best IoU), not swallowed by big
+    out = _detect(gt, t)
+    assert out["matched"] == 5 and out["pred_matched"] == 2
+
+
+def test_table_cells_never_cover_lines():
+    gt = [score.GTField(0, (50.0, 100.0, 150.0, 110.0), "text"), score.GTField(0, (50.0, 110.0, 150.0, 120.0), "text")]
+    t = _template([_table({"name": (50, 150)}, row_top=100.0, row_height=40.0, max_rows=1)])
+    assert _detect(gt, t)["matched"] == 0
+
+
+def test_score_detection_without_multiline_flags_is_one_to_one():
+    gt = _lines_gt()
+    out = score.score_detection(gt, [("text", 0, AREA)], 0.5)
+    assert out["matched"] == 0 and out["pred_matched"] == 0

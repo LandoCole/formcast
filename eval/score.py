@@ -29,6 +29,7 @@ Division by zero: every ratio is 0.0 when its denominator is 0.
 from __future__ import annotations
 
 import json
+import statistics
 import sys
 from collections import Counter
 from dataclasses import dataclass, field
@@ -70,6 +71,18 @@ TRANSFORM_EQUIVALENCE: tuple[frozenset[str], ...] = (
     frozenset({"equals", "contains"}),
 )
 _CANONICAL_OP = {op: min(group) for group in TRANSFORM_EQUIVALENCE for op in group}
+# A field's ``when`` condition ``equals`` with value ``true`` is the op name this
+# token stands for: it credits a GT "bool_to_check" as well as a GT "equals"
+# (or anything else in the equals group), since both check a box for a true value.
+WHEN_EQUALS_TRUE = "equals(true)"
+_OP_ALTERNATIVES = {WHEN_EQUALS_TRUE: frozenset({_CANONICAL_OP["equals"], "bool_to_check"})}
+
+# --- multi-line answer areas ---
+# A plain template text field this many times the page's median GT text-box
+# height (or with style.multiline) is a multi-line field ...
+MULTILINE_HEIGHT_RATIO = 1.8
+# ... and covers every GT text box with at least this share of its area inside it.
+MULTILINE_CONTAINED = 0.7
 
 
 @dataclass
@@ -229,31 +242,75 @@ def _greedy_match(
     return matched
 
 
+def _contained_fraction(inner: Rect, outer: Rect) -> float:
+    """Share of ``inner``'s area that lies inside ``outer``."""
+    w = min(inner[2], outer[2]) - max(inner[0], outer[0])
+    h = min(inner[3], outer[3]) - max(inner[1], outer[1])
+    area = (inner[2] - inner[0]) * (inner[3] - inner[1])
+    if w <= 0 or h <= 0 or area <= 0:
+        return 0.0
+    return w * h / area
+
+
+def _match(
+    gt: list[GTField], pred: list[tuple[int, Rect]], thr: float, allowed=None, multiline=None
+) -> dict[int, int]:
+    """GT index -> pred index.
+
+    First the one-to-one IoU match (``_greedy_match``). Then each GT text box
+    still unmatched goes to the multi-line pred (``multiline[pi]`` true) on its
+    page that holds the largest share of it, when that share is at least
+    ``MULTILINE_CONTAINED``. A multi-line pred can so cover several GT boxes,
+    including one it already matched by IoU.
+    """
+    matched = dict(_greedy_match([(g.page, g.rect) for g in gt], pred, thr, allowed))
+    if not multiline:
+        return matched
+    for gi, g in enumerate(gt):
+        if gi in matched or g.type != "text":
+            continue
+        best = None
+        for pi, (page, rect) in enumerate(pred):
+            if not multiline[pi] or page != g.page or (allowed is not None and not allowed(gi, pi)):
+                continue
+            share = _contained_fraction(g.rect, rect)
+            if share >= MULTILINE_CONTAINED and (best is None or share > best[0]):
+                best = (share, pi)
+        if best is not None:
+            matched[gi] = best[1]
+    return matched
+
+
 def _ratio(num: int, den: int) -> float:
     return num / den if den else 0.0
 
 
-def score_detection(gt: list[GTField], boxes: list[Box], iou_thr: float) -> dict:
+def score_detection(
+    gt: list[GTField], boxes: list[Box], iou_thr: float, multiline: list[bool] | None = None
+) -> dict:
     """Detection score of ``boxes`` (type, page, rect) against ``gt``.
 
     Boxes match GT boxes one to one on the same page, best IoU first, when
-    IoU >= ``iou_thr``; the type is not required to agree. Returns ``gt``,
-    ``pred`` and ``matched`` counts, ``recall`` (matched/gt), ``precision``
-    (matched/pred), ``type_ok`` (matched pairs whose types agree), ``type_acc``
+    IoU >= ``iou_thr``; the type is not required to agree. With ``multiline``
+    (one flag per box, see ``multiline_flags``) a flagged box also covers each
+    unmatched GT text box mostly inside it (``_match``), so one box can match
+    several GT boxes. Returns ``gt`` and ``pred`` counts, ``matched`` (GT
+    boxes matched), ``pred_matched`` (boxes that matched at least one GT box),
+    ``recall`` (matched/gt), ``precision`` (pred_matched/pred), ``type_ok``
+    (matched GT boxes whose box has the same type), ``type_acc``
     (type_ok/matched) and ``missed_by_type`` (unmatched GT per GT type).
     """
-    matched = _greedy_match(
-        [(g.page, g.rect) for g in gt], [(page, rect) for _, page, rect in boxes], iou_thr
-    )
-    hit = {gi for gi, _ in matched}
-    type_ok = sum(gt[gi].type == boxes[pi][0] for gi, pi in matched)
-    missed = Counter(g.type for i, g in enumerate(gt) if i not in hit)
+    matched = _match(gt, [(page, rect) for _, page, rect in boxes], iou_thr, multiline=multiline)
+    type_ok = sum(gt[gi].type == boxes[pi][0] for gi, pi in matched.items())
+    missed = Counter(g.type for i, g in enumerate(gt) if i not in matched)
+    pred_matched = len(set(matched.values()))
     return {
         "gt": len(gt),
         "pred": len(boxes),
         "matched": len(matched),
+        "pred_matched": pred_matched,
         "recall": _ratio(len(matched), len(gt)),
-        "precision": _ratio(len(matched), len(boxes)),
+        "precision": _ratio(pred_matched, len(boxes)),
         "type_ok": type_ok,
         "type_acc": _ratio(type_ok, len(matched)),
         "missed_by_type": {t: missed[t] for t in TYPES},
@@ -273,6 +330,7 @@ class _Item:
     paths: list[str]  # schema paths this box fills (a cell: its single column path)
     ops: list[str]  # transform op names applied to it, incl. "join" and the when condition's op
     is_cell: bool = False
+    multiline_style: bool = False  # style.multiline of a plain field
 
 
 def _column_path(table_path: str, key: str) -> str:
@@ -307,6 +365,7 @@ def _template_items(template: Template) -> list[_Item]:
                     f.rect,
                     list(f.source.paths) if f.source else [],
                     _source_ops(f.source),
+                    multiline_style=f.style.multiline,
                 )
             )
     return items
@@ -325,8 +384,42 @@ def _source_ops(source) -> list[str]:
     if source.join is not None:
         ops.append("join")
     if source.when is not None:
-        ops.append(source.when.op)
+        w = source.when
+        ops.append(WHEN_EQUALS_TRUE if w.op == "equals" and w.args.get("value") is True else w.op)
     return ops
+
+
+def multiline_flags(gt: list[GTField], items: list[_Item]) -> list[bool]:
+    """Which template boxes are multi-line fields: plain text fields (not table
+    cells) with ``style.multiline``, or at least ``MULTILINE_HEIGHT_RATIO`` x the
+    median height of the GT text boxes on their page.
+
+    Representation-neutral scoring of multi-line answer areas: one tall field
+    and one field per printed line both cover the same GT line boxes.
+    """
+    heights: dict[int, list[float]] = {}
+    for g in gt:
+        if g.type == "text":
+            heights.setdefault(g.page, []).append(g.rect[3] - g.rect[1])
+    medians = {p: statistics.median(h) for p, h in heights.items()}
+    out = []
+    for it in items:
+        plain_text = it.type == "text" and not it.is_cell
+        median = medians.get(it.page)
+        tall = median is not None and it.rect[3] - it.rect[1] >= MULTILINE_HEIGHT_RATIO * median
+        out.append(plain_text and (it.multiline_style or tall))
+    return out
+
+
+def score_template_detection(
+    gt: list[GTField], template: Template, iou_thr: float, pages: set[int] | None = None
+) -> dict:
+    """``score_detection`` of a template's boxes (``template_boxes``), multi-line
+    fields covering the GT line boxes inside them; ``pages`` keeps only boxes on
+    those pages."""
+    items = [i for i in _template_items(template) if pages is None or i.page in pages]
+    boxes = [(i.type, i.page, i.rect) for i in items]
+    return score_detection(gt, boxes, iou_thr, multiline=multiline_flags(gt, items))
 
 
 def template_boxes(template: Template) -> list[Box]:
@@ -345,11 +438,24 @@ def template_boxes(template: Template) -> list[Box]:
 def transforms_match(gt_ops: list[str], field_ops: list[str]) -> bool:
     """Whether ``field_ops`` cover every GT op, with multiplicity, up to ``TRANSFORM_EQUIVALENCE``.
 
-    Extra field ops are fine.
+    Extra field ops are fine. ``WHEN_EQUALS_TRUE`` (a ``when`` equals true)
+    credits either "bool_to_check" or the equals group.
     """
-    need = Counter(_CANONICAL_OP.get(op, op) for op in gt_ops)
-    have = Counter(_CANONICAL_OP.get(op, op) for op in field_ops)
-    return not (need - have)
+    need = [_CANONICAL_OP.get(op, op) for op in gt_ops]
+    have = [_OP_ALTERNATIVES.get(op, frozenset({_CANONICAL_OP.get(op, op)})) for op in field_ops]
+    # Bipartite matching (each field op credits at most one GT op): augmenting paths.
+    owner: dict[int, int] = {}  # field op index -> GT op index
+
+    def assign(gi: int, seen: set[int]) -> bool:
+        for fi, names in enumerate(have):
+            if need[gi] in names and fi not in seen:
+                seen.add(fi)
+                if fi not in owner or assign(owner[fi], seen):
+                    owner[fi] = gi
+                    return True
+        return False
+
+    return all(assign(gi, set()) for gi in range(len(need)))
 
 
 def score_mapping(gt: list[GTField], template: Template, iou_thr: float = 0.3) -> dict:
@@ -359,7 +465,11 @@ def score_mapping(gt: list[GTField], template: Template, iou_thr: float = 0.3) -
     box still claims its template field), best IoU first, IoU >= ``iou_thr``.
     The rules:
 
-    * Plain GT (path without ``[]``) matches plain template fields by IoU only.
+    * Plain GT (path without ``[]``) matches plain template fields by IoU; a
+      GT text box left unmatched is then covered by a multi-line template
+      field holding at least 70% of it (``multiline_flags``, ``_match``), so a
+      tall answer field gets its path credit through the GT line box that
+      carries the path.
     * Table GT (path ``arr[].col``, one GT box per cell) matches only table
       cells, and a cell matches only if IoU >= ``iou_thr`` and the table's
       ``source.paths[0]`` + column key (``arr[].col``) equals the GT path.
@@ -393,8 +503,8 @@ def score_mapping(gt: list[GTField], template: Template, iou_thr: float = 0.3) -
             return it.is_cell and g.path in it.paths
         return not it.is_cell
 
-    matched = dict(
-        _greedy_match([(g.page, g.rect) for g in gt], [(i.page, i.rect) for i in items], iou_thr, allowed)
+    matched = _match(
+        gt, [(i.page, i.rect) for i in items], iou_thr, allowed, multiline=multiline_flags(gt, items)
     )
     n_path = n_transform = n_matched = path_ok = transform_ok = joint_ok = exact_ok = 0
     for gi, g in enumerate(gt):
