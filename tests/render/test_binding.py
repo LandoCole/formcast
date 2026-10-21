@@ -213,7 +213,7 @@ def test_choice_mark_refill_adopts_own_widget():
     own = W("m", "checkbox", rect=(95, 95, 120, 120), index=4)
     b = bind([T("m", "choice_mark", rect=(95, 95, 120, 120))], [own])
     assert b["m"].how == "adopted" and b["m"].widget is own and b["m"].new_name is None
-    assert codes(b["m"]) == ["adopted"]
+    assert codes(b["m"]) == []  # its own earlier widget: no `adopted` note (M5)
 
 
 def test_choice_mark_refill_adopts_suffixed_own_widget_and_needs_iou():
@@ -279,3 +279,19 @@ def test_signature_field_adopts_text_widget_normally():
 def test_every_target_gets_a_binding():
     targets = [T("a"), T("b", existing="zzz"), T("c", "choice_mark")]
     assert set(bind(targets, [])) == {"a", "b", "c"}
+
+
+def test_adopting_own_generated_widget_is_not_noted():
+    # a refill re-adopts formcast's own earlier widgets (same generated name): no `adopted` note
+    own = W("f_name", rect=(100, 100, 200, 112), index=0)
+    cell = W("t_r0_drug", rect=(100, 200, 200, 212), index=1)
+    suffixed = W("g_2", rect=(100, 300, 200, 312), index=2)
+    key = cell_key("t", 0, "drug")
+    targets = [T("f_name", rect=(98, 98, 210, 116)), Target(key, "t", "text", 0, (98, 198, 210, 216), None),
+               T("g", rect=(98, 298, 210, 316))]  # fmt: skip
+    b = bind(targets, [own, cell, suffixed])
+    assert [b[k].how for k in ("f_name", key, "g")] == ["adopted"] * 3
+    assert [codes(b[k]) for k in ("f_name", key, "g")] == [[], [], []]
+    # a foreign widget is still noted
+    b = bind([T("f_name", rect=(98, 98, 210, 116))], [W("Name1", rect=(100, 100, 200, 112))])
+    assert codes(b["f_name"]) == ["adopted"]

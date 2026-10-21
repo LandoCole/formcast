@@ -75,6 +75,11 @@ def widget_name_for(key: str) -> str:
     return _PATH_PUNCT.sub("_", name).rstrip("_") or "_"
 
 
+def _own_name(key: str) -> re.Pattern[str]:
+    """The names fill gives (or gave, on an earlier fill) the widget it creates for ``key``."""
+    return re.compile(rf"^{re.escape(widget_name_for(key))}(_\d+)?$")
+
+
 def _centre(r: Rect) -> tuple[float, float]:
     return ((r[0] + r[2]) / 2, (r[1] + r[3]) / 2)
 
@@ -139,11 +144,11 @@ def bind(targets: list[Target], existing: list[ExistingWidget]) -> dict[str, Bin
     for t in sorted(pending, key=lambda t: (t.page, t.rect[1], t.rect[0], t.key)):
         best: tuple[float, int, ExistingWidget] | None = None
         mark = t.field_type == "choice_mark"
-        own_name = re.compile(rf"^{re.escape(widget_name_for(t.key))}(_\d+)?$") if mark else None
+        own_name = _own_name(t.key)
         for w in existing:
             if w.page != t.page or (w.page, w.index) in claimed:
                 continue
-            if own_name is not None:
+            if mark:
                 # Refill: a choice_mark adopts only its own earlier mark, never a foreign widget.
                 if w.kind != "checkbox" or not own_name.match(w.name) or iou(w.rect, t.rect) < MARK_REFILL_IOU:
                     continue
@@ -161,7 +166,8 @@ def bind(targets: list[Target], existing: list[ExistingWidget]) -> dict[str, Bin
         w = best[2]
         claimed.add((w.page, w.index))
         b = Binding(t.key, "adopted", widget=w)
-        b.warnings.append(_warn("adopted", f"adopted existing {w.kind} widget {w.name!r}", t))
+        if not own_name.match(w.name):  # re-adopting fill's own earlier widget (a refill) is no news
+            b.warnings.append(_warn("adopted", f"adopted existing {w.kind} widget {w.name!r}", t))
         out[t.key] = _with_signature_note(b, t)
 
     # Rule 3: create the rest, in input order, with unique deterministic names.

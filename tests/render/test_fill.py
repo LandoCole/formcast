@@ -301,6 +301,7 @@ def test_refill_clears_previous_values(make_pdf):
     assert _names(second) == _names(first)  # every widget re-used, none stacked
     assert rep.fingerprint_ok
     assert {f.binding for f in rep.fields} == {"adopted"}
+    assert "adopted" not in _codes(rep)  # its own earlier widgets (M5)
     # no trace of the first record anywhere in the output
     doc = pymupdf.open(stream=second)
     assert all("Ada" not in page.get_text() for page in doc)
@@ -816,3 +817,18 @@ def test_created_boxes_on_rotated_page(make_pdf):
 
 def _close_rect(a, b, tol=0.5) -> bool:
     return all(abs(x - y) <= tol for x, y in zip(a, b))
+
+
+# ---------------------------------------------------------------- M3: combo display text
+
+
+def test_combo_written_by_display_text_reports_the_export_value(make_pdf):
+    pdf = make_pdf(text=TEXT, widgets=[
+        {"type": "combo", "name": "st", "rect": (100, 100, 300, 116),
+         "options": [["WI", "Wisconsin"], ["MN", "Minnesota"]]},
+    ])  # fmt: skip
+    tpl = _tpl(pdf, _text("f_state", "name", widget="st"))
+    out, rep = fill(tpl, pdf, {"name": "Wisconsin"})
+    assert _values(out)["st"] == "WI"
+    assert rep.fields[0].value == "WI" and rep.paths["name"].rendered == {"f_state": "WI"}
+    assert rep.warnings == []

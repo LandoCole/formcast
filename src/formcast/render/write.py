@@ -24,7 +24,15 @@ from formcast.render.fit import Fit
 from formcast.render.report import FillWarning
 from formcast.template.model import Style
 
-__all__ = ["read_existing", "text_font_for", "widget_rotation", "write_choice", "write_choice_mark", "write_text"]
+__all__ = [
+    "option_value",
+    "read_existing",
+    "text_font_for",
+    "widget_rotation",
+    "write_choice",
+    "write_choice_mark",
+    "write_text",
+]
 
 # Fonts MuPDF's regenerated text appearance honours; any other /DA font is drawn in Helvetica.
 KEPT_FONTS = ("Helv", "Cour", "TiRo", "ZaDb")
@@ -109,6 +117,19 @@ def text_font_for(page: pymupdf.Page, binding: Binding) -> str:
     if binding.how == "created" or binding.widget is None:
         return DEFAULT_FONT
     return _kept_font(_load(page, binding.widget).text_font) or DEFAULT_FONT
+
+
+def option_value(page: pymupdf.Page, binding: Binding, value: str) -> str:
+    """What a combo/list widget will hold for ``value`` (Ruling L): an option's export value as is,
+    an option's display text as that option's export value, anything else unchanged. Other
+    widgets hold ``value``."""
+    if binding.how == "created" or binding.widget is None or binding.widget.kind not in ("combo", "list"):
+        return value
+    pairs = choice_pairs(_load(page, binding.widget))
+    if value in {e for e, _ in pairs}:
+        return value
+    by_display = {d: e for e, d in reversed(pairs)}  # first option wins on duplicate display texts
+    return by_display.get(value, value)
 
 
 def widget_rotation(page: pymupdf.Page, binding: Binding) -> int:
@@ -388,16 +409,11 @@ def write_text(
         )
         font = DEFAULT_FONT
     if value and binding.widget.kind in ("combo", "list"):
-        pairs = choice_pairs(w)
-        exports = {e for e, _ in pairs}
-        by_display = {d: e for e, d in reversed(pairs)}  # first option wins on duplicate display texts
-        if value not in exports:
-            if value in by_display:
-                value = by_display[value]  # Ruling L: write the option's export value
-            else:
-                warnings_.append(
-                    ("not_an_option", f"{value!r} is not one of the options of widget {w.field_name!r}; written anyway")
-                )
+        value = option_value(page, binding, value)  # Ruling L: display text -> the option's export value
+        if value not in {e for e, _ in choice_pairs(w)}:
+            warnings_.append(
+                ("not_an_option", f"{value!r} is not one of the options of widget {w.field_name!r}; written anyway")
+            )
     if size is None:
         size = w.text_fontsize or 0
     w.text_font = font

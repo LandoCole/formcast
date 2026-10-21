@@ -23,6 +23,7 @@ from formcast.render.fit import Fit, fit_text
 from formcast.render.report import FillReport, FillWarning
 from formcast.render.values import CellTarget, Resolved, resolve
 from formcast.render.write import (
+    option_value,
     read_existing,
     text_font_for,
     widget_rotation,
@@ -249,6 +250,8 @@ def _write_text(page: pymupdf.Page, s: Slot, text: str | None) -> None:
     lines = _cell_lines(s)
     if b.how == "created" and lines is not None and not style.multiline:
         style = style.model_copy(update={"multiline": True})  # a wrapped column is a multi-line box
+    if text:
+        text = option_value(page, b, text)  # a combo/list holds (and shows) the export value
     fit = _fit(page, s, b, text, style, lines) if text else None
     name, got, warns = write_text(page, b, text=text, fit=fit, style=style, rect=s.target.rect)
     written = (fit.text if fit is not None else text) or None
