@@ -71,6 +71,68 @@ tpl = Template.from_json(Path("intake.template.json").read_text())
   PDF's file name (from a path; bytes have none). Pass the PDF as bytes, or rename
   the file, if the name itself is sensitive.
 
+## Filling
+
+A template fills the form it was built for with one data record. No model is
+called.
+
+```python
+from formcast import fill, to_smart_pdf
+
+pdf_bytes, report = fill(tpl, "intake.pdf", record)   # record: a dict matching tpl.schema
+Path("filled.pdf").write_bytes(pdf_bytes)
+
+for w in report.warnings:                              # a checklist, sorted by page and position
+    print(w.severity, w.code, w.path or w.field, w.message)
+
+smart = to_smart_pdf(tpl, "intake.pdf")                # same form, empty fields to fill by hand
+```
+
+`report.warnings` is a flat list sorted by page and position. Record-level warnings
+come first. For example (rects omitted):
+
+```json
+{"code": "invalid", "severity": "warning", "message": "invalid data at dob: '31/01/1990' is not a 'date'", "path": "dob"}
+{"code": "unmapped_data", "severity": "warning", "message": "the record has a value at 'notes' but no template field maps it", "path": "notes"}
+{"code": "rows_dropped", "severity": "warning", "message": "1 of 3 rows don't fit the table's 1 segment(s) and were dropped", "path": "medications", "field": "t_meds", "page": 0}
+{"code": "shrunk", "severity": "info", "message": "text shrunk to 6 pt to fit", "path": "name", "field": "f_name", "page": 0}
+{"code": "missing", "severity": "warning", "message": "no value for phone", "path": "phone", "field": "f_phone", "page": 0}
+```
+
+The report also has:
+
+- `report.fields` and `report.tables`: per box, the widget each value went to (a
+  form widget it `named` or `adopted`, or one it `created`), the value and the
+  font size.
+- `report.paths`: per schema path, what was rendered where.
+- `report.gaps`: boxes that came out empty.
+- `report.counts`.
+- `report.to_json()`.
+
+- **The output keeps real form fields; there is no flatten mode.** Every value
+  sits in an editable AcroForm field with its own appearance stream. For a flat
+  PDF, flatten it outside formcast, for example by printing to PDF.
+- **Fill writes into the form's own widgets.** A field with a name uses that
+  widget. A field or table cell drawn over an unused widget adopts it. Every
+  other box gets a new widget. Widgets the template doesn't use are left as
+  they were.
+- **Refilling a filled PDF works.** Fields whose data is missing are cleared, so
+  nothing from an earlier record is left behind.
+- **Validation is lenient by default.** Bad data is reported as `invalid` and
+  the rest is filled. `strict=True` raises `FormcastError` instead.
+  `check_fingerprint=False` fills a PDF whose fingerprint differs from the
+  template's, and records `fingerprint_mismatch`.
+- **Text that doesn't fit is kept whole.** It is shrunk to the field's minimum
+  font size and reported as `overflow`, so on paper the end is cut off. Only a
+  character limit (a comb box, or a field's own maximum length) cuts the value,
+  and that is reported as `truncated`.
+- **Only Latin text renders reliably.** Form fields use the standard PDF fonts,
+  which cover Western European characters. Other scripts are stored in the
+  field correctly, but may show as blanks in some viewers. They are reported as
+  `unencodable`.
+- `preview(tpl, "intake.pdf", data=record)` draws the template's boxes over the
+  filled PDF.
+
 ## The sandbox is not a security boundary
 
 The agent's Python runs in a separate worker process (`formcast.sandbox`) with a
@@ -119,4 +181,5 @@ Step logs and overlays are local-only.
 
 Design spec: [docs/superpowers/specs/2026-10-20-form-projection-design.md](docs/superpowers/specs/2026-10-20-form-projection-design.md)
 (results of the first eval in section 14.3).
+Fill design: [docs/superpowers/specs/2026-10-21-formcast-fill-design.md](docs/superpowers/specs/2026-10-21-formcast-fill-design.md).
 Plan: [docs/superpowers/plans/2026-10-20-formcast-agent-layer.md](docs/superpowers/plans/2026-10-20-formcast-agent-layer.md)

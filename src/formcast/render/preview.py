@@ -14,6 +14,7 @@ from PIL import Image, ImageDraw, ImageFont
 from formcast.geometry import Rect
 from formcast.pagemap.extract import open_pdf
 from formcast.pagemap.model import FormMap
+from formcast.render.fill import fill
 from formcast.template.model import Field, Template
 
 # RGB per field type.
@@ -88,6 +89,7 @@ def preview(
     template: Template,
     pdf: str | Path | bytes,
     *,
+    data: dict | None = None,
     dpi: int = 110,
     show_candidates: FormMap | None = None,
 ) -> list[bytes]:
@@ -95,8 +97,12 @@ def preview(
 
     Boxes are coloured by field type and captioned with id, label and mapped
     path. Table segments show their rows and columns. With ``show_candidates``,
-    that form map's detector candidates are drawn as faint gray boxes.
+    that form map's detector candidates are drawn as faint gray boxes. With
+    ``data``, the page under the boxes is ``fill(template, pdf, data)``'s output
+    (fingerprint not checked), so filled values and field outlines show together.
     """
+    if data is not None:
+        pdf = fill(template, pdf, data, check_fingerprint=False)[0]
     zoom = dpi / 72
     font = ImageFont.load_default(size=max(8, round(9 * zoom)))
     width = max(1, round(zoom * 1.2))

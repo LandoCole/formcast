@@ -55,8 +55,39 @@ def ink_bits(page: pymupdf.Page) -> str:
     return np.packbits(means > np.median(means) + INK_DELTA).tobytes().hex()
 
 
-def fingerprint_document(doc: pymupdf.Document) -> str:
-    """Fingerprint of an open document (see :func:`fingerprint`)."""
+# Widgets whose appearance shows a filled-in value (the ones ``fill`` writes).
+_VALUE_WIDGETS = frozenset({
+    pymupdf.PDF_WIDGET_TYPE_TEXT, pymupdf.PDF_WIDGET_TYPE_COMBOBOX, pymupdf.PDF_WIDGET_TYPE_LISTBOX,
+    pymupdf.PDF_WIDGET_TYPE_CHECKBOX, pymupdf.PDF_WIDGET_TYPE_RADIOBUTTON,
+})  # fmt: skip
+_ANNOT_HIDDEN = 2  # annotation flag bit 2
+
+
+def _without_field_values(doc: pymupdf.Document) -> pymupdf.Document:
+    """A copy of ``doc`` with every value-bearing widget hidden (the caller closes it)."""
+    copy = pymupdf.open("pdf", doc.tobytes())
+    for page in copy:
+        for w in page.widgets() or []:
+            if w.field_type in _VALUE_WIDGETS:
+                kind, flags = copy.xref_get_key(w.xref, "F")
+                copy.xref_set_key(w.xref, "F", str((int(flags) if kind == "int" else 0) | _ANNOT_HIDDEN))
+    return copy
+
+
+def fingerprint_document(doc: pymupdf.Document, *, ignore_field_values: bool = False) -> str:
+    """Fingerprint of an open document (see :func:`fingerprint`).
+
+    The text layer includes what widget appearances draw, so filling a form changes its
+    fingerprint. With ``ignore_field_values`` the text, choice and button widgets are hidden
+    first, so a filled copy fingerprints like its blank (signature and push-button captions
+    still count, as they do in the blank's own fingerprint).
+    """
+    if ignore_field_values:
+        copy = _without_field_values(doc)
+        try:
+            return fingerprint_document(copy)
+        finally:
+            copy.close()
     digest = hashlib.sha256()
     digest.update(f"pages:{doc.page_count}\n".encode())
     for page in doc:

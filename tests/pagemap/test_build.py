@@ -456,3 +456,19 @@ def test_fingerprint_changes_with_text_and_size(flat_form_pdf, address_form_pdf,
         doc[0].set_mediabox(pymupdf.Rect(0, 0, 595, 842))
         doc.save(out)
     assert fingerprint(out) != fingerprint(flat_form_pdf)
+
+
+def test_field_blind_fingerprint_ignores_filled_values(fillable_form_pdf):
+    from formcast.match import fingerprint_document
+
+    with pymupdf.open(fillable_form_pdf) as doc:
+        blank = fingerprint_document(doc)
+        assert fingerprint_document(doc, ignore_field_values=True) == blank
+        page = doc[0]
+        for w in page.widgets():
+            w.field_value = "Ada Lovelace" if w.field_type == pymupdf.PDF_WIDGET_TYPE_TEXT else True
+            w.update()
+        filled = pymupdf.open("pdf", doc.tobytes())
+    assert fingerprint_document(filled) != blank  # widget text is part of the text layer
+    assert fingerprint_document(filled, ignore_field_values=True) == blank
+    assert len(filled[0].widgets().__next__().field_value) > 0  # the copy left the input alone
