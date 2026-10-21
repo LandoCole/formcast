@@ -7,7 +7,9 @@ gets the new template, and a step report goes back as the tool result. The loop
 ends at ``finish``, when the budget runs out, or on a provider/sandbox error.
 
 Context sent each turn: the system prompt, the first user message, a one-line
-summary per older step, and the last ``VERBATIM_STEPS`` steps in full. Steps
+summary per older step, and the last ``VERBATIM_STEPS`` steps verbatim (of which
+all but the latest ``FULL_OUTPUT_STEPS`` have their printed output cut to
+``OLDER_STDOUT`` characters). Steps
 are dropped whole (an assistant reply together with its tool results), so
 tool calls and tool results always stay paired.
 """
@@ -26,12 +28,18 @@ from formcast.llm import LLMConfig, LLMResponse, Message, Provider, ToolCall, To
 from formcast.pagemap.model import FormMap
 from formcast.pagemap.summarize import summarize
 from formcast.sandbox import ExecResult, Sandbox
+from formcast.sandbox.worker import api_text
 from formcast.schema import flatten_schema
 from formcast.template.coverage import coverage
 from formcast.template.model import Template, new_template
 from formcast.template.ops import OpContext, apply
 
 VERBATIM_STEPS = 6
+# Of the verbatim steps, only the latest FULL_OUTPUT_STEPS keep their printed output in
+# full; older ones keep OLDER_STDOUT characters of it (the rest of their report stays).
+FULL_OUTPUT_STEPS = 2
+OLDER_STDOUT = 1500
+OLDER_NOTE = "older step: output shortened, keep what you need in variables"
 MAX_RAW_ARGS_ECHO = 300
 
 TOOLS = [
@@ -186,12 +194,14 @@ class Session:
         self.steps: list[StepRecord] = []
         self.usage = Usage()
         self._groups: list[list[Message]] = []  # messages of each step, in order
+        # Per group: the same messages with shortened printed output, for older verbatim steps.
+        self._short_groups: list[list[Message]] = []
         self._system = Message(role="system", content=prompts.SYSTEM_PROMPT)
         self._first = Message(
             role="user",
             content=prompts.first_user_message(
                 summarize(form_map), self.schema_paths, instruction, region, template=self.template,
-                fresh=fresh,
+                fresh=fresh, api_reference=api_text(),
             ),
         )
 
@@ -259,12 +269,14 @@ class Session:
                 Message(role="assistant", content=response.text or "(no tool call)"),
                 Message(role="user", content=prompts.no_tool_call_message(_hit_token_limit(response.raw))),
             ])  # fmt: skip
+            self._short_groups.append(self._groups[-1])
             self._record(n, response, note="no tool call")
             return None
 
         group = [response.to_message()]
         self._groups.append(group)
         results: list[str] = []  # one per tool call, in order (ids may repeat or be empty)
+        short_results: list[tuple[int, str]] = []  # (result index, report with shortened output)
         record: StepRecord | None = None
         finish_call: ToolCall | None = None
         finish_index = -1
@@ -285,14 +297,14 @@ class Session:
                 )
             else:
                 record = self._run_code(n, call.arguments["code"], response, sandbox)  # type: ignore[index]
-                report = step_report(
-                    record,
-                    coverage(self.template, self.form_map, self.schema_paths),
-                    template=self.template,
-                    form_map=self.form_map,
-                    budget=(n, self.budget.max_steps),
+                cov = coverage(self.template, self.form_map, self.schema_paths)
+                kwargs = {
+                    "template": self.template, "form_map": self.form_map, "budget": (n, self.budget.max_steps),
+                }  # fmt: skip
+                results.append(step_report(record, cov, **kwargs))
+                short_results.append(
+                    (i, step_report(record, cov, **kwargs, max_stdout=OLDER_STDOUT, stdout_note=OLDER_NOTE))
                 )
-                results.append(report)
         if finish_call is not None and record is not None and _had_problems(record):
             # Finishing blind on a step whose code failed or whose ops were rejected would drop
             # those edits silently: refuse, and let the model read the report first.
@@ -302,6 +314,14 @@ class Session:
         group.extend(
             Message(role="tool", content=text, tool_call_id=c.id)
             for c, text in zip(response.tool_calls, results, strict=True)
+        )
+        short = dict(short_results)
+        self._short_groups.append(
+            [group[0]]
+            + [
+                Message(role="tool", content=short.get(i, text), tool_call_id=c.id)
+                for i, (c, text) in enumerate(zip(response.tool_calls, results, strict=True))
+            ]
         )
         if record is None:
             self._record(n, response, note="finish" if finish_call else "; ".join(notes) or "no code run")
@@ -370,8 +390,9 @@ class Session:
         if old > 0:
             lines = [self._compressed_line(r) for r in self.steps[:old]]
             messages.append(Message(role="user", content="Earlier steps (shortened):\n" + "\n".join(lines)))
-        for group in self._groups[max(0, old) :]:
-            messages.extend(group)
+        full_from = len(self._groups) - FULL_OUTPUT_STEPS
+        for i in range(max(0, old), len(self._groups)):
+            messages.extend(self._groups[i] if i >= full_from else self._short_groups[i])
         return messages
 
     def _result(

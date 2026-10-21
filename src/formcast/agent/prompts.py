@@ -65,8 +65,9 @@ Variables persist between steps. Preloaded names:
   add_field and add_table return the new field id right away, so later calls can use it.
 - `transforms()`: the value transforms usable in a source (date parts, splitting, joining,
   formatting, equals/contains conditions and more).
-- `api()`: the full reference with signatures. Run `print(api())` on its own in your first step
-  instead of guessing signatures (long output is truncated); `help(fn)` shows one function.
+- `api()`: the full reference with signatures, also given at the end of the first message;
+  `print(api())` shows it again and `help(fn)` shows one function. Check it instead of guessing
+  signatures.
 A source looks like {{"paths": ["a.b"], "transforms": [{{"op": "date_part", "args": {{"part": "month"}}}}]}};
 several paths into one field add "join": " "; a choice box adds a "when" condition such as
 {{"op": "equals", "args": {{"value": "yes"}}}}. Field types: text, checkbox, radio_option,
@@ -223,6 +224,7 @@ def first_user_message(
     *,
     template: Template | None = None,
     fresh: bool = False,
+    api_reference: str | None = None,
 ) -> str:
     """The opening user message: task, schema paths, optional instruction/region, form map.
 
@@ -253,7 +255,11 @@ def first_user_message(
     lines = [_schema_line(sp) for sp in schema_paths]
     parts.append(f"SCHEMA PATHS ({len(schema_paths)}):\n" + ("\n".join(lines) if lines else "(none)"))
     parts.append(summary_text)
-    parts.append("Start with print(api()), then work through the form step by step.")
+    if api_reference:
+        parts.append("API REFERENCE (print(api()) shows it again):\n" + api_reference)
+        parts.append("Work through the form step by step.")
+    else:
+        parts.append("Start with print(api()), then work through the form step by step.")
     return "\n\n".join(parts)
 
 

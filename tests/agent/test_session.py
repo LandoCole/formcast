@@ -551,3 +551,25 @@ def test_revise_region_lists_overlapping_template_fields(flat_form_pdf):
     assert "f1 text page 0 [120, 86, 300, 100] label='Name' source=name" in region_part
     assert "f2" not in region_part
     assert "lists the text lines, rules, candidates and widgets" in msg
+
+
+def test_only_the_latest_steps_keep_their_full_output():
+    big = "print('x' * 5000)"
+    responses = [code(big, call_id=f"c{i}") for i in range(4)] + [finish()]
+    _, provider = _run(responses)
+    last = provider.calls[-1]  # sent before step 5: steps 1-4 happened, all in the verbatim window
+    results = [m.content for m in last if m.role == "tool"]
+    assert len(results) == 4
+    full = [r for r in results if "x" * 5000 in r]
+    assert len(full) == session_mod.FULL_OUTPUT_STEPS
+    for r in results[: 4 - session_mod.FULL_OUTPUT_STEPS]:
+        assert "x" * session_mod.OLDER_STDOUT in r and "x" * (session_mod.OLDER_STDOUT + 1) not in r
+        assert "older step: output shortened" in r
+
+
+def test_first_message_carries_the_api_reference():
+    from formcast.sandbox.worker import api_text
+
+    _, provider = _run([finish()])
+    msg = provider.calls[0][1].content
+    assert api_text() in msg
