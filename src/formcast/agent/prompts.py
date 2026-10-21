@@ -95,11 +95,13 @@ signature, choice_mark (a mark drawn on or next to printed option text) and tabl
 5. Build tables from repeated rows or grids of cells with add_table: rows from the repeated
    row geometry, columns from the cell edges or column headings; column keys are paths relative
    to one row. fm.grid(ids) turns the candidate or widget fields a table replaces into its
-   row_top, row_height, max_rows and column x ranges. A table that continues on another page gets another segment. Records printed as
-   repeated blocks (each record spans several lines, like stacked copies of the same set of
-   blanks): add one table per line of the block, all with the same source_path, each with one
-   segment per record block (max_rows=1, in record order), so row i of every table lands in
-   block i. When table cells replace existing widget or candidate fields, remove exactly the
+   row_top, row_height and column x ranges; its max_rows counts only the rows from the first to
+   the last given box (check below for more rows), and it lists rows with no box and boxes
+   spanning several columns. A table that continues on another page gets another segment.
+   Records printed as repeated blocks (each record spans several lines, like stacked copies of
+   the same set of blanks): add one table per line of the block, all with the same source_path,
+   each with one segment per record block (max_rows=1, in record order), so row i of every
+   table lands in block i. When table cells replace existing widget or candidate fields, remove exactly the
    fields the cells cover (the step report warns which ones), by id; never remove every field
    in a region.
 6. Split blanks that hold parts of one value (separate boxes for month, day and year, or one

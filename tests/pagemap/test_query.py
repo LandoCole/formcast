@@ -193,7 +193,8 @@ def test_grid_flags_uneven_rows_and_accepts_rects():
     rects = _cells([(50.0, 200.0)], top=100.0, pitch=20.0, height=16.0, rows=2)
     rects.append((50.0, 170.0, 200.0, 186.0))  # third row 50pt below the second
     g = _grid_map([]).grid([list(r) for r in rects], page=0)
-    assert g["max_rows"] == 3 and g["regular"] is False
+    # the third row is 3.5 pitches below the second: not on the grid's pitch
+    assert g["row_height"] == pytest.approx(20.0, abs=0.5) and g["regular"] is False
     assert [c["id"] for c in g["cells"]] == [None, None, None]
 
 
@@ -210,3 +211,23 @@ def test_grid_rows_and_columns_ignore_one_oversized_box():
     g = _grid_map(cells).grid([f"c0_{i}" for i in range(6)])
     assert g["row_top"] == pytest.approx(400.0, abs=1) and g["row_height"] == pytest.approx(24.0, abs=0.5)
     assert g["columns"][1] == pytest.approx([205.0, 300.0], abs=1)
+
+
+def test_grid_indexes_rows_by_position_when_middle_rows_have_no_box():
+    cols = [(50.0, 200.0), (205.0, 300.0)]
+    cells = [c for c in _cells(cols, top=100.0, pitch=20.0, height=16.0, rows=6) if not 140 <= c[1] < 200]
+    g = _grid_map(cells).grid([f"c0_{i}" for i in range(len(cells))])  # rows 0, 1 and 5 only
+    assert g["row_height"] == pytest.approx(20.0, abs=0.5) and g["row_top"] == pytest.approx(100.0, abs=0.5)
+    assert g["max_rows"] == 6 and g["missing_rows"] == [2, 3, 4] and g["regular"] is True
+    assert sorted({c["row"] for c in g["cells"]}) == [0, 1, 5]
+    assert g["rect"][3] >= 100.0 + 6 * 20.0 - 0.5
+
+
+def test_grid_reports_a_box_over_two_columns_instead_of_merging_them():
+    cols = [(100.0, 195.0), (205.0, 300.0)]
+    cells = _cells(cols, top=100.0, pitch=20.0, height=16.0, rows=3)
+    cells.append((100.0, 160.0, 300.0, 176.0))  # one box over both columns, in a fourth row
+    g = _grid_map(cells).grid([f"c0_{i}" for i in range(len(cells))])
+    assert g["columns"] == [pytest.approx([100.0, 195.0], abs=0.5), pytest.approx([205.0, 300.0], abs=0.5)]
+    assert g["spanning"] == [{"row": 3, "id": "c0_6", "rect": [100.0, 160.0, 300.0, 176.0]}]
+    assert len(g["cells"]) == 6 and g["max_rows"] == 4

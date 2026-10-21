@@ -313,6 +313,20 @@ def right_text(page: PageMap, rect: Rect) -> TextLine | None:
     return best[1] if best else None
 
 
+def _modal_pitch(gaps: list[float]) -> float:
+    """The most common spacing among adjacent-row gaps (ties: the smallest), refined
+    with every gap that is a whole multiple of it (rows with no box in between)."""
+    groups: list[list[float]] = []
+    for g in sorted(gaps):
+        if groups and g <= groups[-1][0] * 1.15:
+            groups[-1].append(g)
+        else:
+            groups.append([g])
+    base = statistics.median(max(groups, key=len))  # max keeps the first (smallest) on ties
+    fits = [g / n for g in gaps if (n := round(g / base)) >= 1 and abs(g / n - base) <= 0.15 * base]
+    return statistics.median(fits) if fits else base
+
+
 # --- the agent-facing query object ---------------------------------------------
 
 
@@ -575,15 +589,24 @@ class FormMapQuery:
         ``refs`` are ids, item dicts (template fields work too) or rects (then give
         ``page``), all on one page: for example the candidates or widget fields a
         table will replace. Boxes whose vertical centers are within half the
-        median box height share a row; boxes overlapping horizontally (half of
-        the narrower) share a column. Returns ``page``; ``row_top`` (the first
-        row's top), ``row_height`` (the median distance between row tops, or the
-        row's height for one row) and ``max_rows``; ``rect`` (spanning all rows
-        at that pitch); ``rows`` ([top, bottom] per row) and ``columns`` ([x0, x1]
-        per column), all medians over the boxes so one stray detection does not
-        shift them; ``regular`` (false when the row pitch varies by more than
-        15%: rows of different heights, or separate blocks); and ``cells``, one
-        ``{row, col, id}`` per input box (id None for a bare rect).
+        median box height share a row. The row pitch is the most common spacing
+        between adjacent rows (gaps that are a whole multiple of it are rows
+        with no box), and each row gets the index ``round((top - row_top) /
+        pitch)``. Boxes overlapping horizontally (half of the narrower) share a
+        column; a box over two or more columns is not merged into one, it is
+        listed in ``spanning``.
+
+        Returns ``page``; ``row_top``, ``row_height`` (the pitch; one row's
+        height when there is one row) and ``max_rows``, which counts the rows
+        from the first to the last given box only: the printed table may have
+        more rows above or below (check the rules and text there);
+        ``missing_rows`` (indexes in that range with no box); ``rect``
+        (spanning those rows at the pitch); ``rows`` ([top, bottom] per row
+        with boxes) and ``columns`` ([x0, x1] per column), medians over the
+        boxes so one stray detection does not shift them; ``regular`` (false
+        when some gap between rows is not a whole multiple of the pitch);
+        ``cells``, one ``{row, col, id}`` per box (id None for a bare rect);
+        and ``spanning``, one ``{row, id, rect}`` per box over several columns.
         """
         boxes = [self._resolve(ref, page) for ref in refs]
         if not boxes:
@@ -591,64 +614,93 @@ class FormMapQuery:
         pages = {p for p, _, _ in boxes}
         if len(pages) > 1:
             raise ValueError(f"grid boxes must be on one page, got pages {sorted(pages)}")
-        heights = sorted(_height(r) for _, r, _ in boxes)
-        tol = 0.5 * heights[len(heights) // 2]
-
-        rows: list[list[int]] = []
-        for i in sorted(range(len(boxes)), key=lambda i: _cy(boxes[i][1])):
-            if rows and abs(_cy(boxes[i][1]) - statistics.mean(_cy(boxes[j][1]) for j in rows[-1])) <= tol:
-                rows[-1].append(i)
-            else:
-                rows.append([i])
-        cols: list[list[int]] = []
-        spans: list[list[float]] = []
-        for i in sorted(range(len(boxes)), key=lambda i: boxes[i][1][0]):
-            x0, _, x1, _ = boxes[i][1]
-            for k, (cx0, cx1) in enumerate(spans):
-                overlap = min(x1, cx1) - max(x0, cx0)
-                if overlap > 0 and overlap >= 0.5 * min(x1 - x0, cx1 - cx0):
-                    cols[k].append(i)
-                    spans[k] = [min(cx0, x0), max(cx1, x1)]
-                    break
-            else:
-                cols.append([i])
-                spans.append([x0, x1])
-        order = sorted(range(len(cols)), key=lambda k: spans[k][0])
-        col_of = {i: n for n, k in enumerate(order) for i in cols[k]}
-        row_of = {i: n for n, row in enumerate(rows) for i in row}
-
-        # Medians, so one oversized or shifted detection does not move a row or column.
         med = statistics.median
-        bands = [[med(boxes[i][1][1] for i in row), med(boxes[i][1][3] for i in row)] for row in rows]
+        tol = 0.5 * med(_height(r) for _, r, _ in boxes)
+
+        # -- rows: cluster by vertical center, then index by the modal pitch
+        clusters: list[list[int]] = []
+        for i in sorted(range(len(boxes)), key=lambda i: _cy(boxes[i][1])):
+            centre = statistics.mean(_cy(boxes[j][1]) for j in clusters[-1]) if clusters else None
+            if centre is not None and abs(_cy(boxes[i][1]) - centre) <= tol:
+                clusters[-1].append(i)
+            else:
+                clusters.append([i])
+        bands = [[med(boxes[i][1][1] for i in c), med(boxes[i][1][3] for i in c)] for c in clusters]
         tops = [b[0] for b in bands]
-        pitches = [b - a for a, b in zip(tops, tops[1:])]
-        # Pitch: median over same-column box pairs of (top difference / row distance), so
-        # neither one stray box nor alternating jitter biases it (falls back to row medians).
+        gaps = [b - a for a, b in zip(tops, tops[1:])]
+        pitch = _modal_pitch(gaps) if gaps else bands[0][1] - bands[0][0]
+        index = [round((t - tops[0]) / pitch) for t in tops]
+        row_of = {i: index[k] for k, c in enumerate(clusters) for i in c}
+        fit = max(1.5, 0.15 * pitch)
+        on_pitch = {
+            i for k, c in enumerate(clusters) if abs(tops[k] - tops[0] - index[k] * pitch) <= fit for i in c
+        }
+        regular = all(
+            abs(g - pitch * max(1, round(g / pitch))) <= max(1.5, 0.15 * pitch * max(1, round(g / pitch)))
+            for g in gaps
+        )
+        row_top = med(boxes[i][1][1] - row_of[i] * pitch for i in range(len(boxes)))
+        max_rows = index[-1] + 1
+        missing = sorted(set(range(max_rows)) - set(index))
+
+        # -- columns: narrow boxes first define them; spans are medians, never unions
+        def span(members: list[int]) -> list[float]:
+            return [med(boxes[i][1][0] for i in members), med(boxes[i][1][2] for i in members)]
+
+        def overlaps(r: Rect, sp: list[float]) -> bool:
+            ov = min(r[2], sp[1]) - max(r[0], sp[0])
+            return ov > 0 and ov >= 0.5 * min(r[2] - r[0], sp[1] - sp[0])
+
+        cols: list[list[int]] = []
+        for i in sorted(range(len(boxes)), key=lambda i: boxes[i][1][2] - boxes[i][1][0]):
+            k = next((k for k, c in enumerate(cols) if overlaps(boxes[i][1], span(c))), None)
+            if k is None:
+                cols.append([i])
+            else:
+                cols[k].append(i)
+        spans = [span(c) for c in cols]
+
+        def covered(r: Rect, sp: list[float]) -> bool:  # covers at least half of the column's width
+            return min(r[2], sp[1]) - max(r[0], sp[0]) >= 0.5 * (sp[1] - sp[0])
+
+        wide = {i for i in range(len(boxes)) if sum(covered(boxes[i][1], sp) for sp in spans) >= 2}
+        cols = [[i for i in c if i not in wide] for c in cols]
+        cols = [c for c in cols if c]
+        cols.sort(key=lambda c: span(c)[0])
+        columns = [span(c) for c in cols]
+        col_of = {i: n for n, c in enumerate(cols) for i in c}
+
+        # Refine the pitch with same-column box pairs (median of top difference per row step):
+        # unbiased by alternating jitter that skews the adjacent gaps.
         pairs = [
             (boxes[j][1][1] - boxes[i][1][1]) / (row_of[j] - row_of[i])
-            for i in range(len(boxes))
-            for j in range(len(boxes))
-            if col_of[i] == col_of[j] and row_of[j] > row_of[i]
+            for i in col_of
+            for j in col_of
+            if col_of[i] == col_of[j] and row_of[j] > row_of[i] and {i, j} <= on_pitch
         ]
-        pitch = med(pairs or pitches) if (pairs or pitches) else bands[0][1] - bands[0][0]
-        regular = all(abs(d - pitch) <= max(1.5, 0.15 * pitch) for d in pitches)
-        columns = [
-            [med(boxes[i][1][0] for i in cols[k]), med(boxes[i][1][2] for i in cols[k])] for k in order
-        ]
-        row_top = med(boxes[i][1][1] - row_of[i] * pitch for i in range(len(boxes))) if pairs else tops[0]
-        bottom = max(row_top + pitch * len(rows), bands[-1][1])
+        if pairs and abs(med(pairs) - pitch) <= 0.15 * pitch:
+            pitch = med(pairs)
+            row_top = med(boxes[i][1][1] - row_of[i] * pitch for i in range(len(boxes)))
+        bottom = max(row_top + pitch * max_rows, bands[-1][1])
+        x0 = min([c[0] for c in columns] + [boxes[i][1][0] for i in wide])
+        x1 = max([c[1] for c in columns] + [boxes[i][1][2] for i in wide])
         return {
             "page": boxes[0][0],
-            "rect": _round((min(c[0] for c in columns), row_top, max(c[1] for c in columns), bottom)),
+            "rect": _round((x0, row_top, x1, bottom)),
             "row_top": round(row_top, 1),
             "row_height": round(pitch, 1),
-            "max_rows": len(rows),
+            "max_rows": max_rows,
+            "missing_rows": missing,
             "rows": [_round((0, a, 0, b))[1::2] for a, b in bands],
             "columns": [_round((a, 0, b, 0))[0::2] for a, b in columns],
             "regular": regular,
             "cells": [
                 {"row": row_of[i], "col": col_of[i], "id": boxes[i][2]}
-                for i in sorted(range(len(boxes)), key=lambda i: (row_of[i], col_of[i]))
+                for i in sorted(col_of, key=lambda i: (row_of[i], col_of[i]))
+            ],
+            "spanning": [
+                {"row": row_of[i], "id": boxes[i][2], "rect": _round(boxes[i][1])}
+                for i in sorted(wide, key=lambda i: (row_of[i], boxes[i][1][0]))
             ],
         }
 
