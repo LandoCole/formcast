@@ -6,7 +6,6 @@ import json
 from typing import TYPE_CHECKING
 
 from formcast.pagemap.model import FormMap
-from formcast.schema import SchemaPath
 from formcast.template.coverage import Coverage
 from formcast.template.model import Template
 
@@ -37,11 +36,6 @@ def _capped(items: list[str], what: str) -> list[str]:
     return out
 
 
-def _mappable(sp: SchemaPath) -> bool:
-    # Same rule as the coverage report: leaves, multi-select arrays and table arrays.
-    return sp.type != "object" and (sp.type != "array" or sp.item_type != "array")
-
-
 def _candidate_labels(form_map: FormMap) -> dict[str, str]:
     out: dict[str, str] = {}
     for page in form_map.pages:
@@ -58,7 +52,6 @@ def step_report(
     *,
     template: Template,
     form_map: FormMap,
-    schema_paths: list[SchemaPath],
 ) -> str:
     """Plain-text report of one step plus the template's current coverage."""
     ex = record.exec
@@ -86,7 +79,7 @@ def step_report(
 
     fields = template.fields
     with_source = sum(1 for f in fields if f.source and f.source.paths)
-    mappable = sum(1 for sp in schema_paths if _mappable(sp))
+    mappable = coverage.mappable_count
     mapped = max(0, mappable - len(coverage.unmapped_paths))
     out.append(
         f"counts: fields: {len(fields)} ({with_source} with a source); "

@@ -8,10 +8,10 @@ from __future__ import annotations
 
 import inspect
 
-from formcast.geometry import Rect
+from formcast.geometry import Rect, intersect
 from formcast.pagemap.query import FormMapQuery
 from formcast.schema import SchemaPath
-from formcast.template.model import Template
+from formcast.template.model import Field, Template
 from formcast.template.op_models import OP_NAMES
 
 NO_TOOL_CALL = "Reply with a run_python or finish tool call."
@@ -43,10 +43,16 @@ sandbox. Call `run_python` to run code and `finish` when you are done.
   widget, `r<page>_<n>` rule (a drawn line or a run of underscores), `t<page>_<n>` word.
 - Candidates come from a learned field detector: kind `text`, `choice` (a checkbox or radio
   button) or `signature`, with a confidence `conf`. Each may carry its linked label line and
-  how it sits (left, above, inside, below). `sub` lists small captions printed just under a
-  box; `right` is the text that starts just right of it (often a choice box's option).
-- "Unlabeled prompts" are text lines that look like a request for input but have no field box
-  nearby: likely blanks the detector missed.
+  how it sits (left, above, inside, below).
+- Summary notation (only in the form summary; query results don't carry these keys):
+  `sub="A|B"` lists small captions printed just under a box (get them with
+  fm.sublabels_under(id)); `right="..."` is the text starting just right of a box, often a
+  choice box's option (get it with fm.right_of(id)); `+rule` marks a line followed by a rule
+  (a blank to write on); `+rule_above` marks a caption printed right under a rule, as under a
+  signature or date line (the blank is the rule above it).
+- "Unlabeled prompts" are text lines that look like a request for input (ending in ":", "#"
+  or "?", or marked `+rule` / `+rule_above`) but have no field box nearby: likely blanks the
+  detector missed.
 - Page kinds: `fillable` (has its own widgets; no detection was run), `digital` (real text
   layer) and `scanned` (text from OCR, which can be misspelled or misplaced).
 
@@ -71,7 +77,7 @@ signature, choice_mark (a mark drawn on or next to printed option text) and tabl
    the geometry says so), reject it (pre-printed content, decoration, a box that is not a
    blank) or reinterpret it: a short line printed right before option text is a box to mark,
    not a text blank, even when the detector calls it text.
-2. Add the fields the detector missed, using text cues: prompts ending in ":" or "?", lines
+2. Add the fields the detector missed, using text cues: prompts ending in ":", "#" or "?", lines
    followed by a rule or empty space, captions printed under a rule (signature and date lines),
    and option words with an empty box or blank beside them. Use rules and nearby boxes for the
    exact geometry. A text field spans the writable area: from just after its label to the end
@@ -139,16 +145,35 @@ def _template_note(template: Template) -> str:
     fields = template.fields
     mapped = sum(1 for f in fields if f.source and f.source.paths)
     lines = [f"CURRENT TEMPLATE: {len(fields)} field(s), {mapped} with a source. `tpl` has the details."]
-    for f in fields[:60]:
-        where = (
-            f"page {f.page} {format_rect(f.rect)}" if f.rect is not None else f"{len(f.segments)} segment(s)"
-        )
-        src = ",".join(f.source.paths) if f.source and f.source.paths else "-"
-        widget = f" widget={f.existing_widget!r}" if f.existing_widget else ""
-        lines.append(f"  {f.id} {f.type} {where} label={f.label!r} source={src}{widget}")
+    lines.extend(_field_line(f) for f in fields[:60])
     if len(fields) > 60:
         lines.append(f"  ... {len(fields) - 60} more")
     return "\n".join(lines)
+
+
+def _field_line(f: Field) -> str:
+    where = f"page {f.page} {format_rect(f.rect)}" if f.rect is not None else f"{len(f.segments)} segment(s)"
+    src = ",".join(f.source.paths) if f.source and f.source.paths else "-"
+    widget = f" widget={f.existing_widget!r}" if f.existing_widget else ""
+    return f"  {f.id} {f.type} {where} label={f.label!r} source={src}{widget}"
+
+
+def _field_regions(f: Field) -> list[tuple[int, Rect]]:
+    if f.page is not None and f.rect is not None:
+        return [(f.page, f.rect)]
+    return [(seg.page, seg.rect) for seg in f.segments]
+
+
+def _region_fields(template: Template, page: int, rect: Rect) -> str:
+    """Template fields whose box (or any table segment) overlaps the region."""
+    hits = [
+        f
+        for f in template.fields
+        if any(p == page and intersect(tuple(r), tuple(rect)) is not None for p, r in _field_regions(f))
+    ]
+    if not hits:
+        return "TEMPLATE FIELDS IN THE REGION: none."
+    return f"TEMPLATE FIELDS IN THE REGION ({len(hits)}):\n" + "\n".join(_field_line(f) for f in hits)
 
 
 def first_user_message(
@@ -172,8 +197,11 @@ def first_user_message(
         page, rect = region
         parts.append(
             f"REGION: the reviewer highlighted page {page}, rect {format_rect(rect)}. Focus on the "
-            f"fields and text in or near it (fm.region({page}, {format_rect(rect)}) lists them)."
+            f"template fields and the form content in or near it. fm.region({page}, "
+            f"{format_rect(rect)}) lists the text lines, rules, candidates and widgets there."
         )
+        if template is not None:
+            parts.append(_region_fields(template, page, rect))
     if template is not None and template.fields:
         parts.append(_template_note(template))
     lines = [_schema_line(sp) for sp in schema_paths]

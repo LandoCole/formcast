@@ -141,10 +141,9 @@ def test_step_report_lists_everything():
         unmapped_paths=["person.status", "items"],
         unused_candidates=["c0_4"],
         unmapped_fields=["f2"],
+        mappable_count=5,
     )
-    report = step_report(
-        record, cov, template=_template(), form_map=_form_map(), schema_paths=flatten_schema(SCHEMA)
-    )
+    report = step_report(record, cov, template=_template(), form_map=_form_map())
     assert "hello there" in report and "truncated" in report
     assert "NameError: x" in report
     assert "f2 add_field" in report
@@ -160,6 +159,39 @@ def test_step_report_caps_long_lists():
     cov = Coverage(unmapped_paths=[f"p{i}" for i in range(60)], unused_candidates=[])
     record = StepRecord(n=1, code="", exec=ExecResult(stdout="", truncated=False), applied=[], rejected=[],
                         warnings=[], usage=Usage())  # fmt: skip
-    report = step_report(record, cov, template=_template(), form_map=_form_map(), schema_paths=[])
+    report = step_report(record, cov, template=_template(), form_map=_form_map())
     assert "p39" in report and "p40" not in report
     assert "20 more" in report
+
+
+def test_step_report_counts_come_from_coverage():
+    from formcast.template.coverage import coverage
+
+    paths = flatten_schema(SCHEMA)
+    cov = coverage(_template(), _form_map(), paths)
+    record = StepRecord(n=1, code="", exec=ExecResult(stdout="", truncated=False), applied=[], rejected=[],
+                        warnings=[], usage=Usage())  # fmt: skip
+    report = step_report(record, cov, template=_template(), form_map=_form_map())
+    # mappable: full_name, status, items (table), items[].label, items[].qty; full_name is mapped
+    assert cov.mappable_count == 5
+    assert "schema paths: 1 of 5 mapped" in report
+
+
+def test_system_prompt_explains_summary_notation():
+    assert "fm.sublabels_under(" in SYSTEM_PROMPT and "fm.right_of(" in SYSTEM_PROMPT
+    assert "+rule_above" in SYSTEM_PROMPT and "+rule`" in SYSTEM_PROMPT
+    assert "only in the form summary" in SYSTEM_PROMPT
+
+
+def test_prompt_endings_match_the_summarizer():
+    from formcast.pagemap.summarize import PROMPT_END
+
+    for ch in ":#?":
+        assert PROMPT_END.search(f"Label{ch}")
+        assert f'"{ch}"' in SYSTEM_PROMPT
+
+
+def test_region_with_no_overlapping_fields_says_none():
+    paths = flatten_schema(SCHEMA)
+    msg = first_user_message("MAP", paths, "Fix it.", (0, (400.0, 400.0, 500.0, 500.0)), template=_template())
+    assert "TEMPLATE FIELDS IN THE REGION: none." in msg

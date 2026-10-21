@@ -9,8 +9,17 @@ SIZES = [(612.0, 792.0)]
 
 def _form_map(candidates=()):
     page = PageMap(
-        index=0, width=612, height=792, rotation=0, kind="digital", text_source="pdf",
-        words=[], lines=[], rules=[], widgets=[], candidates=list(candidates),
+        index=0,
+        width=612,
+        height=792,
+        rotation=0,
+        kind="digital",
+        text_source="pdf",
+        words=[],
+        lines=[],
+        rules=[],
+        widgets=[],
+        candidates=list(candidates),
     )
     return FormMap(pages=[page], fingerprint="fp")
 
@@ -36,8 +45,12 @@ def test_unmapped_path_empties_after_set_source():
     assert isinstance(cov, Coverage)
     assert cov.unmapped_paths == ["name"]
     assert cov.unmapped_fields == ["f1"]
-    t, _ = apply(t, {"op": "set_source", "id": "f1", "source": {"paths": ["name"]}}, author="agent",
-                 context=OpContext(schema_paths=paths, page_sizes=SIZES))
+    t, _ = apply(
+        t,
+        {"op": "set_source", "id": "f1", "source": {"paths": ["name"]}},
+        author="agent",
+        context=OpContext(schema_paths=paths, page_sizes=SIZES),
+    )
     cov = coverage(t, _form_map(), paths)
     assert cov.unmapped_paths == [] and cov.unmapped_fields == []
 
@@ -56,12 +69,27 @@ def test_unmapped_paths_cover_leaves_and_table_arrays_not_containers():
     }
     paths = flatten_schema(schema)
     t = _template(schema)
-    assert coverage(t, _form_map(), paths).unmapped_paths == ["address.city", "contact", "meds", "meds[].drug"]
+    assert coverage(t, _form_map(), paths).unmapped_paths == [
+        "address.city",
+        "contact",
+        "meds",
+        "meds[].drug",
+    ]
 
     table = Field(
-        id="f1", type="table", source=Source(paths=["meds"]),
-        segments=[{"page": 0, "rect": (72, 300, 540, 500), "row_top": 300, "row_height": 20,
-                   "max_rows": 10, "columns": [{"key": "drug", "x": (72, 540)}]}],
+        id="f1",
+        type="table",
+        source=Source(paths=["meds"]),
+        segments=[
+            {
+                "page": 0,
+                "rect": (72, 300, 540, 500),
+                "row_top": 300,
+                "row_height": 20,
+                "max_rows": 10,
+                "columns": [{"key": "drug", "x": (72, 540)}],
+            }
+        ],
     )
     t = _template(schema, [table])
     assert coverage(t, _form_map(), paths).unmapped_paths == ["address.city", "contact"]
@@ -80,9 +108,19 @@ def test_table_cells_cover_candidates():
     schema = {"type": "object", "properties": {}}
     fm = _form_map([_cand("cell", (300, 320, 540, 340)), _cand("row", (72, 340, 540, 360))])
     table = Field(
-        id="f1", type="table", source=None,
-        segments=[{"page": 0, "rect": (72, 300, 540, 500), "row_top": 320, "row_height": 20,
-                   "max_rows": 9, "columns": [{"key": "a", "x": (72, 300)}, {"key": "b", "x": (300, 540)}]}],
+        id="f1",
+        type="table",
+        source=None,
+        segments=[
+            {
+                "page": 0,
+                "rect": (72, 300, 540, 500),
+                "row_top": 320,
+                "row_height": 20,
+                "max_rows": 9,
+                "columns": [{"key": "a", "x": (72, 300)}, {"key": "b", "x": (300, 540)}],
+            }
+        ],
     )
     assert coverage(_template(schema, [table]), fm, []).unused_candidates == []
 
@@ -95,3 +133,30 @@ def test_low_confidence():
         Field(id="c", type="text", page=0, rect=(0, 40, 10, 50)),
     ]
     assert coverage(_template(schema, fields), _form_map(), []).low_confidence == ["a"]
+
+
+def test_mappable_count_counts_leaves_and_table_arrays_not_containers():
+    from formcast.schema import SchemaPath
+    from formcast.template.coverage import is_mappable
+
+    schema = {
+        "type": "object",
+        "properties": {
+            "a": {"type": "object", "properties": {"b": {"type": "string"}}},
+            "tags": {"type": "array", "items": {"type": "string"}},
+            "rows": {"type": "array", "items": {"type": "object", "properties": {"x": {"type": "number"}}}},
+            "grid": {"type": "array", "items": {"type": "array", "items": {"type": "string"}}},
+        },
+    }
+    paths = flatten_schema(schema)
+    assert [sp.path for sp in paths if is_mappable(sp)] == ["a.b", "tags", "rows", "rows[].x", "grid[]"]
+    assert not is_mappable(SchemaPath(path="a", type="object"))
+    t = Template(
+        template_id="t",
+        schema=schema,
+        form=FormInfo(fingerprint="", page_count=1, page_sizes=[(612, 792)], kinds=["digital"]),
+    )
+    fm = FormMap(pages=[PageMap(index=0, width=612, height=792, rotation=0, kind="digital", text_source="pdf",
+                                words=[], lines=[], rules=[], widgets=[])])  # fmt: skip
+    cov = coverage(t, fm, paths)
+    assert cov.mappable_count == 5 and len(cov.unmapped_paths) == 5

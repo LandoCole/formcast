@@ -18,9 +18,10 @@ class Coverage(BaseModel):
     unused_candidates: list[str] = []  # detector candidates no field covers (IoU < 0.3)
     unmapped_fields: list[str] = []  # fields without a source
     low_confidence: list[str] = []  # fields with confidence < 0.5
+    mappable_count: int = 0  # schema paths that can be mapped (see is_mappable); mapped = this - unmapped
 
 
-def _mappable(sp: SchemaPath) -> bool:
+def is_mappable(sp: SchemaPath) -> bool:
     """Leaf values (incl. multi-select arrays of scalars) and table arrays (items are objects)."""
     if sp.type == "object":
         return False
@@ -60,7 +61,7 @@ def coverage(template: Template, form_map: FormMap, schema_paths: list[SchemaPat
     unmapped_paths = [
         sp.path
         for sp in schema_paths
-        if _mappable(sp) and sp.path not in referenced and not covered_by_table(sp)
+        if is_mappable(sp) and sp.path not in referenced and not covered_by_table(sp)
     ]
 
     regions: dict[int, list[Rect]] = {}
@@ -75,8 +76,11 @@ def coverage(template: Template, form_map: FormMap, schema_paths: list[SchemaPat
     ]
 
     return Coverage(
+        mappable_count=sum(1 for sp in schema_paths if is_mappable(sp)),
         unmapped_paths=unmapped_paths,
         unused_candidates=unused,
         unmapped_fields=[f.id for f in template.fields if f.source is None or not f.source.paths],
-        low_confidence=[f.id for f in template.fields if f.confidence is not None and f.confidence < LOW_CONFIDENCE],
+        low_confidence=[
+            f.id for f in template.fields if f.confidence is not None and f.confidence < LOW_CONFIDENCE
+        ],
     )

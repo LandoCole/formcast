@@ -472,3 +472,70 @@ def test_fillable_form_widget_fields_are_listed_in_the_first_message(fillable_fo
     build_template(SCHEMA, fillable_form_pdf, provider, form_map=fm)
     msg = provider.calls[0][1].content
     assert "CURRENT TEMPLATE: 2 field(s)" in msg and "f1 text" in msg and "widget='applicant_name'" in msg
+
+
+def _code_and_finish(src: str) -> LLMResponse:
+    return LLMResponse(
+        text="",
+        tool_calls=[
+            ToolCall(
+                id="a", name="run_python", arguments={"code": src}, raw_arguments=json.dumps({"code": src})
+            ),
+            ToolCall(
+                id="b", name="finish", arguments={"summary": "ok", "unplaceable": []}, raw_arguments="{}"
+            ),
+        ],
+        usage=_usage(),
+        raw={},
+    )
+
+
+def test_finish_is_refused_when_the_same_step_had_rejected_ops():
+    bad = 'add_field(type="text", page=5, rect=[10, 10, 100, 30])'
+    result, provider = _run([_code_and_finish(bad), code(ADD_NAME), finish("fixed")])
+    results = {m.tool_call_id: m.content for m in _tool_results(provider.calls[1])}
+    assert results["b"].startswith("finish not accepted")
+    assert "page 5 does not exist" in results["a"]
+    assert result.stop_reason == "finish" and result.summary == "fixed"
+    assert len(result.steps) == 3 and len(result.template.fields) == 1
+
+
+def test_finish_is_refused_when_the_same_step_raised():
+    result, provider = _run([_code_and_finish(ADD_NAME + "1 / 0\n"), finish("now done")])
+    results = {m.tool_call_id: m.content for m in _tool_results(provider.calls[1])}
+    assert results["b"].startswith("finish not accepted")
+    assert "ZeroDivisionError" in results["a"]
+    assert result.summary == "now done" and len(result.steps) == 2
+
+
+def test_truncated_tool_arguments_mention_the_token_limit():
+    bad = tool_reply("run_python", None, raw='{"code": "for i in range(', call_id="t1")
+    bad.raw = {"choices": [{"finish_reason": "length"}]}
+    _, provider = _run([bad, finish()])
+    tool = _tool_results(provider.calls[1])[-1]
+    assert "not a valid JSON object" in tool.content and "token limit" in tool.content
+
+
+def test_malformed_arguments_without_truncation_do_not_mention_the_token_limit():
+    _, provider = _run([tool_reply("run_python", None, raw="{x", call_id="t2"), finish()])
+    assert "token limit" not in _tool_results(provider.calls[1])[-1].content
+
+
+def test_revise_region_lists_overlapping_template_fields(flat_form_pdf):
+    fm = _flat_map(flat_form_pdf)
+    src = ADD_NAME + 'add_field(type="text", page=0, rect=[72, 204, 250, 212], label="When")\n'
+    first = build_template(SCHEMA, flat_form_pdf, ScriptedProvider([code(src), finish()]), form_map=fm)
+    provider = ScriptedProvider([finish()])
+    revise(
+        first.template,
+        flat_form_pdf,
+        "Check the box.",
+        provider,
+        region=(0, (100, 80, 320, 110)),
+        form_map=fm,
+    )
+    msg = provider.calls[0][1].content
+    region_part = msg.split("TEMPLATE FIELDS IN THE REGION (1):", 1)[1].split("\n\n", 1)[0]
+    assert "f1 text page 0 [120, 86, 300, 100] label='Name' source=name" in region_part
+    assert "f2" not in region_part
+    assert "lists the text lines, rules, candidates and widgets" in msg

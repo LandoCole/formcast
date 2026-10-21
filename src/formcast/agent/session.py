@@ -118,6 +118,17 @@ def _hit_token_limit(raw: dict[str, Any]) -> bool:
         return False
 
 
+FINISH_REFUSED = (
+    "finish not accepted: this step had errors/rejected ops — read the report and fix them, "
+    "or explain them in unplaceable, then call finish again."
+)
+
+
+def _had_problems(record: StepRecord) -> bool:
+    ex = record.exec
+    return bool(record.rejected) or (ex is not None and (ex.error is not None or ex.timed_out))
+
+
 def _unplaceable(value: Any) -> list[dict]:
     """Normalize finish's ``unplaceable`` argument leniently into [{path, reason}]."""
     if not isinstance(value, list):
@@ -249,14 +260,17 @@ class Session:
         results: list[str] = []  # one per tool call, in order (ids may repeat or be empty)
         record: StepRecord | None = None
         finish_call: ToolCall | None = None
+        finish_index = -1
         notes: list[str] = []
-        for call in response.tool_calls:
-            problem = self._call_problem(call)
+        hit_limit = _hit_token_limit(response.raw)
+        for i, call in enumerate(response.tool_calls):
+            problem = self._call_problem(call, hit_limit)
             if problem:
                 results.append(f"Error: {problem}")
                 notes.append(problem)
             elif call.name == "finish":
-                finish_call = finish_call or call
+                if finish_call is None:
+                    finish_call, finish_index = call, i
                 results.append("Finished.")
             elif record is not None:
                 results.append(
@@ -269,9 +283,14 @@ class Session:
                     coverage(self.template, self.form_map, self.schema_paths),
                     template=self.template,
                     form_map=self.form_map,
-                    schema_paths=self.schema_paths,
                 )
                 results.append(report)
+        if finish_call is not None and record is not None and _had_problems(record):
+            # Finishing blind on a step whose code failed or whose ops were rejected would drop
+            # those edits silently: refuse, and let the model read the report first.
+            results[finish_index] = FINISH_REFUSED
+            notes.append("finish refused")
+            finish_call = None
         group.extend(
             Message(role="tool", content=text, tool_call_id=c.id)
             for c, text in zip(response.tool_calls, results, strict=True)
@@ -283,7 +302,7 @@ class Session:
             return str(args.get("summary") or ""), _unplaceable(args.get("unplaceable"))
         return None
 
-    def _call_problem(self, call: ToolCall) -> str | None:
+    def _call_problem(self, call: ToolCall, hit_token_limit: bool = False) -> str | None:
         if call.name not in _TOOL_NAMES:
             return f"unknown tool {call.name!r}; available tools: {', '.join(_TOOL_NAMES)}."
         if call.arguments is None:
@@ -291,7 +310,7 @@ class Session:
             shown = raw if len(raw) <= MAX_RAW_ARGS_ECHO else raw[:MAX_RAW_ARGS_ECHO] + "..."
             return (
                 f"the arguments for {call.name} are not a valid JSON object: {shown!r}. "
-                "Send them again as JSON."
+                "Send them again as JSON." + (prompts.TOKEN_LIMIT_NOTE if hit_token_limit else "")
             )
         if call.name == "run_python" and not isinstance(call.arguments.get("code"), str):
             return 'run_python needs a "code" string argument.'

@@ -16,7 +16,7 @@ dependencies = [
   "jsonschema>=4.22",
   "referencing>=0.30",
   "numpy",
-  "pillow",
+  "pillow>=10.1",  # ImageFont.load_default(size=...)
 ]
 
 [project.optional-dependencies]
