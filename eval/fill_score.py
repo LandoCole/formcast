@@ -11,11 +11,12 @@ against every ground-truth box with a path:
 * observed: only widgets that a mapped template field or cell wrote (the report names them by
   widget name and rect), read from the output PDF; a checkbox or radio kid's state is its /AS;
 * matching: per record, observed widgets to all GT boxes with ``score._match`` (one-to-one IoU
-  >= 0.3 on the same page, then the multi-line rule for unmatched GT text boxes); a GT box with
-  no widget is wrong;
+  >= 0.3 on the same page, then the multi-line rule for unmatched GT text boxes without format
+  transforms); a GT box with no widget is wrong;
 * a text box without GT transforms ("join" aside) must show the value (casefolded, whitespace
-  collapsed; a number in any number formatting; with ``also_paths`` or a list value, the same
-  multiset of words); one with GT transforms is checked by provenance (``_provenance_ok``);
+  collapsed; a number in any number formatting); with ``also_paths`` or a list value, every own
+  value must show and other words must be in no record value (``_join_ok``); a box with GT
+  transforms is checked by provenance (``_provenance_ok``);
 * ``rows_dropped_ok``: every table whose probe rows exceed its GT rows reports exactly that
   excess as ``rows_dropped`` (None when no table has an excess).
 
@@ -196,15 +197,41 @@ def _date_parts(texts: list[str]) -> list[tuple[int, int, int]]:
     return [tuple(int(x) for x in m.groups()) for t in texts if (m := _ISO_DATE.match(t))]
 
 
-def _from_date(word: str, dates: list[tuple[int, int, int]]) -> bool:
-    """A word that is a day, month (number or name) or year (4 or 2 digits) of one of ``dates``."""
+def _date_pieces(date: tuple[int, int, int]) -> dict[str, set[str]]:
+    """The digit strings a date part can be written as: month and day 1-2 digits, year 4 or 2."""
+    y, m, d = date
+    return {"m": {str(m), f"{m:02d}"}, "d": {str(d), f"{d:02d}"}, "y": {f"{y:04d}", f"{y % 100:02d}"}}
+
+
+def _date_splits(word: str, date: tuple[int, int, int], parts: frozenset[str]) -> list[frozenset[str]]:
+    """Each set of ``parts`` of ``date`` that ``word`` is written as exactly: a month name, or a
+    digit word that splits entirely into distinct parts in any order ("05141987", "051487")."""
     month = _MONTH_NAMES.get(word)
     if month is not None:
-        return any(m == month for _, m, _ in dates)
-    if not word.isdigit() or len(word) > 4:
-        return False
-    n = int(word)
-    return any(n in (y, m, d) or (len(word) == 2 and n == y % 100) for y, m, d in dates)
+        return [frozenset("m")] if month == date[1] and "m" in parts else []
+    if not word.isdigit():
+        return []
+    pieces = _date_pieces(date)
+    out: list[frozenset[str]] = []
+
+    def split(rest: str, left: frozenset[str], used: frozenset[str]) -> None:
+        if not rest:
+            if used and used not in out:
+                out.append(used)
+            return
+        for part in left:
+            for text in pieces[part]:
+                if rest.startswith(text):
+                    split(rest[len(text) :], left - {part}, used | {part})
+
+    split(word, parts, frozenset())
+    return out
+
+
+def _from_date(word: str, dates: list[tuple[int, int, int]]) -> bool:
+    """A word that is a day, month (number or name) or year (4 or 2 digits) of one of ``dates``,
+    or several of them written together without separators."""
+    return any(_date_splits(word, d, frozenset("mdy")) for d in dates)
 
 
 def _provenance_ok(observed: str, own_values: list[Any], others) -> bool:
@@ -212,8 +239,8 @@ def _provenance_ok(observed: str, own_values: list[Any], others) -> bool:
     of 3+ characters that comes from another path's value in the record.
 
     A word comes from the own value when it is a whole part of it (a word of its text, a day, month
-    or year of an own date in any format, a thousands group of an own number, or zeros: a number's
-    decimals) or a fragment of it (a substring, casefolded). Generated values can share a whole
+    or year of an own date in any format, also run together as in "05141987", a thousands group of
+    an own number, or zeros: a number's decimals) or a fragment of it (a substring, casefolded). Generated values can share a whole
     part (two dates with one year), so only a fragment is checked against the other paths' values
     (``others()``: their casefolded texts).
     """
@@ -221,7 +248,7 @@ def _provenance_ok(observed: str, own_values: list[Any], others) -> bool:
     if not words:
         return False
     own = [t for v in own_values for t in _texts(v)]
-    numbers = [v for v in own_values if isinstance(v, (int, float)) and not isinstance(v, bool)]
+    numbers = [v for v in own_values if _is_number(v)]
     whole = set(_words(own)) | set(_words([f"{n:,}" for n in numbers]))
     dates = _date_parts(own)
     own_cf = [t.casefold() for t in own]
@@ -237,7 +264,7 @@ def _provenance_ok(observed: str, own_values: list[Any], others) -> bool:
 
 def _same_number(text: str, value: Any) -> bool:
     """``text`` is ``value`` written as a number (currency sign, thousands commas and decimals allowed)."""
-    if not isinstance(value, (int, float)) or isinstance(value, bool):
+    if not _is_number(value):
         return False
     try:
         return Decimal(text.strip().lstrip("$€£").strip().replace(",", "")) == Decimal(str(value))
@@ -245,20 +272,82 @@ def _same_number(text: str, value: Any) -> bool:
         return False
 
 
-def _text_ok(g: score.GTField, observed: Observed | None, own_values: list[Any], others) -> bool:
-    """Whether a text or cell box shows its own value(s). ``others`` is a callable giving the
-    other paths' casefolded texts (only provenance needs them)."""
+def _take(bag: Counter, words: Counter) -> bool:
+    """Remove ``words`` from ``bag`` when all are there."""
+    if any(bag[w] < n for w, n in words.items()):
+        return False
+    bag.subtract(words)
+    return True
+
+
+def _take_date(bag: Counter, date: tuple[int, int, int]) -> bool:
+    """Remove words that write ``date``'s day, month and year (any format, any order) from ``bag``."""
+
+    def search(left: frozenset[str]) -> bool:
+        if not left:
+            return True
+        for w in [w for w, n in bag.items() if n > 0]:
+            for used in _date_splits(w, date, left):
+                bag[w] -= 1
+                if search(left - used):
+                    return True
+                bag[w] += 1
+        return False
+
+    return search(frozenset("mdy"))
+
+
+def _take_value(bag: Counter, value: Any) -> bool:
+    """Remove the words that show ``value`` from ``bag``: its own words, else (a date) its day,
+    month and year in any format, else (a number) its thousands groups; a list item by item."""
+    if isinstance(value, list):
+        return all(_take_value(bag, v) for v in value)
+    text = _texts(value)
+    if not text or _take(bag, _words(text)):
+        return True
+    dates = _date_parts(text)
+    if dates:
+        return _take_date(bag, dates[0])
+    if _is_number(value):
+        return _take(bag, _words([f"{value:,}"]))
+    return False
+
+
+def _join_ok(observed: str, own_values: list[Any], record_words) -> bool:
+    """A join (or list) box: every own value shows (``_take_value``), and every other word is
+    decoration found in no record value (a separator like "on", a number's decimal zeros)."""
+    bag = _words([observed])
+    if not all(_take_value(bag, v) for v in own_values):
+        return False
+    numeric = any(_is_number(v) for v in own_values)
+    extra = [w for w, n in bag.items() if n > 0 and not (numeric and set(w) == {"0"})]
+    return not set(extra) & record_words()
+
+
+def _is_number(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _format_ops(g: score.GTField) -> list[str]:
+    """GT transforms that format a value ("join" only combines values)."""
+    return [op for op in g.transforms if op != "join"]
+
+
+def _text_ok(g: score.GTField, observed: Observed | None, own_values: list[Any], others, record_words) -> bool:
+    """Whether a text or cell box shows its own value(s). ``others`` gives the other paths'
+    casefolded texts (provenance) and ``record_words`` every word of the record (joins); both are
+    callables, computed only when needed."""
     if observed is None or observed.text is None:
         return False
     own = [t for v in own_values for t in _texts(v)]
     if not own:
         return not observed.text.strip()  # nothing expected: the box must be empty
-    if [op for op in g.transforms if op != "join"]:
+    if _format_ops(g):
         return _provenance_ok(observed.text, own_values, others)
     if len(own_values) == 1 and not isinstance(own_values[0], list):
         # a number is its value in any number formatting (GT can leave number_format unlabelled)
         return _norm(observed.text) == _norm(own[0]) or _same_number(observed.text, own_values[0])
-    return _words([observed.text]) == _words(own)  # joins and lists: the same words, any order
+    return _join_ok(observed.text, own_values, record_words)
 
 
 def _same(a: Any, b: Any) -> bool:
@@ -294,7 +383,16 @@ def _shared_paths(template: Template, gt: list[score.GTField]) -> set[str]:
 
 def score_fill(gt: list[score.GTField], template: Template, pdf: str | Path | bytes, records: list[dict]) -> dict:
     """Fill ``template`` into ``pdf`` with each probe record and score what lands in every GT box
-    with a path (see the module docstring). Every fill runs with ``check_fingerprint=False``."""
+    with a path (see the module docstring). Every fill runs with ``check_fingerprint=False``.
+
+    ``static_choice`` counts choice boxes whose expected state is the same in every record: they
+    can't tell an always-on (or never-on) box from a right one.
+
+    Raises:
+        ValueError: when ``records`` is empty (every choice box would score right).
+    """
+    if not records:
+        raise ValueError("score_fill needs at least one probe record")
     pdf_bytes = pdf if isinstance(pdf, bytes) else Path(pdf).read_bytes()
     rows = gt_rows(gt)
     gt_table_rows = table_rows_in_gt(gt)
@@ -303,6 +401,7 @@ def score_fill(gt: list[score.GTField], template: Template, pdf: str | Path | by
     kinds = {i: _unit_kind(gt[i]) for i in scored}
     counts = {k: {"units": 0, "correct": 0} for k in ("text", "choice", "cell")}
     choice_right = {i: True for i in scored if kinds[i] == "choice"}
+    choice_states: dict[int, set[bool]] = {i: set() for i in choice_right}
     errors: list[str] = []
     dropped_ok: bool | None = None
     match_cache: dict[tuple, dict[int, int]] = {}
@@ -318,19 +417,21 @@ def score_fill(gt: list[score.GTField], template: Template, pdf: str | Path | by
         observed = read_written(out, report) if report is not None else []
         matched = _matched(gt, observed, match_cache)
         leaves = list(_leaves(rec))
+        words = _lazy(lambda leaves=leaves: set(_words([str(v) for _, _, v in leaves])))
         for i in scored:
             g = gt[i]
             obs = observed[matched[i]] if i in matched else None
             row = rows.get(i)
             if kinds[i] == "choice":
                 want = expected_on(g, _value_at(rec, g.path, row))
+                choice_states[i].add(want)
                 choice_right[i] &= obs is not None and obs.on is not None and obs.on == want
                 continue
             own_paths = [g.path, *g.also_paths]
             own_values = [_value_at(rec, p, row) for p in own_paths]
             others = lambda own=own_paths, row=row: _others(leaves, shared, own, row)  # noqa: E731
             counts[kinds[i]]["units"] += 1
-            counts[kinds[i]]["correct"] += _text_ok(g, obs, own_values, others)
+            counts[kinds[i]]["correct"] += _text_ok(g, obs, own_values, others, words)
         dropped_ok = _rows_dropped_check(rec, report, gt_table_rows, dropped_ok)
 
     counts["choice"] = {"units": len(choice_right), "correct": sum(choice_right.values())}
@@ -341,19 +442,36 @@ def score_fill(gt: list[score.GTField], template: Template, pdf: str | Path | by
         "correct": correct,
         "fill_acc": score._ratio(correct, units),
         **counts,
+        "static_choice": sum(len(states) == 1 for states in choice_states.values()),
         "rows_dropped_ok": dropped_ok,
         "fill_errors": errors,
     }
 
 
+def _lazy(make):
+    """A callable computing ``make()`` once, on first call."""
+    cache: list = []
+
+    def get():
+        if not cache:
+            cache.append(make())
+        return cache[0]
+
+    return get
+
+
 def _matched(gt: list[score.GTField], observed: list[Observed], cache: dict) -> dict[int, int]:
-    """GT index -> observed index (``score._match`` with the multi-line rule); cached per widget set."""
+    """GT index -> observed index, cached per widget set: ``score._match`` (IoU, then the
+    multi-line rule), keeping multi-line cover only for GT boxes without format transforms, so one
+    tall box showing a whole date can't stand in for stacked date-part boxes."""
     key = tuple((o.page, o.rect, o.kind, o.cell, o.multiline) for o in observed)
     if key not in cache:
+        boxes = [(o.page, o.rect) for o in observed]
         items = [score._Item(o.kind, o.page, o.rect, [], [], is_cell=o.cell, multiline_style=o.multiline)
                  for o in observed]  # fmt: skip
-        cache[key] = score._match(gt, [(o.page, o.rect) for o in observed], IOU_THR,
-                                  multiline=score.multiline_flags(gt, items))  # fmt: skip
+        by_iou = dict(score._greedy_match([(g.page, g.rect) for g in gt], boxes, IOU_THR))
+        full = score._match(gt, boxes, IOU_THR, multiline=score.multiline_flags(gt, items))
+        cache[key] = {gi: pi for gi, pi in full.items() if gi in by_iou or not _format_ops(gt[gi])}
     return cache[key]
 
 

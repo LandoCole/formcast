@@ -196,6 +196,17 @@ def test_date_part_provenance_accepts_any_format(pdf, recs):
     # the whole date in the month box: every token is still a part of this path's date
     whole = _dob_fields(month=_t("date_format", format="%d %b %Y"))
     assert fill_score.score_fill(_gt(), _good(dob=whole), pdf, recs)["text"]["correct"] == TEXT_UNITS * 3
+    # dates written without separators (comb-style "mmddyyyy" boxes)
+    for fmt in ("%m%d%Y", "%m%d%y"):
+        compact = _dob_fields(month=_t("date_format", format=fmt))
+        assert fill_score.score_fill(_gt(), _good(dob=compact), pdf, recs)["text"]["correct"] == TEXT_UNITS * 3, fmt
+
+
+def test_compact_date_words_split_into_own_date_parts_only():
+    own = ["1987-05-14"]
+    ok = lambda text: fill_score._provenance_ok(text, own, lambda: [])  # noqa: E731
+    assert ok("05141987") and ok("051487") and ok("14051987") and ok("5141987") and ok("1987")
+    assert not ok("05141988") and not ok("0514198") and not ok("051414")  # a wrong year, a cut year, a part twice
 
 
 def test_wrong_path_token_fails_provenance(pdf, recs):
@@ -234,6 +245,31 @@ def test_plain_number_box_accepts_any_number_formatting(pdf):
     assert fill_score.score_fill(gt, cut, pdf, recs)["correct"] == 0
 
 
+def _join_ok(text, own=("ABCDEF", "1987-05-14"), record_words=("abcdef", "1987", "05", "14", "qwerty")):
+    g = score.GTField(page=0, rect=NAME, type="text", path="name", also_paths=["dob"], transforms=["join"])
+    seen = fill_score.Observed(0, NAME, "n", text, None, "text")
+    return fill_score._text_ok(g, seen, list(own), lambda: [], lambda: set(record_words))
+
+
+def test_join_box_needs_every_own_value_and_no_other_record_word():
+    assert _join_ok("ABCDEF 1987-05-14") and _join_ok("1987-05-14, ABCDEF")
+    assert _join_ok("ABCDEF on 1987-05-14")  # a literal separator word is in no record value
+    assert _join_ok("ABCDEF 05/14/1987") and _join_ok("ABCDEF May 14, 1987") and _join_ok("ABCDEF 05141987")
+    assert _join_ok("WIDGET 57,509.00", own=("WIDGET", 57509), record_words=("widget", "57509"))
+    assert not _join_ok("ABCDEF")  # a path missing
+    assert not _join_ok("ABCDEF 1987-05-14 QWERTY")  # another path's value
+    assert not _join_ok("ABCDEF ABCDEF 1987-05-14")  # stuffing: an own word twice
+    assert not _join_ok("ABCDEF 05/14/1988")  # the wrong year
+
+
+def test_join_box_with_a_literal_separator_scores_right(pdf, recs):
+    gt = [score.GTField(page=0, rect=NAME, type="text", path="name", also_paths=["dob"], transforms=["join"])]
+    on = _tpl(_text("j", NAME, ["name", "dob"], join=" on "))
+    assert fill_score.score_fill(gt, on, pdf, recs)["correct"] == len(recs)
+    extra = _tpl(_text("j", NAME, ["name", "dob", "city"], join=" "))
+    assert fill_score.score_fill(gt, extra, pdf, recs)["correct"] == 0
+
+
 def test_plain_text_box_needs_the_exact_value(pdf, recs):
     # no GT transforms: a slice of the right path is not the value
     gt = _gt()
@@ -251,6 +287,16 @@ def test_multiline_field_scores_the_gt_line_that_carries_the_path(pdf, recs):
     assert _units(r, "text") == (3, 3)
 
 
+def test_multiline_cover_credits_only_gt_boxes_without_transforms(pdf, recs):
+    # one tall field showing the whole date can't stand in for stacked date-part boxes
+    lines = [_g((100.0, 400.0 + 18 * i, 500.0, 416.0 + 18 * i), path="dob" if i else None,
+                transforms=["date_part"] if i else ()) for i in range(4)]  # fmt: skip
+    tall = _tpl(_text("dob", (98.0, 398.0, 502.0, 470.0), ["dob"], _t("date_format", format="%m/%d/%Y"),
+                      style=Style(multiline=True)))  # fmt: skip
+    r = fill_score.score_fill(lines, tall, pdf, recs)
+    assert _units(r, "text") == (9, 0)
+
+
 # ---------------------------------------------------------------- tables, errors, reading back
 
 
@@ -262,6 +308,17 @@ def test_rows_dropped_ok(pdf, recs):
     assert fill_score.score_fill(_gt(), unmapped, pdf, recs)["rows_dropped_ok"] is False
     no_tables = probe.probe_records(SCHEMA, _gt(table=False), seed="t")
     assert fill_score.score_fill(_gt(table=False), _good(), pdf, no_tables)["rows_dropped_ok"] is None
+
+
+def test_static_choice_boxes_are_counted(pdf, recs):
+    assert fill_score.score_fill(_gt(), _good(), pdf, recs)["static_choice"] == 0
+    never = _gt() + [_g((250.0, 180.0, 260.0, 190.0), "choice", "status", ["equals"], value="divorced")]
+    assert fill_score.score_fill(never, _good(), pdf, recs)["static_choice"] == 1  # never on in any record
+
+
+def test_no_records_raises(pdf):
+    with pytest.raises(ValueError, match="record"):
+        fill_score.score_fill(_gt(), _good(), pdf, [])
 
 
 def test_fill_exception_counts_record_wrong(pdf, recs):

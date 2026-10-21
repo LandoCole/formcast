@@ -357,6 +357,9 @@ def test_totals_include_fill_acc():
     assert ap["fill_acc"] == pytest.approx(32 / 40)
     assert ap["text"] == {"units": 40, "correct": 32, "acc": pytest.approx(0.8)}
     assert ap["rows_dropped"] == {"checked": 2, "ok": 1}
+    assert ap["static_choice"] == 0
+    rows[0]["fill"]["static_choice"] = 2
+    assert agent_eval.totals(rows)["as_published"]["fill"]["static_choice"] == 2
     assert out["all"]["fill"]["fill_acc"] == pytest.approx(32 / 80)
     assert out["fake_scan"]["fill"]["forms"] == 1
     assert agent_eval.totals([_row("as_published", 10, 10, 9, 4, 4, 100, 10)])["all"]["fill"] is None
@@ -380,6 +383,7 @@ def test_markdown_has_fill_column():
     assert "| 0.50 | 0.75 |" in md  # x: joint, then fill
     assert "| 0.50 | – |" in md  # z has no fill figure
     assert "fill_acc" in md or "fill:" in md  # the notes explain the column
+    assert "static_choice" in md
 
 
 def test_score_row_adds_fill_scored_on_the_variant_pdf(tmp_path, monkeypatch, flat_form_pdf):
@@ -406,3 +410,42 @@ def test_score_row_adds_fill_scored_on_the_variant_pdf(tmp_path, monkeypatch, fl
         agent_eval.score_row(row, t, form)
         assert row["fill"]["units"] == 2 and row["fill"]["fill_acc"] == 1.0, variant  # K = 2 records
         assert row["mapping"]["path_acc"] == 1.0
+
+
+def test_run_one_keeps_the_step_log_when_scoring_fails(tmp_path, monkeypatch):
+    import types
+
+    import formcast
+    from formcast.pagemap.model import FormMap
+
+    forms = tmp_path / "forms"
+    (forms / "schemas").mkdir(parents=True)
+    (forms / "schemas" / "ff.json").write_text(json.dumps({"type": "object", "properties": {}}))
+    fm_path = tmp_path / "ff.formmap.json"
+    fm_path.write_text(FormMap(pages=[], fingerprint="x", source_name="form.pdf").model_dump_json())
+    t = Template(template_id="t", schema={"type": "object", "properties": {}},
+                 form=FormInfo(fingerprint="x", page_count=1, page_sizes=[(612, 792)], kinds=["digital"]))  # fmt: skip
+    result = types.SimpleNamespace(template=t, steps=[], usage=types.SimpleNamespace(input_tokens=5, output_tokens=1),
+                                   stop_reason="finish", finished=True, error=None, unplaceable=[], summary="done")  # fmt: skip
+    monkeypatch.setattr(agent_eval, "ROOT", tmp_path)
+    monkeypatch.setattr(agent_eval, "FORMS", forms)
+    monkeypatch.setattr(agent_eval.LLMConfig, "from_env", classmethod(lambda cls, p: types.SimpleNamespace(model="m")))
+    monkeypatch.setattr(agent_eval, "make_provider", lambda cfg: _FakeProvider([]))
+    monkeypatch.setattr(formcast, "build_template", lambda *a, **k: result, raising=False)
+
+    def boom(*a, **k):
+        raise RuntimeError("scorer broke")
+
+    monkeypatch.setattr(agent_eval, "score_row", boom)
+    job = {
+        "form": {"id": "ff", "split": "dev", "kind": "flat"}, "variant": "as_published", "model_env": "X_EVAL",
+        "prepared": {"pdf_path": str(tmp_path / "ff.pdf"), "formmap_path": str(fm_path), "formmap_s": 0.1,
+                     "page_kinds": [], "text_sources": [], "candidates": 0},
+        "run_dir": str(tmp_path / "logs"), "templates_dir": str(tmp_path / "templates"),
+        "overlays_dir": str(tmp_path / "overlays"),
+    }  # fmt: skip
+    row = agent_eval.run_one(job)
+    assert "scorer broke" in row["error"]
+    log = tmp_path / "logs" / "x_eval" / "ff_as_published.json"
+    assert log.is_file() and json.loads(log.read_text())["summary"] == "done"  # the session's log survived
+    assert row["log_path"] and row["template_path"]

@@ -142,7 +142,9 @@ NOTES = [
     "distinctive probe records (eval/probe.py), and every GT box with a path is checked for what its widget shows: "
     "a text or table-cell box once per record (the exact value; by provenance when GT has transforms), a choice "
     "box once across all records (right state in every record). fill_acc = correct units / units. It catches "
-    "data landing in the wrong box, e.g. a table built as one segment per column, which path/joint score as right.",
+    "data landing in the wrong box, e.g. a table built as one segment per column, which path/joint score as right. "
+    "A choice box whose expected state is the same in every probe record can't tell an always-on (or never-on) box "
+    "from a right one; the json counts them as fill.static_choice.",
 ]
 
 
@@ -322,6 +324,7 @@ def _fill_totals(parts: list[dict]) -> dict | None:
         out[kind] = {"units": u, "correct": c, "acc": round(r(c, u), 4)}
     checked = [p["rows_dropped_ok"] for p in parts if p["rows_dropped_ok"] is not None]
     out["rows_dropped"] = {"checked": len(checked), "ok": sum(checked)}
+    out["static_choice"] = sum(p.get("static_choice", 0) for p in parts)
     return out
 
 
@@ -564,6 +567,15 @@ def run_one(job: dict) -> dict:
         template_path = Path(job["templates_dir"]) / tag_dir / f"{stem}.json"
         _write(template_path, t.to_json(), redactor)
         row["template_path"] = str(template_path.relative_to(ROOT))
+        # the session's log is written before scoring, so a scorer failure can't lose it
+        _write_json(log_path, {
+            "form": form["id"], "variant": variant, "model_env": prefix, "model": cfg.model,
+            "stop_reason": result.stop_reason, "error": result.error, "summary": result.summary,
+            "unplaceable": result.unplaceable,
+            "usage": {"input_tokens": result.usage.input_tokens, "output_tokens": result.usage.output_tokens},
+            "first_user_message": recorder.first_user_message, "steps": _step_log(result, recorder),
+        }, redactor)  # fmt: skip
+        row["log_path"] = str(log_path.relative_to(ROOT))
 
         gt = score_row(row, t, form, prep["pdf_path"])
 
@@ -576,15 +588,6 @@ def run_one(job: dict) -> dict:
                 (overlay_dir / f"{stem}_p{pno}.png").write_bytes(_draw_gt(png, doc[pno], page_gt))
         finally:
             doc.close()
-
-        _write_json(log_path, {
-            "form": form["id"], "variant": variant, "model_env": prefix, "model": cfg.model,
-            "stop_reason": result.stop_reason, "error": result.error, "summary": result.summary,
-            "unplaceable": result.unplaceable,
-            "usage": {"input_tokens": result.usage.input_tokens, "output_tokens": result.usage.output_tokens},
-            "first_user_message": recorder.first_user_message, "steps": _step_log(result, recorder),
-        }, redactor)  # fmt: skip
-        row["log_path"] = str(log_path.relative_to(ROOT))
     except Exception as e:  # noqa: BLE001 - one broken session must not end the run
         row["error"] = redactor.scrub(f"harness: {type(e).__name__}: {e}")
         _write(log_path.with_suffix(".error.txt"), traceback.format_exc(), redactor)
