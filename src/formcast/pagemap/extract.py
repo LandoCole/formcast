@@ -1,0 +1,334 @@
+"""Build a :class:`PageMap` from a PyMuPDF page.
+
+Coordinate space: PyMuPDF 2.x already reports text (``get_text``), drawings
+(``get_drawings``), images (``get_image_info``) and widget rects in unrotated
+page space with the origin at the top-left of the crop box, so those values are
+used as-is. Only the rendered pixmap (``get_pixmap``) is rotated; it is mapped
+with ``page.rotation_matrix`` / ``page.derotation_matrix``.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import numpy as np
+import pymupdf
+
+from formcast.geometry import Rect, area, intersect, norm_to_points
+from formcast.pagemap.model import PageMap, Rule, TextLine, Widget, Word
+
+# Drawn segments count as rules when this thin and at least this long.
+RULE_MAX_THICKNESS = 2.0
+RULE_MIN_LENGTH = 20.0
+# A run of at least this many underscores is a fill-in line, not text.
+UNDERSCORE_MIN_RUN = 3
+# needs_ocr thresholds.
+IMAGE_DOMINANT_FRACTION = 0.8
+MIN_TEXT_COVERAGE = 0.35
+# text_layer_coverage rendering.
+COVERAGE_DPI = 50
+INK_THRESHOLD = 160  # gray level below which a pixel is ink
+RULE_MASK_PAD = 2.0  # points around a rule whose ink is ignored
+
+# Expand ligatures into their letters so text matching works on plain words.
+_TEXT_FLAGS = pymupdf.TEXTFLAGS_RAWDICT & ~pymupdf.TEXT_PRESERVE_LIGATURES
+
+_WIDGET_KINDS = {
+    pymupdf.PDF_WIDGET_TYPE_TEXT: "text",
+    pymupdf.PDF_WIDGET_TYPE_CHECKBOX: "checkbox",
+    pymupdf.PDF_WIDGET_TYPE_RADIOBUTTON: "radio",
+    pymupdf.PDF_WIDGET_TYPE_COMBOBOX: "combo",
+    pymupdf.PDF_WIDGET_TYPE_LISTBOX: "list",
+    pymupdf.PDF_WIDGET_TYPE_SIGNATURE: "signature",
+    pymupdf.PDF_WIDGET_TYPE_BUTTON: "button",
+}
+
+
+@dataclass
+class _Char:
+    c: str
+    bbox: Rect
+    baseline: float
+    size: float
+    bold: bool
+
+
+def page_size(page: pymupdf.Page) -> tuple[float, float]:
+    """Width and height of the unrotated crop box, in points."""
+    return page.cropbox.width, page.cropbox.height
+
+
+def image_norm_to_points(page: pymupdf.Page, box: Rect) -> Rect:
+    """Map a box normalized (0..1) to ``page.get_pixmap()`` into page points.
+
+    The pixmap shows the crop box with /Rotate applied; the result is in
+    unrotated crop-box space, the same space as words, rules and widgets.
+    """
+    shown = norm_to_points(box, (0.0, 0.0, page.rect.width, page.rect.height))
+    r = pymupdf.Rect(shown) * page.derotation_matrix
+    return (r.x0, r.y0, r.x1, r.y1)
+
+
+def extract_page(page: pymupdf.Page) -> PageMap:
+    """Text, rules and widgets of one page. ``kind`` is provisional; no candidates."""
+    words, lines, underscore_rules = _extract_text(page)
+    rules = _dedupe(_extract_drawn_rules(page) + underscore_rules)
+    widgets = _extract_widgets(page)
+    if widgets:
+        kind = "fillable"
+    elif _needs_ocr(page, words, rules):
+        kind = "scanned"
+    else:
+        kind = "digital"
+    width, height = page_size(page)
+    return PageMap(
+        index=page.number,
+        width=width,
+        height=height,
+        rotation=page.rotation,
+        kind=kind,
+        text_source="pdf",
+        words=words,
+        lines=lines,
+        rules=rules,
+        widgets=widgets,
+    )
+
+
+def text_layer_coverage(page: pymupdf.Page, rules: list[Rule]) -> float:
+    """Fraction of the page's ink (outside ``rules``) that has extractable text over it.
+
+    Renders the page at low dpi, counts dark pixels, and compares those inside
+    word boxes against all dark pixels not on a rule. A page with no ink
+    counts as fully covered (1.0).
+    """
+    words, _, _ = _extract_text(page)
+    return _coverage(page, words, rules)
+
+
+def needs_ocr(page: pymupdf.Page) -> bool:
+    """True when one image covers most of the page or the text layer covers little ink."""
+    words, _, underscore_rules = _extract_text(page)
+    rules = _extract_drawn_rules(page) + underscore_rules
+    return _needs_ocr(page, words, rules)
+
+
+def _needs_ocr(page: pymupdf.Page, words: list[Word], rules: list[Rule]) -> bool:
+    width, height = page_size(page)
+    bounds = (0.0, 0.0, width, height)
+    page_area = width * height
+    for info in page.get_image_info():
+        inside = intersect(tuple(info["bbox"]), bounds)
+        if inside is not None and area(inside) > IMAGE_DOMINANT_FRACTION * page_area:
+            return True
+    return _coverage(page, words, rules) < MIN_TEXT_COVERAGE
+
+
+def _coverage(page: pymupdf.Page, words: list[Word], rules: list[Rule]) -> float:
+    pix = page.get_pixmap(dpi=COVERAGE_DPI, colorspace=pymupdf.csGRAY, alpha=False)
+    gray = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.stride)
+    ink = gray[:, : pix.width] < INK_THRESHOLD
+    to_pixels = page.rotation_matrix * pymupdf.Matrix(COVERAGE_DPI / 72, COVERAGE_DPI / 72)
+
+    def mask(rects: list[Rect], pad: float) -> np.ndarray:
+        m = np.zeros_like(ink)
+        for x0, y0, x1, y1 in rects:
+            r = pymupdf.Rect(x0 - pad, y0 - pad, x1 + pad, y1 + pad) * to_pixels
+            ir = r.irect  # smallest IRect containing r
+            m[max(0, ir.y0) : max(0, ir.y1), max(0, ir.x0) : max(0, ir.x1)] = True
+        return m
+
+    counted = ink & ~mask([r.rect for r in rules], RULE_MASK_PAD)
+    total = int(counted.sum())
+    if total == 0:
+        return 1.0
+    covered = int((counted & mask([w.rect for w in words], 0.5)).sum())
+    return covered / total
+
+
+def _extract_text(page: pymupdf.Page) -> tuple[list[Word], list[TextLine], list[Rule]]:
+    """Words and lines from ``rawdict``; long underscore runs become ``h`` rules.
+
+    An underscore run also splits its line, so "Name ____ Date ____" yields the
+    lines "Name" and "Date".
+    """
+    width, height = page_size(page)
+    words: list[Word] = []
+    lines: list[TextLine] = []
+    rules: list[Rule] = []
+
+    def emit_line(segment: list[list[_Char]]) -> None:
+        segment = [w for w in segment if _inside(_union(c.bbox for c in w), width, height)]
+        if not segment:
+            return
+        line_id = len(lines)
+        word_ids = []
+        for chars in segment:
+            word_ids.append(len(words))
+            words.append(
+                Word(
+                    text="".join(c.c for c in chars),
+                    rect=_union(c.bbox for c in chars),
+                    line_id=line_id,
+                    source="pdf",
+                )
+            )
+        chars = [c for w in segment for c in w]
+        sizes: dict[float, int] = {}
+        for c in chars:
+            sizes[c.size] = sizes.get(c.size, 0) + 1
+        lines.append(
+            TextLine(
+                id=line_id,
+                text=" ".join(words[i].text for i in word_ids),
+                rect=_union(words[i].rect for i in word_ids),
+                word_ids=word_ids,
+                font_size=max(sizes, key=sizes.get),
+                bold=sum(c.bold for c in chars) * 2 > len(chars),
+            )
+        )
+
+    for block in page.get_text("rawdict", flags=_TEXT_FLAGS)["blocks"]:
+        for raw_line in block.get("lines", []):
+            horizontal = abs(raw_line["dir"][1]) < 1e-3
+            chars = [
+                _Char(
+                    c=ch["c"],
+                    bbox=tuple(ch["bbox"]),
+                    baseline=ch["origin"][1],
+                    size=span["size"],
+                    bold=bool(span["flags"] & pymupdf.TEXT_FONT_BOLD)
+                    or "bold" in span["font"].lower(),
+                )
+                for span in raw_line["spans"]
+                for ch in span["chars"]
+            ]
+            segment: list[list[_Char]] = []
+            word: list[_Char] = []
+            i = 0
+            while i < len(chars):
+                ch = chars[i]
+                if ch.c == "_":
+                    j = i
+                    while j < len(chars) and chars[j].c == "_":
+                        j += 1
+                    run = chars[i:j]
+                    if horizontal and len(run) >= UNDERSCORE_MIN_RUN:
+                        if word:
+                            segment.append(word)
+                            word = []
+                        emit_line(segment)
+                        segment = []
+                        # Underscores sit just below the baseline.
+                        y = run[0].baseline + 0.1 * run[0].size
+                        rules.append(
+                            Rule(rect=(run[0].bbox[0], y, run[-1].bbox[2], y), orientation="h")
+                        )
+                    else:
+                        word.extend(run)
+                    i = j
+                    continue
+                if ch.c.isspace():
+                    if word:
+                        segment.append(word)
+                        word = []
+                else:
+                    word.append(ch)
+                i += 1
+            if word:
+                segment.append(word)
+            emit_line(segment)
+    return words, lines, rules
+
+
+def _extract_drawn_rules(page: pymupdf.Page) -> list[Rule]:
+    """Thin drawn lines; rectangles contribute their four edges."""
+    width, height = page_size(page)
+    rules: list[Rule] = []
+    for path in page.get_drawings():
+        if path.get("color") is None and path.get("fill") is None:
+            continue  # invisible
+        for item in path["items"]:
+            op = item[0]
+            if op == "l":
+                segments = [_seg_rect(item[1], item[2])]
+            elif op in ("re", "qu"):
+                r = item[1].rect if op == "qu" else item[1]
+                if _classify(r.width, r.height):
+                    segments = [(r.x0, r.y0, r.x1, r.y1)]
+                else:
+                    segments = [
+                        (r.x0, r.y0, r.x1, r.y0),
+                        (r.x0, r.y1, r.x1, r.y1),
+                        (r.x0, r.y0, r.x0, r.y1),
+                        (r.x1, r.y0, r.x1, r.y1),
+                    ]
+            else:
+                continue  # curves are not rules
+            for seg in segments:
+                orientation = _classify(seg[2] - seg[0], seg[3] - seg[1])
+                if orientation and _inside(seg, width, height):
+                    rules.append(Rule(rect=seg, orientation=orientation))
+    return rules
+
+
+def _extract_widgets(page: pymupdf.Page) -> list[Widget]:
+    widgets = []
+    for w in page.widgets() or []:
+        kind = _WIDGET_KINDS.get(w.field_type)
+        if kind is None:
+            continue
+        options: list[str] = []
+        if kind in ("combo", "list"):
+            for v in w.choice_values or []:
+                # Entries are either "text" or [export_value, display_text].
+                options.append(str(v[-1]) if isinstance(v, (list, tuple)) else str(v))
+        r = w.rect
+        widgets.append(
+            Widget(
+                name=w.field_name or "",
+                kind=kind,
+                rect=(r.x0, r.y0, r.x1, r.y1),
+                options=options,
+                tooltip=w.field_label or None,
+            )
+        )
+    return widgets
+
+
+def _classify(w: float, h: float) -> str | None:
+    if h <= RULE_MAX_THICKNESS and w >= RULE_MIN_LENGTH:
+        return "h"
+    if w <= RULE_MAX_THICKNESS and h >= RULE_MIN_LENGTH:
+        return "v"
+    return None
+
+
+def _seg_rect(p1: pymupdf.Point, p2: pymupdf.Point) -> Rect:
+    return (min(p1.x, p2.x), min(p1.y, p2.y), max(p1.x, p2.x), max(p1.y, p2.y))
+
+
+def _union(rects) -> Rect:
+    rs = list(rects)
+    return (
+        min(r[0] for r in rs),
+        min(r[1] for r in rs),
+        max(r[2] for r in rs),
+        max(r[3] for r in rs),
+    )
+
+
+def _inside(r: Rect, width: float, height: float) -> bool:
+    """True when ``r`` (possibly degenerate) touches the crop box."""
+    return r[2] >= 0 and r[0] <= width and r[3] >= 0 and r[1] <= height
+
+
+def _dedupe(rules: list[Rule]) -> list[Rule]:
+    seen: set[tuple] = set()
+    out = []
+    for r in rules:
+        key = (r.orientation, *(round(v, 1) for v in r.rect))
+        if key not in seen:
+            seen.add(key)
+            out.append(r)
+    return out

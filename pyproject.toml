@@ -35,3 +35,7 @@ markers = [
   "slow: downloads or loads models (run with -m slow)",
   "llm: calls a real LLM (run with -m llm)",
 ]
+filterwarnings = [
+  # PyMuPDF's SWIG bindings warn on import under Python 3.12 (dependency issue).
+  "ignore:builtin type .* has no __module__ attribute:DeprecationWarning",
+]
