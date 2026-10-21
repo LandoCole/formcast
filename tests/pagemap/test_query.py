@@ -150,3 +150,54 @@ def test_unknown_reference_is_a_clear_error(fm):
         fm.right_of("zz1")
     with pytest.raises(ValueError, match="page"):
         fm.right_of((0, 0, 10, 10))
+
+
+# --- grid ------------------------------------------------------------------------
+
+
+def _grid_map(cells):
+    from formcast.pagemap.model import Candidate, FormMap, PageMap
+
+    cands = [Candidate(id=f"c0_{i}", kind="text", rect=r, conf=0.9, detector="d") for i, r in enumerate(cells)]
+    page = PageMap(index=0, width=612, height=792, rotation=0, kind="digital", text_source="pdf",
+                   words=[], lines=[], rules=[], widgets=[], candidates=cands)
+    return FormMapQuery(FormMap(pages=[page]))
+
+
+def _cells(cols, top, pitch, height, rows, jitter=0.0):
+    out = []
+    for r in range(rows):
+        for x0, x1 in cols:
+            j = jitter if (r + int(x0)) % 2 else -jitter
+            out.append((x0 + j, top + r * pitch + j, x1 - j, top + r * pitch + height + j))
+    return out
+
+
+def test_grid_of_detected_cells_gives_the_add_table_geometry():
+    cols = [(50.0, 200.0), (205.0, 300.0), (305.0, 420.0)]
+    q = _grid_map(_cells(cols, top=400.0, pitch=20.0, height=16.0, rows=4, jitter=0.6))
+    g = q.grid([f"c0_{i}" for i in range(12)])
+    assert g["page"] == 0 and g["max_rows"] == 4 and g["regular"] is True
+    assert g["row_top"] == pytest.approx(400.0, abs=1) and g["row_height"] == pytest.approx(20.0, abs=0.5)
+    assert len(g["columns"]) == 3
+    assert g["columns"][1] == pytest.approx([205.0, 300.0], abs=1)
+    x0, y0, x1, y1 = g["rect"]
+    assert x0 <= 50.0 and x1 >= 419 and y0 <= 400 and y1 >= g["row_top"] + 4 * g["row_height"] - 0.01
+    # every input box is placed in its row and column
+    cell = {(c["row"], c["col"]): c["id"] for c in g["cells"]}
+    assert len(cell) == 12 and cell[(0, 0)] == "c0_0" and cell[(3, 2)] == "c0_11"
+    _serializes(g)
+
+
+def test_grid_flags_uneven_rows_and_accepts_rects():
+    rects = _cells([(50.0, 200.0)], top=100.0, pitch=20.0, height=16.0, rows=2)
+    rects.append((50.0, 170.0, 200.0, 186.0))  # third row 50pt below the second
+    g = _grid_map([]).grid([list(r) for r in rects], page=0)
+    assert g["max_rows"] == 3 and g["regular"] is False
+    assert [c["id"] for c in g["cells"]] == [None, None, None]
+
+
+def test_grid_needs_boxes_on_one_page():
+    q = _grid_map(_cells([(50.0, 200.0)], top=100.0, pitch=20.0, height=16.0, rows=2))
+    with pytest.raises(ValueError):
+        q.grid([])

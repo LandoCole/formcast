@@ -567,6 +567,78 @@ class FormMapQuery:
             for key, t in groups.items()
         }
 
+    # -- structure --
+
+    def grid(self, refs, page: int | None = None) -> dict:
+        """Rows and columns of boxes laid out as a grid, in the shape add_table needs.
+
+        ``refs`` are ids, item dicts (template fields work too) or rects (then give
+        ``page``), all on one page: for example the candidates or widget fields a
+        table will replace. Boxes whose vertical centers are within half the
+        median box height share a row; boxes overlapping horizontally (half of
+        the narrower) share a column. Returns ``page``; ``row_top`` (the first
+        row's top), ``row_height`` (the median distance between row tops, or the
+        row's height for one row) and ``max_rows``; ``rect`` (spanning all rows
+        at that pitch); ``rows`` ([top, bottom] per row) and ``columns`` ([x0, x1]
+        per column); ``regular`` (false when the row pitch varies by more than
+        15%: rows of different heights, or separate blocks); and ``cells``, one
+        ``{row, col, id}`` per input box (id None for a bare rect).
+        """
+        boxes = [self._resolve(ref, page) for ref in refs]
+        if not boxes:
+            raise ValueError("grid needs at least one box")
+        pages = {p for p, _, _ in boxes}
+        if len(pages) > 1:
+            raise ValueError(f"grid boxes must be on one page, got pages {sorted(pages)}")
+        heights = sorted(_height(r) for _, r, _ in boxes)
+        tol = 0.5 * heights[len(heights) // 2]
+
+        rows: list[list[int]] = []
+        for i in sorted(range(len(boxes)), key=lambda i: _cy(boxes[i][1])):
+            if rows and abs(_cy(boxes[i][1]) - statistics.mean(_cy(boxes[j][1]) for j in rows[-1])) <= tol:
+                rows[-1].append(i)
+            else:
+                rows.append([i])
+        cols: list[list[int]] = []
+        spans: list[list[float]] = []
+        for i in sorted(range(len(boxes)), key=lambda i: boxes[i][1][0]):
+            x0, _, x1, _ = boxes[i][1]
+            for k, (cx0, cx1) in enumerate(spans):
+                overlap = min(x1, cx1) - max(x0, cx0)
+                if overlap > 0 and overlap >= 0.5 * min(x1 - x0, cx1 - cx0):
+                    cols[k].append(i)
+                    spans[k] = [min(cx0, x0), max(cx1, x1)]
+                    break
+            else:
+                cols.append([i])
+                spans.append([x0, x1])
+        order = sorted(range(len(cols)), key=lambda k: spans[k][0])
+        col_of = {i: n for n, k in enumerate(order) for i in cols[k]}
+        row_of = {i: n for n, row in enumerate(rows) for i in row}
+
+        bands = [[min(boxes[i][1][1] for i in row), max(boxes[i][1][3] for i in row)] for row in rows]
+        tops = [b[0] for b in bands]
+        pitches = [b - a for a, b in zip(tops, tops[1:])]
+        pitch = statistics.median(pitches) if pitches else bands[0][1] - bands[0][0]
+        regular = all(abs(d - pitch) <= max(1.5, 0.15 * pitch) for d in pitches)
+        columns = [spans[k] for k in order]
+        row_top = tops[0]
+        bottom = max(row_top + pitch * len(rows), bands[-1][1])
+        return {
+            "page": boxes[0][0],
+            "rect": _round((min(c[0] for c in columns), row_top, max(c[1] for c in columns), bottom)),
+            "row_top": round(row_top, 1),
+            "row_height": round(pitch, 1),
+            "max_rows": len(rows),
+            "rows": [_round((0, a, 0, b))[1::2] for a, b in bands],
+            "columns": [_round((a, 0, b, 0))[0::2] for a, b in columns],
+            "regular": regular,
+            "cells": [
+                {"row": row_of[i], "col": col_of[i], "id": boxes[i][2]}
+                for i in sorted(range(len(boxes)), key=lambda i: (row_of[i], col_of[i]))
+            ],
+        }
+
     # -- labels --
 
     def label_for(self, item_id: str) -> dict | None:

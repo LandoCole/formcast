@@ -94,16 +94,19 @@ signature, choice_mark (a mark drawn on or next to printed option text) and tabl
    box, use a choice_mark field over the option text.
 5. Build tables from repeated rows or grids of cells with add_table: rows from the repeated
    row geometry, columns from the cell edges or column headings; column keys are paths relative
-   to one row. A table that continues on another page gets another segment. Records printed as
+   to one row. fm.grid(ids) turns the candidate or widget fields a table replaces into its
+   row_top, row_height, max_rows and column x ranges. A table that continues on another page gets another segment. Records printed as
    repeated blocks (each record spans several lines, like stacked copies of the same set of
    blanks): add one table per line of the block, all with the same source_path, each with one
    segment per record block (max_rows=1, in record order), so row i of every table lands in
    block i. When table cells replace existing widget or candidate fields, remove exactly the
-   fields the cells cover (the step report warns which ones they are).
+   fields the cells cover (the step report warns which ones), by id; never remove every field
+   in a region.
 6. Split blanks that hold parts of one value (separate boxes for month, day and year, or one
    box per character) and use transforms to fill each part.
-7. Give every field a short label from its printed text. Keep a field for every blank the form
-   asks the user to fill, even when no schema path fits (leave its source empty).
+7. Give every field a short label from its printed text. Keep a field for every blank on the
+   form, office-use blanks included, even when no schema path fits (leave its source empty);
+   remove only boxes that are not blanks.
 8. Map every schema path you can, shaping values to what the box asks for:
    - schema dates are ISO (YYYY-MM-DD): a date box needs date_format with the format the form
      shows (a printed hint such as mm/dd/yyyy, else the usual convention of the form's
