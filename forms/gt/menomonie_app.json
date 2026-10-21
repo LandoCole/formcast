@@ -1,0 +1,217 @@
+{
+ "form": "menomonie_app",
+ "fields": [],
+ "widget_paths": {
+  "Date": {
+   "path": "application_date",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "Position Applied For": {
+   "path": "position_applied_for"
+  },
+  "Name": {
+   "path": "applicant.first_name",
+   "transforms": [
+    "join"
+   ],
+   "also_paths": [
+    "applicant.last_name"
+   ]
+  },
+  "Home Address": {
+   "path": "applicant.address.street",
+   "transforms": [
+    "join"
+   ],
+   "also_paths": [
+    "applicant.address.city",
+    "applicant.address.state",
+    "applicant.address.postal_code"
+   ]
+  },
+  "Phone": {
+   "path": "applicant.phone"
+  },
+  "Email": {
+   "path": "applicant.email"
+  },
+  "Born US Citizen": {
+   "path": "applicant.us_born_citizen",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  "Yes": {
+   "path": "applicant.us_born_citizen",
+   "transforms": [
+    "equals"
+   ]
+  },
+  "Have you previously applied with the city": {
+   "path": "previous_application.applied_before",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  "Yes_2": {
+   "path": "previous_application.applied_before",
+   "transforms": [
+    "equals"
+   ]
+  },
+  "If yes give position applied for and date of application": {
+   "path": "previous_application.position",
+   "transforms": [
+    "join"
+   ],
+   "also_paths": [
+    "previous_application.applied_on"
+   ]
+  },
+  "Name  Location of school last attended": {
+   "path": "education.school_name",
+   "transforms": [
+    "join"
+   ],
+   "also_paths": [
+    "education.school_city",
+    "education.school_state"
+   ]
+  },
+  "Degree or Diploma Obtained": {
+   "path": "education.credential"
+  },
+  "Do you have a valid drivers license": {
+   "path": "drivers_license.valid",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  "Yes_3": {
+   "path": "drivers_license.valid",
+   "transforms": [
+    "equals"
+   ]
+  },
+  "If yes what state": {
+   "path": "drivers_license.state"
+  },
+  "Do you have a valid commercial drivers license": {
+   "path": "commercial_drivers_license.valid",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  "Yes_4": {
+   "path": "commercial_drivers_license.valid",
+   "transforms": [
+    "equals"
+   ]
+  },
+  "If yes what state_2": {
+   "path": "commercial_drivers_license.state"
+  },
+  "group_1": {
+   "path": "may_contact_current_employer"
+  },
+  "undefined_4": {
+   "path": "accepts_temporary_employment"
+  },
+  "Yes_7": {
+   "path": "criminal_history.has_record",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  "toggle_6": {
+   "path": "criminal_history.has_record",
+   "transforms": [
+    "equals"
+   ]
+  },
+  "No If yes state in full County": {
+   "path": "criminal_history.county"
+  },
+  "State": {
+   "path": "criminal_history.state"
+  },
+  "Date_2": {
+   "path": "criminal_history.date",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "Court": {
+   "path": "criminal_history.court"
+  },
+  "fill_5": {
+   "path": "criminal_history.offense"
+  },
+  "Disposition": {
+   "path": "criminal_history.disposition"
+  },
+  "Date_3": {
+   "path": "signed_on",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "Employer Name": {
+   "path": "employment_history[].employer"
+  },
+  "Employer Address": {
+   "path": "employment_history[].address"
+  },
+  "Type of Business": {
+   "path": "employment_history[].business_type"
+  },
+  "Name  Title of Immediate Supervisor": {
+   "path": "employment_history[].supervisor"
+  },
+  "Final Salary": {
+   "path": "employment_history[].final_salary"
+  },
+  "per": {
+   "path": "employment_history[].final_salary_period"
+  },
+  "Reason for Leaving": {
+   "path": "employment_history[].reason_for_leaving"
+  },
+  "Position Title": {
+   "path": "employment_history[].position_title"
+  },
+  "Description of Work": {
+   "path": "employment_history[].duties"
+  },
+  "Employer Name_2": {
+   "path": "employment_history[].employer"
+  },
+  "Employer Address_2": {
+   "path": "employment_history[].address"
+  },
+  "Type of Business_2": {
+   "path": "employment_history[].business_type"
+  },
+  "Name  Title of Immediate Supervisor_2": {
+   "path": "employment_history[].supervisor"
+  },
+  "Final Salary_2": {
+   "path": "employment_history[].final_salary"
+  },
+  "per_2": {
+   "path": "employment_history[].final_salary_period"
+  },
+  "Reason for Leaving_2": {
+   "path": "employment_history[].reason_for_leaving"
+  },
+  "Position Title_2": {
+   "path": "employment_history[].position_title"
+  },
+  "Description of Work_2": {
+   "path": "employment_history[].duties"
+  }
+ },
+ "notes": "Boxes are the PDF widgets (3 pages). Widget names are misleading for the Yes/No pairs: on page 0 the widget named after the question ('Born US Citizen', 'Have you previously applied...', 'Do you have a valid (commercial) drivers license') is the YES box and 'Yes'/'Yes_2'/'Yes_3'/'Yes_4' is the NO box; on page 2 'Yes_7' is YES and 'toggle_6' is NO. YES boxes get bool_to_check, NO boxes equals. The two page-2 radio groups (group_1 = may we contact present employer, undefined_4 = temporary employment) each have one widget name for both kids, so one entry covers the Yes and the No kid; it has no transforms because the right op differs per kid. The two employer blocks on page 1 map to employment_history[] columns (one block per item). Pathless by design: 'Date of Employment' in each employer block (one blank fed by start and end date, which a single table column cannot express), the three certification bullets (list items), and the signature."
+}

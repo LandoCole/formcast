@@ -1,0 +1,112 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://example.org/schemas/capital-asset-dispositions.json",
+ "title": "Capital asset dispositions",
+ "description": "A client's sales of capital assets for one tax year, as kept by a tax preparer. Gain or loss and totals are computed when the return is prepared, not stored.",
+ "type": "object",
+ "properties": {
+  "tax_year": {
+   "type": "integer"
+  },
+  "client_id": {
+   "type": "string",
+   "description": "Preparer's client number."
+  },
+  "taxpayer": {
+   "type": "object",
+   "properties": {
+    "first_name": {
+     "type": "string"
+    },
+    "last_name": {
+     "type": "string"
+    },
+    "tin": {
+     "type": "string",
+     "description": "SSN or ITIN, formatted NNN-NN-NNNN."
+    }
+   },
+   "required": [
+    "first_name",
+    "last_name",
+    "tin"
+   ]
+  },
+  "short_term": {
+   "$ref": "#/$defs/part",
+   "description": "Assets held one year or less."
+  },
+  "long_term": {
+   "$ref": "#/$defs/part",
+   "description": "Assets held more than one year."
+  }
+ },
+ "required": [
+  "tax_year",
+  "taxpayer"
+ ],
+ "$defs": {
+  "transaction": {
+   "type": "object",
+   "properties": {
+    "description": {
+     "type": "string",
+     "description": "Property sold, e.g. '100 sh. XYZ Co.'."
+    },
+    "date_acquired": {
+     "type": "string",
+     "format": "date"
+    },
+    "date_sold": {
+     "type": "string",
+     "format": "date"
+    },
+    "proceeds": {
+     "type": "number",
+     "description": "Sales price, in dollars."
+    },
+    "cost_basis": {
+     "type": "number",
+     "description": "Cost or other basis, in dollars."
+    },
+    "adjustment_codes": {
+     "type": "string",
+     "description": "Adjustment code letters from the instructions, e.g. 'W' or 'BO'."
+    },
+    "adjustment_amount": {
+     "type": "number",
+     "description": "Adjustment to gain or loss, in dollars; negative to reduce gain."
+    }
+   },
+   "required": [
+    "description",
+    "date_sold",
+    "proceeds",
+    "cost_basis"
+   ]
+  },
+  "part": {
+   "type": "object",
+   "properties": {
+    "reporting_category": {
+     "type": "string",
+     "enum": [
+      "1099b_basis_reported",
+      "1099b_basis_not_reported",
+      "not_on_1099b_or_1099da",
+      "1099da_basis_reported",
+      "1099da_basis_not_reported",
+      "digital_asset_not_on_1099"
+     ],
+     "description": "How the broker reported these transactions (one per form page)."
+    },
+    "transactions": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/transaction"
+     }
+    }
+   }
+  }
+ }
+}

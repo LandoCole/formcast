@@ -1,0 +1,98 @@
+{
+ "form": "fw4",
+ "fields": [],
+ "widget_paths": {
+  "topmostSubform[0].Page1[0].Step1a[0].f1_01[0]": {
+   "path": "employee.first_name",
+   "transforms": [
+    "join"
+   ],
+   "also_paths": [
+    "employee.middle_name"
+   ]
+  },
+  "topmostSubform[0].Page1[0].Step1a[0].f1_02[0]": {
+   "path": "employee.last_name"
+  },
+  "topmostSubform[0].Page1[0].Step1a[0].f1_03[0]": {
+   "path": "employee.address.street"
+  },
+  "topmostSubform[0].Page1[0].Step1a[0].f1_04[0]": {
+   "path": "employee.address.city",
+   "transforms": [
+    "join"
+   ],
+   "also_paths": [
+    "employee.address.state",
+    "employee.address.postal_code"
+   ]
+  },
+  "topmostSubform[0].Page1[0].f1_05[0]": {
+   "path": "employee.ssn"
+  },
+  "topmostSubform[0].Page1[0].c1_1[0]": {
+   "path": "withholding.filing_status",
+   "transforms": [
+    "equals"
+   ]
+  },
+  "topmostSubform[0].Page1[0].c1_1[1]": {
+   "path": "withholding.filing_status",
+   "transforms": [
+    "equals"
+   ]
+  },
+  "topmostSubform[0].Page1[0].c1_1[2]": {
+   "path": "withholding.filing_status",
+   "transforms": [
+    "equals"
+   ]
+  },
+  "topmostSubform[0].Page1[0].c1_2[0]": {
+   "path": "withholding.two_jobs_only",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  "topmostSubform[0].Page1[0].f1_08[0]": {
+   "path": "withholding.dependent_credits"
+  },
+  "topmostSubform[0].Page1[0].f1_09[0]": {
+   "path": "withholding.other_income"
+  },
+  "topmostSubform[0].Page1[0].f1_10[0]": {
+   "path": "withholding.deductions"
+  },
+  "topmostSubform[0].Page1[0].f1_11[0]": {
+   "path": "withholding.extra_withholding"
+  },
+  "topmostSubform[0].Page1[0].c1_3[0]": {
+   "path": "withholding.exempt",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  "topmostSubform[0].Page1[0].f1_12[0]": {
+   "path": "employer.name",
+   "transforms": [
+    "join"
+   ],
+   "also_paths": [
+    "employer.address.street",
+    "employer.address.city",
+    "employer.address.state",
+    "employer.address.postal_code"
+   ]
+  },
+  "topmostSubform[0].Page1[0].f1_13[0]": {
+   "path": "hire_date",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page1[0].f1_14[0]": {
+   "path": "employer.ein"
+  }
+ },
+ "notes": "Boxes are the PDF widgets on every page (the signature and its date have no widgets). Page 0: 'First name and middle initial' joins first + middle name; the transform language cannot take the initial of one joined part, so a full middle name is accepted and only join is required (an extra char_at/slice is fine). Filing status checkboxes c1_1[0..2] map to the three-value enum with equals. Step 3 lines 3(a)/3(b) are pathless: payroll keeps only the Step 3 total. Money boxes take the number as-is (no transform required). 'Employer's name and address' is one box (join). Pathless by design: all widgets on page 2 (Multiple Jobs Worksheet) and page 3 (Deductions Worksheet); they are the employee's own worksheets, not payroll data."
+}

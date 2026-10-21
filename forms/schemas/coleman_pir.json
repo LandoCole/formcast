@@ -1,0 +1,88 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://example.org/schemas/public-records-request.json",
+ "title": "Public records request",
+ "description": "A records request a title/research firm files with a county clerk, as kept in its request tracker.",
+ "type": "object",
+ "properties": {
+  "request_id": {
+   "type": "string",
+   "description": "Internal tracking number."
+  },
+  "requester": {
+   "type": "object",
+   "properties": {
+    "first_name": {
+     "type": "string"
+    },
+    "last_name": {
+     "type": "string"
+    },
+    "organization": {
+     "type": "string",
+     "description": "Firm the requester works for."
+    },
+    "address": {
+     "$ref": "#/$defs/address"
+    },
+    "phone": {
+     "type": "string"
+    },
+    "email": {
+     "type": "string",
+     "format": "email"
+    }
+   },
+   "required": [
+    "first_name",
+    "last_name"
+   ]
+  },
+  "request_type": {
+   "type": "string",
+   "enum": [
+    "access_copy",
+    "inspection_only",
+    "digital_images"
+   ],
+   "description": "Kind of access requested."
+  },
+  "records_requested": {
+   "type": "string",
+   "description": "Free-text description of the records or documents wanted."
+  },
+  "needed_by": {
+   "type": "string",
+   "format": "date",
+   "description": "Date the client needs the records."
+  },
+  "signed_on": {
+   "type": "string",
+   "format": "date"
+  }
+ },
+ "required": [
+  "requester",
+  "records_requested"
+ ],
+ "$defs": {
+  "address": {
+   "type": "object",
+   "properties": {
+    "street": {
+     "type": "string"
+    },
+    "city": {
+     "type": "string"
+    },
+    "state": {
+     "type": "string",
+     "description": "Two-letter state code."
+    },
+    "postal_code": {
+     "type": "string"
+    }
+   }
+  }
+ }
+}
