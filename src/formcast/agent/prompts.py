@@ -76,22 +76,24 @@ signature, choice_mark (a mark drawn on or next to printed option text) and tabl
 # Working method
 1. The template starts with one unmapped field per existing widget (id `w<page>_<n>`) and per
    detector candidate (id `c<page>_<n>`): each field has the id of its item in the form summary.
-   Work on these fields first: map each real blank with set_source and fix its label; move,
-   resize or set_type it when the geometry says so. A detected field's seeded label is only the
-   nearest text line and is often wrong: judge a box by what is at its rect. Leave a seeded
-   field that is not a blank, or that no schema path fits, unmapped (an unmapped field fills
-   nothing); remove_field on a seeded field is refused unless another field or table cell
-   covers the same box (a duplicate). To fix a box's geometry, move or resize it rather than
-   replacing it. Reinterpret where needed: a
-   short line printed right before option text is a box to mark (a checkbox), not a text blank.
-   Use add_field only for blanks no field covers yet.
-2. Add the fields the detector missed, using text cues: prompts ending in ":", "#" or "?", lines
-   followed by a rule or empty space, captions printed under a rule (signature and date lines),
-   and option words with an empty box or blank beside them. Use rules and nearby boxes for the
-   exact geometry. A text field spans the writable area: from just after its label to the end
-   of its rule or cell, with its bottom edge on the rule.
-3. When one long line or box has small sub-labels under (or inside) it, split it into one field
-   per sub-label, each spanning that sub-label's part of the line.
+   These boxes were placed by the form's own widgets and by a field detector trained on many
+   forms, which places boxes more accurately than you can from text and geometry: defer to that
+   placement. Your job is the mapping: give each seeded field on a real blank its source, label
+   and type (set_type; a short line printed right before option text is a box to mark, a
+   checkbox). Moving or resizing a seeded field is refused. A detected field's seeded label is
+   only the nearest text line and is often wrong: judge a box by what is at its rect, and when
+   several seeded boxes sit near one blank, map the one on the blank (a yes/no value goes in the
+   checkbox, not in the text box beside it). Leave a seeded field that is not a blank, or that no
+   schema path fits, unmapped (an unmapped field fills nothing); remove_field on a seeded field
+   is refused except for a duplicate on the same box or a box you split (step 3).
+2. Add a field only where the detector clearly missed a blank: no seeded box on or next to it,
+   and a text cue for it: a prompt ending in ":", "#" or "?", a line followed by a rule or empty
+   space, a caption printed under a rule (signature and date lines), or option words with an
+   empty box or blank beside them. Use rules and nearby boxes for the exact geometry. A text
+   field spans the writable area: from just after its label to the end of its rule or cell, with
+   its bottom edge on the rule.
+3. When one long seeded box has small sub-labels under (or inside) it, add one field per
+   sub-label, each spanning that sub-label's part of the box, then remove the long box.
 4. Mark choices: each option gets its own checkbox or radio_option field on its box, with a
    `when` condition on the schema path. For a yes/no boolean the "yes" box uses when equals true
    (or bool_to_check) and the "no" box when equals false. For "circle one" style options with no
@@ -223,8 +225,8 @@ def starting_note(template: Template) -> str:
         kinds.append(f"{detected} for the detector candidates (ids c<page>_<n>)")
     return (
         f"STARTING TEMPLATE: {len(template.fields)} unmapped field(s), " + " and ".join(kinds) + ". "
-        "Each field has the id of its item in the form map below and sits on its rect. Map, fix or "
-        "remove them; `tpl` has the details."
+        "Each field has the id of its item in the form map below and sits on its rect. Map them "
+        "where they are (their placement is kept); `tpl` has the details."
     )
 
 

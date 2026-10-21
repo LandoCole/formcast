@@ -21,11 +21,14 @@ reasons name the field id, the offending value and what would be valid.
   row): each must be on the segment's page with its center inside the segment rect,
   have no source of its own, and be linked once. A linked field can't get a source
   or be removed until it is unlinked.
-* Seeded fields (``origin`` widget or detector) are evidence of a blank, so an
-  agent's ``remove_field`` on one is rejected unless another field or table cell
-  covers the same box (IoU >= ``REPLACE_IOU``): a duplicate, or a cell that replaces
-  it. A seeded box that is not a blank stays unmapped (it fills nothing). Human edits
-  are not restricted.
+* Seeded fields (``origin`` widget or detector) carry the form's own or the
+  detector's placement, which is more accurate than placement from text and
+  geometry alone, so the agent maps them as they are: an agent's ``move`` or
+  ``resize`` of one is rejected, and so is its ``remove_field`` unless another field
+  or table cell covers the same box (IoU >= ``REPLACE_IOU``: a duplicate, or a cell
+  that replaces it) or the fields inside it cover most of it (``SPLIT_COVER``: it was
+  split into parts). A seeded box that is not a blank stays unmapped (it fills
+  nothing). Human edits are not restricted.
 * History records the op as given (only the keys that were set) plus any
   generated id, so :func:`replay` reproduces the template exactly.
 """
@@ -41,7 +44,7 @@ from collections.abc import Callable
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from formcast.errors import OpError
-from formcast.geometry import Rect, contained_fraction, iou
+from formcast.geometry import Rect, contained_fraction, intersect, iou
 from formcast.pagemap.model import FormMap
 from formcast.schema import SchemaPath, flatten_schema
 from formcast.template.model import (
@@ -102,6 +105,8 @@ CELL_COVER_SHARE = 0.7
 # seeded field then loses nothing (a duplicate, or a table cell that replaces it).
 REPLACE_IOU = 0.6
 _SEEDED = ("widget", "detector")
+# Fields mostly inside a seeded box that together cover this share of it split the box into parts.
+SPLIT_COVER = 0.7
 MAX_WARN_IDS = 20
 
 
@@ -518,10 +523,32 @@ class _Run:
                         best = (v, g.id)
         return best
 
+    def split_cover(self, f: Field) -> float:
+        """Share of ``f``'s box covered by the plain fields (besides itself) that lie mostly inside it."""
+        x0, y0, x1, y1 = f.rect
+        area = (x1 - x0) * (y1 - y0)
+        covered = 0.0
+        for g in self.t.fields:
+            if g is f or g.type == "table" or g.page != f.page or contained_fraction(g.rect, f.rect) < CELL_COVER_SHARE:
+                continue
+            inter = intersect(tuple(g.rect), tuple(f.rect))
+            if inter is not None:
+                covered += (inter[2] - inter[0]) * (inter[3] - inter[1])
+        return min(1.0, covered / area) if area > 0 else 0.0
+
+    def check_seed_placement(self, f: Field, verb: str) -> None:
+        """Agents map seeded boxes where they are: the widget's or detector's placement wins."""
+        if self.author != "agent" or f.origin not in _SEEDED:
+            return
+        placed_by = "the form's own widget" if f.origin == "widget" else "the field detector"
+        self.fail(f"field {f.id!r} was placed by {placed_by}, which places boxes more accurately than edits made "
+                  f"from text and geometry, so agents do not {verb} seeded fields: map it as it is. If no seeded "
+                  "box sits on a blank, add_field for that blank; leave a seeded box that is not a blank unmapped")
+
     def check_seed_removal(self, f: Field) -> None:
         """An agent may drop a seeded box only when another field or cell holds the same box."""
         best, nearest = self.best_cover(f)
-        if best >= REPLACE_IOU:
+        if best >= REPLACE_IOU or (f.origin == "detector" and self.split_cover(f) >= SPLIT_COVER):
             return
         if f.origin == "widget":
             what = f"the form's own widget {f.existing_widget!r}" if f.existing_widget else "a widget's field"
@@ -531,17 +558,15 @@ class _Run:
         reason = (f"field {f.id!r} is {what} and no second field or table cell covers the same box{closest}, so "
                   "removing it could drop a blank. Seeded fields can be removed only once another field or cell "
                   f"covers the same box (IoU >= {REPLACE_IOU:g}), as for a duplicate. ")
-        if best >= 0.1:
-            reason += "To change a seeded box's geometry, move or resize it instead of replacing it. "
         if f.origin == "widget":
             reason += ("Keep it, with an empty source when no schema path fits. If a table holds it, link it as a "
                        "cell (the column's fields, one id per row; fm.grid(ids)['column_fields']) instead of "
                        "removing it")
         else:
             reason += ("Its seeded label is just the nearest text line and is often wrong, so judge the box itself "
-                       "(fm.region around its rect): map it if it is a blank, move/resize it to fix its geometry, "
-                       "and if it is not a blank or no schema path fits, leave it with an empty source (an "
-                       "unmapped field fills nothing)")
+                       "(fm.region around its rect): map it if it is a blank, and if it is not a blank or no schema "
+                       "path fits, leave it with an empty source (an unmapped field fills nothing). To split it "
+                       "into parts (sub-labels under one line), add the parts first; then it can be removed")
         self.fail(reason)
 
     def warnings(self, f: Field) -> list[str]:
@@ -559,6 +584,8 @@ class _Run:
         for p in s.paths if s else []:
             if p not in self.paths:
                 out.append(f"field {f.id!r} maps {p!r}, which is not in the schema; set_source to a valid path")
+        if f.type == "text" and s:
+            out.extend(self.boolean_on_text_warning(f, s.paths))
         if f.type == "checkbox" and s and s.when is None and not any(tr.op == "bool_to_check" for tr in s.transforms):
             for p in s.paths:
                 sp = self.paths.get(p)
@@ -567,6 +594,26 @@ class _Run:
                                "bool_to_check transform; add when (e.g. equals/contains) or bool_to_check "
                                "so the box state is explicit")
         return out
+
+
+    def boolean_on_text_warning(self, f: Field, paths: list[str]) -> list[str]:
+        """A boolean path on a text field while a choice box sits in the same row: likely the wrong box."""
+        booleans = [p for p in paths if (sp := self.paths.get(p)) is not None and sp.type == "boolean"]
+        if not booleans:
+            return []
+
+        def same_row(g: Field) -> bool:
+            top, bottom = max(f.rect[1], g.rect[1]), min(f.rect[3], g.rect[3])
+            return bottom - top >= 0.5 * min(f.rect[3] - f.rect[1], g.rect[3] - g.rect[1])
+
+        boxes = [g for g in self.t.fields
+                 if g is not f and g.type in ("checkbox", "radio_option") and g.page == f.page and same_row(g)]
+        if not boxes:
+            return []
+        near = min(boxes, key=lambda g: abs((g.rect[0] + g.rect[2]) / 2 - (f.rect[0] + f.rect[2]) / 2))
+        return [f"text field {f.id!r} maps boolean {booleans[0]!r}, and {near.type} field {near.id!r} sits in the "
+                "same row: a yes/no value is marked in the box (when equals true, or bool_to_check), so map "
+                f"{near.id!r} and keep {f.id!r} for what its own label asks"]
 
 
 def _ids(ids: list[str]) -> str:
@@ -605,6 +652,7 @@ def _move(run: _Run, op: Move) -> Field:
     if f.type == "table":
         _move_table(run, f, op)
         return f
+    run.check_seed_placement(f, "move")
     run.no_segment(f, op.segment)
     if op.rect is not None:
         rect = op.rect
@@ -646,6 +694,7 @@ def _resize(run: _Run, op: Resize) -> Field:
         run.table_segment(f, op.segment, "resize").rect = op.rect  # rows and columns keep their positions
         run.check_segment(f, op.segment)
         return f
+    run.check_seed_placement(f, "resize")
     run.no_segment(f, op.segment)
     run.check_rect(f.id, f.page, op.rect)
     f.rect = op.rect

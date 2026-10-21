@@ -431,7 +431,7 @@ def test_checkbox_kids_may_share_a_widget_but_not_with_text():
 
 
 def test_replay_reproduces_final_template():
-    base = _template([Field(id="f1", type="text", page=0, rect=(10, 10, 60, 30), origin="widget")])
+    base = _template([Field(id="f1", type="text", page=0, rect=(10, 10, 60, 30), origin="human")])
     t = base
     for op in (
         {"op": "add_field", "type": "checkbox", "page": 0, "rect": [72, 140, 82, 150]},
@@ -623,9 +623,43 @@ def test_a_coarse_table_cell_does_not_replace_a_seeded_box_but_a_matching_one_do
                          author="agent", context=CTX)
     mismatch = [w for w in warnings if "Link those fields" in w]
     assert len(mismatch) == 1 and "'c0_0'" in mismatch[0] and "column_fields" in mismatch[0]
-    _rejects(t1, {"op": "remove_field", "id": "c0_0"}, "closest box is 'f1', IoU 0.50", "move or resize it")
+    _rejects(t1, {"op": "remove_field", "id": "c0_0"}, "closest box is 'f1', IoU 0.50")
     exact = {**coarse, "row_top": 329, "row_height": 9, "max_rows": 1}  # row 0's boxes exactly
     t2, warnings = apply(t, {"op": "add_table", "source_path": "medications", "segments": [exact]},
                          author="agent", context=CTX)
     assert any("covers" in w for w in warnings)
     apply(t2, {"op": "remove_field", "id": "c0_0"}, author="agent", context=CTX)  # its cell matches exactly
+
+
+def test_an_agent_maps_seeded_boxes_where_they_are():
+    t = _seeded_grid(origin="detector")
+    _rejects(t, {"op": "move", "id": "c0_0", "dx": 2}, "placed by the field detector", "do not move")
+    _rejects(_seeded_grid(), {"op": "resize", "id": "w0_0", "rect": [72, 329, 290, 338]},
+             "the form's own widget", "do not resize")
+    apply(t, {"op": "move", "id": "c0_0", "dx": 2}, author="human", context=CTX)  # people may
+    t2, _ = _add(t, rect=[100, 600, 200, 620])
+    apply(t2, {"op": "move", "id": "f1", "dx": 2}, author="agent", context=CTX)  # its own fields: yes
+
+
+def test_a_detected_box_split_into_parts_can_be_removed():
+    long_box = Field(id="c0_0", type="text", page=0, rect=(72, 320, 372, 338), origin="detector")
+    t = _template([long_box])
+    t, _ = _add(t, rect=[72, 320, 170, 338])
+    _rejects(t, {"op": "remove_field", "id": "c0_0"}, "add the parts first")  # one part covers a third
+    t, _ = _add(t, rect=[172, 320, 270, 338])
+    t, _ = _add(t, rect=[272, 320, 372, 338])
+    t, _ = apply(t, {"op": "remove_field", "id": "c0_0"}, author="agent", context=CTX)
+    assert [f.id for f in t.fields] == ["f1", "f2", "f3"]
+
+
+def test_a_boolean_on_a_text_box_beside_a_checkbox_warns():
+    text = Field(id="c0_0", type="text", page=0, rect=(100, 200, 300, 218), origin="detector")
+    box = Field(id="c0_1", type="checkbox", page=0, rect=(80, 202, 94, 216), origin="detector")
+    far = Field(id="c0_2", type="checkbox", page=0, rect=(80, 402, 94, 416), origin="detector")
+    t = _template([text, box, far])
+    _, warnings = apply(t, {"op": "set_source", "id": "c0_0", "source": {"paths": ["married"]}},
+                        author="agent", context=CTX)
+    assert len(warnings) == 1 and "'c0_1'" in warnings[0] and "'c0_2'" not in warnings[0]
+    _, warnings = apply(t, {"op": "set_source", "id": "c0_0", "source": {"paths": ["name"]}},
+                        author="agent", context=CTX)
+    assert warnings == []
