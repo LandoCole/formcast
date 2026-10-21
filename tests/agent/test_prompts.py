@@ -55,6 +55,96 @@ def test_system_prompt_contains_no_corpus_labels():
     assert leaked == []
 
 
+# --- wider leak check: every text the model can be shown ------------------------------
+
+# Modules whose string literals can reach the model: prompts and messages, step reports,
+# refusals, op rejections and warnings, the api() listing and help() of fm methods, the
+# summary, coverage and transform docs. Module docstrings are skipped (never shown).
+MODEL_FACING = [
+    "src/formcast/agent/prompts.py", "src/formcast/agent/session.py", "src/formcast/agent/report.py",
+    "src/formcast/template/ops.py", "src/formcast/template/coverage.py", "src/formcast/sandbox/worker.py",
+    "src/formcast/pagemap/query.py", "src/formcast/pagemap/summarize.py", "src/formcast/transforms.py",
+]  # fmt: skip
+# Schema property and widget names that are plain English words any form uses.
+GENERIC_NAMES = {
+    "address", "city", "code", "conditions", "date", "description", "details", "from", "height", "kind",
+    "name", "number", "per", "position", "reason", "reported", "result", "reviewer", "source", "state",
+    "status", "title", "to", "type", "types", "uses", "valid", "where", "year", "yes", "zip",
+}  # fmt: skip
+
+
+def _string_literals(path: Path) -> list[str]:
+    import ast
+
+    tree = ast.parse(path.read_text())
+    body = tree.body
+    module_doc = body[0].value if body and isinstance(body[0], ast.Expr) else None
+    return [
+        n.value for n in ast.walk(tree)
+        if isinstance(n, ast.Constant) and isinstance(n.value, str) and n is not module_doc
+    ]  # fmt: skip
+
+
+def _model_facing_text() -> str:
+    from formcast.sandbox.worker import api_text
+
+    parts = [SYSTEM_PROMPT, api_text()]
+    for rel in MODEL_FACING:
+        parts.extend(_string_literals(REPO / rel))
+    return " ".join(" ".join(parts).split())
+
+
+def _schema_property_names() -> set[str]:
+    names: set[str] = set()
+
+    def walk(node):
+        if isinstance(node, dict):
+            for key, value in (node.get("properties") or {}).items():
+                names.add(key)
+                walk(value)
+            for key in ("items", "additionalProperties"):
+                walk(node.get(key))
+            for key in ("anyOf", "oneOf", "allOf"):
+                for sub in node.get(key) or []:
+                    walk(sub)
+            for sub in (node.get("$defs") or node.get("definitions") or {}).values():
+                walk(sub)
+
+    for path in sorted((REPO / "forms" / "schemas").glob("*.json")):
+        walk(json.loads(path.read_text()))
+    return names
+
+
+def _widget_names() -> set[str]:
+    names: set[str] = set()
+    for path in sorted(GT_DIR.glob("*.json")) if GT_DIR.is_dir() else []:
+        names |= set(json.loads(path.read_text()).get("widget_paths", {}))
+    return names
+
+
+def _whole_word(word: str, text: str) -> bool:
+    return re.search(rf"(?<![A-Za-z0-9_]){re.escape(word)}(?![A-Za-z0-9_])", text) is not None
+
+
+def test_no_model_facing_text_contains_corpus_labels():
+    text = _model_facing_text()
+    assert sorted(label for label in _corpus_labels() if label in text) == []
+
+
+def test_no_model_facing_text_names_a_corpus_schema_property():
+    text = _model_facing_text()
+    names = _schema_property_names()
+    assert names, "no schemas found"
+    leaked = sorted(n for n in names if n.lower() not in GENERIC_NAMES and _whole_word(n, text))
+    assert leaked == []
+
+
+def test_no_model_facing_text_names_a_corpus_widget():
+    text = _model_facing_text()
+    leaked = sorted(n for n in _widget_names() if n.lower() not in GENERIC_NAMES and _whole_word(n, text))
+    assert leaked == []
+
+
 def test_system_prompt_names_the_tools_api_and_rules():
     for needle in ("run_python", "finish", "print(api())", "transforms()", "tpl", "schema", "unplaceable"):
         assert needle in SYSTEM_PROMPT, needle
