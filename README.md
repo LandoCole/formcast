@@ -88,6 +88,8 @@ for w in report.warnings:                              # a checklist, sorted by 
 smart = to_smart_pdf(tpl, "intake.pdf")                # same form, empty fields to fill by hand
 ```
 
+Templates built before commit e2afa94 (which folded a coarse ink map into the fingerprint) no longer match their PDF's fingerprint: fill them with `check_fingerprint=False`, or rebuild them.
+
 `report.warnings` is a flat list sorted by page and position. Record-level warnings
 come first. For example (rects omitted):
 
