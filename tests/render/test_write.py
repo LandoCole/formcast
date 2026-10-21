@@ -20,6 +20,7 @@ from formcast.template.model import Style
 
 ROOT = Path(__file__).resolve().parents[2]
 MENOMONIE = ROOT / "forms" / "dev" / "menomonie_app.pdf"
+I9 = ROOT / "forms" / "dev" / "i9.pdf"
 
 
 def _open(b: bytes) -> pymupdf.Document:
@@ -39,6 +40,11 @@ def _widget(doc: pymupdf.Document, name: str, page: int = 0) -> pymupdf.Widget:
 def _named(doc: pymupdf.Document, name: str) -> Binding:
     (w,) = [w for w in read_existing(doc) if w.name == name]
     return Binding(name, "named", widget=w)
+
+
+def _named_on(doc: pymupdf.Document, name: str, page: int) -> Binding:
+    (w,) = [w for w in read_existing(doc) if w.name == name and w.page == page]
+    return Binding(f"{name}@{page}", "named", widget=w)
 
 
 def _ap(doc: pymupdf.Document, xref: int, state: str | None = None) -> bytes:
@@ -351,7 +357,7 @@ def test_created_widget_rect_with_offset_cropbox(make_pdf):
 
 
 def test_untouched_widgets_unchanged(make_pdf):
-    doc = _open(make_pdf(widgets=[
+    doc = _open(make_pdf(pages=2, widgets=[
         {"type": "text", "name": "touched", "rect": (72, 72, 200, 88), "value": "a"},
         {"type": "text", "name": "keep_text", "rect": (72, 100, 200, 116), "value": "keep", "font": "Arial"},
         {"type": "checkbox", "name": "keep_cb", "rect": (72, 130, 84, 142), "on_state": "Yes_5"},
@@ -360,20 +366,29 @@ def test_untouched_widgets_unchanged(make_pdf):
         {"type": "signature", "name": "keep_sig", "rect": (72, 190, 200, 220)},
         {"type": "radio", "name": "keep_radio", "rect": (72, 240, 84, 252), "on_state": "R1"},
         {"type": "radio", "name": "keep_radio", "rect": (100, 240, 112, 252), "on_state": "R2"},
+        # one field, two kids: writing the page-0 kid must also refresh the page-1 kid (Ruling J)
+        {"page": 0, "type": "text", "name": "shared", "rect": (72, 300, 200, 316), "value": "old"},
+        {"page": 1, "type": "text", "name": "shared", "rect": (72, 300, 200, 316), "value": "old"},
+        {"page": 1, "type": "text", "name": "keep_p1", "rect": (72, 340, 200, 356), "value": "p1"},
     ]))
     def snapshot(d):
         out = {}
-        for w in d[0].widgets():
-            if w.field_name.startswith("keep"):
-                out[w.xref] = d.xref_object(w.xref)
-                kind, val = d.xref_get_key(w.xref, "Parent")
-                if kind == "xref":
-                    px = int(val.split()[0])
-                    out[px] = d.xref_object(px)
+        for pg in d:
+            for w in pg.widgets():
+                if w.field_name.startswith("keep"):
+                    out[w.xref] = d.xref_object(w.xref)
+                    kind, val = d.xref_get_key(w.xref, "Parent")
+                    if kind == "xref":
+                        px = int(val.split()[0])
+                        out[px] = d.xref_object(px)
         return out
     before = snapshot(doc)
+    sibling = _named_on(doc, "shared", 1).widget.xref
+    sibling_before = doc.xref_object(sibling)
     page = doc[0]
     write_text(page, _named(doc, "touched"), text="new", fit=Fit("new", 8, 1, "ok", False, ""), style=Style())
+    write_text(page, _named_on(doc, "shared", 0), text="fresh", fit=Fit("fresh", 9, 1, "ok", False, ""),
+               style=Style())
     write_choice(page, _named(doc, "touched_cb"), on=True, style_circle=False)
     write_text(page, Binding("n", "created", new_name="n"), text="x", fit=Fit("x", 9, 1, "ok", False, ""),
                style=Style(comb=3), rect=(300, 72, 400, 88))
@@ -382,3 +397,123 @@ def test_untouched_widgets_unchanged(make_pdf):
     d2 = _reopen(doc)
     assert snapshot(d2) == before
     assert _widget(d2, "touched").field_value == "new"
+    assert d2.xref_object(sibling) != sibling_before  # the sibling kid is expected to change
+    assert b"fresh" in _ap(d2, sibling) and b"old" not in _ap(d2, sibling)
+
+
+# ---------------------------------------------------------------- fix round 1
+
+
+def test_shared_field_sibling_kid_appearance_on_i9():
+    doc = pymupdf.open(I9)
+    kids = [w for w in read_existing(doc) if w.name == "Document Title 1"]
+    assert sorted(k.page for k in kids) == [0, 3]
+    (p0,) = [k for k in kids if k.page == 0]
+    (p3,) = [k for k in kids if k.page == 3]
+    b = Binding("dt1", "named", widget=p0)
+    write_text(doc[0], b, text="Passport", fit=Fit("Passport", 9, 1, "ok", False, ""), style=Style())
+    d2 = _reopen(doc)
+    assert d2[3].load_widget(p3.xref).field_value == "Passport"
+    assert b"(Passport)" in _ap(d2, p3.xref)
+    assert b"(Passport)" in _ap(d2, p0.xref)
+    write_text(d2[0], Binding("dt1", "named", widget=p0), text=None, fit=None, style=Style())
+    d3 = _reopen(d2)
+    assert d3[3].load_widget(p3.xref).field_value == ""
+    assert b"Passport" not in _ap(d3, p3.xref) and b"Passport" not in _ap(d3, p0.xref)
+
+
+def test_explicit_align_and_multiline_apply_to_existing_widgets(make_pdf):
+    doc = _open(make_pdf(widgets=[
+        {"type": "text", "name": "a", "rect": TEXT_RECT, "align": "right"},
+        {"type": "text", "name": "b", "rect": (100, 300, 250, 330), "align": "right"},
+    ]))
+    fit = Fit("Hi", 10, 1, "ok", False, "")
+    # explicit center overrides the widget's right alignment
+    write_text(doc[0], _named(doc, "a"), text="Hi", fit=fit, style=Style(align="center", multiline=True))
+    # defaults (left, not multiline) keep the widget's own /Q and flags
+    write_text(doc[0], _named(doc, "b"), text="Hi", fit=fit, style=Style())
+    d2 = _reopen(doc)
+    a, b = _widget(d2, "a"), _widget(d2, "b")
+    assert _q(d2, a.xref) == 1 and d2.xref_get_key(a.xref, "Parent/Q")[1] == "1"
+    assert a.field_flags & pymupdf.PDF_TX_FIELD_IS_MULTILINE
+    assert _q(d2, b.xref) == 2
+    assert not b.field_flags & pymupdf.PDF_TX_FIELD_IS_MULTILINE
+    # explicit left on a right-aligned widget is honoured too
+    write_text(d2[0], _named(d2, "b"), text="Hi", fit=fit, style=Style(align="left", multiline=False))
+    d3 = _reopen(d2)
+    assert _q(d3, _widget(d3, "b").xref) == 0
+
+
+def test_explicit_align_reaches_sibling_kids(make_pdf):
+    doc = _open(make_pdf(pages=2, widgets=[
+        {"page": 0, "type": "text", "name": "s", "rect": TEXT_RECT},
+        {"page": 1, "type": "text", "name": "s", "rect": TEXT_RECT},
+    ]))
+    sib = _named_on(doc, "s", 1).widget.xref
+    write_text(doc[0], _named_on(doc, "s", 0), text="Hi", fit=Fit("Hi", 10, 1, "ok", False, ""),
+               style=Style(align="right"))
+    d2 = _reopen(doc)
+    assert _q(d2, sib) == 2
+    td = [ln for ln in _ap(d2, sib).split(b"\n") if ln.endswith(b"Td")]
+    assert float(td[0].split()[0]) > 100
+
+
+def test_combo_display_text_written_as_export_value(make_pdf):
+    doc = _open(make_pdf(widgets=[
+        {"type": "combo", "name": "st", "rect": TEXT_RECT, "options": [["WI", "Wisconsin"], ["MN", "Minnesota"]]},
+    ]))
+    b = _named(doc, "st")
+    assert b.widget.options == ("Wisconsin", "Minnesota")
+    fit = Fit("Wisconsin", 10, 1, "ok", False, "")
+    _, _, warns = write_text(doc[0], b, text="Wisconsin", fit=fit, style=Style())
+    assert warns == []
+    assert _widget(_reopen(doc), "st").field_value == "WI"
+    _, _, warns = write_text(doc[0], b, text="MN", fit=Fit("MN", 10, 1, "ok", False, ""), style=Style())
+    assert warns == [] and _widget(_reopen(doc), "st").field_value == "MN"
+    _, _, warns = write_text(doc[0], b, text="Texas", fit=Fit("Texas", 10, 1, "ok", False, ""), style=Style())
+    assert [w.code for w in warns] == ["not_an_option"]
+    assert _widget(_reopen(doc), "st").field_value == "Texas"
+
+
+def test_write_text_refuses_button_widget(make_pdf):
+    doc = _open(make_pdf(widgets=[{"type": "checkbox", "name": "cb", "rect": (72, 100, 84, 112)}]))
+    with pytest.raises(ValueError):
+        write_text(doc[0], _named(doc, "cb"), text="x", fit=None, style=Style())
+
+
+def test_existing_max_len_cuts_and_warns(make_pdf):
+    doc = _open(make_pdf(widgets=[{"type": "text", "name": "zip", "rect": TEXT_RECT, "maxlen": 5}]))
+    _, rect, warns = write_text(doc[0], _named(doc, "zip"), text="53751-1234", fit=None, style=Style())
+    assert [(w.code, w.page, w.rect) for w in warns] == [("truncated", 0, rect)]
+    assert _widget(_reopen(doc), "zip").field_value == "53751"
+    _, _, warns = write_text(doc[0], _named(doc, "zip"), text="53751", fit=None, style=Style())
+    assert warns == []
+
+
+def test_choice_mark_has_no_down_appearance_or_check_caption(make_pdf):
+    doc = _open(make_pdf())
+    write_choice_mark(doc[0], Binding("m", "created", new_name="m"), on=True, rect=MARK)
+    d2 = _reopen(doc)
+    xref = _widget(d2, "m").xref
+    # simulate a viewer/older writer having left a check caption and down appearance, then refill
+    d2.xref_set_key(xref, "MK", "<</CA(4)/BC[0 0 0]>>")
+    write_choice_mark(d2[0], Binding("m", "adopted", widget=read_existing(d2)[0]), on=True)
+    d3 = _reopen(d2)
+    assert d3.xref_get_key(xref, "AP/D")[0] == "null"
+    assert d3.xref_get_key(xref, "MK/CA")[0] == "null"
+    assert d3.xref_get_key(xref, "MK/BC")[0] == "array"
+
+
+def test_checkbox_sibling_kids_follow_the_field(make_pdf):
+    doc = _open(make_pdf(pages=2, widgets=[
+        {"page": 0, "type": "checkbox", "name": "agree", "rect": (72, 100, 84, 112)},
+        {"page": 1, "type": "checkbox", "name": "agree", "rect": (72, 100, 84, 112)},
+    ]))
+    k0, k1 = _named_on(doc, "agree", 0), _named_on(doc, "agree", 1)
+    write_choice(doc[0], k0, on=True, style_circle=False)
+    d2 = _reopen(doc)
+    assert d2.xref_get_key(k1.widget.xref, "AS")[1] == "/Yes"
+    write_choice(d2[0], k0, on=False, style_circle=False)
+    d3 = _reopen(d2)
+    assert d3.xref_get_key(k1.widget.xref, "AS")[1] == "/Off"
+    assert d3.xref_get_key(k0.widget.xref, "AS")[1] == "/Off"

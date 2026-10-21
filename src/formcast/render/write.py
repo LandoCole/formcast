@@ -3,7 +3,8 @@
 The PDF layer under ``fill``: read the widgets a PDF already has, then write one target at a time
 into a named/adopted widget or a new one. Every touched widget gets its appearance from PyMuPDF's
 ``Widget.update()`` (a choice_mark's custom ellipse is written after the last ``update()``);
-``NeedAppearances`` is never set. Widgets no call touches are left as they are.
+``NeedAppearances`` is never set. Widgets of fields no call writes are left as they are; sibling
+kids of a written field share its value, so their appearances are regenerated too (Ruling J).
 
 PyMuPDF behaviour these functions rely on is recorded as Task 5 rulings in
 ``docs/superpowers/plans/2026-10-21-formcast-fill-rulings.md``.
@@ -11,11 +12,13 @@ PyMuPDF behaviour these functions rely on is recorded as Task 5 rulings in
 
 from __future__ import annotations
 
+import re
+
 import pymupdf
 from pymupdf import mupdf
 
 from formcast.geometry import Rect
-from formcast.pagemap.extract import WIDGET_KINDS, choice_options
+from formcast.pagemap.extract import WIDGET_KINDS, choice_options, choice_pairs
 from formcast.render.binding import Binding, ExistingWidget
 from formcast.render.fit import Fit
 from formcast.render.report import FillWarning
@@ -30,6 +33,7 @@ _QUADDING = {"left": 0, "center": 1, "right": 2}
 MARK_INSET = 1.0  # choice_mark ellipse inset from the widget rect, points
 MARK_LINE_WIDTH = 1.0
 _KAPPA = 0.5523  # Bezier control-point factor for a quarter ellipse
+_REF = re.compile(r"(\d+) \d+ R")
 
 
 # ---------------------------------------------------------------- reading
@@ -167,6 +171,80 @@ def _set_text_value(page: pymupdf.Page, w: pymupdf.Widget, value: str | None) ->
     w.field_value = ""
 
 
+def _field_xref(doc: pymupdf.Document, xref: int) -> int:
+    """The terminal field a widget belongs to: itself if it carries /T, else its /Parent."""
+    if doc.xref_get_key(xref, "T")[0] != "null":
+        return xref
+    return _parent_xref(doc, xref) or xref
+
+
+def _sibling_kids(doc: pymupdf.Document, xref: int) -> list[int]:
+    """Other widget kids of the same terminal field (any page)."""
+    field = _field_xref(doc, xref)
+    if field == xref:
+        return []
+    kind, val = doc.xref_get_key(field, "Kids")
+    if kind != "array":
+        return []
+    kids = [int(x) for x in _REF.findall(val)]
+    return [k for k in kids if k != xref and doc.xref_get_key(k, "Subtype")[1] == "/Widget"]
+
+
+def _load_any(page: pymupdf.Page, xref: int) -> tuple[pymupdf.Page, pymupdf.Widget] | None:
+    """Find widget ``xref`` on any page of ``page``'s document (``page`` itself first)."""
+    doc = page.parent
+    numbers = [page.number]
+    kind, val = doc.xref_get_key(xref, "P")
+    if kind == "xref":
+        pxref = int(val.split()[0])
+        numbers += [n for n in range(doc.page_count) if doc.page_xref(n) == pxref]
+    numbers += range(doc.page_count)
+    for n in dict.fromkeys(numbers):
+        pg = page if n == page.number else doc[n]
+        if any(a[0] == xref for a in pg.annot_xrefs()):
+            return pg, pg.load_widget(xref)
+    return None
+
+
+def _pin_quadding(doc: pymupdf.Document, xref: int) -> None:
+    """MuPDF reads /Q only on the widget: copy an inherited non-zero /Q onto it."""
+    if doc.xref_get_key(xref, "Q")[0] == "null":
+        kind, q = _inherited(doc, xref, "Q")
+        if kind == "int" and q != "0":
+            doc.xref_set_key(xref, "Q", q)
+
+
+def _refresh_text_siblings(page: pymupdf.Page, xref: int, quadding: str | None = None) -> None:
+    """Regenerate the appearance of every sibling kid, each with its own /DA (Ruling J).
+
+    ``quadding`` (an explicitly set align) is put on each kid; otherwise an inherited /Q is pinned.
+    """
+    doc = page.parent
+    for kid in _sibling_kids(doc, xref):
+        found = _load_any(page, kid)
+        if found is None:
+            continue
+        _, sib = found
+        if quadding is not None:
+            doc.xref_set_key(kid, "Q", quadding)
+        else:
+            _pin_quadding(doc, kid)
+        sib.update()
+
+
+def _refresh_button_siblings(page: pymupdf.Page, xref: int) -> None:
+    """Point every sibling checkbox kid's /AS at the field's new value (Ruling J)."""
+    doc = page.parent
+    kind, value = _inherited(doc, xref, "V")
+    value = value.lstrip("/") if kind == "name" else "Off"
+    for kid in _sibling_kids(doc, xref):
+        found = _load_any(page, kid)
+        if found is None:
+            continue
+        on = found[1].on_state()
+        doc.xref_set_key(kid, "AS", f"/{value}" if isinstance(on, str) and on == value else "/Off")
+
+
 # ---------------------------------------------------------------- text
 
 
@@ -214,8 +292,15 @@ def write_text(
         name, got = _read_back(page, w.xref)
         return name, got, []
 
+    if binding.widget.kind not in ("text", "combo", "list"):
+        raise ValueError(f"widget {binding.widget.name!r} is a {binding.widget.kind} widget, not text/combo/list")
     w = _load(page, binding.widget)
     warnings_: list[tuple[str, str]] = []
+    if value and w.text_maxlen and len(value) > w.text_maxlen:
+        warnings_.append(
+            ("truncated", f"value cut to the {w.text_maxlen} characters widget {w.field_name!r} allows")
+        )
+        value = value[: w.text_maxlen]
     font = _kept_font(w.text_font)
     if font is None:
         warnings_.append(
@@ -227,13 +312,16 @@ def write_text(
         )
         font = DEFAULT_FONT
     if value and binding.widget.kind in ("combo", "list"):
-        allowed: set[str] = set()
-        for v in w.choice_values or []:  # "text" or [export_value, display_text]
-            allowed.update(str(x) for x in (v if isinstance(v, (list, tuple)) else [v]))
-        if value not in allowed:
-            warnings_.append(
-                ("not_an_option", f"{value!r} is not one of the options of widget {w.field_name!r}; written anyway")
-            )
+        pairs = choice_pairs(w)
+        exports = {e for e, _ in pairs}
+        by_display = {d: e for e, d in reversed(pairs)}  # first option wins on duplicate display texts
+        if value not in exports:
+            if value in by_display:
+                value = by_display[value]  # Ruling L: write the option's export value
+            else:
+                warnings_.append(
+                    ("not_an_option", f"{value!r} is not one of the options of widget {w.field_name!r}; written anyway")
+                )
     if size is None:
         size = w.text_fontsize or 0
     w.text_font = font
@@ -241,12 +329,27 @@ def write_text(
     # update() writes /DA only on a field-widget; on a kid the size would be ignored, so put the
     # fitted /DA on the widget itself.
     doc.xref_set_key(w.xref, "DA", pymupdf.get_pdf_str(_da(w.text_color, font, size)))
-    if doc.xref_get_key(w.xref, "Q")[0] == "null":
-        kind, q = _inherited(doc, w.xref, "Q")
-        if kind == "int" and q != "0":
-            doc.xref_set_key(w.xref, "Q", q)
+    field = _field_xref(doc, w.xref)
+    # Ruling K: an explicitly set align / multiline overrides the widget's own; defaults keep it.
+    q: str | None = None
+    if "align" in style.model_fields_set:
+        q = str(_QUADDING[style.align])
+        doc.xref_set_key(field, "Q", q)
+        doc.xref_set_key(w.xref, "Q", q)
+    else:
+        _pin_quadding(doc, w.xref)
+    if "multiline" in style.model_fields_set and binding.widget.kind == "text":
+        kind, ff = _inherited(doc, w.xref, "Ff")
+        flags = int(ff) if kind == "int" else 0
+        if style.multiline:
+            flags |= pymupdf.PDF_TX_FIELD_IS_MULTILINE
+        else:
+            flags &= ~pymupdf.PDF_TX_FIELD_IS_MULTILINE
+        doc.xref_set_key(field, "Ff", str(flags))
+        w.field_flags = flags  # a field-widget's update() writes Ff back
     _set_text_value(page, w, value)
     w.update()
+    _refresh_text_siblings(page, w.xref, q)
     name, got = _read_back(page, w.xref)
     return name, got, [_warn(code, msg, page, got) for code, msg in warnings_]
 
@@ -280,6 +383,8 @@ def write_choice(
     # Never the string "Off": PyMuPDF treats any truthy value as "on" for a radio kid.
     w.field_value = w.on_state() if on else False
     w.update()
+    if binding.widget.kind == "checkbox":  # PyMuPDF already sets every radio kid's /AS
+        _refresh_button_siblings(page, w.xref)
     name, got = _read_back(page, w.xref)
     return name, got, []
 
@@ -314,7 +419,13 @@ def _set_mark_appearance(doc: pymupdf.Document, w: pymupdf.Widget) -> None:
     off_x = _form_xobject(doc, width, height, b"")
     on_name = w.on_state()
     on_name = on_name if isinstance(on_name, str) else "Yes"
+    # The whole /AP is replaced (no /D down look), and a /MK /CA check caption is dropped, so
+    # viewers never flash a check mark.
     doc.xref_set_key(w.xref, "AP", f"<</N<</{on_name} {on_x} 0 R/Off {off_x} 0 R>>>>")
+    if doc.xref_get_key(w.xref, "MK/CA")[0] != "null":
+        pdf = mupdf.pdf_document_from_fz_document(doc.this)
+        mk = mupdf.pdf_dict_gets(mupdf.pdf_load_object(pdf, w.xref), "MK")
+        mupdf.pdf_dict_dels(mk, "CA")
 
 
 def write_choice_mark(

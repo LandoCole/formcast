@@ -385,10 +385,21 @@ def _extract_drawn_rules(page: pymupdf.Page, drawings: list[dict]) -> list[Rule]
     return rules
 
 
+def choice_pairs(w: pymupdf.Widget) -> list[tuple[str, str]]:
+    """``(export value, display text)`` of each option of a combo/list widget."""
+    out: list[tuple[str, str]] = []
+    for v in w.choice_values or []:
+        # Entries are either "text" or [export_value, display_text].
+        if isinstance(v, (list, tuple)):
+            out.append((str(v[0]), str(v[-1])))
+        else:
+            out.append((str(v), str(v)))
+    return out
+
+
 def choice_options(w: pymupdf.Widget) -> list[str]:
     """Display texts of a combo/list widget's options."""
-    # Entries are either "text" or [export_value, display_text].
-    return [str(v[-1]) if isinstance(v, (list, tuple)) else str(v) for v in w.choice_values or []]
+    return [display for _, display in choice_pairs(w)]
 
 
 def _extract_widgets(page: pymupdf.Page) -> list[Widget]:

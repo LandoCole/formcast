@@ -6,7 +6,9 @@ widgets. Rects and text positions are in unrotated crop-box space, like every fo
 Widget specs are dicts ``{page, type, name, rect, value?, on_state?, options?, maxlen?, font?,
 align?}`` with type ``text | checkbox | radio | combo | signature``. Radio kids sharing a name form
 one group, each kid's on-state from its ``on_state`` (PyMuPDF takes a new radio kid's on-state from
-its ``field_value``); the group starts with every kid off. ``font`` writes the field's ``/DA`` font
+its ``field_value``); the group starts with every kid off. Text or checkbox widgets sharing a name
+become kids of one field (PyMuPDF groups them). ``options`` entries are strings or
+``[export, display]`` pairs. ``font`` writes the field's ``/DA`` font
 directly (PyMuPDF itself only creates Helv/Cour/TiRo/ZaDb); ``align`` sets ``/Q`` on the parent field
 only, the way many real forms store it.
 """
