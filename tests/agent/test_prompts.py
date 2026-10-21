@@ -195,3 +195,13 @@ def test_region_with_no_overlapping_fields_says_none():
     paths = flatten_schema(SCHEMA)
     msg = first_user_message("MAP", paths, "Fix it.", (0, (400.0, 400.0, 500.0, 500.0)), template=_template())
     assert "TEMPLATE FIELDS IN THE REGION: none." in msg
+
+
+def test_step_report_states_the_budget_left_when_given():
+    record = StepRecord(n=7, code="", exec=ExecResult(stdout="", truncated=False), applied=[], rejected=[],
+                        warnings=[], usage=Usage())  # fmt: skip
+    cov = Coverage(mappable_count=1)
+    plain = step_report(record, cov, template=_template(), form_map=_form_map())
+    assert "budget" not in plain
+    report = step_report(record, cov, template=_template(), form_map=_form_map(), budget=(7, 40))
+    assert "budget: step 7 of 40, 33 left" in report

@@ -73,10 +73,13 @@ several paths into one field add "join": " "; a choice box adds a "when" conditi
 signature, choice_mark (a mark drawn on or next to printed option text) and table.
 
 # Working method
-1. Start from the detector candidates. Confirm each one (add a field at its rect, adjusted if
-   the geometry says so), reject it (pre-printed content, decoration, a box that is not a
-   blank) or reinterpret it: a short line printed right before option text is a box to mark,
-   not a text blank, even when the detector calls it text.
+1. The template starts with one unmapped field per existing widget (id `w<page>_<n>`) and per
+   detector candidate (id `c<page>_<n>`): each field has the id of its item in the form summary.
+   Work on these fields first: map each real blank with set_source and fix its label; move,
+   resize or set_type it when the geometry says so; remove_field the ones that are not blanks
+   (pre-printed content, decoration, duplicates). Reinterpret where needed: a short line printed
+   right before option text is a box to mark (a checkbox), not a text blank. Use add_field only
+   for blanks no field covers yet.
 2. Add the fields the detector missed, using text cues: prompts ending in ":", "#" or "?", lines
    followed by a rule or empty space, captions printed under a rule (signature and date lines),
    and option words with an empty box or blank beside them. Use rules and nearby boxes for the
@@ -85,19 +88,33 @@ signature, choice_mark (a mark drawn on or next to printed option text) and tabl
 3. When one long line or box has small sub-labels under (or inside) it, split it into one field
    per sub-label, each spanning that sub-label's part of the line.
 4. Mark choices: each option gets its own checkbox or radio_option field on its box, with a
-   `when` condition on the schema path (or bool_to_check for a yes/no boolean). For "circle
-   one" style options with no box, use a choice_mark field over the option text.
+   `when` condition on the schema path. For a yes/no boolean the "yes" box uses when equals true
+   (or bool_to_check) and the "no" box when equals false. For "circle one" style options with no
+   box, use a choice_mark field over the option text.
 5. Build tables from repeated rows or grids of cells with add_table: rows from the repeated
    row geometry, columns from the cell edges or column headings; column keys are paths relative
-   to one row. A table that continues on another page gets another segment.
+   to one row. A table that continues on another page gets another segment. Records printed as
+   repeated blocks (each record spans several lines, like stacked copies of the same set of
+   blanks): add one table per line of the block, all with the same source_path, each with one
+   segment per record block (max_rows=1, in record order), so row i of every table lands in
+   block i. When table cells replace existing widget or candidate fields, remove exactly the
+   fields the cells cover (the step report warns which ones they are).
 6. Split blanks that hold parts of one value (separate boxes for month, day and year, or one
    box per character) and use transforms to fill each part.
-7. Give every field a short label from its printed text. Add a field for every blank the form
+7. Give every field a short label from its printed text. Keep a field for every blank the form
    asks the user to fill, even when no schema path fits (leave its source empty).
-8. Map every schema path you can, adapting shape with transforms (dates, joined or split
-   names, yes/no). Never map a path to a field you cannot justify from nearby text.
-9. Fillable forms already have one field per widget (origin "widget"): map those with
-   set_source and fix their labels; do not add duplicates on top of them.
+8. Map every schema path you can, shaping values to what the box asks for:
+   - schema dates are ISO (YYYY-MM-DD): a date box needs date_format with the format the form
+     shows (a printed hint such as mm/dd/yyyy, else the usual convention of the form's
+     language), or date_part for separate month/day/year boxes;
+   - a box whose label names several values (a full name as last, first and middle; a city,
+     state and postal code line) takes all of those paths, in the printed order, with "join";
+     a list of strings written into one box needs the join transform;
+   - a box for an initial takes char_at 0; a box for part of a number (area code, a group of
+     digits) takes slice.
+   Never map a path to a field you cannot justify from nearby text.
+9. Fillable forms: map the widget fields with set_source and fix their labels; do not add
+   duplicates on top of them.
 
 # The step report
 After each run_python call you get a report: your printed output (truncated when long), errors,
@@ -109,10 +126,14 @@ Python variables, and read `tpl` for the current state.
 
 # Finishing
 Call `finish` when coverage can't improve any more: give a short summary, and list each
-unplaceable schema path with the reason (for example: the form has no place for it).
+unplaceable schema path with the reason (for example: the form has no place for it). Before
+that, search for every unmapped path's key words (fm.find_text) and look at the fields still
+without a source: most forms have a place for most paths. Do not stop early to save effort; the
+step report shows how much of the step budget is left.
 
 # Do not
-- Do not guess a position without text or geometry evidence for it.
+- Do not guess a position without evidence for it: candidates, widgets, rules, label and
+  caption positions are evidence.
 - Do not print whole page maps or long lists: filter and print only what you need.
 - Keep steps small: a few related queries or a few dozen ops per step, then read the report.
 """
@@ -176,6 +197,24 @@ def _region_fields(template: Template, page: int, rect: Rect) -> str:
     return f"TEMPLATE FIELDS IN THE REGION ({len(hits)}):\n" + "\n".join(_field_line(f) for f in hits)
 
 
+def starting_note(template: Template) -> str:
+    """One paragraph on a fresh template's seeded fields (instead of listing them all)."""
+    widgets = sum(1 for f in template.fields if f.origin == "widget")
+    detected = sum(1 for f in template.fields if f.origin == "detector")
+    if not widgets and not detected:
+        return "STARTING TEMPLATE: empty (the form has no widgets and no detector candidates)."
+    kinds = []
+    if widgets:
+        kinds.append(f"{widgets} for the existing widgets (ids w<page>_<n>)")
+    if detected:
+        kinds.append(f"{detected} for the detector candidates (ids c<page>_<n>)")
+    return (
+        f"STARTING TEMPLATE: {len(template.fields)} unmapped field(s), " + " and ".join(kinds) + ". "
+        "Each field has the id of its item in the form map below and sits on its rect. Map, fix or "
+        "remove them; `tpl` has the details."
+    )
+
+
 def first_user_message(
     summary_text: str,
     schema_paths: list[SchemaPath],
@@ -183,8 +222,13 @@ def first_user_message(
     region: tuple[int, Rect] | None,
     *,
     template: Template | None = None,
+    fresh: bool = False,
 ) -> str:
-    """The opening user message: task, schema paths, optional instruction/region, form map."""
+    """The opening user message: task, schema paths, optional instruction/region, form map.
+
+    ``template`` is the starting template. A ``fresh`` one (seeded with a field per
+    widget and candidate) gets a one-paragraph note; otherwise its fields are listed.
+    """
     parts: list[str] = []
     if instruction:
         parts.append(
@@ -202,7 +246,9 @@ def first_user_message(
         )
         if template is not None:
             parts.append(_region_fields(template, page, rect))
-    if template is not None and template.fields:
+    if template is not None and fresh:
+        parts.append(starting_note(template))
+    elif template is not None and template.fields:
         parts.append(_template_note(template))
     lines = [_schema_line(sp) for sp in schema_paths]
     parts.append(f"SCHEMA PATHS ({len(schema_paths)}):\n" + ("\n".join(lines) if lines else "(none)"))

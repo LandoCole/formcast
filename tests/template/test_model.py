@@ -1,6 +1,8 @@
 import json
 
 import pytest
+
+from formcast.pagemap.query import FormMapQuery
 from pydantic import ValidationError
 
 from formcast.pagemap.build import build_form_map
@@ -127,8 +129,9 @@ def test_new_template_on_fillable_form(fillable_form_pdf):
     assert t.form.page_sizes == [(612.0, 792.0)]
     assert t.form.kinds == ["fillable"]
     assert t.history == []
-    assert [f.id for f in t.fields] == ["f1", "f2"]
     assert [f.existing_widget for f in t.fields] == ["applicant_name", "agree"]
+    widget_ids = {w["name"]: w["id"] for w in FormMapQuery(fm).widgets()}
+    assert [f.id for f in t.fields] == [widget_ids["applicant_name"], widget_ids["agree"]]
     assert [f.type for f in t.fields] == ["text", "checkbox"]
     assert all(f.origin == "widget" and f.source is None and f.page == 0 for f in t.fields)
     assert t.fields[0].rect == pytest.approx((120, 86, 300, 100), abs=1.0)
@@ -161,11 +164,41 @@ def test_new_template_maps_widget_kinds_and_skips_buttons():
     )
     page2 = page.model_copy(update={"index": 1, "widgets": [w("late", "text", 5)]})
     t = new_template(SCHEMA, FormMap(pages=[page, page2], fingerprint="x"))
+    # ids are the widgets' form-map ids (w<page>_<index on the page>), in reading order
     assert [(f.id, f.existing_widget, f.type, f.page) for f in t.fields] == [
-        ("f1", "b", "checkbox", 0),
-        ("f2", "lst", "text", 0),
-        ("f3", "r1", "radio_option", 0),
-        ("f4", "pick", "text", 0),
-        ("f5", "sig", "signature", 0),
-        ("f6", "late", "text", 1),
+        ("w0_5", "b", "checkbox", 0),
+        ("w0_4", "lst", "text", 0),
+        ("w0_3", "r1", "radio_option", 0),
+        ("w0_2", "pick", "text", 0),
+        ("w0_0", "sig", "signature", 0),
+        ("w1_0", "late", "text", 1),
     ]
+
+
+def _cand_page():
+    from formcast.pagemap.model import Candidate, PageMap, TextLine
+
+    lines = [TextLine(id=0, text="Full name:", rect=(10, 20, 60, 30), word_ids=[], font_size=10)]
+    cands = [
+        Candidate(id="c0_0", kind="text", rect=(65, 18, 200, 32), conf=0.9, detector="d",
+                  label_line_id=0, label_relation="left"),
+        Candidate(id="c0_1", kind="choice", rect=(10, 50, 20, 60), conf=0.4, detector="d"),
+        Candidate(id="c0_2", kind="signature", rect=(10, 80, 200, 95), conf=0.7, detector="d"),
+    ]
+    return PageMap(index=0, width=300, height=200, rotation=0, kind="digital", text_source="pdf",
+                   words=[], lines=lines, rules=[], widgets=[], candidates=cands)
+
+
+def test_new_template_seeds_one_field_per_detector_candidate_when_asked():
+    from formcast.pagemap.model import FormMap
+
+    fm = FormMap(pages=[_cand_page()], fingerprint="x")
+    assert new_template(SCHEMA, fm).fields == []
+    t = new_template(SCHEMA, fm, candidates=True)
+    assert [(f.id, f.type, f.origin, f.confidence) for f in t.fields] == [
+        ("c0_0", "text", "detector", 0.9),
+        ("c0_1", "checkbox", "detector", 0.4),
+        ("c0_2", "signature", "detector", 0.7),
+    ]
+    assert t.fields[0].label == "Full name:" and t.fields[1].label == ""
+    assert t.fields[0].rect == (65, 18, 200, 32) and all(f.source is None for f in t.fields)

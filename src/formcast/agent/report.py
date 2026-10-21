@@ -52,10 +52,18 @@ def step_report(
     *,
     template: Template,
     form_map: FormMap,
+    budget: tuple[int, int] | None = None,
 ) -> str:
-    """Plain-text report of one step plus the template's current coverage."""
+    """Plain-text report of one step plus the template's current coverage.
+
+    ``budget`` is (steps used, step limit); when given, the report says how many
+    steps are left so the model can pace its work instead of stopping early.
+    """
     ex = record.exec
     out: list[str] = [f"STEP {record.n} REPORT"]
+    if budget is not None:
+        used, limit = budget
+        out[0] += f" (budget: step {used} of {limit}, {max(0, limit - used)} left)"
 
     stdout = ex.stdout if ex is not None else ""
     if len(stdout) > MAX_STDOUT:

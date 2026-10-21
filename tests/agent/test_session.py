@@ -121,7 +121,9 @@ def _tool_results(messages) -> list:
 
 
 def _run(responses, **kwargs):
+    """Loop-mechanics runs start from an empty template (no seeded candidate fields)."""
     provider = ScriptedProvider(responses)
+    kwargs.setdefault("seed_candidates", False)
     result = Session(_form_map(), SCHEMA, provider, **kwargs).run()
     return result, provider
 
@@ -392,9 +394,13 @@ def _flat_map(pdf):
 
 def test_build_template_with_fake_detector_form_map(flat_form_pdf):
     fm = _flat_map(flat_form_pdf)
-    provider = ScriptedProvider([code(ADD_NAME), finish()])
+    provider = ScriptedProvider([code('set_source("c0_0", source={"paths": ["name"]})'), finish()])
     result = build_template(SCHEMA, flat_form_pdf, provider, form_map=fm)
-    assert result.finished and len(result.template.fields) == 1
+    # the template starts with one field per candidate, named after it
+    assert result.finished and [f.id for f in result.template.fields] == ["c0_0", "c0_1"]
+    assert [f.origin for f in result.template.fields] == ["detector", "detector"]
+    assert result.template.fields[0].source.paths == ["name"]
+    assert "STARTING TEMPLATE: 2 unmapped field(s)" in provider.calls[0][1].content
     assert result.template.form.fingerprint == fm.fingerprint
     assert result.template.schema_ == SCHEMA
 
@@ -413,7 +419,9 @@ def test_build_template_builds_the_form_map_when_not_given(flat_form_pdf, monkey
 
 def test_revise_puts_instruction_and_region_in_first_message(flat_form_pdf):
     fm = _flat_map(flat_form_pdf)
-    first = build_template(SCHEMA, flat_form_pdf, ScriptedProvider([code(ADD_NAME), finish()]), form_map=fm)
+    first = build_template(
+        SCHEMA, flat_form_pdf, ScriptedProvider([code(ADD_NAME), finish()]), form_map=fm, seed_candidates=False
+    )
     base_len = len(first.template.history)
     provider = ScriptedProvider([code('move("f1", dy=2)'), finish("moved")])
     result = revise(
@@ -466,12 +474,14 @@ def test_printing_api_reaches_the_model_in_full():
     assert "truncated" not in report
 
 
-def test_fillable_form_widget_fields_are_listed_in_the_first_message(fillable_form_pdf):
+def test_fillable_form_widget_fields_are_named_after_the_widgets_in_the_first_message(fillable_form_pdf):
     fm = build_form_map(fillable_form_pdf, detectors={})
     provider = ScriptedProvider([finish()])
-    build_template(SCHEMA, fillable_form_pdf, provider, form_map=fm)
+    result = build_template(SCHEMA, fillable_form_pdf, provider, form_map=fm)
     msg = provider.calls[0][1].content
-    assert "CURRENT TEMPLATE: 2 field(s)" in msg and "f1 text" in msg and "widget='applicant_name'" in msg
+    assert "STARTING TEMPLATE: 2 unmapped field(s), 2 for the existing widgets" in msg
+    ids = [f.id for f in result.template.fields]
+    assert ids == ["w0_0", "w0_1"] and all(f"{i} " in msg for i in ids)  # the summary lists the same ids
 
 
 def _code_and_finish(src: str) -> LLMResponse:
@@ -524,7 +534,9 @@ def test_malformed_arguments_without_truncation_do_not_mention_the_token_limit()
 def test_revise_region_lists_overlapping_template_fields(flat_form_pdf):
     fm = _flat_map(flat_form_pdf)
     src = ADD_NAME + 'add_field(type="text", page=0, rect=[72, 204, 250, 212], label="When")\n'
-    first = build_template(SCHEMA, flat_form_pdf, ScriptedProvider([code(src), finish()]), form_map=fm)
+    first = build_template(
+        SCHEMA, flat_form_pdf, ScriptedProvider([code(src), finish()]), form_map=fm, seed_candidates=False
+    )
     provider = ScriptedProvider([finish()])
     revise(
         first.template,

@@ -149,6 +149,8 @@ class Session:
     provider) or a ready :class:`Provider` (the caller keeps ownership). With
     ``template`` the run starts from it; ``instruction`` and ``region`` (page,
     rect) go into the first message, as for a reviewer's revision request.
+    Without ``template`` the run starts from a fresh one: a field per widget
+    and, with ``seed_candidates`` (the default), one per detector candidate.
     """
 
     def __init__(
@@ -162,12 +164,16 @@ class Session:
         region: tuple[int, Rect] | None = None,
         budget: SessionBudget = SessionBudget(),
         sandbox_factory=Sandbox,
+        seed_candidates: bool = True,
     ):
         self.form_map = form_map
         self.schema = schema
         self.schema_paths = flatten_schema(schema)
         self.llm = llm
-        self.template = template if template is not None else new_template(schema, form_map)
+        fresh = template is None
+        # A fresh template starts with one field per widget and per detector candidate, so the
+        # agent confirms, maps, fixes or removes them rather than redrawing every box.
+        self.template = template if not fresh else new_template(schema, form_map, candidates=seed_candidates)
         self.instruction = instruction
         self.region = region
         self.budget = budget
@@ -184,7 +190,8 @@ class Session:
         self._first = Message(
             role="user",
             content=prompts.first_user_message(
-                summarize(form_map), self.schema_paths, instruction, region, template=self.template
+                summarize(form_map), self.schema_paths, instruction, region, template=self.template,
+                fresh=fresh,
             ),
         )
 
@@ -283,6 +290,7 @@ class Session:
                     coverage(self.template, self.form_map, self.schema_paths),
                     template=self.template,
                     form_map=self.form_map,
+                    budget=(n, self.budget.max_steps),
                 )
                 results.append(report)
         if finish_call is not None and record is not None and _had_problems(record):

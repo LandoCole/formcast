@@ -22,6 +22,7 @@ def build_template(
     start_from: Template | None = None,
     form_map: FormMap | None = None,
     budget: SessionBudget = SessionBudget(),
+    seed_candidates: bool = True,
 ) -> SessionResult:
     """Run an agent session that builds a template for ``pdf`` and ``schema``.
 
@@ -29,6 +30,8 @@ def build_template(
     With ``start_from`` the agent begins from that template's fields and history
     (for example to adapt it to a new revision of the form); the result embeds
     ``schema`` and this PDF's form info (fingerprint, page sizes, kinds).
+    Otherwise the template starts with one field per widget and, with
+    ``seed_candidates``, one per detector candidate (ids as in the form map).
     """
     fm = form_map if form_map is not None else build_form_map(pdf)
     start = None
@@ -36,7 +39,7 @@ def build_template(
         start = start_from.model_copy(deep=True)
         start.schema_ = schema
         start.form = new_template(schema, fm).form
-    return Session(fm, schema, llm, template=start, budget=budget).run()
+    return Session(fm, schema, llm, template=start, budget=budget, seed_candidates=seed_candidates).run()
 
 
 def revise(

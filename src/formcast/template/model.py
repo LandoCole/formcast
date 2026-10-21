@@ -115,27 +115,52 @@ _WIDGET_FIELD_TYPE = {
 }
 
 
-def new_template(schema: dict, form_map: FormMap) -> Template:
+_CANDIDATE_FIELD_TYPE = {"text": "text", "choice": "checkbox", "signature": "signature"}
+MAX_SEED_LABEL = 80
+
+
+def new_template(schema: dict, form_map: FormMap, *, candidates: bool = False) -> Template:
     """Empty template for ``form_map``, with one unmapped field per existing widget.
 
-    Widget fields get ids ``f1, f2, ...`` in page then reading order (top to
-    bottom, left to right); push buttons are skipped.
+    Widget fields take the widget's form-map id (``w<page>_<index>``, as in the
+    query helpers and the summary) and come in page then reading order (top to
+    bottom, left to right); push buttons are skipped. With ``candidates`` each
+    detector candidate also becomes an unmapped field with the candidate's id
+    (``c<page>_<n>``), its rect, a type from its kind (choice -> checkbox),
+    its linked label line as label, ``origin="detector"`` and its confidence.
     """
     fields: list[Field] = []
     for page in sorted(form_map.pages, key=lambda p: p.index):
-        for widget in sorted(page.widgets, key=lambda w: (w.rect[1], w.rect[0])):
+        widgets = sorted(enumerate(page.widgets), key=lambda iw: (iw[1].rect[1], iw[1].rect[0]))
+        for i, widget in widgets:
             field_type = _WIDGET_FIELD_TYPE.get(widget.kind)
             if field_type is None:
                 continue
             fields.append(
                 Field(
-                    id=f"f{len(fields) + 1}",
+                    id=f"w{page.index}_{i}",
                     type=field_type,
                     label=widget.tooltip or "",
                     page=page.index,
                     rect=widget.rect,
                     existing_widget=widget.name,
                     origin="widget",
+                )
+            )
+        if not candidates:
+            continue
+        lines = {ln.id: ln.text for ln in page.lines}
+        for c in page.candidates:
+            label = lines.get(c.label_line_id, "") if c.label_line_id is not None else ""
+            fields.append(
+                Field(
+                    id=c.id,
+                    type=_CANDIDATE_FIELD_TYPE[c.kind],
+                    label=" ".join(label.split())[:MAX_SEED_LABEL],
+                    page=page.index,
+                    rect=c.rect,
+                    confidence=c.conf,
+                    origin="detector",
                 )
             )
     return Template(
