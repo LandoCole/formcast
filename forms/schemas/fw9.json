@@ -1,0 +1,102 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://example.org/schemas/vendor-tax-profile.json",
+ "title": "Vendor tax profile",
+ "description": "Accounts-payable record of a vendor's taxpayer identification, collected for 1099 reporting.",
+ "type": "object",
+ "properties": {
+  "vendor_id": {
+   "type": "string",
+   "description": "Internal vendor number."
+  },
+  "legal_name": {
+   "type": "string",
+   "description": "Name of the entity or individual as shown on its tax return."
+  },
+  "business_name": {
+   "type": "string",
+   "description": "Business or disregarded-entity name, if different."
+  },
+  "tax_classification": {
+   "type": "string",
+   "enum": [
+    "individual_sole_proprietor",
+    "c_corporation",
+    "s_corporation",
+    "partnership",
+    "trust_estate",
+    "llc",
+    "other"
+   ],
+   "description": "Federal tax classification."
+  },
+  "llc_tax_classification": {
+   "type": "string",
+   "enum": [
+    "c_corporation",
+    "s_corporation",
+    "partnership"
+   ],
+   "description": "How an LLC is taxed; only when tax_classification is llc."
+  },
+  "other_classification": {
+   "type": "string",
+   "description": "Description when tax_classification is other."
+  },
+  "has_foreign_partners": {
+   "type": "boolean",
+   "description": "Flow-through entity with foreign partners, owners or beneficiaries."
+  },
+  "exempt_payee_code": {
+   "type": "string",
+   "description": "Backup-withholding exemption code, if any."
+  },
+  "address": {
+   "$ref": "#/$defs/address"
+  },
+  "ssn": {
+   "type": "string",
+   "pattern": "^\\d{3}-\\d{2}-\\d{4}$",
+   "description": "Individuals only. Formatted NNN-NN-NNNN."
+  },
+  "ein": {
+   "type": "string",
+   "pattern": "^\\d{2}-\\d{7}$",
+   "description": "Entities. Formatted NN-NNNNNNN."
+  },
+  "remit_email": {
+   "type": "string",
+   "format": "email",
+   "description": "Where remittance advice is sent."
+  },
+  "certified_on": {
+   "type": "string",
+   "format": "date",
+   "description": "Date the vendor signed the certification."
+  }
+ },
+ "required": [
+  "legal_name",
+  "tax_classification"
+ ],
+ "$defs": {
+  "address": {
+   "type": "object",
+   "properties": {
+    "street": {
+     "type": "string"
+    },
+    "city": {
+     "type": "string"
+    },
+    "state": {
+     "type": "string",
+     "description": "Two-letter state code."
+    },
+    "postal_code": {
+     "type": "string"
+    }
+   }
+  }
+ }
+}

@@ -1,0 +1,709 @@
+{
+ "form": "f8949",
+ "fields": [],
+ "widget_paths": {
+  "topmostSubform[0].Page1[0].f1_01[0]": {
+   "path": "taxpayer.first_name",
+   "transforms": [
+    "join"
+   ],
+   "also_paths": [
+    "taxpayer.last_name"
+   ]
+  },
+  "topmostSubform[0].Page1[0].f1_02[0]": {
+   "path": "taxpayer.tin"
+  },
+  "topmostSubform[0].Page1[0].c1_1[0]": {
+   "path": "short_term.reporting_category",
+   "transforms": [
+    "equals"
+   ],
+   "value": "1099b_basis_reported"
+  },
+  "topmostSubform[0].Page1[0].c1_1[1]": {
+   "path": "short_term.reporting_category",
+   "transforms": [
+    "equals"
+   ],
+   "value": "1099b_basis_not_reported"
+  },
+  "topmostSubform[0].Page1[0].c1_1[2]": {
+   "path": "short_term.reporting_category",
+   "transforms": [
+    "equals"
+   ],
+   "value": "not_on_1099b_or_1099da"
+  },
+  "topmostSubform[0].Page1[0].c1_1[3]": {
+   "path": "short_term.reporting_category",
+   "transforms": [
+    "equals"
+   ],
+   "value": "1099da_basis_reported"
+  },
+  "topmostSubform[0].Page1[0].c1_1[4]": {
+   "path": "short_term.reporting_category",
+   "transforms": [
+    "equals"
+   ],
+   "value": "1099da_basis_not_reported"
+  },
+  "topmostSubform[0].Page1[0].c1_1[5]": {
+   "path": "short_term.reporting_category",
+   "transforms": [
+    "equals"
+   ],
+   "value": "digital_asset_not_on_1099"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row1[0].f1_03[0]": {
+   "path": "short_term.transactions[].description"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row1[0].f1_04[0]": {
+   "path": "short_term.transactions[].date_acquired",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row1[0].f1_05[0]": {
+   "path": "short_term.transactions[].date_sold",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row1[0].f1_06[0]": {
+   "path": "short_term.transactions[].proceeds"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row1[0].f1_07[0]": {
+   "path": "short_term.transactions[].cost_basis"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row1[0].f1_08[0]": {
+   "path": "short_term.transactions[].adjustment_codes"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row1[0].f1_09[0]": {
+   "path": "short_term.transactions[].adjustment_amount"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row2[0].f1_11[0]": {
+   "path": "short_term.transactions[].description"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row2[0].f1_12[0]": {
+   "path": "short_term.transactions[].date_acquired",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row2[0].f1_13[0]": {
+   "path": "short_term.transactions[].date_sold",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row2[0].f1_14[0]": {
+   "path": "short_term.transactions[].proceeds"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row2[0].f1_15[0]": {
+   "path": "short_term.transactions[].cost_basis"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row2[0].f1_16[0]": {
+   "path": "short_term.transactions[].adjustment_codes"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row2[0].f1_17[0]": {
+   "path": "short_term.transactions[].adjustment_amount"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row3[0].f1_19[0]": {
+   "path": "short_term.transactions[].description"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row3[0].f1_20[0]": {
+   "path": "short_term.transactions[].date_acquired",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row3[0].f1_21[0]": {
+   "path": "short_term.transactions[].date_sold",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row3[0].f1_22[0]": {
+   "path": "short_term.transactions[].proceeds"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row3[0].f1_23[0]": {
+   "path": "short_term.transactions[].cost_basis"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row3[0].f1_24[0]": {
+   "path": "short_term.transactions[].adjustment_codes"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row3[0].f1_25[0]": {
+   "path": "short_term.transactions[].adjustment_amount"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row4[0].f1_27[0]": {
+   "path": "short_term.transactions[].description"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row4[0].f1_28[0]": {
+   "path": "short_term.transactions[].date_acquired",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row4[0].f1_29[0]": {
+   "path": "short_term.transactions[].date_sold",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row4[0].f1_30[0]": {
+   "path": "short_term.transactions[].proceeds"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row4[0].f1_31[0]": {
+   "path": "short_term.transactions[].cost_basis"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row4[0].f1_32[0]": {
+   "path": "short_term.transactions[].adjustment_codes"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row4[0].f1_33[0]": {
+   "path": "short_term.transactions[].adjustment_amount"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row5[0].f1_35[0]": {
+   "path": "short_term.transactions[].description"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row5[0].f1_36[0]": {
+   "path": "short_term.transactions[].date_acquired",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row5[0].f1_37[0]": {
+   "path": "short_term.transactions[].date_sold",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row5[0].f1_38[0]": {
+   "path": "short_term.transactions[].proceeds"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row5[0].f1_39[0]": {
+   "path": "short_term.transactions[].cost_basis"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row5[0].f1_40[0]": {
+   "path": "short_term.transactions[].adjustment_codes"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row5[0].f1_41[0]": {
+   "path": "short_term.transactions[].adjustment_amount"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row6[0].f1_43[0]": {
+   "path": "short_term.transactions[].description"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row6[0].f1_44[0]": {
+   "path": "short_term.transactions[].date_acquired",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row6[0].f1_45[0]": {
+   "path": "short_term.transactions[].date_sold",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row6[0].f1_46[0]": {
+   "path": "short_term.transactions[].proceeds"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row6[0].f1_47[0]": {
+   "path": "short_term.transactions[].cost_basis"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row6[0].f1_48[0]": {
+   "path": "short_term.transactions[].adjustment_codes"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row6[0].f1_49[0]": {
+   "path": "short_term.transactions[].adjustment_amount"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row7[0].f1_51[0]": {
+   "path": "short_term.transactions[].description"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row7[0].f1_52[0]": {
+   "path": "short_term.transactions[].date_acquired",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row7[0].f1_53[0]": {
+   "path": "short_term.transactions[].date_sold",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row7[0].f1_54[0]": {
+   "path": "short_term.transactions[].proceeds"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row7[0].f1_55[0]": {
+   "path": "short_term.transactions[].cost_basis"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row7[0].f1_56[0]": {
+   "path": "short_term.transactions[].adjustment_codes"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row7[0].f1_57[0]": {
+   "path": "short_term.transactions[].adjustment_amount"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row8[0].f1_59[0]": {
+   "path": "short_term.transactions[].description"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row8[0].f1_60[0]": {
+   "path": "short_term.transactions[].date_acquired",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row8[0].f1_61[0]": {
+   "path": "short_term.transactions[].date_sold",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row8[0].f1_62[0]": {
+   "path": "short_term.transactions[].proceeds"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row8[0].f1_63[0]": {
+   "path": "short_term.transactions[].cost_basis"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row8[0].f1_64[0]": {
+   "path": "short_term.transactions[].adjustment_codes"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row8[0].f1_65[0]": {
+   "path": "short_term.transactions[].adjustment_amount"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row9[0].f1_67[0]": {
+   "path": "short_term.transactions[].description"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row9[0].f1_68[0]": {
+   "path": "short_term.transactions[].date_acquired",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row9[0].f1_69[0]": {
+   "path": "short_term.transactions[].date_sold",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row9[0].f1_70[0]": {
+   "path": "short_term.transactions[].proceeds"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row9[0].f1_71[0]": {
+   "path": "short_term.transactions[].cost_basis"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row9[0].f1_72[0]": {
+   "path": "short_term.transactions[].adjustment_codes"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row9[0].f1_73[0]": {
+   "path": "short_term.transactions[].adjustment_amount"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row10[0].f1_75[0]": {
+   "path": "short_term.transactions[].description"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row10[0].f1_76[0]": {
+   "path": "short_term.transactions[].date_acquired",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row10[0].f1_77[0]": {
+   "path": "short_term.transactions[].date_sold",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row10[0].f1_78[0]": {
+   "path": "short_term.transactions[].proceeds"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row10[0].f1_79[0]": {
+   "path": "short_term.transactions[].cost_basis"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row10[0].f1_80[0]": {
+   "path": "short_term.transactions[].adjustment_codes"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row10[0].f1_81[0]": {
+   "path": "short_term.transactions[].adjustment_amount"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row11[0].f1_83[0]": {
+   "path": "short_term.transactions[].description"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row11[0].f1_84[0]": {
+   "path": "short_term.transactions[].date_acquired",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row11[0].f1_85[0]": {
+   "path": "short_term.transactions[].date_sold",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row11[0].f1_86[0]": {
+   "path": "short_term.transactions[].proceeds"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row11[0].f1_87[0]": {
+   "path": "short_term.transactions[].cost_basis"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row11[0].f1_88[0]": {
+   "path": "short_term.transactions[].adjustment_codes"
+  },
+  "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row11[0].f1_89[0]": {
+   "path": "short_term.transactions[].adjustment_amount"
+  },
+  "topmostSubform[0].Page2[0].f2_01[0]": {
+   "path": "taxpayer.first_name",
+   "transforms": [
+    "join"
+   ],
+   "also_paths": [
+    "taxpayer.last_name"
+   ]
+  },
+  "topmostSubform[0].Page2[0].f2_02[0]": {
+   "path": "taxpayer.tin"
+  },
+  "topmostSubform[0].Page2[0].c2_1[0]": {
+   "path": "long_term.reporting_category",
+   "transforms": [
+    "equals"
+   ],
+   "value": "1099b_basis_reported"
+  },
+  "topmostSubform[0].Page2[0].c2_1[1]": {
+   "path": "long_term.reporting_category",
+   "transforms": [
+    "equals"
+   ],
+   "value": "1099b_basis_not_reported"
+  },
+  "topmostSubform[0].Page2[0].c2_1[2]": {
+   "path": "long_term.reporting_category",
+   "transforms": [
+    "equals"
+   ],
+   "value": "not_on_1099b_or_1099da"
+  },
+  "topmostSubform[0].Page2[0].c2_1[3]": {
+   "path": "long_term.reporting_category",
+   "transforms": [
+    "equals"
+   ],
+   "value": "1099da_basis_reported"
+  },
+  "topmostSubform[0].Page2[0].c2_1[4]": {
+   "path": "long_term.reporting_category",
+   "transforms": [
+    "equals"
+   ],
+   "value": "1099da_basis_not_reported"
+  },
+  "topmostSubform[0].Page2[0].c2_1[5]": {
+   "path": "long_term.reporting_category",
+   "transforms": [
+    "equals"
+   ],
+   "value": "digital_asset_not_on_1099"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row1[0].f2_03[0]": {
+   "path": "long_term.transactions[].description"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row1[0].f2_04[0]": {
+   "path": "long_term.transactions[].date_acquired",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row1[0].f2_05[0]": {
+   "path": "long_term.transactions[].date_sold",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row1[0].f2_06[0]": {
+   "path": "long_term.transactions[].proceeds"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row1[0].f2_07[0]": {
+   "path": "long_term.transactions[].cost_basis"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row1[0].f2_08[0]": {
+   "path": "long_term.transactions[].adjustment_codes"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row1[0].f2_09[0]": {
+   "path": "long_term.transactions[].adjustment_amount"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row2[0].f2_11[0]": {
+   "path": "long_term.transactions[].description"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row2[0].f2_12[0]": {
+   "path": "long_term.transactions[].date_acquired",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row2[0].f2_13[0]": {
+   "path": "long_term.transactions[].date_sold",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row2[0].f2_14[0]": {
+   "path": "long_term.transactions[].proceeds"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row2[0].f2_15[0]": {
+   "path": "long_term.transactions[].cost_basis"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row2[0].f2_16[0]": {
+   "path": "long_term.transactions[].adjustment_codes"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row2[0].f2_17[0]": {
+   "path": "long_term.transactions[].adjustment_amount"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row3[0].f2_19[0]": {
+   "path": "long_term.transactions[].description"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row3[0].f2_20[0]": {
+   "path": "long_term.transactions[].date_acquired",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row3[0].f2_21[0]": {
+   "path": "long_term.transactions[].date_sold",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row3[0].f2_22[0]": {
+   "path": "long_term.transactions[].proceeds"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row3[0].f2_23[0]": {
+   "path": "long_term.transactions[].cost_basis"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row3[0].f2_24[0]": {
+   "path": "long_term.transactions[].adjustment_codes"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row3[0].f2_25[0]": {
+   "path": "long_term.transactions[].adjustment_amount"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row4[0].f2_27[0]": {
+   "path": "long_term.transactions[].description"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row4[0].f2_28[0]": {
+   "path": "long_term.transactions[].date_acquired",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row4[0].f2_29[0]": {
+   "path": "long_term.transactions[].date_sold",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row4[0].f2_30[0]": {
+   "path": "long_term.transactions[].proceeds"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row4[0].f2_31[0]": {
+   "path": "long_term.transactions[].cost_basis"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row4[0].f2_32[0]": {
+   "path": "long_term.transactions[].adjustment_codes"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row4[0].f2_33[0]": {
+   "path": "long_term.transactions[].adjustment_amount"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row5[0].f2_35[0]": {
+   "path": "long_term.transactions[].description"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row5[0].f2_36[0]": {
+   "path": "long_term.transactions[].date_acquired",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row5[0].f2_37[0]": {
+   "path": "long_term.transactions[].date_sold",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row5[0].f2_38[0]": {
+   "path": "long_term.transactions[].proceeds"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row5[0].f2_39[0]": {
+   "path": "long_term.transactions[].cost_basis"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row5[0].f2_40[0]": {
+   "path": "long_term.transactions[].adjustment_codes"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row5[0].f2_41[0]": {
+   "path": "long_term.transactions[].adjustment_amount"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row6[0].f2_43[0]": {
+   "path": "long_term.transactions[].description"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row6[0].f2_44[0]": {
+   "path": "long_term.transactions[].date_acquired",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row6[0].f2_45[0]": {
+   "path": "long_term.transactions[].date_sold",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row6[0].f2_46[0]": {
+   "path": "long_term.transactions[].proceeds"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row6[0].f2_47[0]": {
+   "path": "long_term.transactions[].cost_basis"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row6[0].f2_48[0]": {
+   "path": "long_term.transactions[].adjustment_codes"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row6[0].f2_49[0]": {
+   "path": "long_term.transactions[].adjustment_amount"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row7[0].f2_51[0]": {
+   "path": "long_term.transactions[].description"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row7[0].f2_52[0]": {
+   "path": "long_term.transactions[].date_acquired",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row7[0].f2_53[0]": {
+   "path": "long_term.transactions[].date_sold",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row7[0].f2_54[0]": {
+   "path": "long_term.transactions[].proceeds"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row7[0].f2_55[0]": {
+   "path": "long_term.transactions[].cost_basis"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row7[0].f2_56[0]": {
+   "path": "long_term.transactions[].adjustment_codes"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row7[0].f2_57[0]": {
+   "path": "long_term.transactions[].adjustment_amount"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row8[0].f2_59[0]": {
+   "path": "long_term.transactions[].description"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row8[0].f2_60[0]": {
+   "path": "long_term.transactions[].date_acquired",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row8[0].f2_61[0]": {
+   "path": "long_term.transactions[].date_sold",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row8[0].f2_62[0]": {
+   "path": "long_term.transactions[].proceeds"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row8[0].f2_63[0]": {
+   "path": "long_term.transactions[].cost_basis"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row8[0].f2_64[0]": {
+   "path": "long_term.transactions[].adjustment_codes"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row8[0].f2_65[0]": {
+   "path": "long_term.transactions[].adjustment_amount"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row9[0].f2_67[0]": {
+   "path": "long_term.transactions[].description"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row9[0].f2_68[0]": {
+   "path": "long_term.transactions[].date_acquired",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row9[0].f2_69[0]": {
+   "path": "long_term.transactions[].date_sold",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row9[0].f2_70[0]": {
+   "path": "long_term.transactions[].proceeds"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row9[0].f2_71[0]": {
+   "path": "long_term.transactions[].cost_basis"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row9[0].f2_72[0]": {
+   "path": "long_term.transactions[].adjustment_codes"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row9[0].f2_73[0]": {
+   "path": "long_term.transactions[].adjustment_amount"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row10[0].f2_75[0]": {
+   "path": "long_term.transactions[].description"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row10[0].f2_76[0]": {
+   "path": "long_term.transactions[].date_acquired",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row10[0].f2_77[0]": {
+   "path": "long_term.transactions[].date_sold",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row10[0].f2_78[0]": {
+   "path": "long_term.transactions[].proceeds"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row10[0].f2_79[0]": {
+   "path": "long_term.transactions[].cost_basis"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row10[0].f2_80[0]": {
+   "path": "long_term.transactions[].adjustment_codes"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row10[0].f2_81[0]": {
+   "path": "long_term.transactions[].adjustment_amount"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row11[0].f2_83[0]": {
+   "path": "long_term.transactions[].description"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row11[0].f2_84[0]": {
+   "path": "long_term.transactions[].date_acquired",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row11[0].f2_85[0]": {
+   "path": "long_term.transactions[].date_sold",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row11[0].f2_86[0]": {
+   "path": "long_term.transactions[].proceeds"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row11[0].f2_87[0]": {
+   "path": "long_term.transactions[].cost_basis"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row11[0].f2_88[0]": {
+   "path": "long_term.transactions[].adjustment_codes"
+  },
+  "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row11[0].f2_89[0]": {
+   "path": "long_term.transactions[].adjustment_amount"
+  }
+ },
+ "notes": "Boxes are the PDF widgets on both pages. Page 0 (Part I) maps to short_term, page 1 (Part II) to long_term. Each page's six checkboxes (A,B,C,G,H,I / D,E,F,J,K,L) map to the part's reporting_category enum with equals, in form order. The 11 transaction rows map cell by cell to <part>.transactions[].<column> for columns (a)-(g); date columns need date_format, money columns take the number as-is. Pathless by design: column (h) gain or loss and the line 2 totals (computed, not stored). The page-2 name/TIN boxes carry the same paths as page 1."
+}

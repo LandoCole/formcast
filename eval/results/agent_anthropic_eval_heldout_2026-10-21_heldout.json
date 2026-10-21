@@ -1,0 +1,1513 @@
+{
+ "meta": {
+  "model_env": "ANTHROPIC_EVAL",
+  "model": "claude-haiku-5-5",
+  "api_format": "chat_completions",
+  "base_url": "https://api.anthropic.com/v1",
+  "split": "heldout",
+  "variant": "both",
+  "forms": [
+   "ds11",
+   "ics211",
+   "pacific_app",
+   "uwosh_health",
+   "dagsboro_permit"
+  ],
+  "stamp": "2026-10-21",
+  "tag": "heldout",
+  "run": "2026-10-21_heldout",
+  "commit": "25e4809-dirty",
+  "budget": {
+   "max_steps": 40,
+   "max_input_tokens": 1500000,
+   "max_output_tokens": 200000,
+   "wall_clock_s": 900
+  },
+  "baseline_file": "baseline_detection_2026-10-21_heldout.json",
+  "jobs": 3,
+  "argv": [
+   "--split",
+   "heldout",
+   "--model-env",
+   "ANTHROPIC_EVAL",
+   "--variant",
+   "both",
+   "--tag",
+   "heldout",
+   "--stamp",
+   "2026-10-21"
+  ],
+  "notes": [
+   "Detection is scored on the manifest's scored pages that have at least one GT field (the baseline's pages); tables count one box per cell.",
+   "Multi-line answer areas are representation-neutral: a plain template text field with style.multiline or at least 1.8x the page's median GT text-box height also covers every unmatched GT text box at least 70% inside it (recall), counts once for precision, and gets path credit through the GT line box that carries the path. It only does so when at least two such GT boxes are stacked in one column inside it (horizontal overlap of 50% or more); a single loose box is scored by the normal IoU threshold.",
+   "Fillable forms as published: the template starts with one field per PDF widget (the real use case is mapping existing fields), and GT is the widgets, so agent-added boxes on blanks without a widget count as false positives.",
+   "fake_scan: an image-only PDF of the baseline's seeded fake-scan renders (widgets stripped), so the agent faces the scanned-page path (deskew, FFDetr, OCR); on fillable forms it is a detection + mapping test.",
+   "Baseline: bare-detector numbers from the baseline run on the same images: FFDNet-L (default for digital pages) for as_published digital/fillable forms, FFDetr (default for scanned pages) for fake_scan and scanned forms. On fillable as_published forms the baseline detects on the widget-stripped page.",
+   "Mapping is over GT fields with a schema path. Transform credit uses equivalence groups {slice, split, char_at}, {date_part, date_format}, {equals, contains}, and a when equals true also credits bool_to_check; a template's join and when count as ops. joint = path and transforms right; exact = the matched field's source paths equal GT path + also_paths.",
+   "Totals are micro-averaged over forms (sums of counts). Sessions that ended in an error (infrastructure or harness) are listed in the per-form table but excluded from the totals' detection and mapping figures; their templates are partial or untouched seeds.",
+   "The agent's form map carries the neutral source name 'form.pdf', not the file name.",
+   "fill (fill_acc): the template is filled (formcast fill, real form fields) into the variant's PDF with K distinctive probe records (eval/probe.py), and every GT box with a path is checked for what its widget shows: a text or table-cell box once per record (the exact value; by provenance when GT has transforms), a choice box once across all records (right state in every record). fill_acc = correct units / units. It catches data landing in the wrong box, e.g. a table built as one segment per column, which path/joint score as right. A choice box whose expected state is the same in every probe record can't tell an always-on (or never-on) box from a right one; the json counts them as fill.static_choice."
+  ],
+  "finished_at": "2026-10-21T10:24:55+00:00",
+  "rescored": "2026-10-21 at commit 33e4f50-dirty: the saved templates were scored again with the stacked-lines rule for multi-line fields and the fill-correctness metric (fill); model output is unchanged."
+ },
+ "rows": [
+  {
+   "form": "ds11",
+   "split": "heldout",
+   "kind": "fillable",
+   "variant": "as_published",
+   "model_env": "ANTHROPIC_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 98,
+     "pred": 98,
+     "matched": 98,
+     "pred_matched": 98,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_ok": 98,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 98,
+     "pred": 98,
+     "matched": 98,
+     "pred_matched": 98,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_ok": 98,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 0
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDNet-L",
+    "pages": [
+     4,
+     5
+    ],
+    "iou0.3": {
+     "gt": 98,
+     "pred": 161,
+     "matched": 83,
+     "pred_matched": 83,
+     "type_ok": 81,
+     "recall": 0.8469,
+     "precision": 0.5155,
+     "type_acc": 0.9759
+    },
+    "iou0.5": {
+     "gt": 98,
+     "pred": 161,
+     "matched": 80,
+     "pred_matched": 80,
+     "type_ok": 78,
+     "recall": 0.8163,
+     "precision": 0.4969,
+     "type_acc": 0.975
+    }
+   },
+   "mapping": {
+    "n_path": 88,
+    "n_transform": 40,
+    "matched": 80,
+    "path_ok": 79,
+    "transform_ok": 37,
+    "joint_ok": 79,
+    "exact_ok": 79,
+    "matched_rate": 0.9091,
+    "path_acc": 0.8977,
+    "transform_acc": 0.925,
+    "joint_acc": 0.8977,
+    "exact_path_set_acc": 0.8977
+   },
+   "formmap_s": 22.7,
+   "page_kinds": [
+    "digital",
+    "digital",
+    "digital",
+    "digital",
+    "fillable",
+    "fillable"
+   ],
+   "text_sources": [
+    "pdf",
+    "pdf",
+    "pdf",
+    "pdf",
+    "pdf",
+    "pdf"
+   ],
+   "candidates": 1,
+   "model": "claude-haiku-5-5",
+   "steps": 9,
+   "input_tokens": 197095,
+   "output_tokens": 29936,
+   "wall_s": 136.2,
+   "stop_reason": "error",
+   "finished": false,
+   "error": "FormcastError: LLM request to https://api.anthropic.com/v1/chat/completions failed with HTTP 400: {\"error\":{\"code\":\"invalid_request_error\",\"message\":\"You have reached your specified API usage limits. You will regain access on 2026-11-01 at 00:00 UTC.\",\"type\":\"invalid_request_error\",\"param\":null}}",
+   "unplaceable": 0,
+   "fields": 98,
+   "fields_with_source": 81,
+   "schema_mapped": 59,
+   "schema_mappable": 73,
+   "template_path": "eval/results/templates/2026-10-21_heldout/anthropic_eval/ds11_as_published.json",
+   "scored_pages": [
+    4,
+    5
+   ],
+   "log_path": "eval/results/logs/2026-10-21_heldout/anthropic_eval/ds11_as_published.json",
+   "fill": {
+    "units": 271,
+    "correct": 223,
+    "fill_acc": 0.8229,
+    "text": {
+     "units": 212,
+     "correct": 196
+    },
+    "choice": {
+     "units": 27,
+     "correct": 27
+    },
+    "cell": {
+     "units": 32,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
+  },
+  {
+   "form": "ds11",
+   "split": "heldout",
+   "kind": "fillable",
+   "variant": "fake_scan",
+   "model_env": "ANTHROPIC_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 98,
+     "pred": 120,
+     "matched": 72,
+     "pred_matched": 72,
+     "recall": 0.7347,
+     "precision": 0.6,
+     "type_ok": 72,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 9,
+      "choice": 17,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 98,
+     "pred": 120,
+     "matched": 57,
+     "pred_matched": 57,
+     "recall": 0.5816,
+     "precision": 0.475,
+     "type_ok": 57,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 11,
+      "choice": 30,
+      "signature": 0
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDetr",
+    "pages": [
+     4,
+     5
+    ],
+    "iou0.3": {
+     "gt": 98,
+     "pred": 104,
+     "matched": 77,
+     "pred_matched": 77,
+     "type_ok": 77,
+     "recall": 0.7857,
+     "precision": 0.7404,
+     "type_acc": 1.0
+    },
+    "iou0.5": {
+     "gt": 98,
+     "pred": 104,
+     "matched": 63,
+     "pred_matched": 63,
+     "type_ok": 63,
+     "recall": 0.6429,
+     "precision": 0.6058,
+     "type_acc": 1.0
+    }
+   },
+   "mapping": {
+    "n_path": 88,
+    "n_transform": 40,
+    "matched": 62,
+    "path_ok": 31,
+    "transform_ok": 11,
+    "joint_ok": 31,
+    "exact_ok": 31,
+    "matched_rate": 0.7045,
+    "path_acc": 0.3523,
+    "transform_acc": 0.275,
+    "joint_acc": 0.3523,
+    "exact_path_set_acc": 0.3523
+   },
+   "formmap_s": 54.3,
+   "page_kinds": [
+    "scanned",
+    "scanned",
+    "scanned",
+    "scanned",
+    "scanned",
+    "scanned"
+   ],
+   "text_sources": [
+    "ocr",
+    "ocr",
+    "ocr",
+    "ocr",
+    "ocr",
+    "ocr"
+   ],
+   "candidates": 124,
+   "model": "claude-haiku-5-5",
+   "steps": 12,
+   "input_tokens": 263292,
+   "output_tokens": 26117,
+   "wall_s": 132.9,
+   "stop_reason": "error",
+   "finished": false,
+   "error": "FormcastError: LLM request to https://api.anthropic.com/v1/chat/completions failed with HTTP 400: {\"error\":{\"code\":\"invalid_request_error\",\"message\":\"You have reached your specified API usage limits. You will regain access on 2026-11-01 at 00:00 UTC.\",\"type\":\"invalid_request_error\",\"param\":null}}",
+   "unplaceable": 0,
+   "fields": 120,
+   "fields_with_source": 36,
+   "schema_mapped": 37,
+   "schema_mappable": 73,
+   "template_path": "eval/results/templates/2026-10-21_heldout/anthropic_eval/ds11_fake_scan.json",
+   "scored_pages": [
+    4,
+    5
+   ],
+   "log_path": "eval/results/logs/2026-10-21_heldout/anthropic_eval/ds11_fake_scan.json",
+   "fill": {
+    "units": 271,
+    "correct": 104,
+    "fill_acc": 0.3838,
+    "text": {
+     "units": 212,
+     "correct": 100
+    },
+    "choice": {
+     "units": 27,
+     "correct": 4
+    },
+    "cell": {
+     "units": 32,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
+  },
+  {
+   "form": "ics211",
+   "split": "heldout",
+   "kind": "fillable",
+   "variant": "as_published",
+   "model_env": "ANTHROPIC_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 157,
+     "pred": 157,
+     "matched": 157,
+     "pred_matched": 157,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_ok": 157,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 157,
+     "pred": 157,
+     "matched": 157,
+     "pred_matched": 157,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_ok": 157,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 0
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDNet-L",
+    "pages": [
+     0
+    ],
+    "iou0.3": {
+     "gt": 157,
+     "pred": 154,
+     "matched": 148,
+     "pred_matched": 148,
+     "type_ok": 147,
+     "recall": 0.9427,
+     "precision": 0.961,
+     "type_acc": 0.9932
+    },
+    "iou0.5": {
+     "gt": 157,
+     "pred": 154,
+     "matched": 148,
+     "pred_matched": 148,
+     "type_ok": 147,
+     "recall": 0.9427,
+     "precision": 0.961,
+     "type_acc": 0.9932
+    }
+   },
+   "mapping": {
+    "n_path": 148,
+    "n_transform": 15,
+    "matched": 148,
+    "path_ok": 148,
+    "transform_ok": 6,
+    "joint_ok": 139,
+    "exact_ok": 148,
+    "matched_rate": 1.0,
+    "path_acc": 1.0,
+    "transform_acc": 0.4,
+    "joint_acc": 0.9392,
+    "exact_path_set_acc": 1.0
+   },
+   "formmap_s": 19.2,
+   "page_kinds": [
+    "fillable",
+    "digital",
+    "digital",
+    "digital"
+   ],
+   "text_sources": [
+    "pdf",
+    "pdf",
+    "pdf",
+    "pdf"
+   ],
+   "candidates": 0,
+   "model": "claude-haiku-5-5",
+   "steps": 6,
+   "input_tokens": 132380,
+   "output_tokens": 7624,
+   "wall_s": 39.5,
+   "stop_reason": "finish",
+   "finished": true,
+   "error": null,
+   "unplaceable": 1,
+   "fields": 22,
+   "fields_with_source": 13,
+   "schema_mapped": 26,
+   "schema_mappable": 27,
+   "template_path": "eval/results/templates/2026-10-21_heldout/anthropic_eval/ics211_as_published.json",
+   "scored_pages": [
+    0
+   ],
+   "log_path": "eval/results/logs/2026-10-21_heldout/anthropic_eval/ics211_as_published.json",
+   "fill": {
+    "units": 720,
+    "correct": 720,
+    "fill_acc": 1.0,
+    "text": {
+     "units": 35,
+     "correct": 35
+    },
+    "choice": {
+     "units": 5,
+     "correct": 5
+    },
+    "cell": {
+     "units": 680,
+     "correct": 680
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": true,
+    "fill_errors": []
+   }
+  },
+  {
+   "form": "ics211",
+   "split": "heldout",
+   "kind": "fillable",
+   "variant": "fake_scan",
+   "model_env": "ANTHROPIC_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 157,
+     "pred": 137,
+     "matched": 131,
+     "pred_matched": 131,
+     "recall": 0.8344,
+     "precision": 0.9562,
+     "type_ok": 131,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 20,
+      "choice": 5,
+      "signature": 1
+     }
+    },
+    "iou0.5": {
+     "gt": 157,
+     "pred": 137,
+     "matched": 124,
+     "pred_matched": 124,
+     "recall": 0.7898,
+     "precision": 0.9051,
+     "type_ok": 124,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 27,
+      "choice": 5,
+      "signature": 1
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDetr",
+    "pages": [
+     0
+    ],
+    "iou0.3": {
+     "gt": 157,
+     "pred": 157,
+     "matched": 144,
+     "pred_matched": 144,
+     "type_ok": 144,
+     "recall": 0.9172,
+     "precision": 0.9172,
+     "type_acc": 1.0
+    },
+    "iou0.5": {
+     "gt": 157,
+     "pred": 157,
+     "matched": 143,
+     "pred_matched": 143,
+     "type_ok": 143,
+     "recall": 0.9108,
+     "precision": 0.9108,
+     "type_acc": 1.0
+    }
+   },
+   "mapping": {
+    "n_path": 148,
+    "n_transform": 15,
+    "matched": 2,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 0.0135,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "formmap_s": 24.2,
+   "page_kinds": [
+    "scanned",
+    "scanned",
+    "scanned",
+    "scanned"
+   ],
+   "text_sources": [
+    "ocr",
+    "ocr",
+    "ocr",
+    "ocr"
+   ],
+   "candidates": 150,
+   "model": "claude-haiku-5-5",
+   "steps": 11,
+   "input_tokens": 213746,
+   "output_tokens": 19004,
+   "wall_s": 93.5,
+   "stop_reason": "error",
+   "finished": false,
+   "error": "FormcastError: LLM request to https://api.anthropic.com/v1/chat/completions failed with HTTP 400: {\"error\":{\"code\":\"invalid_request_error\",\"message\":\"You have reached your specified API usage limits. You will regain access on 2026-11-01 at 00:00 UTC.\",\"type\":\"invalid_request_error\",\"param\":null}}",
+   "unplaceable": 0,
+   "fields": 150,
+   "fields_with_source": 0,
+   "schema_mapped": 0,
+   "schema_mappable": 27,
+   "template_path": "eval/results/templates/2026-10-21_heldout/anthropic_eval/ics211_fake_scan.json",
+   "scored_pages": [
+    0
+   ],
+   "log_path": "eval/results/logs/2026-10-21_heldout/anthropic_eval/ics211_fake_scan.json",
+   "fill": {
+    "units": 720,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 35,
+     "correct": 0
+    },
+    "choice": {
+     "units": 5,
+     "correct": 0
+    },
+    "cell": {
+     "units": 680,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": false,
+    "fill_errors": []
+   }
+  },
+  {
+   "form": "pacific_app",
+   "split": "heldout",
+   "kind": "flat",
+   "variant": "as_published",
+   "model_env": "ANTHROPIC_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 83,
+     "pred": 68,
+     "matched": 63,
+     "pred_matched": 63,
+     "recall": 0.759,
+     "precision": 0.9265,
+     "type_ok": 62,
+     "type_acc": 0.9841,
+     "missed_by_type": {
+      "text": 18,
+      "choice": 2,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 83,
+     "pred": 68,
+     "matched": 28,
+     "pred_matched": 28,
+     "recall": 0.3373,
+     "precision": 0.4118,
+     "type_ok": 28,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 52,
+      "choice": 2,
+      "signature": 1
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDNet-L",
+    "pages": [
+     0,
+     1,
+     2,
+     3
+    ],
+    "iou0.3": {
+     "gt": 83,
+     "pred": 68,
+     "matched": 63,
+     "pred_matched": 63,
+     "type_ok": 62,
+     "recall": 0.759,
+     "precision": 0.9265,
+     "type_acc": 0.9841
+    },
+    "iou0.5": {
+     "gt": 83,
+     "pred": 68,
+     "matched": 28,
+     "pred_matched": 28,
+     "type_ok": 28,
+     "recall": 0.3373,
+     "precision": 0.4118,
+     "type_acc": 1.0
+    }
+   },
+   "mapping": {
+    "n_path": 74,
+    "n_transform": 24,
+    "matched": 24,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 0.3243,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "formmap_s": 8.7,
+   "page_kinds": [
+    "digital",
+    "digital",
+    "digital",
+    "digital"
+   ],
+   "text_sources": [
+    "pdf",
+    "pdf",
+    "pdf",
+    "pdf"
+   ],
+   "candidates": 68,
+   "model": "claude-haiku-5-5",
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 0.5,
+   "stop_reason": "error",
+   "finished": false,
+   "error": "FormcastError: LLM request to https://api.anthropic.com/v1/chat/completions failed with HTTP 400: {\"error\":{\"code\":\"invalid_request_error\",\"message\":\"You have reached your specified API usage limits. You will regain access on 2026-11-01 at 00:00 UTC.\",\"type\":\"invalid_request_error\",\"param\":null}}",
+   "unplaceable": 0,
+   "fields": 68,
+   "fields_with_source": 0,
+   "schema_mapped": 0,
+   "schema_mappable": 55,
+   "template_path": "eval/results/templates/2026-10-21_heldout/anthropic_eval/pacific_app_as_published.json",
+   "scored_pages": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "log_path": "eval/results/logs/2026-10-21_heldout/anthropic_eval/pacific_app_as_published.json",
+   "fill": {
+    "units": 260,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 76,
+     "correct": 0
+    },
+    "choice": {
+     "units": 12,
+     "correct": 0
+    },
+    "cell": {
+     "units": 172,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": false,
+    "fill_errors": []
+   }
+  },
+  {
+   "form": "pacific_app",
+   "split": "heldout",
+   "kind": "flat",
+   "variant": "fake_scan",
+   "model_env": "ANTHROPIC_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 83,
+     "pred": 74,
+     "matched": 70,
+     "pred_matched": 70,
+     "recall": 0.8434,
+     "precision": 0.9459,
+     "type_ok": 69,
+     "type_acc": 0.9857,
+     "missed_by_type": {
+      "text": 10,
+      "choice": 3,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 83,
+     "pred": 74,
+     "matched": 50,
+     "pred_matched": 50,
+     "recall": 0.6024,
+     "precision": 0.6757,
+     "type_ok": 49,
+     "type_acc": 0.98,
+     "missed_by_type": {
+      "text": 26,
+      "choice": 7,
+      "signature": 0
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDetr",
+    "pages": [
+     0,
+     1,
+     2,
+     3
+    ],
+    "iou0.3": {
+     "gt": 83,
+     "pred": 71,
+     "matched": 68,
+     "pred_matched": 68,
+     "type_ok": 68,
+     "recall": 0.8193,
+     "precision": 0.9577,
+     "type_acc": 1.0
+    },
+    "iou0.5": {
+     "gt": 83,
+     "pred": 71,
+     "matched": 44,
+     "pred_matched": 44,
+     "type_ok": 44,
+     "recall": 0.5301,
+     "precision": 0.6197,
+     "type_acc": 1.0
+    }
+   },
+   "mapping": {
+    "n_path": 74,
+    "n_transform": 24,
+    "matched": 25,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 0.3378,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "formmap_s": 17.1,
+   "page_kinds": [
+    "scanned",
+    "scanned",
+    "scanned",
+    "scanned"
+   ],
+   "text_sources": [
+    "ocr",
+    "ocr",
+    "ocr",
+    "ocr"
+   ],
+   "candidates": 74,
+   "model": "claude-haiku-5-5",
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 0.6,
+   "stop_reason": "error",
+   "finished": false,
+   "error": "FormcastError: LLM request to https://api.anthropic.com/v1/chat/completions failed with HTTP 400: {\"error\":{\"code\":\"invalid_request_error\",\"message\":\"You have reached your specified API usage limits. You will regain access on 2026-11-01 at 00:00 UTC.\",\"type\":\"invalid_request_error\",\"param\":null}}",
+   "unplaceable": 0,
+   "fields": 74,
+   "fields_with_source": 0,
+   "schema_mapped": 0,
+   "schema_mappable": 55,
+   "template_path": "eval/results/templates/2026-10-21_heldout/anthropic_eval/pacific_app_fake_scan.json",
+   "scored_pages": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "log_path": "eval/results/logs/2026-10-21_heldout/anthropic_eval/pacific_app_fake_scan.json",
+   "fill": {
+    "units": 260,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 76,
+     "correct": 0
+    },
+    "choice": {
+     "units": 12,
+     "correct": 0
+    },
+    "cell": {
+     "units": 172,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": false,
+    "fill_errors": []
+   }
+  },
+  {
+   "form": "uwosh_health",
+   "split": "heldout",
+   "kind": "flat",
+   "variant": "as_published",
+   "model_env": "ANTHROPIC_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 318,
+     "pred": 255,
+     "matched": 238,
+     "pred_matched": 237,
+     "recall": 0.7484,
+     "precision": 0.9294,
+     "type_ok": 66,
+     "type_acc": 0.2773,
+     "missed_by_type": {
+      "text": 17,
+      "choice": 63,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 318,
+     "pred": 255,
+     "matched": 238,
+     "pred_matched": 237,
+     "recall": 0.7484,
+     "precision": 0.9294,
+     "type_ok": 66,
+     "type_acc": 0.2773,
+     "missed_by_type": {
+      "text": 17,
+      "choice": 63,
+      "signature": 0
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDNet-L",
+    "pages": [
+     0,
+     1
+    ],
+    "iou0.3": {
+     "gt": 318,
+     "pred": 255,
+     "matched": 237,
+     "pred_matched": 237,
+     "type_ok": 65,
+     "recall": 0.7453,
+     "precision": 0.9294,
+     "type_acc": 0.2743
+    },
+    "iou0.5": {
+     "gt": 318,
+     "pred": 255,
+     "matched": 236,
+     "pred_matched": 236,
+     "type_ok": 64,
+     "recall": 0.7421,
+     "precision": 0.9255,
+     "type_acc": 0.2712
+    }
+   },
+   "mapping": {
+    "n_path": 286,
+    "n_transform": 234,
+    "matched": 203,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 0.7098,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "formmap_s": 4.5,
+   "page_kinds": [
+    "digital",
+    "digital"
+   ],
+   "text_sources": [
+    "pdf",
+    "pdf"
+   ],
+   "candidates": 255,
+   "model": "claude-haiku-5-5",
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 0.7,
+   "stop_reason": "error",
+   "finished": false,
+   "error": "FormcastError: LLM request to https://api.anthropic.com/v1/chat/completions failed with HTTP 400: {\"error\":{\"code\":\"invalid_request_error\",\"message\":\"You have reached your specified API usage limits. You will regain access on 2026-11-01 at 00:00 UTC.\",\"type\":\"invalid_request_error\",\"param\":null}}",
+   "unplaceable": 0,
+   "fields": 255,
+   "fields_with_source": 0,
+   "schema_mapped": 0,
+   "schema_mappable": 90,
+   "template_path": "eval/results/templates/2026-10-21_heldout/anthropic_eval/uwosh_health_as_published.json",
+   "scored_pages": [
+    0,
+    1
+   ],
+   "log_path": "eval/results/logs/2026-10-21_heldout/anthropic_eval/uwosh_health_as_published.json",
+   "fill": {
+    "units": 3944,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 2583,
+     "correct": 0
+    },
+    "choice": {
+     "units": 227,
+     "correct": 0
+    },
+    "cell": {
+     "units": 1134,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": false,
+    "fill_errors": []
+   }
+  },
+  {
+   "form": "uwosh_health",
+   "split": "heldout",
+   "kind": "flat",
+   "variant": "fake_scan",
+   "model_env": "ANTHROPIC_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 318,
+     "pred": 156,
+     "matched": 135,
+     "pred_matched": 135,
+     "recall": 0.4245,
+     "precision": 0.8654,
+     "type_ok": 87,
+     "type_acc": 0.6444,
+     "missed_by_type": {
+      "text": 36,
+      "choice": 147,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 318,
+     "pred": 156,
+     "matched": 87,
+     "pred_matched": 87,
+     "recall": 0.2736,
+     "precision": 0.5577,
+     "type_ok": 56,
+     "type_acc": 0.6437,
+     "missed_by_type": {
+      "text": 42,
+      "choice": 189,
+      "signature": 0
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDetr",
+    "pages": [
+     0,
+     1
+    ],
+    "iou0.3": {
+     "gt": 318,
+     "pred": 127,
+     "matched": 104,
+     "pred_matched": 104,
+     "type_ok": 61,
+     "recall": 0.327,
+     "precision": 0.8189,
+     "type_acc": 0.5865
+    },
+    "iou0.5": {
+     "gt": 318,
+     "pred": 127,
+     "matched": 61,
+     "pred_matched": 61,
+     "type_ok": 32,
+     "recall": 0.1918,
+     "precision": 0.4803,
+     "type_acc": 0.5246
+    }
+   },
+   "mapping": {
+    "n_path": 286,
+    "n_transform": 234,
+    "matched": 111,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 0.3881,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "formmap_s": 10.6,
+   "page_kinds": [
+    "scanned",
+    "scanned"
+   ],
+   "text_sources": [
+    "ocr",
+    "ocr"
+   ],
+   "candidates": 156,
+   "model": "claude-haiku-5-5",
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 0.8,
+   "stop_reason": "error",
+   "finished": false,
+   "error": "FormcastError: LLM request to https://api.anthropic.com/v1/chat/completions failed with HTTP 400: {\"error\":{\"code\":\"invalid_request_error\",\"message\":\"You have reached your specified API usage limits. You will regain access on 2026-11-01 at 00:00 UTC.\",\"type\":\"invalid_request_error\",\"param\":null}}",
+   "unplaceable": 0,
+   "fields": 156,
+   "fields_with_source": 0,
+   "schema_mapped": 0,
+   "schema_mappable": 90,
+   "template_path": "eval/results/templates/2026-10-21_heldout/anthropic_eval/uwosh_health_fake_scan.json",
+   "scored_pages": [
+    0,
+    1
+   ],
+   "log_path": "eval/results/logs/2026-10-21_heldout/anthropic_eval/uwosh_health_fake_scan.json",
+   "fill": {
+    "units": 3944,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 2583,
+     "correct": 0
+    },
+    "choice": {
+     "units": 227,
+     "correct": 0
+    },
+    "cell": {
+     "units": 1134,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": false,
+    "fill_errors": []
+   }
+  },
+  {
+   "form": "dagsboro_permit",
+   "split": "heldout",
+   "kind": "scanned",
+   "variant": "as_published",
+   "model_env": "ANTHROPIC_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 101,
+     "pred": 59,
+     "matched": 45,
+     "pred_matched": 45,
+     "recall": 0.4455,
+     "precision": 0.7627,
+     "type_ok": 44,
+     "type_acc": 0.9778,
+     "missed_by_type": {
+      "text": 15,
+      "choice": 41,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 101,
+     "pred": 59,
+     "matched": 41,
+     "pred_matched": 41,
+     "recall": 0.4059,
+     "precision": 0.6949,
+     "type_ok": 41,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 18,
+      "choice": 41,
+      "signature": 1
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDetr",
+    "pages": [
+     0,
+     1,
+     2
+    ],
+    "iou0.3": {
+     "gt": 101,
+     "pred": 50,
+     "matched": 31,
+     "pred_matched": 31,
+     "type_ok": 30,
+     "recall": 0.3069,
+     "precision": 0.62,
+     "type_acc": 0.9677
+    },
+    "iou0.5": {
+     "gt": 101,
+     "pred": 50,
+     "matched": 27,
+     "pred_matched": 27,
+     "type_ok": 27,
+     "recall": 0.2673,
+     "precision": 0.54,
+     "type_acc": 1.0
+    }
+   },
+   "mapping": {
+    "n_path": 74,
+    "n_transform": 49,
+    "matched": 25,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 0.3378,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "formmap_s": 7.5,
+   "page_kinds": [
+    "scanned",
+    "scanned",
+    "scanned"
+   ],
+   "text_sources": [
+    "ocr",
+    "ocr",
+    "ocr"
+   ],
+   "candidates": 59,
+   "model": "claude-haiku-5-5",
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 0.7,
+   "stop_reason": "error",
+   "finished": false,
+   "error": "FormcastError: LLM request to https://api.anthropic.com/v1/chat/completions failed with HTTP 400: {\"error\":{\"code\":\"invalid_request_error\",\"message\":\"You have reached your specified API usage limits. You will regain access on 2026-11-01 at 00:00 UTC.\",\"type\":\"invalid_request_error\",\"param\":null}}",
+   "unplaceable": 0,
+   "fields": 59,
+   "fields_with_source": 0,
+   "schema_mapped": 0,
+   "schema_mappable": 56,
+   "template_path": "eval/results/templates/2026-10-21_heldout/anthropic_eval/dagsboro_permit_as_published.json",
+   "scored_pages": [
+    0,
+    1,
+    2
+   ],
+   "log_path": "eval/results/logs/2026-10-21_heldout/anthropic_eval/dagsboro_permit_as_published.json",
+   "fill": {
+    "units": 458,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 416,
+     "correct": 0
+    },
+    "choice": {
+     "units": 42,
+     "correct": 0
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
+  }
+ ],
+ "totals": {
+  "all": {
+   "forms": 1,
+   "failed": 8,
+   "errored": [
+    "ds11/as_published",
+    "ds11/fake_scan",
+    "ics211/fake_scan",
+    "pacific_app/as_published",
+    "pacific_app/fake_scan",
+    "uwosh_health/as_published",
+    "uwosh_health/fake_scan",
+    "dagsboro_permit/as_published"
+   ],
+   "finished": 1,
+   "detection": {
+    "iou0.3": {
+     "gt": 157,
+     "pred": 157,
+     "matched": 157,
+     "pred_matched": 157,
+     "type_ok": 157,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_acc": 1.0
+    },
+    "iou0.5": {
+     "gt": 157,
+     "pred": 157,
+     "matched": 157,
+     "pred_matched": 157,
+     "type_ok": 157,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_acc": 1.0
+    }
+   },
+   "baseline": {
+    "forms": 1,
+    "iou0.3": {
+     "gt": 157,
+     "pred": 154,
+     "matched": 148,
+     "pred_matched": 148,
+     "type_ok": 147,
+     "recall": 0.9427,
+     "precision": 0.961,
+     "type_acc": 0.9932
+    },
+    "iou0.5": {
+     "gt": 157,
+     "pred": 154,
+     "matched": 148,
+     "pred_matched": 148,
+     "type_ok": 147,
+     "recall": 0.9427,
+     "precision": 0.961,
+     "type_acc": 0.9932
+    }
+   },
+   "mapping": {
+    "n_path": 148,
+    "n_transform": 15,
+    "matched": 148,
+    "path_ok": 148,
+    "transform_ok": 6,
+    "joint_ok": 139,
+    "exact_ok": 148,
+    "path_acc": 1.0,
+    "transform_acc": 0.4,
+    "joint_acc": 0.9392,
+    "exact_path_set_acc": 1.0
+   },
+   "fill": {
+    "forms": 1,
+    "units": 720,
+    "correct": 720,
+    "fill_acc": 1.0,
+    "text": {
+     "units": 35,
+     "correct": 35,
+     "acc": 1.0
+    },
+    "choice": {
+     "units": 5,
+     "correct": 5,
+     "acc": 1.0
+    },
+    "cell": {
+     "units": 680,
+     "correct": 680,
+     "acc": 1.0
+    },
+    "rows_dropped": {
+     "checked": 1,
+     "ok": 1
+    },
+    "static_choice": 0
+   },
+   "steps": 38,
+   "input_tokens": 806513,
+   "output_tokens": 82681,
+   "wall_s": 405.4
+  },
+  "as_published": {
+   "forms": 1,
+   "failed": 4,
+   "errored": [
+    "ds11/as_published",
+    "pacific_app/as_published",
+    "uwosh_health/as_published",
+    "dagsboro_permit/as_published"
+   ],
+   "finished": 1,
+   "detection": {
+    "iou0.3": {
+     "gt": 157,
+     "pred": 157,
+     "matched": 157,
+     "pred_matched": 157,
+     "type_ok": 157,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_acc": 1.0
+    },
+    "iou0.5": {
+     "gt": 157,
+     "pred": 157,
+     "matched": 157,
+     "pred_matched": 157,
+     "type_ok": 157,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_acc": 1.0
+    }
+   },
+   "baseline": {
+    "forms": 1,
+    "iou0.3": {
+     "gt": 157,
+     "pred": 154,
+     "matched": 148,
+     "pred_matched": 148,
+     "type_ok": 147,
+     "recall": 0.9427,
+     "precision": 0.961,
+     "type_acc": 0.9932
+    },
+    "iou0.5": {
+     "gt": 157,
+     "pred": 154,
+     "matched": 148,
+     "pred_matched": 148,
+     "type_ok": 147,
+     "recall": 0.9427,
+     "precision": 0.961,
+     "type_acc": 0.9932
+    }
+   },
+   "mapping": {
+    "n_path": 148,
+    "n_transform": 15,
+    "matched": 148,
+    "path_ok": 148,
+    "transform_ok": 6,
+    "joint_ok": 139,
+    "exact_ok": 148,
+    "path_acc": 1.0,
+    "transform_acc": 0.4,
+    "joint_acc": 0.9392,
+    "exact_path_set_acc": 1.0
+   },
+   "fill": {
+    "forms": 1,
+    "units": 720,
+    "correct": 720,
+    "fill_acc": 1.0,
+    "text": {
+     "units": 35,
+     "correct": 35,
+     "acc": 1.0
+    },
+    "choice": {
+     "units": 5,
+     "correct": 5,
+     "acc": 1.0
+    },
+    "cell": {
+     "units": 680,
+     "correct": 680,
+     "acc": 1.0
+    },
+    "rows_dropped": {
+     "checked": 1,
+     "ok": 1
+    },
+    "static_choice": 0
+   },
+   "steps": 15,
+   "input_tokens": 329475,
+   "output_tokens": 37560,
+   "wall_s": 177.6
+  },
+  "fake_scan": {
+   "forms": 0,
+   "failed": 4,
+   "errored": [
+    "ds11/fake_scan",
+    "ics211/fake_scan",
+    "pacific_app/fake_scan",
+    "uwosh_health/fake_scan"
+   ],
+   "finished": 0,
+   "detection": {
+    "iou0.3": {
+     "gt": 0,
+     "pred": 0,
+     "matched": 0,
+     "pred_matched": 0,
+     "type_ok": 0,
+     "recall": 0.0,
+     "precision": 0.0,
+     "type_acc": 0.0
+    },
+    "iou0.5": {
+     "gt": 0,
+     "pred": 0,
+     "matched": 0,
+     "pred_matched": 0,
+     "type_ok": 0,
+     "recall": 0.0,
+     "precision": 0.0,
+     "type_acc": 0.0
+    }
+   },
+   "baseline": null,
+   "mapping": {
+    "n_path": 0,
+    "n_transform": 0,
+    "matched": 0,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "fill": null,
+   "steps": 23,
+   "input_tokens": 477038,
+   "output_tokens": 45121,
+   "wall_s": 227.8
+  }
+ }
+}

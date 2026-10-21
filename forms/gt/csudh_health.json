@@ -1,0 +1,2635 @@
+{
+ "form": "csudh_health",
+ "fields": [
+  {
+   "page": 0,
+   "rect": [
+    421.4,
+    36.4,
+    590.0,
+    45.3
+   ],
+   "type": "text",
+   "label": "NAME",
+   "path": "student.first_name",
+   "also_paths": [
+    "student.last_name"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    421.4,
+    45.82,
+    590.0,
+    54.73
+   ],
+   "type": "text",
+   "label": "I.D. #",
+   "path": "student.student_id"
+  },
+  {
+   "page": 0,
+   "rect": [
+    421.4,
+    55.25,
+    590.0,
+    64.15
+   ],
+   "type": "text",
+   "label": "D.O.B.",
+   "path": "student.date_of_birth",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    18.8,
+    167.77,
+    26.0,
+    174.97
+   ],
+   "type": "choice",
+   "label": "PERSONAL HISTORY: Insomnia",
+   "path": "personal_history",
+   "transforms": [
+    "contains"
+   ],
+   "value": "insomnia"
+  },
+  {
+   "page": 0,
+   "rect": [
+    18.8,
+    178.75,
+    26.0,
+    185.95
+   ],
+   "type": "choice",
+   "label": "PERSONAL HISTORY: Sinus trouble",
+   "path": "personal_history",
+   "transforms": [
+    "contains"
+   ],
+   "value": "sinus_trouble"
+  },
+  {
+   "page": 0,
+   "rect": [
+    18.8,
+    189.73,
+    26.0,
+    196.93
+   ],
+   "type": "choice",
+   "label": "PERSONAL HISTORY: Dizziness",
+   "path": "personal_history",
+   "transforms": [
+    "contains"
+   ],
+   "value": "dizziness"
+  },
+  {
+   "page": 0,
+   "rect": [
+    18.8,
+    200.71,
+    26.0,
+    207.91
+   ],
+   "type": "choice",
+   "label": "PERSONAL HISTORY: Eye, ear, nose, throat trouble",
+   "path": "personal_history",
+   "transforms": [
+    "contains"
+   ],
+   "value": "ent_trouble"
+  },
+  {
+   "page": 0,
+   "rect": [
+    18.8,
+    211.69,
+    26.0,
+    218.89
+   ],
+   "type": "choice",
+   "label": "PERSONAL HISTORY: Severe headaches",
+   "path": "personal_history",
+   "transforms": [
+    "contains"
+   ],
+   "value": "severe_headaches"
+  },
+  {
+   "page": 0,
+   "rect": [
+    18.8,
+    222.67,
+    26.0,
+    229.87
+   ],
+   "type": "choice",
+   "label": "PERSONAL HISTORY: Stroke",
+   "path": "personal_history",
+   "transforms": [
+    "contains"
+   ],
+   "value": "stroke"
+  },
+  {
+   "page": 0,
+   "rect": [
+    18.8,
+    233.65,
+    26.0,
+    240.85
+   ],
+   "type": "choice",
+   "label": "PERSONAL HISTORY: Seizure disorder",
+   "path": "personal_history",
+   "transforms": [
+    "contains"
+   ],
+   "value": "seizure_disorder"
+  },
+  {
+   "page": 0,
+   "rect": [
+    18.8,
+    244.63,
+    26.0,
+    251.83
+   ],
+   "type": "choice",
+   "label": "PERSONAL HISTORY: Thyroid disease",
+   "path": "personal_history",
+   "transforms": [
+    "contains"
+   ],
+   "value": "thyroid_disease"
+  },
+  {
+   "page": 0,
+   "rect": [
+    18.8,
+    255.61,
+    26.0,
+    262.81
+   ],
+   "type": "choice",
+   "label": "PERSONAL HISTORY: Neck Problems",
+   "path": "personal_history",
+   "transforms": [
+    "contains"
+   ],
+   "value": "neck_problems"
+  },
+  {
+   "page": 0,
+   "rect": [
+    162.8,
+    167.77,
+    170.0,
+    174.97
+   ],
+   "type": "choice",
+   "label": "PERSONAL HISTORY: Blood clots in veins or lungs",
+   "path": "personal_history",
+   "transforms": [
+    "contains"
+   ],
+   "value": "blood_clots"
+  },
+  {
+   "page": 0,
+   "rect": [
+    162.8,
+    178.75,
+    170.0,
+    185.95
+   ],
+   "type": "choice",
+   "label": "PERSONAL HISTORY: Chronic cough",
+   "path": "personal_history",
+   "transforms": [
+    "contains"
+   ],
+   "value": "chronic_cough"
+  },
+  {
+   "page": 0,
+   "rect": [
+    162.8,
+    189.73,
+    170.0,
+    196.93
+   ],
+   "type": "choice",
+   "label": "PERSONAL HISTORY: Back problems",
+   "path": "personal_history",
+   "transforms": [
+    "contains"
+   ],
+   "value": "back_problems"
+  },
+  {
+   "page": 0,
+   "rect": [
+    162.8,
+    200.71,
+    170.0,
+    207.91
+   ],
+   "type": "choice",
+   "label": "PERSONAL HISTORY: Breast lump or tumor",
+   "path": "personal_history",
+   "transforms": [
+    "contains"
+   ],
+   "value": "breast_lump"
+  },
+  {
+   "page": 0,
+   "rect": [
+    162.8,
+    211.69,
+    170.0,
+    218.89
+   ],
+   "type": "choice",
+   "label": "PERSONAL HISTORY: Nipple discharge",
+   "path": "personal_history",
+   "transforms": [
+    "contains"
+   ],
+   "value": "nipple_discharge"
+  },
+  {
+   "page": 0,
+   "rect": [
+    162.8,
+    222.67,
+    170.0,
+    229.87
+   ],
+   "type": "choice",
+   "label": "PERSONAL HISTORY: Heart disease or chest pain",
+   "path": "personal_history",
+   "transforms": [
+    "contains"
+   ],
+   "value": "heart_disease"
+  },
+  {
+   "page": 0,
+   "rect": [
+    162.8,
+    233.65,
+    170.0,
+    240.85
+   ],
+   "type": "choice",
+   "label": "PERSONAL HISTORY: High blood pressure",
+   "path": "personal_history",
+   "transforms": [
+    "contains"
+   ],
+   "value": "high_blood_pressure"
+  },
+  {
+   "page": 0,
+   "rect": [
+    162.8,
+    244.63,
+    170.0,
+    251.83
+   ],
+   "type": "choice",
+   "label": "PERSONAL HISTORY: Bronchitis/Influenza",
+   "path": "personal_history",
+   "transforms": [
+    "contains"
+   ],
+   "value": "bronchitis_influenza"
+  },
+  {
+   "page": 0,
+   "rect": [
+    306.8,
+    167.77,
+    314.0,
+    174.97
+   ],
+   "type": "choice",
+   "label": "PERSONAL HISTORY: Sickle cell disease",
+   "path": "personal_history",
+   "transforms": [
+    "contains"
+   ],
+   "value": "sickle_cell_disease"
+  },
+  {
+   "page": 0,
+   "rect": [
+    306.8,
+    178.75,
+    314.0,
+    185.95
+   ],
+   "type": "choice",
+   "label": "PERSONAL HISTORY: Anemia",
+   "path": "personal_history",
+   "transforms": [
+    "contains"
+   ],
+   "value": "anemia"
+  },
+  {
+   "page": 0,
+   "rect": [
+    306.8,
+    189.73,
+    314.0,
+    196.93
+   ],
+   "type": "choice",
+   "label": "PERSONAL HISTORY: Liver disease",
+   "path": "personal_history",
+   "transforms": [
+    "contains"
+   ],
+   "value": "liver_disease"
+  },
+  {
+   "page": 0,
+   "rect": [
+    306.8,
+    200.71,
+    314.0,
+    207.91
+   ],
+   "type": "choice",
+   "label": "PERSONAL HISTORY: Gall bladder disease",
+   "path": "personal_history",
+   "transforms": [
+    "contains"
+   ],
+   "value": "gall_bladder_disease"
+  },
+  {
+   "page": 0,
+   "rect": [
+    306.8,
+    211.69,
+    314.0,
+    218.89
+   ],
+   "type": "choice",
+   "label": "PERSONAL HISTORY: Diabetes",
+   "path": "personal_history",
+   "transforms": [
+    "contains"
+   ],
+   "value": "diabetes"
+  },
+  {
+   "page": 0,
+   "rect": [
+    306.8,
+    233.65,
+    314.0,
+    240.85
+   ],
+   "type": "choice",
+   "label": "PERSONAL HISTORY: Weight gain or loss",
+   "path": "personal_history",
+   "transforms": [
+    "contains"
+   ],
+   "value": "weight_change"
+  },
+  {
+   "page": 0,
+   "rect": [
+    306.8,
+    244.63,
+    314.0,
+    251.83
+   ],
+   "type": "choice",
+   "label": "PERSONAL HISTORY: Cancer",
+   "path": "personal_history",
+   "transforms": [
+    "contains"
+   ],
+   "value": "cancer"
+  },
+  {
+   "page": 0,
+   "rect": [
+    414.8,
+    167.77,
+    422.0,
+    174.97
+   ],
+   "type": "choice",
+   "label": "PERSONAL HISTORY: Bladder or kidney infections",
+   "path": "personal_history",
+   "transforms": [
+    "contains"
+   ],
+   "value": "bladder_kidney_infections"
+  },
+  {
+   "page": 0,
+   "rect": [
+    414.8,
+    178.75,
+    422.0,
+    185.95
+   ],
+   "type": "choice",
+   "label": "PERSONAL HISTORY: Infection in tubes/uterus (PID)",
+   "path": "personal_history",
+   "transforms": [
+    "contains"
+   ],
+   "value": "pid"
+  },
+  {
+   "page": 0,
+   "rect": [
+    414.8,
+    189.73,
+    422.0,
+    196.93
+   ],
+   "type": "choice",
+   "label": "PERSONAL HISTORY: Tubal (ectopic) pregnancy",
+   "path": "personal_history",
+   "transforms": [
+    "contains"
+   ],
+   "value": "ectopic_pregnancy"
+  },
+  {
+   "page": 0,
+   "rect": [
+    414.8,
+    200.71,
+    422.0,
+    207.91
+   ],
+   "type": "choice",
+   "label": "PERSONAL HISTORY: Vaginal infections",
+   "path": "personal_history",
+   "transforms": [
+    "contains"
+   ],
+   "value": "vaginal_infections"
+  },
+  {
+   "page": 0,
+   "rect": [
+    414.8,
+    211.69,
+    422.0,
+    218.89
+   ],
+   "type": "choice",
+   "label": "PERSONAL HISTORY: Recurrent diarrhea",
+   "path": "personal_history",
+   "transforms": [
+    "contains"
+   ],
+   "value": "recurrent_diarrhea"
+  },
+  {
+   "page": 0,
+   "rect": [
+    414.8,
+    233.65,
+    422.0,
+    240.85
+   ],
+   "type": "choice",
+   "label": "PERSONAL HISTORY: Rectal bleeding/irritation",
+   "path": "personal_history",
+   "transforms": [
+    "contains"
+   ],
+   "value": "rectal_bleeding"
+  },
+  {
+   "page": 0,
+   "rect": [
+    414.8,
+    244.63,
+    422.0,
+    251.83
+   ],
+   "type": "choice",
+   "label": "PERSONAL HISTORY: Other:",
+   "path": "personal_history",
+   "transforms": [
+    "contains"
+   ],
+   "value": "other"
+  },
+  {
+   "page": 0,
+   "rect": [
+    270.8,
+    222.67,
+    278.0,
+    229.87
+   ],
+   "type": "choice",
+   "label": "PERSONAL HISTORY: Hepatitis or jaundice",
+   "path": "personal_history",
+   "transforms": [
+    "contains"
+   ],
+   "value": "hepatitis"
+  },
+  {
+   "page": 0,
+   "rect": [
+    378.8,
+    222.67,
+    386.0,
+    229.87
+   ],
+   "type": "choice",
+   "label": "PERSONAL HISTORY: Ovarian tumors or cysts",
+   "path": "personal_history",
+   "transforms": [
+    "contains"
+   ],
+   "value": "ovarian_tumors"
+  },
+  {
+   "page": 0,
+   "rect": [
+    340.61,
+    242.52,
+    384.99,
+    253.62
+   ],
+   "type": "text",
+   "label": "Cancer ____ Type"
+  },
+  {
+   "page": 0,
+   "rect": [
+    445.05,
+    242.52,
+    507.16,
+    253.62
+   ],
+   "type": "text",
+   "label": "PERSONAL HISTORY: Other: (specify)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    107.19,
+    273.22,
+    289.23,
+    287.22
+   ],
+   "type": "text",
+   "label": "Please list: Allergies",
+   "path": "allergies",
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    367.35,
+    273.22,
+    549.39,
+    287.22
+   ],
+   "type": "text",
+   "label": "Please list: Current Medications:",
+   "path": "medications",
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    18.0,
+    329.76,
+    93.5,
+    339.05
+   ],
+   "type": "text",
+   "label": "FAMILY HISTORY Relationship: Cancer",
+   "path": "family_history.cancer",
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    18.0,
+    338.94,
+    93.5,
+    348.23
+   ],
+   "type": "text",
+   "label": "FAMILY HISTORY Relationship: Tuberculosis",
+   "path": "family_history.tuberculosis",
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    18.0,
+    348.12,
+    93.5,
+    357.42
+   ],
+   "type": "text",
+   "label": "FAMILY HISTORY Relationship: Heart Attacks",
+   "path": "family_history.heart_attack",
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    18.0,
+    357.3,
+    93.5,
+    366.59
+   ],
+   "type": "text",
+   "label": "FAMILY HISTORY Relationship: Heart Disease",
+   "path": "family_history.heart_disease",
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    18.0,
+    366.48,
+    93.5,
+    375.78
+   ],
+   "type": "text",
+   "label": "FAMILY HISTORY Relationship: Stroke",
+   "path": "family_history.stroke",
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    18.0,
+    375.66,
+    93.5,
+    384.96
+   ],
+   "type": "text",
+   "label": "FAMILY HISTORY Relationship: Hypertension",
+   "path": "family_history.hypertension",
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    198.0,
+    329.76,
+    264.6,
+    339.05
+   ],
+   "type": "text",
+   "label": "FAMILY HISTORY Relationship: Sickle cell anemia",
+   "path": "family_history.sickle_cell_anemia",
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    198.0,
+    338.94,
+    264.6,
+    348.23
+   ],
+   "type": "text",
+   "label": "FAMILY HISTORY Relationship: Blood disorders",
+   "path": "family_history.blood_disorders",
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    198.0,
+    348.13,
+    264.6,
+    357.42
+   ],
+   "type": "text",
+   "label": "FAMILY HISTORY Relationship: Drug allergies",
+   "path": "family_history.drug_allergies",
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    198.0,
+    357.3,
+    264.6,
+    366.59
+   ],
+   "type": "text",
+   "label": "FAMILY HISTORY Relationship: Epilepsy",
+   "path": "family_history.epilepsy",
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    198.0,
+    366.48,
+    264.6,
+    375.78
+   ],
+   "type": "text",
+   "label": "FAMILY HISTORY Relationship: Diabetes",
+   "path": "family_history.diabetes",
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    198.0,
+    375.66,
+    264.6,
+    384.96
+   ],
+   "type": "text",
+   "label": "FAMILY HISTORY Relationship: Glaucoma",
+   "path": "family_history.glaucoma",
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    378.0,
+    329.76,
+    431.33,
+    339.05
+   ],
+   "type": "text",
+   "label": "FAMILY HISTORY Relationship: Pregnancy complications"
+  },
+  {
+   "page": 0,
+   "rect": [
+    377.94,
+    343.42,
+    435.67,
+    357.42
+   ],
+   "type": "text",
+   "label": "FAMILY HISTORY Relationship: Other"
+  },
+  {
+   "page": 0,
+   "rect": [
+    18.8,
+    427.45,
+    26.0,
+    434.65
+   ],
+   "type": "choice",
+   "label": "EMOTIONAL HEALTH: Self-esteem issues YES",
+   "path": "emotional_health.self_esteem_issues",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  {
+   "page": 0,
+   "rect": [
+    54.8,
+    427.45,
+    62.0,
+    434.65
+   ],
+   "type": "choice",
+   "label": "EMOTIONAL HEALTH: Self-esteem issues NO",
+   "path": "emotional_health.self_esteem_issues",
+   "transforms": [
+    "equals"
+   ],
+   "value": false
+  },
+  {
+   "page": 0,
+   "rect": [
+    18.8,
+    438.43,
+    26.0,
+    445.63
+   ],
+   "type": "choice",
+   "label": "EMOTIONAL HEALTH: Anxiety/Excessive Nervousness/Stress YES",
+   "path": "emotional_health.anxiety",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  {
+   "page": 0,
+   "rect": [
+    54.8,
+    438.43,
+    62.0,
+    445.63
+   ],
+   "type": "choice",
+   "label": "EMOTIONAL HEALTH: Anxiety/Excessive Nervousness/Stress NO",
+   "path": "emotional_health.anxiety",
+   "transforms": [
+    "equals"
+   ],
+   "value": false
+  },
+  {
+   "page": 0,
+   "rect": [
+    18.8,
+    449.41,
+    26.0,
+    456.61
+   ],
+   "type": "choice",
+   "label": "EMOTIONAL HEALTH: Other: YES"
+  },
+  {
+   "page": 0,
+   "rect": [
+    54.8,
+    449.41,
+    62.0,
+    456.61
+   ],
+   "type": "choice",
+   "label": "EMOTIONAL HEALTH: Other: NO"
+  },
+  {
+   "page": 0,
+   "rect": [
+    18.8,
+    460.39,
+    26.0,
+    467.59
+   ],
+   "type": "choice",
+   "label": "EMOTIONAL HEALTH: Interested in psychological counseling? YES",
+   "path": "emotional_health.interested_in_counseling",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  {
+   "page": 0,
+   "rect": [
+    54.8,
+    460.39,
+    62.0,
+    467.59
+   ],
+   "type": "choice",
+   "label": "EMOTIONAL HEALTH: Interested in psychological counseling? NO",
+   "path": "emotional_health.interested_in_counseling",
+   "transforms": [
+    "equals"
+   ],
+   "value": false
+  },
+  {
+   "page": 0,
+   "rect": [
+    112.19,
+    447.3,
+    178.78,
+    458.4
+   ],
+   "type": "text",
+   "label": "EMOTIONAL HEALTH: Other:"
+  },
+  {
+   "page": 0,
+   "rect": [
+    313.87,
+    422.44,
+    473.8,
+    436.44
+   ],
+   "type": "text",
+   "label": "SUBSTANCE USE: Alcohol (Amount, Frequency)",
+   "path": "substance_use.alcohol.amount",
+   "also_paths": [
+    "substance_use.alcohol.frequency"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    318.8,
+    436.32,
+    474.26,
+    447.42
+   ],
+   "type": "text",
+   "label": "SUBSTANCE USE: Smoking (Amount, Frequency)",
+   "path": "substance_use.smoking.amount",
+   "also_paths": [
+    "substance_use.smoking.frequency"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    340.64,
+    447.3,
+    473.81,
+    458.4
+   ],
+   "type": "text",
+   "label": "SUBSTANCE USE: Inject. Steroids (Amount, Frequency)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    363.54,
+    458.28,
+    474.52,
+    469.38
+   ],
+   "type": "text",
+   "label": "SUBSTANCE USE: Other Drugs(specify): (Amount, Frequency)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    358.39,
+    469.26,
+    463.41,
+    480.92
+   ],
+   "type": "text",
+   "label": "SUBSTANCE USE: Other Drugs(specify): (line 2)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    18.8,
+    522.49,
+    26.0,
+    529.69
+   ],
+   "type": "choice",
+   "label": "HEALTH PROMOTION: Do you exercise 3 or more times a week for 20 or more minutes? YES",
+   "path": "health_promotion.exercises_regularly",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  {
+   "page": 0,
+   "rect": [
+    54.8,
+    522.49,
+    62.0,
+    529.69
+   ],
+   "type": "choice",
+   "label": "HEALTH PROMOTION: Do you exercise 3 or more times a week for 20 or more minutes? NO",
+   "path": "health_promotion.exercises_regularly",
+   "transforms": [
+    "equals"
+   ],
+   "value": false
+  },
+  {
+   "page": 0,
+   "rect": [
+    18.8,
+    542.65,
+    26.0,
+    549.85
+   ],
+   "type": "choice",
+   "label": "HEALTH PROMOTION: Have you had your cholesterol checked? YES",
+   "path": "health_promotion.cholesterol_checked",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  {
+   "page": 0,
+   "rect": [
+    54.8,
+    542.65,
+    62.0,
+    549.85
+   ],
+   "type": "choice",
+   "label": "HEALTH PROMOTION: Have you had your cholesterol checked? NO",
+   "path": "health_promotion.cholesterol_checked",
+   "transforms": [
+    "equals"
+   ],
+   "value": false
+  },
+  {
+   "page": 0,
+   "rect": [
+    18.8,
+    553.63,
+    26.0,
+    560.83
+   ],
+   "type": "choice",
+   "label": "HEALTH PROMOTION: Do you have any questions regarding nutrition? YES",
+   "path": "health_promotion.nutrition_questions",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  {
+   "page": 0,
+   "rect": [
+    54.8,
+    553.63,
+    62.0,
+    560.83
+   ],
+   "type": "choice",
+   "label": "HEALTH PROMOTION: Do you have any questions regarding nutrition? NO",
+   "path": "health_promotion.nutrition_questions",
+   "transforms": [
+    "equals"
+   ],
+   "value": false
+  },
+  {
+   "page": 0,
+   "rect": [
+    18.8,
+    564.61,
+    26.0,
+    571.81
+   ],
+   "type": "choice",
+   "label": "HEALTH PROMOTION: Do you have any concerns about your genitalia? YES",
+   "path": "health_promotion.genital_concerns",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  {
+   "page": 0,
+   "rect": [
+    54.8,
+    564.61,
+    62.0,
+    571.81
+   ],
+   "type": "choice",
+   "label": "HEALTH PROMOTION: Do you have any concerns about your genitalia? NO",
+   "path": "health_promotion.genital_concerns",
+   "transforms": [
+    "equals"
+   ],
+   "value": false
+  },
+  {
+   "page": 0,
+   "rect": [
+    18.8,
+    584.77,
+    26.0,
+    591.97
+   ],
+   "type": "choice",
+   "label": "HEALTH PROMOTION: Do you do monthly breast exams? YES",
+   "path": "health_promotion.monthly_breast_exams",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  {
+   "page": 0,
+   "rect": [
+    54.8,
+    584.77,
+    62.0,
+    591.97
+   ],
+   "type": "choice",
+   "label": "HEALTH PROMOTION: Do you do monthly breast exams? NO",
+   "path": "health_promotion.monthly_breast_exams",
+   "transforms": [
+    "equals"
+   ],
+   "value": false
+  },
+  {
+   "page": 0,
+   "rect": [
+    18.8,
+    595.75,
+    26.0,
+    602.95
+   ],
+   "type": "choice",
+   "label": "HEALTH PROMOTION: (Females) Have you ever had a mammogram? YES",
+   "path": "health_promotion.had_mammogram",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  {
+   "page": 0,
+   "rect": [
+    54.8,
+    595.75,
+    62.0,
+    602.95
+   ],
+   "type": "choice",
+   "label": "HEALTH PROMOTION: (Females) Have you ever had a mammogram? NO",
+   "path": "health_promotion.had_mammogram",
+   "transforms": [
+    "equals"
+   ],
+   "value": false
+  },
+  {
+   "page": 0,
+   "rect": [
+    18.8,
+    606.73,
+    26.0,
+    613.93
+   ],
+   "type": "choice",
+   "label": "HEALTH PROMOTION: (Males) Do you do monthly testicular exams? YES",
+   "path": "health_promotion.monthly_testicular_exams",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  {
+   "page": 0,
+   "rect": [
+    54.8,
+    606.73,
+    62.0,
+    613.93
+   ],
+   "type": "choice",
+   "label": "HEALTH PROMOTION: (Males) Do you do monthly testicular exams? NO",
+   "path": "health_promotion.monthly_testicular_exams",
+   "transforms": [
+    "equals"
+   ],
+   "value": false
+  },
+  {
+   "page": 0,
+   "rect": [
+    406.85,
+    517.48,
+    491.19,
+    531.48
+   ],
+   "type": "text",
+   "label": "IMMUNIZATION HISTORY Date(s): Tetanus",
+   "path": "immunizations.tetanus",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    397.06,
+    537.64,
+    490.28,
+    551.64
+   ],
+   "type": "text",
+   "label": "IMMUNIZATION HISTORY Date(s): MMR",
+   "path": "immunizations.mmr",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    419.74,
+    559.6,
+    490.82,
+    573.6
+   ],
+   "type": "text",
+   "label": "IMMUNIZATION HISTORY Date(s): Flu Vaccine",
+   "path": "immunizations.flu",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    416.62,
+    579.76,
+    492.12,
+    593.76
+   ],
+   "type": "text",
+   "label": "IMMUNIZATION HISTORY Date(s): Hepatitis B",
+   "path": "immunizations.hepatitis_b",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    426.35,
+    601.72,
+    492.97,
+    615.72
+   ],
+   "type": "text",
+   "label": "IMMUNIZATION HISTORY Date(s): TB Screening",
+   "path": "immunizations.tb_screening",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    54.8,
+    81.97,
+    62.0,
+    89.17
+   ],
+   "type": "choice",
+   "label": "Have you ever had intercourse? YES",
+   "path": "sexual_history.ever_had_intercourse",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  {
+   "page": 1,
+   "rect": [
+    90.8,
+    81.97,
+    98.0,
+    89.17
+   ],
+   "type": "choice",
+   "label": "Have you ever had intercourse? NO",
+   "path": "sexual_history.ever_had_intercourse",
+   "transforms": [
+    "equals"
+   ],
+   "value": false
+  },
+  {
+   "page": 1,
+   "rect": [
+    350.58,
+    77.0,
+    392.76,
+    91.0
+   ],
+   "type": "text",
+   "label": "If yes, age at first intercourse:",
+   "path": "sexual_history.age_at_first_intercourse"
+  },
+  {
+   "page": 1,
+   "rect": [
+    54.8,
+    92.95,
+    62.0,
+    100.15
+   ],
+   "type": "choice",
+   "label": "Do you have any discomfort or pain during intercourse? YES",
+   "path": "sexual_history.pain_during_intercourse",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  {
+   "page": 1,
+   "rect": [
+    90.8,
+    92.95,
+    98.0,
+    100.15
+   ],
+   "type": "choice",
+   "label": "Do you have any discomfort or pain during intercourse? NO",
+   "path": "sexual_history.pain_during_intercourse",
+   "transforms": [
+    "equals"
+   ],
+   "value": false
+  },
+  {
+   "page": 1,
+   "rect": [
+    54.8,
+    103.93,
+    62.0,
+    111.13
+   ],
+   "type": "choice",
+   "label": "Have you had unprotected intercourse in the past six months? YES",
+   "path": "sexual_history.unprotected_last_6_months",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  {
+   "page": 1,
+   "rect": [
+    90.8,
+    103.93,
+    98.0,
+    111.13
+   ],
+   "type": "choice",
+   "label": "Have you had unprotected intercourse in the past six months? NO",
+   "path": "sexual_history.unprotected_last_6_months",
+   "transforms": [
+    "equals"
+   ],
+   "value": false
+  },
+  {
+   "page": 1,
+   "rect": [
+    54.8,
+    114.91,
+    62.0,
+    122.11
+   ],
+   "type": "choice",
+   "label": "Have you ever had a sexually transmitted disease? YES",
+   "path": "sexual_history.had_std",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  {
+   "page": 1,
+   "rect": [
+    90.8,
+    114.91,
+    98.0,
+    122.11
+   ],
+   "type": "choice",
+   "label": "Have you ever had a sexually transmitted disease? NO",
+   "path": "sexual_history.had_std",
+   "transforms": [
+    "equals"
+   ],
+   "value": false
+  },
+  {
+   "page": 1,
+   "rect": [
+    126.8,
+    125.89,
+    134.0,
+    133.09
+   ],
+   "type": "choice",
+   "label": "sexually transmitted disease: Genital warts",
+   "path": "sexual_history.stds",
+   "transforms": [
+    "contains"
+   ],
+   "value": "genital_warts"
+  },
+  {
+   "page": 1,
+   "rect": [
+    198.8,
+    125.89,
+    206.0,
+    133.09
+   ],
+   "type": "choice",
+   "label": "sexually transmitted disease: Herpes",
+   "path": "sexual_history.stds",
+   "transforms": [
+    "contains"
+   ],
+   "value": "herpes"
+  },
+  {
+   "page": 1,
+   "rect": [
+    270.8,
+    125.89,
+    278.0,
+    133.09
+   ],
+   "type": "choice",
+   "label": "sexually transmitted disease: Chlamydia",
+   "path": "sexual_history.stds",
+   "transforms": [
+    "contains"
+   ],
+   "value": "chlamydia"
+  },
+  {
+   "page": 1,
+   "rect": [
+    345.02,
+    125.89,
+    352.22,
+    133.09
+   ],
+   "type": "choice",
+   "label": "sexually transmitted disease: Other:",
+   "path": "sexual_history.stds",
+   "transforms": [
+    "contains"
+   ],
+   "value": "other"
+  },
+  {
+   "page": 1,
+   "rect": [
+    126.8,
+    136.87,
+    134.0,
+    144.07
+   ],
+   "type": "choice",
+   "label": "sexually transmitted disease: Syphilis",
+   "path": "sexual_history.stds",
+   "transforms": [
+    "contains"
+   ],
+   "value": "syphilis"
+  },
+  {
+   "page": 1,
+   "rect": [
+    198.8,
+    136.87,
+    206.0,
+    144.07
+   ],
+   "type": "choice",
+   "label": "sexually transmitted disease: HIV/AIDS",
+   "path": "sexual_history.stds",
+   "transforms": [
+    "contains"
+   ],
+   "value": "hiv_aids"
+  },
+  {
+   "page": 1,
+   "rect": [
+    270.8,
+    136.87,
+    278.0,
+    144.07
+   ],
+   "type": "choice",
+   "label": "sexually transmitted disease: Gonorrhea",
+   "path": "sexual_history.stds",
+   "transforms": [
+    "contains"
+   ],
+   "value": "gonorrhea"
+  },
+  {
+   "page": 1,
+   "rect": [
+    377.46,
+    123.78,
+    441.84,
+    134.92
+   ],
+   "type": "text",
+   "label": "sexually transmitted disease: Other: (specify)"
+  },
+  {
+   "page": 1,
+   "rect": [
+    54.8,
+    147.85,
+    62.0,
+    155.05
+   ],
+   "type": "choice",
+   "label": "Do you have any concerns about sex or your sexuality? YES",
+   "path": "sexual_history.concerns",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  {
+   "page": 1,
+   "rect": [
+    90.8,
+    147.85,
+    98.0,
+    155.05
+   ],
+   "type": "choice",
+   "label": "Do you have any concerns about sex or your sexuality? NO",
+   "path": "sexual_history.concerns",
+   "transforms": [
+    "equals"
+   ],
+   "value": false
+  },
+  {
+   "page": 1,
+   "rect": [
+    54.8,
+    200.05,
+    62.0,
+    207.25
+   ],
+   "type": "choice",
+   "label": "Have you had a gynecologic (pelvic) exam or Pap smear before? YES",
+   "path": "female_health.pelvic_exam.had_exam",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  {
+   "page": 1,
+   "rect": [
+    90.8,
+    200.05,
+    98.0,
+    207.25
+   ],
+   "type": "choice",
+   "label": "Have you had a gynecologic (pelvic) exam or Pap smear before? NO",
+   "path": "female_health.pelvic_exam.had_exam",
+   "transforms": [
+    "equals"
+   ],
+   "value": false
+  },
+  {
+   "page": 1,
+   "rect": [
+    175.56,
+    208.92,
+    297.75,
+    218.86
+   ],
+   "type": "text",
+   "label": "If yes, where?",
+   "path": "female_health.pelvic_exam.where"
+  },
+  {
+   "page": 1,
+   "rect": [
+    321.21,
+    208.92,
+    389.94,
+    218.86
+   ],
+   "type": "text",
+   "label": "when?",
+   "path": "female_health.pelvic_exam.date",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    208.64,
+    220.21,
+    215.84,
+    227.41
+   ],
+   "type": "choice",
+   "label": "Results: Normal",
+   "path": "female_health.pelvic_exam.result",
+   "transforms": [
+    "equals"
+   ],
+   "value": "normal"
+  },
+  {
+   "page": 1,
+   "rect": [
+    263.24,
+    220.21,
+    270.44,
+    227.41
+   ],
+   "type": "choice",
+   "label": "Results: Abnormal",
+   "path": "female_health.pelvic_exam.result",
+   "transforms": [
+    "equals"
+   ],
+   "value": "abnormal"
+  },
+  {
+   "page": 1,
+   "rect": [
+    390.3,
+    215.54,
+    461.34,
+    229.54
+   ],
+   "type": "text",
+   "label": "Explain (If abnormal):",
+   "path": "female_health.pelvic_exam.abnormal_explanation"
+  },
+  {
+   "page": 1,
+   "rect": [
+    54.8,
+    231.19,
+    62.0,
+    238.39
+   ],
+   "type": "choice",
+   "label": "Have you ever attended the Educational Session on Family Planning? YES"
+  },
+  {
+   "page": 1,
+   "rect": [
+    90.8,
+    231.19,
+    98.0,
+    238.39
+   ],
+   "type": "choice",
+   "label": "Have you ever attended the Educational Session on Family Planning? NO"
+  },
+  {
+   "page": 1,
+   "rect": [
+    403.5,
+    228.54,
+    467.88,
+    240.22
+   ],
+   "type": "text",
+   "label": "Family Planning: If yes, Date"
+  },
+  {
+   "page": 1,
+   "rect": [
+    249.42,
+    254.6,
+    284.94,
+    268.6
+   ],
+   "type": "text",
+   "label": "Age menstruation (period) began: ___ years.",
+   "path": "female_health.menstrual.age_at_onset"
+  },
+  {
+   "page": 1,
+   "rect": [
+    307.2,
+    263.78,
+    338.28,
+    277.78
+   ],
+   "type": "text",
+   "label": "How many days between your menstrual periods?",
+   "path": "female_health.menstrual.cycle_length_days"
+  },
+  {
+   "page": 1,
+   "rect": [
+    54.8,
+    279.13,
+    62.0,
+    286.33
+   ],
+   "type": "choice",
+   "label": "Do you soak more than 5 pads/tampons a day? YES",
+   "path": "female_health.menstrual.heavy_flow",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  {
+   "page": 1,
+   "rect": [
+    90.8,
+    279.13,
+    98.0,
+    286.33
+   ],
+   "type": "choice",
+   "label": "Do you soak more than 5 pads/tampons a day? NO",
+   "path": "female_health.menstrual.heavy_flow",
+   "transforms": [
+    "equals"
+   ],
+   "value": false
+  },
+  {
+   "page": 1,
+   "rect": [
+    54.8,
+    290.11,
+    62.0,
+    297.31
+   ],
+   "type": "choice",
+   "label": "Have your menstrual cycles been frequently irregular? YES",
+   "path": "female_health.menstrual.irregular",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  {
+   "page": 1,
+   "rect": [
+    90.8,
+    290.11,
+    98.0,
+    297.31
+   ],
+   "type": "choice",
+   "label": "Have your menstrual cycles been frequently irregular? NO",
+   "path": "female_health.menstrual.irregular",
+   "transforms": [
+    "equals"
+   ],
+   "value": false
+  },
+  {
+   "page": 1,
+   "rect": [
+    357.18,
+    294.62,
+    390.48,
+    308.62
+   ],
+   "type": "text",
+   "label": "If yes, what is the longest time you have gone between periods?",
+   "path": "female_health.menstrual.longest_gap"
+  },
+  {
+   "page": 1,
+   "rect": [
+    54.8,
+    328.87,
+    62.0,
+    336.07
+   ],
+   "type": "choice",
+   "label": "Are you troubled by: Bleeding between periods or after intercourse YES",
+   "path": "female_health.troubled_by.bleeding_between_periods",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  {
+   "page": 1,
+   "rect": [
+    90.8,
+    328.87,
+    98.0,
+    336.07
+   ],
+   "type": "choice",
+   "label": "Are you troubled by: Bleeding between periods or after intercourse NO",
+   "path": "female_health.troubled_by.bleeding_between_periods",
+   "transforms": [
+    "equals"
+   ],
+   "value": false
+  },
+  {
+   "page": 1,
+   "rect": [
+    342.8,
+    328.87,
+    350.0,
+    336.07
+   ],
+   "type": "choice",
+   "label": "Are you troubled by: Depression/Anxiety YES",
+   "path": "female_health.troubled_by.depression_anxiety",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  {
+   "page": 1,
+   "rect": [
+    378.8,
+    328.87,
+    386.0,
+    336.07
+   ],
+   "type": "choice",
+   "label": "Are you troubled by: Depression/Anxiety NO",
+   "path": "female_health.troubled_by.depression_anxiety",
+   "transforms": [
+    "equals"
+   ],
+   "value": false
+  },
+  {
+   "page": 1,
+   "rect": [
+    54.8,
+    339.85,
+    62.0,
+    347.05
+   ],
+   "type": "choice",
+   "label": "Are you troubled by: Mid-cycle pains YES",
+   "path": "female_health.troubled_by.mid_cycle_pains",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  {
+   "page": 1,
+   "rect": [
+    90.8,
+    339.85,
+    98.0,
+    347.05
+   ],
+   "type": "choice",
+   "label": "Are you troubled by: Mid-cycle pains NO",
+   "path": "female_health.troubled_by.mid_cycle_pains",
+   "transforms": [
+    "equals"
+   ],
+   "value": false
+  },
+  {
+   "page": 1,
+   "rect": [
+    342.8,
+    339.85,
+    350.0,
+    347.05
+   ],
+   "type": "choice",
+   "label": "Are you troubled by: Breast tenderness/fullness YES",
+   "path": "female_health.troubled_by.breast_tenderness",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  {
+   "page": 1,
+   "rect": [
+    378.8,
+    339.85,
+    386.0,
+    347.05
+   ],
+   "type": "choice",
+   "label": "Are you troubled by: Breast tenderness/fullness NO",
+   "path": "female_health.troubled_by.breast_tenderness",
+   "transforms": [
+    "equals"
+   ],
+   "value": false
+  },
+  {
+   "page": 1,
+   "rect": [
+    54.8,
+    350.83,
+    62.0,
+    358.03
+   ],
+   "type": "choice",
+   "label": "Are you troubled by: Vaginal discharge, itching, irritation or sores YES",
+   "path": "female_health.troubled_by.vaginal_discharge",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  {
+   "page": 1,
+   "rect": [
+    90.8,
+    350.83,
+    98.0,
+    358.03
+   ],
+   "type": "choice",
+   "label": "Are you troubled by: Vaginal discharge, itching, irritation or sores NO",
+   "path": "female_health.troubled_by.vaginal_discharge",
+   "transforms": [
+    "equals"
+   ],
+   "value": false
+  },
+  {
+   "page": 1,
+   "rect": [
+    342.8,
+    350.83,
+    350.0,
+    358.03
+   ],
+   "type": "choice",
+   "label": "Are you troubled by: Weight gain more than 5 lbs. YES",
+   "path": "female_health.troubled_by.weight_gain",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  {
+   "page": 1,
+   "rect": [
+    378.8,
+    350.83,
+    386.0,
+    358.03
+   ],
+   "type": "choice",
+   "label": "Are you troubled by: Weight gain more than 5 lbs. NO",
+   "path": "female_health.troubled_by.weight_gain",
+   "transforms": [
+    "equals"
+   ],
+   "value": false
+  },
+  {
+   "page": 1,
+   "rect": [
+    54.8,
+    361.81,
+    62.0,
+    369.01
+   ],
+   "type": "choice",
+   "label": "Are you troubled by: Burning with urination YES",
+   "path": "female_health.troubled_by.burning_urination",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  {
+   "page": 1,
+   "rect": [
+    90.8,
+    361.81,
+    98.0,
+    369.01
+   ],
+   "type": "choice",
+   "label": "Are you troubled by: Burning with urination NO",
+   "path": "female_health.troubled_by.burning_urination",
+   "transforms": [
+    "equals"
+   ],
+   "value": false
+  },
+  {
+   "page": 1,
+   "rect": [
+    342.8,
+    361.81,
+    350.0,
+    369.01
+   ],
+   "type": "choice",
+   "label": "Are you troubled by: Ankle swelling YES",
+   "path": "female_health.troubled_by.ankle_swelling",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  {
+   "page": 1,
+   "rect": [
+    378.8,
+    361.81,
+    386.0,
+    369.01
+   ],
+   "type": "choice",
+   "label": "Are you troubled by: Ankle swelling NO",
+   "path": "female_health.troubled_by.ankle_swelling",
+   "transforms": [
+    "equals"
+   ],
+   "value": false
+  },
+  {
+   "page": 1,
+   "rect": [
+    54.8,
+    372.79,
+    62.0,
+    379.99
+   ],
+   "type": "choice",
+   "label": "Are you troubled by: Severe cramping YES",
+   "path": "female_health.troubled_by.severe_cramping",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  {
+   "page": 1,
+   "rect": [
+    90.8,
+    372.79,
+    98.0,
+    379.99
+   ],
+   "type": "choice",
+   "label": "Are you troubled by: Severe cramping NO",
+   "path": "female_health.troubled_by.severe_cramping",
+   "transforms": [
+    "equals"
+   ],
+   "value": false
+  },
+  {
+   "page": 1,
+   "rect": [
+    342.8,
+    372.79,
+    350.0,
+    379.99
+   ],
+   "type": "choice",
+   "label": "Are you troubled by: Headache YES",
+   "path": "female_health.troubled_by.headache",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  {
+   "page": 1,
+   "rect": [
+    378.8,
+    372.79,
+    386.0,
+    379.99
+   ],
+   "type": "choice",
+   "label": "Are you troubled by: Headache NO",
+   "path": "female_health.troubled_by.headache",
+   "transforms": [
+    "equals"
+   ],
+   "value": false
+  },
+  {
+   "page": 1,
+   "rect": [
+    54.8,
+    404.16,
+    62.0,
+    411.36
+   ],
+   "type": "choice",
+   "label": "Have you ever been pregnant? YES",
+   "path": "female_health.pregnancy.ever_pregnant",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  {
+   "page": 1,
+   "rect": [
+    90.8,
+    404.17,
+    98.0,
+    411.37
+   ],
+   "type": "choice",
+   "label": "Have you ever been pregnant? NO",
+   "path": "female_health.pregnancy.ever_pregnant",
+   "transforms": [
+    "equals"
+   ],
+   "value": false
+  },
+  {
+   "page": 1,
+   "rect": [
+    227.7,
+    418.16,
+    267.66,
+    432.16
+   ],
+   "type": "text",
+   "label": "Total number of pregnancies",
+   "path": "female_health.pregnancy.total"
+  },
+  {
+   "page": 1,
+   "rect": [
+    210.84,
+    431.7,
+    250.8,
+    441.34
+   ],
+   "type": "text",
+   "label": "Number of miscarriages",
+   "path": "female_health.pregnancy.miscarriages.count"
+  },
+  {
+   "page": 1,
+   "rect": [
+    300.0,
+    427.34,
+    415.44,
+    441.34
+   ],
+   "type": "text",
+   "label": "Number of miscarriages: Which year(s)"
+  },
+  {
+   "page": 1,
+   "rect": [
+    199.32,
+    440.88,
+    250.38,
+    450.52
+   ],
+   "type": "text",
+   "label": "Number of live births",
+   "path": "female_health.pregnancy.live_births.count"
+  },
+  {
+   "page": 1,
+   "rect": [
+    299.58,
+    440.34,
+    415.02,
+    450.52
+   ],
+   "type": "text",
+   "label": "Number of live births: Which year(s)"
+  },
+  {
+   "page": 1,
+   "rect": [
+    198.36,
+    450.06,
+    251.64,
+    459.7
+   ],
+   "type": "text",
+   "label": "Number of abortions",
+   "path": "female_health.pregnancy.abortions.count"
+  },
+  {
+   "page": 1,
+   "rect": [
+    300.84,
+    449.52,
+    416.28,
+    459.7
+   ],
+   "type": "text",
+   "label": "Number of abortions: Which year(s)"
+  },
+  {
+   "page": 1,
+   "rect": [
+    126.8,
+    479.89,
+    134.0,
+    487.09
+   ],
+   "type": "choice",
+   "label": "CONTRACEPTIVE HISTORY: \"Pill\"",
+   "path": "female_health.contraception.methods_used",
+   "transforms": [
+    "contains"
+   ],
+   "value": "pill"
+  },
+  {
+   "page": 1,
+   "rect": [
+    198.8,
+    479.89,
+    206.0,
+    487.09
+   ],
+   "type": "choice",
+   "label": "CONTRACEPTIVE HISTORY: Condoms",
+   "path": "female_health.contraception.methods_used",
+   "transforms": [
+    "contains"
+   ],
+   "value": "condoms"
+  },
+  {
+   "page": 1,
+   "rect": [
+    306.8,
+    479.89,
+    314.0,
+    487.09
+   ],
+   "type": "choice",
+   "label": "CONTRACEPTIVE HISTORY: Diaphragm/Cervical Cap",
+   "path": "female_health.contraception.methods_used",
+   "transforms": [
+    "contains"
+   ],
+   "value": "diaphragm_cervical_cap"
+  },
+  {
+   "page": 1,
+   "rect": [
+    424.88,
+    479.89,
+    432.08,
+    487.09
+   ],
+   "type": "choice",
+   "label": "CONTRACEPTIVE HISTORY: IUD",
+   "path": "female_health.contraception.methods_used",
+   "transforms": [
+    "contains"
+   ],
+   "value": "iud"
+  },
+  {
+   "page": 1,
+   "rect": [
+    485.18,
+    479.89,
+    492.38,
+    487.09
+   ],
+   "type": "choice",
+   "label": "CONTRACEPTIVE HISTORY: Withdrawal",
+   "path": "female_health.contraception.methods_used",
+   "transforms": [
+    "contains"
+   ],
+   "value": "withdrawal"
+  },
+  {
+   "page": 1,
+   "rect": [
+    126.8,
+    490.87,
+    134.0,
+    498.07
+   ],
+   "type": "choice",
+   "label": "CONTRACEPTIVE HISTORY: Sponge",
+   "path": "female_health.contraception.methods_used",
+   "transforms": [
+    "contains"
+   ],
+   "value": "sponge"
+  },
+  {
+   "page": 1,
+   "rect": [
+    198.8,
+    490.87,
+    206.0,
+    498.07
+   ],
+   "type": "choice",
+   "label": "CONTRACEPTIVE HISTORY: Rhythm method",
+   "path": "female_health.contraception.methods_used",
+   "transforms": [
+    "contains"
+   ],
+   "value": "rhythm"
+  },
+  {
+   "page": 1,
+   "rect": [
+    306.8,
+    490.87,
+    314.0,
+    498.07
+   ],
+   "type": "choice",
+   "label": "CONTRACEPTIVE HISTORY: Norplant",
+   "path": "female_health.contraception.methods_used",
+   "transforms": [
+    "contains"
+   ],
+   "value": "norplant"
+  },
+  {
+   "page": 1,
+   "rect": [
+    425.42,
+    490.87,
+    432.62,
+    498.07
+   ],
+   "type": "choice",
+   "label": "CONTRACEPTIVE HISTORY: Spermicidal",
+   "path": "female_health.contraception.methods_used",
+   "transforms": [
+    "contains"
+   ],
+   "value": "spermicidal"
+  },
+  {
+   "page": 1,
+   "rect": [
+    486.62,
+    490.87,
+    493.82,
+    498.07
+   ],
+   "type": "choice",
+   "label": "CONTRACEPTIVE HISTORY: Other:",
+   "path": "female_health.contraception.methods_used",
+   "transforms": [
+    "contains"
+   ],
+   "value": "other"
+  },
+  {
+   "page": 1,
+   "rect": [
+    519.63,
+    488.76,
+    586.17,
+    499.86
+   ],
+   "type": "text",
+   "label": "CONTRACEPTIVE HISTORY: Other: (specify)"
+  },
+  {
+   "page": 1,
+   "rect": [
+    274.68,
+    504.86,
+    496.68,
+    518.86
+   ],
+   "type": "text",
+   "label": "What is your current birth control method?",
+   "path": "female_health.contraception.current_method"
+  },
+  {
+   "page": 1,
+   "rect": [
+    54.8,
+    520.21,
+    62.0,
+    527.41
+   ],
+   "type": "choice",
+   "label": "Are you satisfied with your current method? YES",
+   "path": "female_health.contraception.satisfied",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  {
+   "page": 1,
+   "rect": [
+    90.8,
+    520.21,
+    98.0,
+    527.41
+   ],
+   "type": "choice",
+   "label": "Are you satisfied with your current method? NO",
+   "path": "female_health.contraception.satisfied",
+   "transforms": [
+    "equals"
+   ],
+   "value": false
+  },
+  {
+   "page": 1,
+   "rect": [
+    272.4,
+    529.08,
+    445.56,
+    539.02
+   ],
+   "type": "text",
+   "label": "If no, what method would you like to use?",
+   "path": "female_health.contraception.preferred_method"
+  },
+  {
+   "page": 1,
+   "rect": [
+    54.8,
+    540.37,
+    62.0,
+    547.57
+   ],
+   "type": "choice",
+   "label": "Have you had any problems or pregnancies while using any birth control method? YES",
+   "path": "female_health.contraception.had_problems",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  {
+   "page": 1,
+   "rect": [
+    90.8,
+    540.37,
+    98.0,
+    547.57
+   ],
+   "type": "choice",
+   "label": "Have you had any problems or pregnancies while using any birth control method? NO",
+   "path": "female_health.contraception.had_problems",
+   "transforms": [
+    "equals"
+   ],
+   "value": false
+  },
+  {
+   "page": 1,
+   "rect": [
+    212.46,
+    549.24,
+    461.1,
+    559.18
+   ],
+   "type": "text",
+   "label": "If yes, which method(s)?",
+   "path": "female_health.contraception.problem_methods"
+  },
+  {
+   "page": 1,
+   "rect": [
+    145.64,
+    574.66,
+    589.49,
+    588.66
+   ],
+   "type": "text",
+   "label": "Students' Name (Please print)",
+   "path": "student.first_name",
+   "also_paths": [
+    "student.last_name"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    108.03,
+    593.51,
+    507.42,
+    607.51
+   ],
+   "type": "signature",
+   "label": "Student's Signature"
+  },
+  {
+   "page": 1,
+   "rect": [
+    524.71,
+    593.51,
+    591.42,
+    607.51
+   ],
+   "type": "text",
+   "label": "Date (student)",
+   "path": "signed_on",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    258.62,
+    612.11,
+    507.18,
+    626.11
+   ],
+   "type": "signature",
+   "label": "Parent or Guardian's Signature (If student is under age 18)"
+  },
+  {
+   "page": 1,
+   "rect": [
+    524.52,
+    612.11,
+    591.1,
+    626.11
+   ],
+   "type": "text",
+   "label": "Date (parent or guardian)",
+   "path": "guardian_signed_on",
+   "transforms": [
+    "date_format"
+   ]
+  }
+ ],
+ "notes": "Both pages. Excluded: 'Primary Care Provider's Use Only' Review/Comments areas and the PCP Signature/Date line (staff only). Checkboxes are the printed Wingdings squares (ink extent). NAME / I.D. # / D.O.B. have no printed line; the space to their right is the blank. Substance-use rows are one blank each under the Amount/Frequency headings. 'Other Drugs' has a second line (pathless). The emotional-health 'Other' YES/NO boxes are pathless (the schema stores only the free-text concern)."
+}

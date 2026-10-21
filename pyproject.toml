@@ -3,21 +3,25 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "rlm-lab"
+name = "formcast"
 version = "0.1.0"
-description = "Exploratory DSPy.RLM lab with tracing, retrieval, and a Streamlit UI."
+description = "Turn blank PDF forms into field templates using an LLM agent."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
-  "dspy>=3.1.3,<3.2",
-  "pydantic>=2.12,<3",
-  "streamlit>=1.56,<2",
+  "pymupdf>=2.0,<2.1",  # writer behaviour verified on 2.0 (fill rulings)
+  "commonforms>=0.2.1",
+  "pydantic>=2.11",
+  "httpx>=0.27",
+  "jsonschema>=4.22",
+  "referencing>=0.30",
+  "numpy",
+  "pillow>=10.1",  # ImageFont.load_default(size=...)
 ]
 
 [project.optional-dependencies]
-dev = [
-  "pytest>=9,<10",
-]
+ocr = ["pytesseract>=0.3.13"]
+dev = ["pytest>=8"]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -27,3 +31,15 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "-m 'not slow and not llm'"
+markers = [
+  "slow: downloads or loads models (run with -m slow)",
+  "llm: calls a real LLM (run with -m llm)",
+]
+filterwarnings = [
+  # PyMuPDF's SWIG bindings warn on import under Python 3.12 (dependency issue).
+  "ignore:builtin type .* has no __module__ attribute:DeprecationWarning",
+  # torch warns on import inside ultralytics/rfdetr (dependency issue).
+  "ignore:`torch.jit.script` is deprecated:FutureWarning",
+]

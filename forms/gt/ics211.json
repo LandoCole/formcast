@@ -1,0 +1,501 @@
+{
+ "form": "ics211",
+ "fields": [],
+ "widget_paths": {
+  "1 Incident Name": {
+   "path": "incident.name"
+  },
+  "2 Incident Number": {
+   "path": "incident.number"
+  },
+  "Check-In Location - Base": {
+   "path": "check_in_locations",
+   "transforms": [
+    "contains"
+   ],
+   "value": "Base"
+  },
+  "Check-In Location - Staging Area": {
+   "path": "check_in_locations",
+   "transforms": [
+    "contains"
+   ],
+   "value": "Staging Area"
+  },
+  "Check-In Location - ICP": {
+   "path": "check_in_locations",
+   "transforms": [
+    "contains"
+   ],
+   "value": "ICP"
+  },
+  "Check-In Location - Helibase": {
+   "path": "check_in_locations",
+   "transforms": [
+    "contains"
+   ],
+   "value": "Helibase"
+  },
+  "Check-In Location - Other": {
+   "path": "check_in_locations",
+   "transforms": [
+    "contains"
+   ],
+   "value": "Other"
+  },
+  "Start Date": {
+   "path": "start_date",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "Start Time": {
+   "path": "start_time"
+  },
+  "R1 State": {
+   "path": "check_ins[].home_state"
+  },
+  "R1 Agency 1": {
+   "path": "check_ins[].agency"
+  },
+  "R1 Category 1": {
+   "path": "check_ins[].category"
+  },
+  "R1 Kind 1": {
+   "path": "check_ins[].kind"
+  },
+  "R1 Type 1": {
+   "path": "check_ins[].type"
+  },
+  "R1 Resource Name or ID 1": {
+   "path": "check_ins[].resource_identifier"
+  },
+  "R1 ST or TF 1": {
+   "path": "check_ins[].strike_team_or_task_force"
+  },
+  "R1 Order Request": {
+   "path": "check_ins[].order_request_number"
+  },
+  "R1 Date/Time Check In 1": {
+   "path": "check_ins[].checked_in_at",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "R1 Leader's Name 1": {
+   "path": "check_ins[].leader_name"
+  },
+  "R1 Total Personnel 1": {
+   "path": "check_ins[].total_personnel"
+  },
+  "R1 Incident Contact 1": {
+   "path": "check_ins[].incident_contact"
+  },
+  "R1 Home Unit 1": {
+   "path": "check_ins[].home_unit"
+  },
+  "R1 Departure Point 1": {
+   "path": "check_ins[].departure"
+  },
+  "R1 Method of Travel 1": {
+   "path": "check_ins[].travel_method"
+  },
+  "R1 Incident Assignment 1": {
+   "path": "check_ins[].incident_assignment"
+  },
+  "R1 Other Qualifications 1": {
+   "path": "check_ins[].other_qualifications"
+  },
+  "R2 State 2": {
+   "path": "check_ins[].home_state"
+  },
+  "R2 Agency 2": {
+   "path": "check_ins[].agency"
+  },
+  "R2 Category": {
+   "path": "check_ins[].category"
+  },
+  "R2 Kind 2": {
+   "path": "check_ins[].kind"
+  },
+  "R2 Type 2": {
+   "path": "check_ins[].type"
+  },
+  "R2 Resource Name or ID 2": {
+   "path": "check_ins[].resource_identifier"
+  },
+  "R2 ST or TF 2": {
+   "path": "check_ins[].strike_team_or_task_force"
+  },
+  "R2 Order Request Row2": {
+   "path": "check_ins[].order_request_number"
+  },
+  "R2 Date/Time Check In 2": {
+   "path": "check_ins[].checked_in_at",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "R2 Leader's Name 2": {
+   "path": "check_ins[].leader_name"
+  },
+  "R2 Total Personnel 2": {
+   "path": "check_ins[].total_personnel"
+  },
+  "R2 Incident Contact 2": {
+   "path": "check_ins[].incident_contact"
+  },
+  "R2 Home Unit 2": {
+   "path": "check_ins[].home_unit"
+  },
+  "R2 Departure Point 2": {
+   "path": "check_ins[].departure"
+  },
+  "R2 Method of Travel 2": {
+   "path": "check_ins[].travel_method"
+  },
+  "R2 Incident Assignment 2": {
+   "path": "check_ins[].incident_assignment"
+  },
+  "R2 Other Qualifications 2": {
+   "path": "check_ins[].other_qualifications"
+  },
+  "R3 State 3": {
+   "path": "check_ins[].home_state"
+  },
+  "R3 Agency 3": {
+   "path": "check_ins[].agency"
+  },
+  "R3 Category 3": {
+   "path": "check_ins[].category"
+  },
+  "R3 Kind 3": {
+   "path": "check_ins[].kind"
+  },
+  "R3 Type 3": {
+   "path": "check_ins[].type"
+  },
+  "R3 Resource Name or ID 3": {
+   "path": "check_ins[].resource_identifier"
+  },
+  "R3 ST or TF 3": {
+   "path": "check_ins[].strike_team_or_task_force"
+  },
+  "R3 Order Request Row3": {
+   "path": "check_ins[].order_request_number"
+  },
+  "R3 Date/Time Check In 3": {
+   "path": "check_ins[].checked_in_at",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "R3 Leader's Name 3": {
+   "path": "check_ins[].leader_name"
+  },
+  "R3 Total Personnel 3": {
+   "path": "check_ins[].total_personnel"
+  },
+  "R3 Incident Contact 3": {
+   "path": "check_ins[].incident_contact"
+  },
+  "R3 Home Unit 3": {
+   "path": "check_ins[].home_unit"
+  },
+  "R3 Departure Point 3": {
+   "path": "check_ins[].departure"
+  },
+  "R3 Method of Travel 3": {
+   "path": "check_ins[].travel_method"
+  },
+  "R3 Incident Assignment 3": {
+   "path": "check_ins[].incident_assignment"
+  },
+  "R3 Other Qualifications 3": {
+   "path": "check_ins[].other_qualifications"
+  },
+  "R4 State 4": {
+   "path": "check_ins[].home_state"
+  },
+  "R4 Agency 4": {
+   "path": "check_ins[].agency"
+  },
+  "R4 Category 4": {
+   "path": "check_ins[].category"
+  },
+  "R4 Kind 4": {
+   "path": "check_ins[].kind"
+  },
+  "R4 Type 4": {
+   "path": "check_ins[].type"
+  },
+  "R4 Resource Name or ID 4": {
+   "path": "check_ins[].resource_identifier"
+  },
+  "R4 ST or TF 4": {
+   "path": "check_ins[].strike_team_or_task_force"
+  },
+  "R4 Order Request Row4": {
+   "path": "check_ins[].order_request_number"
+  },
+  "R4 Date/Time Check In 4": {
+   "path": "check_ins[].checked_in_at",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "R4 Leader's Name 4": {
+   "path": "check_ins[].leader_name"
+  },
+  "R4 Total Personnel 4": {
+   "path": "check_ins[].total_personnel"
+  },
+  "R4 Incident Contact 4": {
+   "path": "check_ins[].incident_contact"
+  },
+  "R4 Home Unit 4": {
+   "path": "check_ins[].home_unit"
+  },
+  "R4 Departure Point 4": {
+   "path": "check_ins[].departure"
+  },
+  "R4 Method of Travel 4": {
+   "path": "check_ins[].travel_method"
+  },
+  "R4 Incident Assignment 4": {
+   "path": "check_ins[].incident_assignment"
+  },
+  "R4 Other Qualifications 4": {
+   "path": "check_ins[].other_qualifications"
+  },
+  "R5 State 5": {
+   "path": "check_ins[].home_state"
+  },
+  "R5 Agency 5": {
+   "path": "check_ins[].agency"
+  },
+  "R5 Category 5": {
+   "path": "check_ins[].category"
+  },
+  "R5 Kind 5": {
+   "path": "check_ins[].kind"
+  },
+  "R5 Type 5": {
+   "path": "check_ins[].type"
+  },
+  "R5 Resource Name or ID 5": {
+   "path": "check_ins[].resource_identifier"
+  },
+  "R5 ST or TF 5": {
+   "path": "check_ins[].strike_team_or_task_force"
+  },
+  "R5 Order Request Row5": {
+   "path": "check_ins[].order_request_number"
+  },
+  "R5 Date/Time Check In 5": {
+   "path": "check_ins[].checked_in_at",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "R5 Leader's Name 5": {
+   "path": "check_ins[].leader_name"
+  },
+  "R5 Total Personnel 5": {
+   "path": "check_ins[].total_personnel"
+  },
+  "R5 Incident Contact 5": {
+   "path": "check_ins[].incident_contact"
+  },
+  "R5 Home Unit 5": {
+   "path": "check_ins[].home_unit"
+  },
+  "R5 Departure Point 5": {
+   "path": "check_ins[].departure"
+  },
+  "R5 Method of Travel 5": {
+   "path": "check_ins[].travel_method"
+  },
+  "R5 Incident Assignment 5": {
+   "path": "check_ins[].incident_assignment"
+  },
+  "R5 Other Qualifications 5": {
+   "path": "check_ins[].other_qualifications"
+  },
+  "R6 State 6": {
+   "path": "check_ins[].home_state"
+  },
+  "R6 Agency 6": {
+   "path": "check_ins[].agency"
+  },
+  "R6 Category 6": {
+   "path": "check_ins[].category"
+  },
+  "R6 Kind 6": {
+   "path": "check_ins[].kind"
+  },
+  "R6 Type 6": {
+   "path": "check_ins[].type"
+  },
+  "R6 Resource Name or ID 6": {
+   "path": "check_ins[].resource_identifier"
+  },
+  "R6 ST or TF 6": {
+   "path": "check_ins[].strike_team_or_task_force"
+  },
+  "R6 Order Request Row6": {
+   "path": "check_ins[].order_request_number"
+  },
+  "R6 Date/Time Check In 6": {
+   "path": "check_ins[].checked_in_at",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "R6 Leader's Name 6": {
+   "path": "check_ins[].leader_name"
+  },
+  "R6 Total Personnel 6": {
+   "path": "check_ins[].total_personnel"
+  },
+  "R6 Incident Contact 6": {
+   "path": "check_ins[].incident_contact"
+  },
+  "R6 Home Unit 6": {
+   "path": "check_ins[].home_unit"
+  },
+  "R6 Departure Point 6": {
+   "path": "check_ins[].departure"
+  },
+  "R6 Method of Travel 6": {
+   "path": "check_ins[].travel_method"
+  },
+  "R6 Incident Assignment 6": {
+   "path": "check_ins[].incident_assignment"
+  },
+  "R6 Other Qualifications 6": {
+   "path": "check_ins[].other_qualifications"
+  },
+  "R7 State 7": {
+   "path": "check_ins[].home_state"
+  },
+  "R7 Agency 7": {
+   "path": "check_ins[].agency"
+  },
+  "R7 Category 7": {
+   "path": "check_ins[].category"
+  },
+  "R7 Kind 7": {
+   "path": "check_ins[].kind"
+  },
+  "R7 Type 7": {
+   "path": "check_ins[].type"
+  },
+  "R7 Resource Name or ID 7": {
+   "path": "check_ins[].resource_identifier"
+  },
+  "R7 ST or TF 7": {
+   "path": "check_ins[].strike_team_or_task_force"
+  },
+  "R7 Order Request": {
+   "path": "check_ins[].order_request_number"
+  },
+  "R7 Date/Time Check In 7": {
+   "path": "check_ins[].checked_in_at",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "R7 Leader's Name 7": {
+   "path": "check_ins[].leader_name"
+  },
+  "R7 Total Personnel 7": {
+   "path": "check_ins[].total_personnel"
+  },
+  "R7 Incident Contact 7": {
+   "path": "check_ins[].incident_contact"
+  },
+  "R7 Home Unit 7": {
+   "path": "check_ins[].home_unit"
+  },
+  "R7 Departure Point 7": {
+   "path": "check_ins[].departure"
+  },
+  "R7 Method of Travel 7": {
+   "path": "check_ins[].travel_method"
+  },
+  "R7 Incident Assignment 7": {
+   "path": "check_ins[].incident_assignment"
+  },
+  "R7 Other Qualifications 7": {
+   "path": "check_ins[].other_qualifications"
+  },
+  "R8 State 8": {
+   "path": "check_ins[].home_state"
+  },
+  "R8 Agency 8": {
+   "path": "check_ins[].agency"
+  },
+  "R8 Category 8": {
+   "path": "check_ins[].category"
+  },
+  "R8 Kind 8": {
+   "path": "check_ins[].kind"
+  },
+  "R8 Type 8": {
+   "path": "check_ins[].type"
+  },
+  "R8 Resource Name or ID 8": {
+   "path": "check_ins[].resource_identifier"
+  },
+  "R8 ST or TF 8": {
+   "path": "check_ins[].strike_team_or_task_force"
+  },
+  "R8 Order Request Row8": {
+   "path": "check_ins[].order_request_number"
+  },
+  "R8 Date/Time Check In 8": {
+   "path": "check_ins[].checked_in_at",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "R8 Leader's Name 8": {
+   "path": "check_ins[].leader_name"
+  },
+  "R8 Total Personnel 8": {
+   "path": "check_ins[].total_personnel"
+  },
+  "R8 Incident Contact 8": {
+   "path": "check_ins[].incident_contact"
+  },
+  "R8 Home Unit 8": {
+   "path": "check_ins[].home_unit"
+  },
+  "R8 Departure Point 8": {
+   "path": "check_ins[].departure"
+  },
+  "R8 Method of Travel 8": {
+   "path": "check_ins[].travel_method"
+  },
+  "R8 Incident Assignment 8": {
+   "path": "check_ins[].incident_assignment"
+  },
+  "R8 Other Qualifications 8": {
+   "path": "check_ins[].other_qualifications"
+  },
+  "Name": {
+   "path": "prepared_by.name"
+  },
+  "PositionTitle_12": {
+   "path": "prepared_by.position_title"
+  },
+  "Date/Time": {
+   "path": "prepared_at",
+   "transforms": [
+    "date_format"
+   ]
+  }
+ },
+ "notes": "Only page 0 has widgets (the landscape form); pages 1-3 are block-by-block instructions with no blanks. The 8 check-in rows map to check_ins[] columns. Column 5 'ST or TF' maps to check_ins[].strike_team_or_task_force (enum ST/TF, written as-is). Pathless: column 16 'Data Provided to Resources Unit' (the schema does not keep it), and Signature_18 (signature). Check-In Location checkboxes are a multi-select ('complete all that apply'): contains. Departure Point, Date and Time is one cell per row, stored as one string. Coverage is 148/157 = 94.3% mapped, above the ~90% target: the form is almost entirely the check-in table and every remaining column is something a Resources Unit keeps."
+}

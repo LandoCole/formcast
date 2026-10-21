@@ -1,0 +1,494 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://example.org/schemas/student-health-history.json",
+ "title": "Student health history",
+ "description": "Intake health history for a student health center visit record.",
+ "type": "object",
+ "properties": {
+  "student": {
+   "type": "object",
+   "properties": {
+    "first_name": {
+     "type": "string"
+    },
+    "last_name": {
+     "type": "string"
+    },
+    "student_id": {
+     "type": "string",
+     "description": "Campus ID number."
+    },
+    "date_of_birth": {
+     "type": "string",
+     "format": "date"
+    },
+    "email": {
+     "type": "string",
+     "format": "email"
+    }
+   },
+   "required": [
+    "first_name",
+    "last_name",
+    "student_id"
+   ]
+  },
+  "personal_history": {
+   "type": "array",
+   "uniqueItems": true,
+   "description": "Conditions the student has had.",
+   "items": {
+    "type": "string",
+    "enum": [
+     "insomnia",
+     "sinus_trouble",
+     "dizziness",
+     "ent_trouble",
+     "severe_headaches",
+     "stroke",
+     "seizure_disorder",
+     "thyroid_disease",
+     "neck_problems",
+     "blood_clots",
+     "chronic_cough",
+     "back_problems",
+     "breast_lump",
+     "nipple_discharge",
+     "heart_disease",
+     "high_blood_pressure",
+     "bronchitis_influenza",
+     "hepatitis",
+     "sickle_cell_disease",
+     "anemia",
+     "liver_disease",
+     "gall_bladder_disease",
+     "diabetes",
+     "weight_change",
+     "cancer",
+     "bladder_kidney_infections",
+     "pid",
+     "ectopic_pregnancy",
+     "vaginal_infections",
+     "recurrent_diarrhea",
+     "ovarian_tumors",
+     "rectal_bleeding",
+     "other"
+    ]
+   }
+  },
+  "allergies": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  },
+  "medications": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   }
+  },
+  "family_history": {
+   "type": "object",
+   "properties": {
+    "cancer": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "Relatives who have had it, e.g. mother, paternal grandfather."
+    },
+    "tuberculosis": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "Relatives who have had it, e.g. mother, paternal grandfather."
+    },
+    "heart_attack": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "Relatives who have had it, e.g. mother, paternal grandfather."
+    },
+    "heart_disease": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "Relatives who have had it, e.g. mother, paternal grandfather."
+    },
+    "stroke": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "Relatives who have had it, e.g. mother, paternal grandfather."
+    },
+    "hypertension": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "Relatives who have had it, e.g. mother, paternal grandfather."
+    },
+    "sickle_cell_anemia": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "Relatives who have had it, e.g. mother, paternal grandfather."
+    },
+    "blood_disorders": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "Relatives who have had it, e.g. mother, paternal grandfather."
+    },
+    "drug_allergies": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "Relatives who have had it, e.g. mother, paternal grandfather."
+    },
+    "epilepsy": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "Relatives who have had it, e.g. mother, paternal grandfather."
+    },
+    "diabetes": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "Relatives who have had it, e.g. mother, paternal grandfather."
+    },
+    "glaucoma": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "Relatives who have had it, e.g. mother, paternal grandfather."
+    }
+   }
+  },
+  "emotional_health": {
+   "type": "object",
+   "properties": {
+    "self_esteem_issues": {
+     "type": "boolean"
+    },
+    "anxiety": {
+     "type": "boolean"
+    },
+    "interested_in_counseling": {
+     "type": "boolean"
+    }
+   }
+  },
+  "substance_use": {
+   "type": "object",
+   "properties": {
+    "alcohol": {
+     "type": "object",
+     "properties": {
+      "amount": {
+       "type": "string"
+      },
+      "frequency": {
+       "type": "string"
+      }
+     }
+    },
+    "smoking": {
+     "type": "object",
+     "properties": {
+      "amount": {
+       "type": "string"
+      },
+      "frequency": {
+       "type": "string"
+      }
+     }
+    }
+   }
+  },
+  "health_promotion": {
+   "type": "object",
+   "properties": {
+    "exercises_regularly": {
+     "type": "boolean"
+    },
+    "cholesterol_checked": {
+     "type": "boolean"
+    },
+    "nutrition_questions": {
+     "type": "boolean"
+    },
+    "genital_concerns": {
+     "type": "boolean"
+    },
+    "monthly_breast_exams": {
+     "type": "boolean"
+    },
+    "had_mammogram": {
+     "type": "boolean"
+    },
+    "monthly_testicular_exams": {
+     "type": "boolean"
+    }
+   }
+  },
+  "immunizations": {
+   "type": "object",
+   "description": "Date of the most recent dose of each.",
+   "properties": {
+    "tetanus": {
+     "type": "string",
+     "format": "date"
+    },
+    "mmr": {
+     "type": "string",
+     "format": "date"
+    },
+    "flu": {
+     "type": "string",
+     "format": "date"
+    },
+    "hepatitis_b": {
+     "type": "string",
+     "format": "date"
+    },
+    "tb_screening": {
+     "type": "string",
+     "format": "date"
+    }
+   }
+  },
+  "sexual_history": {
+   "type": "object",
+   "properties": {
+    "ever_had_intercourse": {
+     "type": "boolean"
+    },
+    "age_at_first_intercourse": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "pain_during_intercourse": {
+     "type": "boolean"
+    },
+    "unprotected_last_6_months": {
+     "type": "boolean"
+    },
+    "had_std": {
+     "type": "boolean"
+    },
+    "stds": {
+     "type": "array",
+     "uniqueItems": true,
+     "items": {
+      "type": "string",
+      "enum": [
+       "genital_warts",
+       "herpes",
+       "chlamydia",
+       "syphilis",
+       "hiv_aids",
+       "gonorrhea",
+       "other"
+      ]
+     }
+    },
+    "concerns": {
+     "type": "boolean"
+    }
+   }
+  },
+  "female_health": {
+   "type": "object",
+   "properties": {
+    "pelvic_exam": {
+     "type": "object",
+     "properties": {
+      "had_exam": {
+       "type": "boolean"
+      },
+      "where": {
+       "type": "string"
+      },
+      "date": {
+       "type": "string",
+       "format": "date"
+      },
+      "result": {
+       "type": "string",
+       "enum": [
+        "normal",
+        "abnormal"
+       ]
+      },
+      "abnormal_explanation": {
+       "type": "string"
+      }
+     }
+    },
+    "menstrual": {
+     "type": "object",
+     "properties": {
+      "age_at_onset": {
+       "type": "integer"
+      },
+      "cycle_length_days": {
+       "type": "integer"
+      },
+      "heavy_flow": {
+       "type": "boolean"
+      },
+      "irregular": {
+       "type": "boolean"
+      },
+      "longest_gap": {
+       "type": "string",
+       "description": "Longest time between periods, free text."
+      }
+     }
+    },
+    "troubled_by": {
+     "type": "object",
+     "properties": {
+      "bleeding_between_periods": {
+       "type": "boolean"
+      },
+      "mid_cycle_pains": {
+       "type": "boolean"
+      },
+      "vaginal_discharge": {
+       "type": "boolean"
+      },
+      "burning_urination": {
+       "type": "boolean"
+      },
+      "severe_cramping": {
+       "type": "boolean"
+      },
+      "depression_anxiety": {
+       "type": "boolean"
+      },
+      "breast_tenderness": {
+       "type": "boolean"
+      },
+      "weight_gain": {
+       "type": "boolean"
+      },
+      "ankle_swelling": {
+       "type": "boolean"
+      },
+      "headache": {
+       "type": "boolean"
+      }
+     }
+    },
+    "pregnancy": {
+     "type": "object",
+     "properties": {
+      "ever_pregnant": {
+       "type": "boolean"
+      },
+      "total": {
+       "type": "integer",
+       "minimum": 0
+      },
+      "miscarriages": {
+       "type": "object",
+       "properties": {
+        "count": {
+         "type": "integer",
+         "minimum": 0
+        }
+       }
+      },
+      "live_births": {
+       "type": "object",
+       "properties": {
+        "count": {
+         "type": "integer",
+         "minimum": 0
+        }
+       }
+      },
+      "abortions": {
+       "type": "object",
+       "properties": {
+        "count": {
+         "type": "integer",
+         "minimum": 0
+        }
+       }
+      }
+     }
+    },
+    "contraception": {
+     "type": "object",
+     "properties": {
+      "methods_used": {
+       "type": "array",
+       "uniqueItems": true,
+       "items": {
+        "type": "string",
+        "enum": [
+         "pill",
+         "condoms",
+         "diaphragm_cervical_cap",
+         "iud",
+         "withdrawal",
+         "sponge",
+         "rhythm",
+         "norplant",
+         "spermicidal",
+         "other"
+        ]
+       }
+      },
+      "current_method": {
+       "type": "string"
+      },
+      "satisfied": {
+       "type": "boolean"
+      },
+      "preferred_method": {
+       "type": "string"
+      },
+      "had_problems": {
+       "type": "boolean"
+      },
+      "problem_methods": {
+       "type": "string"
+      }
+     }
+    }
+   }
+  },
+  "signed_on": {
+   "type": "string",
+   "format": "date"
+  },
+  "guardian_signed_on": {
+   "type": "string",
+   "format": "date",
+   "description": "Required when the student is under 18."
+  },
+  "visit_reason": {
+   "type": "string",
+   "description": "Reason for the visit, recorded at check-in."
+  }
+ },
+ "required": [
+  "student"
+ ]
+}

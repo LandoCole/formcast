@@ -1,0 +1,927 @@
+{
+ "form": "columbus_medhist",
+ "fields": [],
+ "widget_paths": {
+  "NAME": {
+   "path": "student.first_name",
+   "transforms": [
+    "join"
+   ],
+   "also_paths": [
+    "student.last_name"
+   ]
+  },
+  "ID  909": {
+   "path": "student.student_id"
+  },
+  "Date": {
+   "path": "completed_on",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "MEDICATION ALLERGIES": {
+   "path": "allergies.medications",
+   "transforms": [
+    "join"
+   ]
+  },
+  "ALLERGIES FoodEnvironmentalSeasonal": {
+   "path": "allergies.other",
+   "transforms": [
+    "join"
+   ]
+  },
+  "LIST OF CURRENT MEDICATIONS Prescription Non Prescription Birth Control Inhaler Supplement 1": {
+   "path": "current_medications",
+   "transforms": [
+    "join"
+   ]
+  },
+  "Bone Fracture": {
+   "path": "medical_history.fracture_site"
+  },
+  "Year": {
+   "path": "medical_history.fracture_year"
+  },
+  "Pap History  Date": {
+   "path": "medical_history.last_pap_date",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "Pregnancy Number": {
+   "path": "medical_history.pregnancies"
+  },
+  "Number of live births": {
+   "path": "medical_history.live_births"
+  },
+  "STD History": {
+   "path": "medical_history.std_history"
+  },
+  "Other": {
+   "path": "medical_history.other_conditions"
+  },
+  "Number of Years": {
+   "path": "social_history.tobacco.years"
+  },
+  "Per day": {
+   "path": "social_history.tobacco.per_day"
+  },
+  "Vape  Number of Years": {
+   "path": "social_history.vaping.years"
+  },
+  "WeedMarijuana  Number of years": {
+   "path": "social_history.marijuana.years"
+  },
+  "Check Box1": {
+   "path": "medical_history.conditions",
+   "transforms": [
+    "contains"
+   ],
+   "value": "add_adhd"
+  },
+  "Check Box2": {
+   "path": "medical_history.conditions",
+   "transforms": [
+    "contains"
+   ],
+   "value": "alcohol_drug_dependency"
+  },
+  "Check Box3": {
+   "path": "medical_history.conditions",
+   "transforms": [
+    "contains"
+   ],
+   "value": "anemia_blood_disorder"
+  },
+  "Check Box4": {
+   "path": "medical_history.conditions",
+   "transforms": [
+    "contains"
+   ],
+   "value": "anxiety"
+  },
+  "Check Box5": {
+   "path": "medical_history.conditions",
+   "transforms": [
+    "contains"
+   ],
+   "value": "arthritis"
+  },
+  "Check Box6": {
+   "path": "medical_history.conditions",
+   "transforms": [
+    "contains"
+   ],
+   "value": "asthma"
+  },
+  "Check Box7": {
+   "path": "medical_history.conditions",
+   "transforms": [
+    "contains"
+   ],
+   "value": "bipolar_disorder"
+  },
+  "Check Box8": {
+   "path": "medical_history.conditions",
+   "transforms": [
+    "contains"
+   ],
+   "value": "bone_fracture"
+  },
+  "Check Box10": {
+   "path": "medical_history.conditions",
+   "transforms": [
+    "contains"
+   ],
+   "value": "cancer"
+  },
+  "Check Box11": {
+   "path": "medical_history.conditions",
+   "transforms": [
+    "contains"
+   ],
+   "value": "diabetes"
+  },
+  "Check Box12": {
+   "path": "medical_history.conditions",
+   "transforms": [
+    "contains"
+   ],
+   "value": "depression"
+  },
+  "Check Box13": {
+   "path": "medical_history.conditions",
+   "transforms": [
+    "contains"
+   ],
+   "value": "eating_disorder"
+  },
+  "Check Box14": {
+   "path": "medical_history.conditions",
+   "transforms": [
+    "contains"
+   ],
+   "value": "eczema"
+  },
+  "Check Box15": {
+   "path": "medical_history.conditions",
+   "transforms": [
+    "contains"
+   ],
+   "value": "epilepsy_seizures"
+  },
+  "Check Box16": {
+   "path": "medical_history.conditions",
+   "transforms": [
+    "contains"
+   ],
+   "value": "gastrointestinal_problems"
+  },
+  "Check Box17": {
+   "path": "medical_history.conditions",
+   "transforms": [
+    "contains"
+   ],
+   "value": "hearing_loss"
+  },
+  "Check Box18": {
+   "path": "medical_history.conditions",
+   "transforms": [
+    "contains"
+   ],
+   "value": "heart_disease_stroke"
+  },
+  "Check Box19": {
+   "path": "medical_history.conditions",
+   "transforms": [
+    "contains"
+   ],
+   "value": "high_blood_pressure"
+  },
+  "Check Box20": {
+   "path": "medical_history.conditions",
+   "transforms": [
+    "contains"
+   ],
+   "value": "kidney_disease_stone"
+  },
+  "Check Box21": {
+   "path": "medical_history.conditions",
+   "transforms": [
+    "contains"
+   ],
+   "value": "liver_disease_jaundice"
+  },
+  "Check Box22": {
+   "path": "medical_history.conditions",
+   "transforms": [
+    "contains"
+   ],
+   "value": "migraine_headaches"
+  },
+  "Check Box23": {
+   "path": "medical_history.conditions",
+   "transforms": [
+    "contains"
+   ],
+   "value": "ovarian_cyst"
+  },
+  "Check Box24": {
+   "path": "medical_history.conditions",
+   "transforms": [
+    "contains"
+   ],
+   "value": "pap_history"
+  },
+  "Check Box25": {
+   "path": "medical_history.conditions",
+   "transforms": [
+    "contains"
+   ],
+   "value": "polycystic_ovarian_syndrome"
+  },
+  "Check Box26": {
+   "path": "medical_history.conditions",
+   "transforms": [
+    "contains"
+   ],
+   "value": "pregnancy"
+  },
+  "Check Box27": {
+   "path": "medical_history.conditions",
+   "transforms": [
+    "contains"
+   ],
+   "value": "std_history"
+  },
+  "Check Box28": {
+   "path": "medical_history.conditions",
+   "transforms": [
+    "contains"
+   ],
+   "value": "thyroid_problems"
+  },
+  "Check Box29": {
+   "path": "medical_history.conditions",
+   "transforms": [
+    "contains"
+   ],
+   "value": "tuberculosis"
+  },
+  "Check Box30": {
+   "path": "medical_history.conditions",
+   "transforms": [
+    "contains"
+   ],
+   "value": "other"
+  },
+  "Check Box33": {
+   "path": "social_history.alcohol_use",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  "Check Box34": {
+   "path": "social_history.alcohol_use",
+   "transforms": [
+    "equals"
+   ],
+   "value": false
+  },
+  "Check Box35": {
+   "path": "social_history.abuse.reported",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  "Check Box36": {
+   "path": "social_history.abuse.timing",
+   "transforms": [
+    "equals"
+   ],
+   "value": "current"
+  },
+  "Check Box37": {
+   "path": "social_history.abuse.timing",
+   "transforms": [
+    "equals"
+   ],
+   "value": "history"
+  },
+  "Check Box39": {
+   "path": "social_history.employment",
+   "transforms": [
+    "equals"
+   ],
+   "value": "full_time"
+  },
+  "Check Box40": {
+   "path": "social_history.employment",
+   "transforms": [
+    "equals"
+   ],
+   "value": "part_time"
+  },
+  "Check Box41": {
+   "path": "social_history.exercise",
+   "transforms": [
+    "equals"
+   ],
+   "value": "regular"
+  },
+  "Check Box42": {
+   "path": "social_history.exercise",
+   "transforms": [
+    "equals"
+   ],
+   "value": "intermittent"
+  },
+  "Check Box43": {
+   "path": "social_history.owns_gun",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  "Check Box45": {
+   "path": "social_history.marital_status",
+   "transforms": [
+    "equals"
+   ],
+   "value": "single"
+  },
+  "Check Box46": {
+   "path": "social_history.marital_status",
+   "transforms": [
+    "equals"
+   ],
+   "value": "married"
+  },
+  "Check Box47": {
+   "path": "social_history.marital_status",
+   "transforms": [
+    "equals"
+   ],
+   "value": "separated"
+  },
+  "Check Box48": {
+   "path": "social_history.marital_status",
+   "transforms": [
+    "equals"
+   ],
+   "value": "divorced"
+  },
+  "Check Box49": {
+   "path": "social_history.marital_status",
+   "transforms": [
+    "equals"
+   ],
+   "value": "widowed"
+  },
+  "Check Box51": {
+   "path": "social_history.sexual_activity",
+   "transforms": [
+    "equals"
+   ],
+   "value": "never"
+  },
+  "Check Box52": {
+   "path": "social_history.sexual_activity",
+   "transforms": [
+    "equals"
+   ],
+   "value": "not_currently"
+  },
+  "Check Box53": {
+   "path": "social_history.sexual_activity",
+   "transforms": [
+    "equals"
+   ],
+   "value": "one_partner"
+  },
+  "Check Box54": {
+   "path": "social_history.sexual_activity",
+   "transforms": [
+    "equals"
+   ],
+   "value": "multiple_partners"
+  },
+  "Check Box56": {
+   "path": "social_history.seatbelt_use",
+   "transforms": [
+    "equals"
+   ],
+   "value": "always"
+  },
+  "Check Box57": {
+   "path": "social_history.seatbelt_use",
+   "transforms": [
+    "equals"
+   ],
+   "value": "never"
+  },
+  "Check Box58": {
+   "path": "social_history.seatbelt_use",
+   "transforms": [
+    "equals"
+   ],
+   "value": "rarely"
+  },
+  "Check Box60": {
+   "path": "social_history.tobacco.types",
+   "transforms": [
+    "contains"
+   ],
+   "value": "none"
+  },
+  "Check Box61": {
+   "path": "social_history.tobacco.types",
+   "transforms": [
+    "contains"
+   ],
+   "value": "cigarettes"
+  },
+  "Check Box62": {
+   "path": "social_history.tobacco.types",
+   "transforms": [
+    "contains"
+   ],
+   "value": "cigars"
+  },
+  "Check Box63": {
+   "path": "social_history.tobacco.types",
+   "transforms": [
+    "contains"
+   ],
+   "value": "chewing"
+  },
+  "Check Box64": {
+   "path": "social_history.tobacco.types",
+   "transforms": [
+    "contains"
+   ],
+   "value": "dipping"
+  },
+  "Check Box65": {
+   "path": "social_history.tobacco.types",
+   "transforms": [
+    "contains"
+   ],
+   "value": "previous_use"
+  },
+  "Check Box66": {
+   "path": "social_history.vaping.uses",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  "Check Box67": {
+   "path": "social_history.marijuana.uses",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  "Check Box69": {
+   "path": "social_history.drug_use",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  "Check Box70": {
+   "path": "social_history.drug_use",
+   "transforms": [
+    "equals"
+   ],
+   "value": false
+  },
+  "NAME_2": {
+   "path": "student.first_name",
+   "transforms": [
+    "join"
+   ],
+   "also_paths": [
+    "student.last_name"
+   ]
+  },
+  "ID  909_2": {
+   "path": "student.student_id"
+  },
+  "Check Box71": {
+   "path": "family_history.adopted_unknown",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  "Check Box73": {
+   "path": "family_history.conditions.alcohol_drug_dependency",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": "Alcohol or Drug Dependency"
+  },
+  "Check Box74": {
+   "path": "family_history.conditions.anemia_blood_disorder",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": "Anemia or Blood Disorder"
+  },
+  "Check Box75": {
+   "path": "family_history.conditions.anxiety",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": "Anxiety"
+  },
+  "Check Box76": {
+   "path": "family_history.conditions.arthritis",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": "Arthritis"
+  },
+  "Check Box77": {
+   "path": "family_history.conditions.asthma",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": "Asthma"
+  },
+  "Check Box78": {
+   "path": "family_history.conditions.bipolar_disorder",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": "Bipolar Disorder"
+  },
+  "Check Box79": {
+   "path": "family_history.conditions.cancer",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": "Cancer"
+  },
+  "Check Box80": {
+   "path": "family_history.conditions.diabetes",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": "Diabetes"
+  },
+  "Check Box81": {
+   "path": "family_history.conditions.depression",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": "Depression"
+  },
+  "Check Box82": {
+   "path": "family_history.conditions.epilepsy_seizures",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": "Epilepsy or Seizures"
+  },
+  "Check Box83": {
+   "path": "family_history.conditions.gastrointestinal_problems",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": "Gastrointestinal Problems"
+  },
+  "Check Box84": {
+   "path": "family_history.conditions.heart_attack_stroke",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": "Heart Attack or Stroke"
+  },
+  "Check Box85": {
+   "path": "family_history.conditions.high_blood_pressure",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": "High Blood Pressure"
+  },
+  "Check Box86": {
+   "path": "family_history.conditions.high_cholesterol",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": "High Cholesterol"
+  },
+  "Check Box87": {
+   "path": "family_history.conditions.kidney_disease",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": "Kidney Disease"
+  },
+  "Check Box88": {
+   "path": "family_history.conditions.liver_disease_jaundice",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": "Liver Disease or Jaundice"
+  },
+  "Check Box89": {
+   "path": "family_history.conditions.migraine_headaches",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": "Migraine Headaches"
+  },
+  "Check Box90": {
+   "path": "family_history.conditions.thyroid_problems",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": "Thyroid Problems"
+  },
+  "Check Box91": {
+   "path": "family_history.conditions.tuberculosis",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": "Tuberculosis"
+  },
+  "Check Box92": {
+   "path": "family_history.conditions.other",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": "Other"
+  },
+  "Alcohol or Drug Dependency": {
+   "path": "family_history.conditions.alcohol_drug_dependency",
+   "transforms": [
+    "join"
+   ]
+  },
+  "Anemia or Blood Disorder": {
+   "path": "family_history.conditions.anemia_blood_disorder",
+   "transforms": [
+    "join"
+   ]
+  },
+  "Anxiety": {
+   "path": "family_history.conditions.anxiety",
+   "transforms": [
+    "join"
+   ]
+  },
+  "Arthritis": {
+   "path": "family_history.conditions.arthritis",
+   "transforms": [
+    "join"
+   ]
+  },
+  "Asthma": {
+   "path": "family_history.conditions.asthma",
+   "transforms": [
+    "join"
+   ]
+  },
+  "Bipolar Disorder": {
+   "path": "family_history.conditions.bipolar_disorder",
+   "transforms": [
+    "join"
+   ]
+  },
+  "Cancer": {
+   "path": "family_history.conditions.cancer",
+   "transforms": [
+    "join"
+   ]
+  },
+  "Diabetes": {
+   "path": "family_history.conditions.diabetes",
+   "transforms": [
+    "join"
+   ]
+  },
+  "Depression": {
+   "path": "family_history.conditions.depression",
+   "transforms": [
+    "join"
+   ]
+  },
+  "Epilepsy or Seizures": {
+   "path": "family_history.conditions.epilepsy_seizures",
+   "transforms": [
+    "join"
+   ]
+  },
+  "Gastrointestinal Problems": {
+   "path": "family_history.conditions.gastrointestinal_problems",
+   "transforms": [
+    "join"
+   ]
+  },
+  "Heart Attack or Stroke": {
+   "path": "family_history.conditions.heart_attack_stroke",
+   "transforms": [
+    "join"
+   ]
+  },
+  "High Blood Pressure": {
+   "path": "family_history.conditions.high_blood_pressure",
+   "transforms": [
+    "join"
+   ]
+  },
+  "High Cholesterol": {
+   "path": "family_history.conditions.high_cholesterol",
+   "transforms": [
+    "join"
+   ]
+  },
+  "Kidney Disease": {
+   "path": "family_history.conditions.kidney_disease",
+   "transforms": [
+    "join"
+   ]
+  },
+  "Liver Disease or Jaundice": {
+   "path": "family_history.conditions.liver_disease_jaundice",
+   "transforms": [
+    "join"
+   ]
+  },
+  "Migraine Headaches": {
+   "path": "family_history.conditions.migraine_headaches",
+   "transforms": [
+    "join"
+   ]
+  },
+  "Thyroid Problems": {
+   "path": "family_history.conditions.thyroid_problems",
+   "transforms": [
+    "join"
+   ]
+  },
+  "Tuberculosis": {
+   "path": "family_history.conditions.tuberculosis",
+   "transforms": [
+    "join"
+   ]
+  },
+  "Other_2": {
+   "path": "family_history.conditions.other",
+   "transforms": [
+    "join"
+   ]
+  },
+  "Check Box95": {
+   "path": "surgical_history.procedures",
+   "transforms": [
+    "contains"
+   ],
+   "value": "abortion"
+  },
+  "Check Box96": {
+   "path": "surgical_history.procedures",
+   "transforms": [
+    "contains"
+   ],
+   "value": "adenoidectomy"
+  },
+  "Check Box97": {
+   "path": "surgical_history.procedures",
+   "transforms": [
+    "contains"
+   ],
+   "value": "appendectomy"
+  },
+  "Check Box98": {
+   "path": "surgical_history.procedures",
+   "transforms": [
+    "contains"
+   ],
+   "value": "biopsy"
+  },
+  "Check Box99": {
+   "path": "surgical_history.procedures",
+   "transforms": [
+    "contains"
+   ],
+   "value": "cholecystectomy"
+  },
+  "Check Box100": {
+   "path": "surgical_history.procedures",
+   "transforms": [
+    "contains"
+   ],
+   "value": "circumcision"
+  },
+  "Check Box101": {
+   "path": "surgical_history.procedures",
+   "transforms": [
+    "contains"
+   ],
+   "value": "c_section"
+  },
+  "Check Box102": {
+   "path": "surgical_history.procedures",
+   "transforms": [
+    "contains"
+   ],
+   "value": "d_and_c"
+  },
+  "Check Box103": {
+   "path": "surgical_history.procedures",
+   "transforms": [
+    "contains"
+   ],
+   "value": "fracture_repair"
+  },
+  "Check Box104": {
+   "path": "surgical_history.procedures",
+   "transforms": [
+    "contains"
+   ],
+   "value": "hernia_repair"
+  },
+  "Check Box105": {
+   "path": "surgical_history.procedures",
+   "transforms": [
+    "contains"
+   ],
+   "value": "knee_arthroscopy"
+  },
+  "Check Box106": {
+   "path": "surgical_history.procedures",
+   "transforms": [
+    "contains"
+   ],
+   "value": "lasik"
+  },
+  "Check Box107": {
+   "path": "surgical_history.procedures",
+   "transforms": [
+    "contains"
+   ],
+   "value": "myringotomy"
+  },
+  "Check Box108": {
+   "path": "surgical_history.procedures",
+   "transforms": [
+    "contains"
+   ],
+   "value": "ovarian_cyst_removal"
+  },
+  "Check Box109": {
+   "path": "surgical_history.procedures",
+   "transforms": [
+    "contains"
+   ],
+   "value": "rotator_cuff_repair"
+  },
+  "Check Box110": {
+   "path": "surgical_history.procedures",
+   "transforms": [
+    "contains"
+   ],
+   "value": "tonsillectomy"
+  },
+  "Check Box111": {
+   "path": "surgical_history.procedures",
+   "transforms": [
+    "contains"
+   ],
+   "value": "tonsillectomy_adenoidectomy"
+  },
+  "Check Box112": {
+   "path": "surgical_history.procedures",
+   "transforms": [
+    "contains"
+   ],
+   "value": "wisdom_teeth_extraction"
+  },
+  "Check Box113": {
+   "path": "surgical_history.procedures",
+   "transforms": [
+    "contains"
+   ],
+   "value": "other"
+  },
+  "Date_3": {
+   "path": "surgical_history.c_section_date",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "Other Surgery": {
+   "path": "surgical_history.other_surgery"
+  }
+ },
+ "notes": "Boxes are the PDF widgets (2 pages). The checkbox widgets are numbered 'Check Box1'..'Check Box114' (no 9); 17 is Hearing Loss/Problem, 69/70 are Drug Use Yes/No, 94 and 114 are the family and surgical NONE boxes. Personal history and surgical history boxes map to enum arrays with contains; single-choice groups (marital status, sexual activity, seatbelt, employment, exercise, abuse current/history) to enums with equals; tobacco types are multi-select (contains); Yes boxes and standalone items get bool_to_check, No boxes equals. Each family-history condition has a checkbox (bool_to_check on the relatives array: ticked when non-empty) and a relatives line (join). The medications answer spans three widgets; only line 1 carries the path. Pathless: Age (the schema keeps date_of_birth; age cannot be computed by a transform), medication lines 2-3, the 'None' line and None/Unknown/NONE boxes (an empty list, not expressible with contains), the social-history group header boxes (Alcohol Use, Employment, Marital Status, Sexual Activity, Seatbelt Use, Tobacco Use, Drug Use; their options carry the answer), 'I am a twin', and the biopsy results/date (not kept)."
+}

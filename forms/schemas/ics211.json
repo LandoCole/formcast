@@ -1,0 +1,154 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://example.org/schemas/incident-check-in-log.json",
+ "title": "Incident check-in log",
+ "description": "Resources and personnel checked in at an incident location for one operational period, as kept by a Resources Unit tracking system.",
+ "type": "object",
+ "properties": {
+  "incident": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string"
+    },
+    "number": {
+     "type": "string",
+     "description": "Agency incident number, e.g. 'CA-ANF-001234'."
+    }
+   },
+   "required": [
+    "name"
+   ]
+  },
+  "check_in_locations": {
+   "type": "array",
+   "uniqueItems": true,
+   "description": "Where check-in is taking place.",
+   "items": {
+    "type": "string",
+    "enum": [
+     "Base",
+     "Staging Area",
+     "ICP",
+     "Helibase",
+     "Other"
+    ]
+   }
+  },
+  "start_date": {
+   "type": "string",
+   "description": "Start of the check-in list.",
+   "format": "date"
+  },
+  "start_time": {
+   "type": "string",
+   "description": "24-hour clock, HHMM.",
+   "pattern": "^\\d{4}$"
+  },
+  "check_ins": {
+   "type": "array",
+   "description": "One entry per single resource or strike team/task force.",
+   "items": {
+    "type": "object",
+    "properties": {
+     "home_state": {
+      "type": "string",
+      "description": "Two-letter state code."
+     },
+     "agency": {
+      "type": "string",
+      "description": "Agency designator, e.g. 'CAL FIRE', 'USFS'."
+     },
+     "category": {
+      "type": "string",
+      "description": "Resource category, e.g. 'Engine', 'Crew'."
+     },
+     "kind": {
+      "type": "string"
+     },
+     "type": {
+      "type": "string",
+      "description": "ICS resource type, e.g. '3'."
+     },
+     "resource_identifier": {
+      "type": "string",
+      "description": "Resource name or ID."
+     },
+     "strike_team_or_task_force": {
+      "type": "string",
+      "enum": [
+       "ST",
+       "TF"
+      ],
+      "description": "Set when the resource is part of a strike team (ST) or task force (TF)."
+     },
+     "order_request_number": {
+      "type": "string",
+      "description": "e.g. 'E-12'."
+     },
+     "checked_in_at": {
+      "type": "string",
+      "format": "date-time"
+     },
+     "leader_name": {
+      "type": "string"
+     },
+     "total_personnel": {
+      "type": "integer",
+      "minimum": 0
+     },
+     "incident_contact": {
+      "type": "string",
+      "description": "Radio frequency, cell or pager number at the incident."
+     },
+     "home_unit": {
+      "type": "string",
+      "description": "Home unit or agency."
+     },
+     "departure": {
+      "type": "string",
+      "description": "Departure point, date and time, as reported."
+     },
+     "travel_method": {
+      "type": "string",
+      "description": "e.g. 'Agency vehicle', 'Bus', 'Air'."
+     },
+     "incident_assignment": {
+      "type": "string"
+     },
+     "other_qualifications": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "agency",
+     "checked_in_at"
+    ]
+   }
+  },
+  "prepared_by": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string"
+    },
+    "position_title": {
+     "type": "string",
+     "description": "ICS position, e.g. 'Status/Check-In Recorder'."
+    }
+   }
+  },
+  "prepared_at": {
+   "type": "string",
+   "format": "date-time"
+  },
+  "operational_period": {
+   "type": "integer",
+   "description": "Operational period number."
+  }
+ },
+ "required": [
+  "incident",
+  "check_ins"
+ ]
+}

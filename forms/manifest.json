@@ -1,5 +1,5 @@
 {
- "_about": "Test corpus. 'dev' forms may be used while developing tools and prompts. 'heldout' forms are only scored at milestones and never used to tune anything. 'kind' is the form as published: fillable forms are stripped of widgets at eval time and their widgets become ground truth; flat and scanned forms need hand-made ground truth (gt/<id>.json) before they can be scored.",
+ "_about": "Test corpus. 'dev' forms may be used while developing tools and prompts. 'heldout' forms are only scored at milestones and never used to tune anything. 'kind' is the form as published: fillable forms are stripped of widgets at eval time and their widgets become ground truth; flat and scanned forms need hand-made ground truth (gt/<id>.json) before they can be scored. 'scored_pages' (0-based page indexes; absent = every page) limits ground truth and scoring to those pages.",
  "forms": [
   {
    "id": "wadoc_auth",
@@ -57,6 +57,7 @@
    "kind": "flat",
    "complexity": "very-hard",
    "pages": 4,
+   "scored_pages": [0],
    "source": "https://www.cms.gov/Medicare/CMS-Forms/CMS-Forms/Downloads/CMS1500.pdf",
    "revision": "02/12 (file 2023-12)",
    "notes": "Page 0 is the blank form under a SAMPLE watermark; labels are vector outlines (no text layer). Pages 1-3 are back side / layout samples; only page 0 is scored."

@@ -1,0 +1,43 @@
+{
+ "form": "coleman_pir",
+ "fields": [],
+ "widget_paths": {
+  "Requestors Name": {
+   "path": "requester.first_name",
+   "transforms": [
+    "join"
+   ],
+   "also_paths": [
+    "requester.last_name"
+   ]
+  },
+  "Mailing address": {
+   "path": "requester.address.street"
+  },
+  "City": {
+   "path": "requester.address.city"
+  },
+  "State": {
+   "path": "requester.address.state"
+  },
+  "ZIP Code": {
+   "path": "requester.address.postal_code"
+  },
+  "Primary phone number": {
+   "path": "requester.phone"
+  },
+  "Email address": {
+   "path": "requester.email"
+  },
+  "Digital ImagesIndexes 1": {
+   "path": "records_requested"
+  },
+  "Date": {
+   "path": "signed_on",
+   "transforms": [
+    "date_format"
+   ]
+  }
+ },
+ "notes": "Boxes are the PDF widgets (1 page). The 'Type of Request' checkboxes have no widgets, so request_type has no box. The three widgets named 'Digital ImagesIndexes 1-3' are the lines under 'Please state your document request below' (misnamed in the PDF); the request is a multi-line answer, so only line 1 carries the path. Pathless: the requester signature and the whole 'For Administrative Use Only' block (Date received, Action taken lines and dates, clerk representative signature/date, Amount Due), which is staff-only."
+}

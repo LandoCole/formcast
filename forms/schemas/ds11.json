@@ -1,0 +1,362 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://example.org/schemas/passport-application-case.json",
+ "title": "Passport application case",
+ "description": "A first-time adult or minor passport application (DS-11) as stored by a passport acceptance facility's case-management system.",
+ "type": "object",
+ "properties": {
+  "case_id": {
+   "type": "string",
+   "description": "Facility case number."
+  },
+  "documents_requested": {
+   "type": "string",
+   "description": "Which documents the fees cover.",
+   "enum": [
+    "book",
+    "card",
+    "both"
+   ]
+  },
+  "book_size": {
+   "type": "string",
+   "enum": [
+    "regular",
+    "large"
+   ]
+  },
+  "applicant": {
+   "type": "object",
+   "properties": {
+    "first_name": {
+     "type": "string"
+    },
+    "middle_name": {
+     "type": "string"
+    },
+    "last_name": {
+     "type": "string"
+    },
+    "date_of_birth": {
+     "type": "string",
+     "format": "date"
+    },
+    "sex": {
+     "type": "string",
+     "enum": [
+      "M",
+      "F"
+     ]
+    },
+    "place_of_birth": {
+     "type": "object",
+     "properties": {
+      "city": {
+       "type": "string"
+      },
+      "state_or_country": {
+       "type": "string",
+       "description": "U.S. state, or country if born abroad."
+      }
+     }
+    },
+    "ssn": {
+     "type": "string",
+     "description": "NNN-NN-NNNN.",
+     "pattern": "^\\d{3}-\\d{2}-\\d{4}$"
+    },
+    "uscis_a_number": {
+     "type": "string",
+     "description": "USCIS A-Number, digits only, if any."
+    },
+    "email": {
+     "type": "string",
+     "format": "email"
+    },
+    "phone": {
+     "type": "string",
+     "description": "Primary contact phone, NNN-NNN-NNNN.",
+     "pattern": "^\\d{3}-\\d{3}-\\d{4}$"
+    },
+    "additional_phone": {
+     "type": "object",
+     "properties": {
+      "number": {
+       "type": "string"
+      },
+      "type": {
+       "type": "string",
+       "enum": [
+        "Home",
+        "Work",
+        "Cell",
+        "Other"
+       ]
+      }
+     }
+    },
+    "mailing_address": {
+     "type": "object",
+     "properties": {
+      "line1": {
+       "type": "string",
+       "description": "Street/RFD #, P.O. Box or URB, with apartment or suite."
+      },
+      "line2": {
+       "type": "string",
+       "description": "e.g. 'In Care Of' for a child."
+      },
+      "city": {
+       "type": "string"
+      },
+      "state": {
+       "type": "string"
+      },
+      "postal_code": {
+       "type": "string"
+      },
+      "country": {
+       "type": "string",
+       "description": "Only if outside the United States."
+      }
+     }
+    },
+    "permanent_address": {
+     "type": "object",
+     "properties": {
+      "street": {
+       "type": "string"
+      },
+      "unit": {
+       "type": "string",
+       "description": "Apartment or unit."
+      },
+      "city": {
+       "type": "string"
+      },
+      "state": {
+       "type": "string",
+       "description": "Two-letter code."
+      },
+      "postal_code": {
+       "type": "string"
+      }
+     }
+    },
+    "occupation": {
+     "type": "string"
+    },
+    "employer_or_school": {
+     "type": "string"
+    },
+    "height": {
+     "type": "string",
+     "description": "Feet and inches, e.g. 5' 10\"."
+    },
+    "hair_color": {
+     "type": "string"
+    },
+    "eye_color": {
+     "type": "string"
+    },
+    "previous_names": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "Birth, maiden, previous-marriage or legal-change names."
+    }
+   },
+   "required": [
+    "first_name",
+    "last_name",
+    "date_of_birth",
+    "place_of_birth"
+   ]
+  },
+  "parents": {
+   "type": "array",
+   "maxItems": 2,
+   "items": {
+    "type": "object",
+    "properties": {
+     "given_names": {
+      "type": "string",
+      "description": "First and middle name at the parent's birth."
+     },
+     "surname_at_birth": {
+      "type": "string"
+     },
+     "date_of_birth": {
+      "type": "string",
+      "format": "date"
+     },
+     "place_of_birth": {
+      "type": "string"
+     },
+     "sex": {
+      "type": "string",
+      "enum": [
+       "M",
+       "F"
+      ]
+     },
+     "us_citizen": {
+      "type": "boolean"
+     }
+    }
+   }
+  },
+  "marital_history": {
+   "type": "object",
+   "properties": {
+    "ever_married": {
+     "type": "boolean"
+    },
+    "spouse": {
+     "type": "object",
+     "properties": {
+      "first_name": {
+       "type": "string"
+      },
+      "middle_name": {
+       "type": "string"
+      },
+      "last_name": {
+       "type": "string"
+      },
+      "date_of_birth": {
+       "type": "string",
+       "format": "date"
+      },
+      "place_of_birth": {
+       "type": "string"
+      },
+      "us_citizen": {
+       "type": "boolean"
+      }
+     }
+    },
+    "marriage_date": {
+     "type": "string",
+     "format": "date"
+    },
+    "widowed_or_divorced": {
+     "type": "boolean"
+    },
+    "widowed_or_divorced_on": {
+     "type": "string",
+     "format": "date"
+    }
+   }
+  },
+  "travel_plans": {
+   "type": "object",
+   "properties": {
+    "departure_date": {
+     "type": "string",
+     "format": "date"
+    },
+    "return_date": {
+     "type": "string",
+     "format": "date"
+    },
+    "countries": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "emergency_contact": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string"
+    },
+    "address": {
+     "type": "object",
+     "properties": {
+      "street": {
+       "type": "string"
+      },
+      "unit": {
+       "type": "string",
+       "description": "Apartment or unit."
+      },
+      "city": {
+       "type": "string"
+      },
+      "state": {
+       "type": "string",
+       "description": "Two-letter code."
+      },
+      "postal_code": {
+       "type": "string"
+      }
+     }
+    },
+    "phone": {
+     "type": "string"
+    },
+    "relationship": {
+     "type": "string"
+    }
+   }
+  },
+  "previous_passport": {
+   "type": "object",
+   "properties": {
+    "ever_applied_or_issued": {
+     "type": "boolean"
+    },
+    "book": {
+     "$ref": "#/$defs/previous_document"
+    },
+    "card": {
+     "$ref": "#/$defs/previous_document"
+    },
+    "loss_or_theft_explanation": {
+     "type": "string"
+    }
+   }
+  },
+  "fee_paid_cents": {
+   "type": "integer"
+  },
+  "expedited": {
+   "type": "boolean"
+  }
+ },
+ "required": [
+  "documents_requested",
+  "applicant"
+ ],
+ "$defs": {
+  "previous_document": {
+   "type": "object",
+   "properties": {
+    "name_as_printed": {
+     "type": "string"
+    },
+    "status": {
+     "type": "string",
+     "enum": [
+      "submitting",
+      "stolen",
+      "lost",
+      "in_possession"
+     ]
+    },
+    "number": {
+     "type": "string"
+    },
+    "issued_on": {
+     "type": "string",
+     "format": "date"
+    }
+   }
+  }
+ }
+}

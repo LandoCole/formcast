@@ -1,0 +1,161 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://example.org/schemas/military-records-release-request.json",
+ "title": "Military records release request",
+ "description": "A service member's (or responsible party's) request to release personnel records to a person or facility.",
+ "type": "object",
+ "properties": {
+  "requester": {
+   "type": "object",
+   "description": "The service member whose records are requested.",
+   "properties": {
+    "first_name": {
+     "type": "string"
+    },
+    "middle_name": {
+     "type": "string"
+    },
+    "last_name": {
+     "type": "string"
+    },
+    "date_of_birth": {
+     "type": "string",
+     "format": "date"
+    },
+    "ssn": {
+     "type": "string",
+     "pattern": "^\\d{3}-?\\d{2}-?\\d{4}$"
+    },
+    "service_number": {
+     "type": "string"
+    },
+    "phone": {
+     "type": "string"
+    },
+    "email": {
+     "type": "string",
+     "format": "email"
+    },
+    "address": {
+     "$ref": "#/$defs/address"
+    }
+   },
+   "required": [
+    "first_name",
+    "last_name",
+    "date_of_birth"
+   ]
+  },
+  "service": {
+   "type": "object",
+   "properties": {
+    "branch": {
+     "type": "string",
+     "description": "e.g. Army, Air Force."
+    },
+    "component": {
+     "type": "string",
+     "enum": [
+      "active_duty",
+      "national_guard",
+      "reserve"
+     ]
+    },
+    "start_date": {
+     "type": "string",
+     "format": "date"
+    },
+    "end_date": {
+     "type": "string",
+     "format": "date"
+    },
+    "rank": {
+     "type": "string",
+     "description": "Rank at separation or current rank."
+    }
+   }
+  },
+  "recipient": {
+   "type": "object",
+   "description": "Person or facility that receives the records.",
+   "properties": {
+    "name": {
+     "type": "string"
+    },
+    "address": {
+     "$ref": "#/$defs/address"
+    },
+    "phone": {
+     "type": "string"
+    },
+    "fax": {
+     "type": "string"
+    },
+    "email": {
+     "type": "string",
+     "format": "email"
+    }
+   },
+   "required": [
+    "name"
+   ]
+  },
+  "documents_requested": {
+   "type": "array",
+   "uniqueItems": true,
+   "items": {
+    "type": "string",
+    "enum": [
+     "dd214",
+     "ngb22",
+     "ngb23",
+     "medical",
+     "other"
+    ]
+   }
+  },
+  "other_documents": {
+   "type": "string",
+   "description": "Description when 'other' is requested."
+  },
+  "reason": {
+   "type": "string"
+  },
+  "authorization_expires_on": {
+   "type": "string",
+   "format": "date"
+  },
+  "signer_relationship": {
+   "type": "string",
+   "description": "Signer's relationship to the member, e.g. Self."
+  },
+  "signed_on": {
+   "type": "string",
+   "format": "date"
+  }
+ },
+ "required": [
+  "requester",
+  "recipient",
+  "documents_requested"
+ ],
+ "$defs": {
+  "address": {
+   "type": "object",
+   "properties": {
+    "street": {
+     "type": "string"
+    },
+    "city": {
+     "type": "string"
+    },
+    "state": {
+     "type": "string"
+    },
+    "postal_code": {
+     "type": "string"
+    }
+   }
+  }
+ }
+}

@@ -1,0 +1,465 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://example.org/schemas/student-health-history.json",
+ "title": "Student health history",
+ "description": "A student's intake health history as kept in the student health center's records system.",
+ "type": "object",
+ "properties": {
+  "student": {
+   "type": "object",
+   "properties": {
+    "first_name": {
+     "type": "string"
+    },
+    "last_name": {
+     "type": "string"
+    },
+    "student_id": {
+     "type": "string",
+     "description": "University ID number."
+    },
+    "date_of_birth": {
+     "type": "string",
+     "format": "date"
+    }
+   },
+   "required": [
+    "first_name",
+    "last_name",
+    "student_id"
+   ]
+  },
+  "completed_on": {
+   "type": "string",
+   "format": "date",
+   "description": "Date the history was filled out."
+  },
+  "allergies": {
+   "type": "object",
+   "properties": {
+    "medications": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "Medication allergies."
+    },
+    "other": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "Food, environmental and seasonal allergies."
+    }
+   }
+  },
+  "current_medications": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   },
+   "description": "Prescription and non-prescription medications, birth control, inhalers, supplements."
+  },
+  "medical_history": {
+   "type": "object",
+   "properties": {
+    "conditions": {
+     "type": "array",
+     "items": {
+      "type": "string",
+      "enum": [
+       "add_adhd",
+       "alcohol_drug_dependency",
+       "anemia_blood_disorder",
+       "anxiety",
+       "arthritis",
+       "asthma",
+       "bipolar_disorder",
+       "bone_fracture",
+       "cancer",
+       "diabetes",
+       "depression",
+       "eating_disorder",
+       "eczema",
+       "epilepsy_seizures",
+       "gastrointestinal_problems",
+       "hearing_loss",
+       "heart_disease_stroke",
+       "high_blood_pressure",
+       "kidney_disease_stone",
+       "liver_disease_jaundice",
+       "migraine_headaches",
+       "ovarian_cyst",
+       "pap_history",
+       "polycystic_ovarian_syndrome",
+       "pregnancy",
+       "std_history",
+       "thyroid_problems",
+       "tuberculosis",
+       "other"
+      ]
+     },
+     "uniqueItems": true,
+     "description": "Conditions the student has had."
+    },
+    "fracture_site": {
+     "type": "string",
+     "description": "Bone fractured."
+    },
+    "fracture_year": {
+     "type": "integer"
+    },
+    "last_pap_date": {
+     "type": "string",
+     "format": "date"
+    },
+    "pregnancies": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "live_births": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "std_history": {
+     "type": "string",
+     "description": "STDs and treatment, free text."
+    },
+    "other_conditions": {
+     "type": "string"
+    }
+   }
+  },
+  "social_history": {
+   "type": "object",
+   "properties": {
+    "alcohol_use": {
+     "type": "boolean"
+    },
+    "abuse": {
+     "type": "object",
+     "properties": {
+      "reported": {
+       "type": "boolean",
+       "description": "Physical, sexual, emotional or verbal abuse."
+      },
+      "timing": {
+       "type": "string",
+       "enum": [
+        "current",
+        "history"
+       ]
+      }
+     }
+    },
+    "employment": {
+     "type": "string",
+     "enum": [
+      "full_time",
+      "part_time"
+     ]
+    },
+    "exercise": {
+     "type": "string",
+     "enum": [
+      "regular",
+      "intermittent"
+     ]
+    },
+    "owns_gun": {
+     "type": "boolean"
+    },
+    "marital_status": {
+     "type": "string",
+     "enum": [
+      "single",
+      "married",
+      "separated",
+      "divorced",
+      "widowed"
+     ]
+    },
+    "sexual_activity": {
+     "type": "string",
+     "enum": [
+      "never",
+      "not_currently",
+      "one_partner",
+      "multiple_partners"
+     ]
+    },
+    "seatbelt_use": {
+     "type": "string",
+     "enum": [
+      "always",
+      "never",
+      "rarely"
+     ]
+    },
+    "tobacco": {
+     "type": "object",
+     "properties": {
+      "types": {
+       "type": "array",
+       "items": {
+        "type": "string",
+        "enum": [
+         "none",
+         "cigarettes",
+         "cigars",
+         "chewing",
+         "dipping",
+         "previous_use"
+        ]
+       },
+       "uniqueItems": true
+      },
+      "years": {
+       "type": "number",
+       "minimum": 0
+      },
+      "per_day": {
+       "type": "number",
+       "minimum": 0
+      }
+     }
+    },
+    "vaping": {
+     "type": "object",
+     "properties": {
+      "uses": {
+       "type": "boolean"
+      },
+      "years": {
+       "type": "number",
+       "minimum": 0
+      }
+     }
+    },
+    "marijuana": {
+     "type": "object",
+     "properties": {
+      "uses": {
+       "type": "boolean"
+      },
+      "years": {
+       "type": "number",
+       "minimum": 0
+      }
+     }
+    },
+    "drug_use": {
+     "type": "boolean"
+    }
+   }
+  },
+  "family_history": {
+   "type": "object",
+   "properties": {
+    "adopted_unknown": {
+     "type": "boolean",
+     "description": "Adopted; family history unknown."
+    },
+    "conditions": {
+     "type": "object",
+     "properties": {
+      "alcohol_drug_dependency": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "Relatives with the condition, e.g. 'Mother', 'Paternal grandfather'."
+      },
+      "anemia_blood_disorder": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "Relatives with the condition, e.g. 'Mother', 'Paternal grandfather'."
+      },
+      "anxiety": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "Relatives with the condition, e.g. 'Mother', 'Paternal grandfather'."
+      },
+      "arthritis": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "Relatives with the condition, e.g. 'Mother', 'Paternal grandfather'."
+      },
+      "asthma": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "Relatives with the condition, e.g. 'Mother', 'Paternal grandfather'."
+      },
+      "bipolar_disorder": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "Relatives with the condition, e.g. 'Mother', 'Paternal grandfather'."
+      },
+      "cancer": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "Relatives with the condition, e.g. 'Mother', 'Paternal grandfather'."
+      },
+      "diabetes": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "Relatives with the condition, e.g. 'Mother', 'Paternal grandfather'."
+      },
+      "depression": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "Relatives with the condition, e.g. 'Mother', 'Paternal grandfather'."
+      },
+      "epilepsy_seizures": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "Relatives with the condition, e.g. 'Mother', 'Paternal grandfather'."
+      },
+      "gastrointestinal_problems": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "Relatives with the condition, e.g. 'Mother', 'Paternal grandfather'."
+      },
+      "heart_attack_stroke": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "Relatives with the condition, e.g. 'Mother', 'Paternal grandfather'."
+      },
+      "high_blood_pressure": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "Relatives with the condition, e.g. 'Mother', 'Paternal grandfather'."
+      },
+      "high_cholesterol": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "Relatives with the condition, e.g. 'Mother', 'Paternal grandfather'."
+      },
+      "kidney_disease": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "Relatives with the condition, e.g. 'Mother', 'Paternal grandfather'."
+      },
+      "liver_disease_jaundice": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "Relatives with the condition, e.g. 'Mother', 'Paternal grandfather'."
+      },
+      "migraine_headaches": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "Relatives with the condition, e.g. 'Mother', 'Paternal grandfather'."
+      },
+      "thyroid_problems": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "Relatives with the condition, e.g. 'Mother', 'Paternal grandfather'."
+      },
+      "tuberculosis": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "Relatives with the condition, e.g. 'Mother', 'Paternal grandfather'."
+      },
+      "other": {
+       "type": "array",
+       "items": {
+        "type": "string"
+       },
+       "description": "Relatives with the condition, e.g. 'Mother', 'Paternal grandfather'."
+      }
+     }
+    }
+   }
+  },
+  "surgical_history": {
+   "type": "object",
+   "properties": {
+    "procedures": {
+     "type": "array",
+     "items": {
+      "type": "string",
+      "enum": [
+       "abortion",
+       "adenoidectomy",
+       "appendectomy",
+       "biopsy",
+       "cholecystectomy",
+       "circumcision",
+       "c_section",
+       "d_and_c",
+       "fracture_repair",
+       "hernia_repair",
+       "knee_arthroscopy",
+       "lasik",
+       "myringotomy",
+       "ovarian_cyst_removal",
+       "rotator_cuff_repair",
+       "tonsillectomy",
+       "tonsillectomy_adenoidectomy",
+       "wisdom_teeth_extraction",
+       "other"
+      ]
+     },
+     "uniqueItems": true
+    },
+    "c_section_date": {
+     "type": "string",
+     "format": "date"
+    },
+    "other_surgery": {
+     "type": "string"
+    }
+   }
+  },
+  "emergency_contact": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string"
+    },
+    "phone": {
+     "type": "string"
+    }
+   }
+  }
+ },
+ "required": [
+  "student"
+ ]
+}

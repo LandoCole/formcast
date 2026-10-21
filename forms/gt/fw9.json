@@ -1,0 +1,125 @@
+{
+ "form": "fw9",
+ "fields": [],
+ "widget_paths": {
+  "topmostSubform[0].Page1[0].f1_01[0]": {
+   "path": "legal_name"
+  },
+  "topmostSubform[0].Page1[0].f1_02[0]": {
+   "path": "business_name"
+  },
+  "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[0]": {
+   "path": "tax_classification",
+   "transforms": [
+    "equals"
+   ],
+   "value": "individual_sole_proprietor"
+  },
+  "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[1]": {
+   "path": "tax_classification",
+   "transforms": [
+    "equals"
+   ],
+   "value": "c_corporation"
+  },
+  "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[2]": {
+   "path": "tax_classification",
+   "transforms": [
+    "equals"
+   ],
+   "value": "s_corporation"
+  },
+  "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[3]": {
+   "path": "tax_classification",
+   "transforms": [
+    "equals"
+   ],
+   "value": "partnership"
+  },
+  "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[4]": {
+   "path": "tax_classification",
+   "transforms": [
+    "equals"
+   ],
+   "value": "trust_estate"
+  },
+  "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[5]": {
+   "path": "tax_classification",
+   "transforms": [
+    "equals"
+   ],
+   "value": "llc"
+  },
+  "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[6]": {
+   "path": "tax_classification",
+   "transforms": [
+    "equals"
+   ],
+   "value": "other"
+  },
+  "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].f1_03[0]": {
+   "path": "llc_tax_classification",
+   "transforms": [
+    "char_at",
+    "upper"
+   ]
+  },
+  "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].f1_04[0]": {
+   "path": "other_classification"
+  },
+  "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_2[0]": {
+   "path": "has_foreign_partners",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  "topmostSubform[0].Page1[0].f1_05[0]": {
+   "path": "exempt_payee_code"
+  },
+  "topmostSubform[0].Page1[0].Address_ReadOrder[0].f1_07[0]": {
+   "path": "address.street"
+  },
+  "topmostSubform[0].Page1[0].Address_ReadOrder[0].f1_08[0]": {
+   "path": "address.city",
+   "transforms": [
+    "join"
+   ],
+   "also_paths": [
+    "address.state",
+    "address.postal_code"
+   ]
+  },
+  "topmostSubform[0].Page1[0].f1_11[0]": {
+   "path": "ssn",
+   "transforms": [
+    "slice"
+   ]
+  },
+  "topmostSubform[0].Page1[0].f1_12[0]": {
+   "path": "ssn",
+   "transforms": [
+    "slice"
+   ]
+  },
+  "topmostSubform[0].Page1[0].f1_13[0]": {
+   "path": "ssn",
+   "transforms": [
+    "slice"
+   ]
+  },
+  "topmostSubform[0].Page1[0].f1_14[0]": {
+   "path": "ein",
+   "transforms": [
+    "slice"
+   ]
+  },
+  "topmostSubform[0].Page1[0].f1_15[0]": {
+   "path": "ein",
+   "transforms": [
+    "slice"
+   ]
+  }
+ },
+ "notes": "Boxes are the PDF widgets; only page 0 has any (the signature and its date have no widgets). Line 3a's seven checkboxes are separate widgets c1_1[0..6] in form order (individual, C corp, S corp, partnership, trust/estate, LLC, other) and map to the tax_classification enum with equals. The LLC entry box takes one letter (C/S/P), so it needs char_at + upper from the stored classification word. SSN (3 comb groups) and EIN (2 comb groups) are sliced from the dashed strings. City/state/ZIP is one line (join). Pathless: Requester's name and address (the requester's own data, not the vendor's), the FATCA exemption code and line 7 account numbers (not kept by this AP team)."
+}

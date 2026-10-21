@@ -1,0 +1,243 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://example.org/schemas/city-job-application.json",
+ "title": "City job application",
+ "description": "A non-exempt job application as kept in the city's applicant tracking system.",
+ "type": "object",
+ "properties": {
+  "application_id": {
+   "type": "string",
+   "description": "Applicant tracking number."
+  },
+  "application_date": {
+   "type": "string",
+   "format": "date"
+  },
+  "position_applied_for": {
+   "type": "string"
+  },
+  "applicant": {
+   "type": "object",
+   "properties": {
+    "first_name": {
+     "type": "string"
+    },
+    "middle_name": {
+     "type": "string"
+    },
+    "last_name": {
+     "type": "string"
+    },
+    "address": {
+     "$ref": "#/$defs/address"
+    },
+    "phone": {
+     "type": "string"
+    },
+    "email": {
+     "type": "string",
+     "format": "email"
+    },
+    "us_born_citizen": {
+     "type": "boolean",
+     "description": "Born a U.S. citizen (naturalized citizens must file proof)."
+    }
+   },
+   "required": [
+    "first_name",
+    "last_name"
+   ]
+  },
+  "previous_application": {
+   "type": "object",
+   "properties": {
+    "applied_before": {
+     "type": "boolean"
+    },
+    "position": {
+     "type": "string"
+    },
+    "applied_on": {
+     "type": "string",
+     "format": "date"
+    }
+   }
+  },
+  "education": {
+   "type": "object",
+   "properties": {
+    "school_name": {
+     "type": "string",
+     "description": "Last school attended."
+    },
+    "school_city": {
+     "type": "string"
+    },
+    "school_state": {
+     "type": "string"
+    },
+    "credential": {
+     "type": "string",
+     "description": "Degree or diploma obtained."
+    }
+   }
+  },
+  "certifications": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   },
+   "description": "Certifications held."
+  },
+  "drivers_license": {
+   "type": "object",
+   "properties": {
+    "valid": {
+     "type": "boolean"
+    },
+    "state": {
+     "type": "string"
+    }
+   }
+  },
+  "commercial_drivers_license": {
+   "type": "object",
+   "properties": {
+    "valid": {
+     "type": "boolean"
+    },
+    "state": {
+     "type": "string"
+    }
+   }
+  },
+  "employment_history": {
+   "type": "array",
+   "items": {
+    "$ref": "#/$defs/job"
+   },
+   "description": "Most recent first."
+  },
+  "may_contact_current_employer": {
+   "type": "boolean"
+  },
+  "accepts_temporary_employment": {
+   "type": "boolean"
+  },
+  "criminal_history": {
+   "type": "object",
+   "properties": {
+    "has_record": {
+     "type": "boolean",
+     "description": "Ever charged or convicted of a crime or misdemeanor other than a traffic violation."
+    },
+    "county": {
+     "type": "string"
+    },
+    "state": {
+     "type": "string"
+    },
+    "date": {
+     "type": "string",
+     "format": "date"
+    },
+    "court": {
+     "type": "string"
+    },
+    "offense": {
+     "type": "string"
+    },
+    "disposition": {
+     "type": "string"
+    }
+   }
+  },
+  "available_from": {
+   "type": "string",
+   "format": "date",
+   "description": "Earliest start date."
+  },
+  "signed_on": {
+   "type": "string",
+   "format": "date"
+  }
+ },
+ "required": [
+  "position_applied_for",
+  "applicant"
+ ],
+ "$defs": {
+  "address": {
+   "type": "object",
+   "properties": {
+    "street": {
+     "type": "string"
+    },
+    "city": {
+     "type": "string"
+    },
+    "state": {
+     "type": "string",
+     "description": "Two-letter state code."
+    },
+    "postal_code": {
+     "type": "string"
+    }
+   }
+  },
+  "job": {
+   "type": "object",
+   "properties": {
+    "employer": {
+     "type": "string"
+    },
+    "address": {
+     "type": "string",
+     "description": "Employer address as one line."
+    },
+    "business_type": {
+     "type": "string"
+    },
+    "start_date": {
+     "type": "string",
+     "format": "date"
+    },
+    "end_date": {
+     "type": "string",
+     "format": "date",
+     "description": "Empty for the current job."
+    },
+    "supervisor": {
+     "type": "string",
+     "description": "Name and title of the immediate supervisor."
+    },
+    "final_salary": {
+     "type": "number",
+     "description": "Final pay amount, in dollars."
+    },
+    "final_salary_period": {
+     "type": "string",
+     "enum": [
+      "hour",
+      "week",
+      "month",
+      "year"
+     ]
+    },
+    "reason_for_leaving": {
+     "type": "string"
+    },
+    "position_title": {
+     "type": "string"
+    },
+    "duties": {
+     "type": "string",
+     "description": "Description of the work."
+    }
+   },
+   "required": [
+    "employer"
+   ]
+  }
+ }
+}

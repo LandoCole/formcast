@@ -1,0 +1,519 @@
+{
+ "form": "i9",
+ "fields": [],
+ "widget_paths": {
+  "Last Name (Family Name)": {
+   "path": "employee.last_name"
+  },
+  "First Name Given Name": {
+   "path": "employee.first_name"
+  },
+  "Employee Middle Initial (if any)": {
+   "path": "employee.middle_name",
+   "transforms": [
+    "char_at"
+   ]
+  },
+  "Employee Other Last Names Used (if any)": {
+   "path": "employee.other_last_names",
+   "transforms": [
+    "join"
+   ]
+  },
+  "Address Street Number and Name": {
+   "path": "employee.address.street"
+  },
+  "Apt Number (if any)": {
+   "path": "employee.address.unit"
+  },
+  "City or Town": {
+   "path": "employee.address.city"
+  },
+  "State": {
+   "path": "employee.address.state"
+  },
+  "ZIP Code": {
+   "path": "employee.address.postal_code"
+  },
+  "Date of Birth mmddyyyy": {
+   "path": "employee.date_of_birth",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "US Social Security Number": {
+   "path": "employee.ssn"
+  },
+  "Employees E-mail Address": {
+   "path": "employee.email"
+  },
+  "Telephone Number": {
+   "path": "employee.phone"
+  },
+  "CB_1": {
+   "path": "employee.citizenship_status",
+   "transforms": [
+    "equals"
+   ],
+   "value": "us_citizen"
+  },
+  "CB_2": {
+   "path": "employee.citizenship_status",
+   "transforms": [
+    "equals"
+   ],
+   "value": "noncitizen_national"
+  },
+  "CB_3": {
+   "path": "employee.citizenship_status",
+   "transforms": [
+    "equals"
+   ],
+   "value": "lawful_permanent_resident"
+  },
+  "CB_4": {
+   "path": "employee.citizenship_status",
+   "transforms": [
+    "equals"
+   ],
+   "value": "authorized_alien"
+  },
+  "3 A lawful permanent resident Enter USCIS or ANumber": {
+   "path": "employee.alien_registration_number"
+  },
+  "Exp Date mmddyyyy": {
+   "path": "employee.work_authorization_expires_on",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "USCIS ANumber": {
+   "path": "employee.alien_registration_number"
+  },
+  "Form I94 Admission Number": {
+   "path": "employee.i94_admission_number"
+  },
+  "Foreign Passport Number and Country of IssuanceRow1": {
+   "path": "employee.foreign_passport_number",
+   "transforms": [
+    "join"
+   ],
+   "also_paths": [
+    "employee.foreign_passport_country"
+   ]
+  },
+  "Today's Date mmddyyy": {
+   "path": "employee.attested_on",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "Issuing Authority 1": {
+   "path": "employer_review.list_a_documents[].issuing_authority"
+  },
+  "Document Number 0 (if any)": {
+   "path": "employer_review.list_a_documents[].number"
+  },
+  "Expiration Date if any": {
+   "path": "employer_review.list_a_documents[].expiration_date",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "Document Title 2 If any": {
+   "path": "employer_review.list_a_documents[].title"
+  },
+  "Issuing Authority_2": {
+   "path": "employer_review.list_a_documents[].issuing_authority"
+  },
+  "Document Number If any_2": {
+   "path": "employer_review.list_a_documents[].number"
+  },
+  "List A.  Document 2. Expiration Date (if any)": {
+   "path": "employer_review.list_a_documents[].expiration_date",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "List A.   Document Title 3.  If any": {
+   "path": "employer_review.list_a_documents[].title"
+  },
+  "List A. Document 3.  Enter Issuing Authority": {
+   "path": "employer_review.list_a_documents[].issuing_authority"
+  },
+  "List A.  Document 3 Number.  If any": {
+   "path": "employer_review.list_a_documents[].number"
+  },
+  "Document Number if any_3": {
+   "path": "employer_review.list_a_documents[].expiration_date",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "List B Document 1 Title": {
+   "path": "employer_review.list_b_document.title"
+  },
+  "List B Issuing Authority 1": {
+   "path": "employer_review.list_b_document.issuing_authority"
+  },
+  "List B Document Number 1": {
+   "path": "employer_review.list_b_document.number"
+  },
+  "List B Expiration Date 1": {
+   "path": "employer_review.list_b_document.expiration_date",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "List C Document Title 1": {
+   "path": "employer_review.list_c_document.title"
+  },
+  "List C Issuing Authority 1": {
+   "path": "employer_review.list_c_document.issuing_authority"
+  },
+  "List C Document Number 1": {
+   "path": "employer_review.list_c_document.number"
+  },
+  "List C Expiration Date 1": {
+   "path": "employer_review.list_c_document.expiration_date",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "Additional Information": {
+   "path": "employer_review.additional_information"
+  },
+  "CB_Alt": {
+   "path": "employer_review.alternative_procedure_used",
+   "transforms": [
+    "bool_to_check"
+   ],
+   "value": true
+  },
+  "FirstDayEmployed mmddyyyy": {
+   "path": "employer_review.first_day_of_employment",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "Last Name First Name and Title of Employer or Authorized Representative": {
+   "path": "employer_review.reviewer.last_name",
+   "transforms": [
+    "join"
+   ],
+   "also_paths": [
+    "employer_review.reviewer.first_name",
+    "employer_review.reviewer.title"
+   ]
+  },
+  "S2 Todays Date mmddyyyy": {
+   "path": "employer_review.signed_on",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "Employers Business or Org Name": {
+   "path": "employer.name"
+  },
+  "Employers Business or Org Address": {
+   "path": "employer.address.street",
+   "transforms": [
+    "join"
+   ],
+   "also_paths": [
+    "employer.address.city",
+    "employer.address.state",
+    "employer.address.postal_code"
+   ]
+  },
+  "Last Name Family Name from Section 1": {
+   "path": "employee.last_name"
+  },
+  "First Name Given Name from Section 1": {
+   "path": "employee.first_name"
+  },
+  "Middle initial if any from Section 1": {
+   "path": "employee.middle_name",
+   "transforms": [
+    "char_at"
+   ]
+  },
+  "Last Name Family Name from Section 1-2": {
+   "path": "employee.last_name"
+  },
+  "First Name Given Name from Section 1-2": {
+   "path": "employee.first_name"
+  },
+  "Middle initial if any from Section 1-2": {
+   "path": "employee.middle_name",
+   "transforms": [
+    "char_at"
+   ]
+  },
+  "Sig Date mmddyyyy 0": {
+   "path": "preparers[].signed_on",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "Preparer or Translator Last Name (Family Name) 0": {
+   "path": "preparers[].last_name"
+  },
+  "Preparer or Translator First Name (Given Name) 0": {
+   "path": "preparers[].first_name"
+  },
+  "PT Middle Initial 0": {
+   "path": "preparers[].middle_name",
+   "transforms": [
+    "char_at"
+   ]
+  },
+  "Preparer or Translator Address (Street Number and Name) 0": {
+   "path": "preparers[].street"
+  },
+  "Preparer or Translator City or Town 0": {
+   "path": "preparers[].city"
+  },
+  "Preparer State 0": {
+   "path": "preparers[].state"
+  },
+  "Zip Code 0": {
+   "path": "preparers[].postal_code"
+  },
+  "Sig Date mmddyyyy 1": {
+   "path": "preparers[].signed_on",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "PT Middle Initial 1": {
+   "path": "preparers[].middle_name",
+   "transforms": [
+    "char_at"
+   ]
+  },
+  "Preparer or Translator Address (Street Number and Name) 1": {
+   "path": "preparers[].street"
+  },
+  "Preparer or Translator City or Town 1": {
+   "path": "preparers[].city"
+  },
+  "Preparer State 1": {
+   "path": "preparers[].state"
+  },
+  "Zip Code 1": {
+   "path": "preparers[].postal_code"
+  },
+  "Sig Date mmddyyyy 2": {
+   "path": "preparers[].signed_on",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "Preparer or Translator Last Name (Family Name) 2": {
+   "path": "preparers[].last_name"
+  },
+  "Preparer or Translator First Name (Given Name) 2": {
+   "path": "preparers[].first_name"
+  },
+  "PT Middle Initial 2": {
+   "path": "preparers[].middle_name",
+   "transforms": [
+    "char_at"
+   ]
+  },
+  "Preparer or Translator Address (Street Number and Name) 2": {
+   "path": "preparers[].street"
+  },
+  "Preparer or Translator City or Town 2": {
+   "path": "preparers[].city"
+  },
+  "Preparer State 2": {
+   "path": "preparers[].state"
+  },
+  "Zip Code 2": {
+   "path": "preparers[].postal_code"
+  },
+  "Sig Date mmddyyyy 3": {
+   "path": "preparers[].signed_on",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "Preparer or Translator Last Name (Family Name) 3": {
+   "path": "preparers[].last_name"
+  },
+  "Preparer or Translator First Name (Given Name) 3": {
+   "path": "preparers[].first_name"
+  },
+  "PT Middle Initial 3": {
+   "path": "preparers[].middle_name",
+   "transforms": [
+    "char_at"
+   ]
+  },
+  "Preparer or Translator Address (Street Number and Name) 3": {
+   "path": "preparers[].street"
+  },
+  "Preparer or Translator City or Town 3": {
+   "path": "preparers[].city"
+  },
+  "Preparer State 3": {
+   "path": "preparers[].state"
+  },
+  "Zip Code 3": {
+   "path": "preparers[].postal_code"
+  },
+  "Date of Rehire 0": {
+   "path": "reverifications[].rehire_date",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "Last Name 0": {
+   "path": "reverifications[].new_last_name"
+  },
+  "First Name 0": {
+   "path": "reverifications[].new_first_name"
+  },
+  "Middle Initial 0": {
+   "path": "reverifications[].new_middle_name",
+   "transforms": [
+    "char_at"
+   ]
+  },
+  "Document Title 0": {
+   "path": "reverifications[].document_title"
+  },
+  "Document Number 0": {
+   "path": "reverifications[].document_number"
+  },
+  "Expiration Date 0": {
+   "path": "reverifications[].document_expiration_date",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "Name of Emp or Auth Rep 0": {
+   "path": "reverifications[].reviewer_name"
+  },
+  "Todays Date 0": {
+   "path": "reverifications[].signed_on",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "Addtl Info 0": {
+   "path": "reverifications[].additional_information"
+  },
+  "Date of Rehire 1": {
+   "path": "reverifications[].rehire_date",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "Last Name 1": {
+   "path": "reverifications[].new_last_name"
+  },
+  "First Name 1": {
+   "path": "reverifications[].new_first_name"
+  },
+  "Middle Initial 1": {
+   "path": "reverifications[].new_middle_name",
+   "transforms": [
+    "char_at"
+   ]
+  },
+  "Document Number 1": {
+   "path": "reverifications[].document_number"
+  },
+  "Expiration Date 1": {
+   "path": "reverifications[].document_expiration_date",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "Name of Emp or Auth Rep 1": {
+   "path": "reverifications[].reviewer_name"
+  },
+  "Todays Date 1": {
+   "path": "reverifications[].signed_on",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "Addtl Info 1": {
+   "path": "reverifications[].additional_information"
+  },
+  "Date of Rehire 2": {
+   "path": "reverifications[].rehire_date",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "Last Name 2": {
+   "path": "reverifications[].new_last_name"
+  },
+  "First Name 2": {
+   "path": "reverifications[].new_first_name"
+  },
+  "Middle Initial 2": {
+   "path": "reverifications[].new_middle_name",
+   "transforms": [
+    "char_at"
+   ]
+  },
+  "Document Title 2": {
+   "path": "reverifications[].document_title"
+  },
+  "Document Number 2": {
+   "path": "reverifications[].document_number"
+  },
+  "Expiration Date 2": {
+   "path": "reverifications[].document_expiration_date",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "Name of Emp or Auth Rep 2": {
+   "path": "reverifications[].reviewer_name"
+  },
+  "Todays Date 2": {
+   "path": "reverifications[].signed_on",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "Addtl Info 2": {
+   "path": "reverifications[].additional_information"
+  },
+  "Signature of Employee": {
+   "type": "signature"
+  },
+  "Signature of Employer or AR": {
+   "type": "signature"
+  },
+  "Signature of Preparer or Translator 0": {
+   "type": "signature"
+  },
+  "Signature of Preparer or Translator 1": {
+   "type": "signature"
+  },
+  "Signature of Preparer or Translator 2": {
+   "type": "signature"
+  },
+  "Signature of Preparer or Translator 3": {
+   "type": "signature"
+  },
+  "Signature of Emp Rep 0": {
+   "type": "signature"
+  },
+  "Signature of Emp Rep 1": {
+   "type": "signature"
+  },
+  "Signature of Emp Rep 2": {
+   "type": "signature"
+  }
+ },
+ "notes": "Boxes are the PDF widgets; page 1 (instructions/lists of documents) has none. Section 1 maps to employee.*; the middle-initial boxes (maxlen 1) take char_at of the stored middle name; the SSN box is a 9-digit comb, so the schema stores digits only. The citizenship checkboxes CB_1..CB_4 map to the citizenship_status enum with equals. Both A-Number boxes (item 3 and the item-4 'USCIS A-Number') carry alien_registration_number. Section 2 List A is three stacked document blocks mapped as employer_review.list_a_documents[] columns (one block per item); List B and List C are single objects. Supplement A's four preparer blocks map to preparers[] and Supplement B's three blocks to reverifications[] (one block per item); the Supplement A/B header name boxes repeat the employee's name. Signature boxes (text widgets here) are pathless. Two widget names are shared by two boxes, so their single widget_paths entry would apply to both: 'Document Title 1' is both Section 2 List A document 1's title and Supplement B block 2's document title, and 'Preparer or Translator Last Name (Family Name) 1' is both the last and the first name of preparer block 2; all four boxes are pathless. The alternative-procedure checkboxes inside Supplement B blocks (CB_Alt_0..2) are pathless (checkboxes inside repeated blocks). Signature lines are text widgets in this PDF; their widget_paths entries carry type 'signature' (no path)."
+}

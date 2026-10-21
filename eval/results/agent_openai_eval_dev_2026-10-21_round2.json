@@ -1,0 +1,3510 @@
+{
+ "meta": {
+  "model_env": "OPENAI_EVAL",
+  "model": "gpt-6-luna",
+  "api_format": "responses",
+  "base_url": "https://api.openai.com/v1",
+  "split": "dev",
+  "variant": "both",
+  "forms": [
+   "wadoc_auth",
+   "coleman_pir",
+   "ndguard",
+   "i9",
+   "f8949",
+   "cms1500",
+   "menomonie_app",
+   "columbus_medhist",
+   "grandview_app",
+   "csudh_health",
+   "fw9",
+   "fw4"
+  ],
+  "stamp": "2026-10-21",
+  "tag": "round2",
+  "run": "2026-10-21_round2",
+  "commit": "76cbfa2",
+  "budget": {
+   "max_steps": 40,
+   "max_input_tokens": 1500000,
+   "max_output_tokens": 200000,
+   "wall_clock_s": 900
+  },
+  "baseline_file": "baseline_detection_2026-10-21.json",
+  "jobs": 4,
+  "argv": [
+   "--split",
+   "dev",
+   "--model-env",
+   "ANTHROPIC_EVAL,OPENAI_EVAL",
+   "--variant",
+   "both",
+   "--tag",
+   "round2",
+   "--jobs",
+   "4"
+  ],
+  "notes": [
+   "Detection is scored on the manifest's scored pages that have at least one GT field (the baseline's pages); tables count one box per cell.",
+   "Multi-line answer areas are representation-neutral: a plain template text field with style.multiline or at least 1.8x the page's median GT text-box height also covers every unmatched GT text box at least 70% inside it (recall), counts once for precision, and gets path credit through the GT line box that carries the path. It only does so when at least two such GT boxes are stacked in one column inside it (horizontal overlap of 50% or more); a single loose box is scored by the normal IoU threshold.",
+   "Fillable forms as published: the template starts with one field per PDF widget (the real use case is mapping existing fields), and GT is the widgets, so agent-added boxes on blanks without a widget count as false positives.",
+   "fake_scan: an image-only PDF of the baseline's seeded fake-scan renders (widgets stripped), so the agent faces the scanned-page path (deskew, FFDetr, OCR); on fillable forms it is a detection + mapping test.",
+   "Baseline: bare-detector numbers from the baseline run on the same images: FFDNet-L (default for digital pages) for as_published digital/fillable forms, FFDetr (default for scanned pages) for fake_scan and scanned forms. On fillable as_published forms the baseline detects on the widget-stripped page.",
+   "Mapping is over GT fields with a schema path. Transform credit uses equivalence groups {slice, split, char_at}, {date_part, date_format}, {equals, contains}, and a when equals true also credits bool_to_check; a template's join and when count as ops. joint = path and transforms right; exact = the matched field's source paths equal GT path + also_paths.",
+   "Totals are micro-averaged over forms (sums of counts). Sessions that ended in an error (infrastructure or harness) are listed in the per-form table but excluded from the totals' detection and mapping figures; their templates are partial or untouched seeds.",
+   "The agent's form map carries the neutral source name 'form.pdf', not the file name.",
+   "fill (fill_acc): the template is filled (formcast fill, real form fields) into the variant's PDF with K distinctive probe records (eval/probe.py), and every GT box with a path is checked for what its widget shows: a text or table-cell box once per record (the exact value; by provenance when GT has transforms), a choice box once across all records (right state in every record). fill_acc = correct units / units. It catches data landing in the wrong box, e.g. a table built as one segment per column, which path/joint score as right. A choice box whose expected state is the same in every probe record can't tell an always-on (or never-on) box from a right one; the json counts them as fill.static_choice."
+  ],
+  "finished_at": "2026-10-21T08:30:08+00:00",
+  "rescored": "2026-10-21 at commit 33e4f50-dirty: the saved templates were scored again with the stacked-lines rule for multi-line fields and the fill-correctness metric (fill); model output is unchanged."
+ },
+ "rows": [
+  {
+   "form": "wadoc_auth",
+   "split": "dev",
+   "kind": "flat",
+   "variant": "as_published",
+   "model_env": "OPENAI_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 27,
+     "pred": 19,
+     "matched": 27,
+     "pred_matched": 19,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_ok": 25,
+     "type_acc": 0.9259,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 27,
+     "pred": 19,
+     "matched": 27,
+     "pred_matched": 19,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_ok": 25,
+     "type_acc": 0.9259,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 0
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDNet-L",
+    "pages": [
+     0
+    ],
+    "iou0.3": {
+     "gt": 27,
+     "pred": 27,
+     "matched": 27,
+     "pred_matched": 27,
+     "type_ok": 25,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_acc": 0.9259
+    },
+    "iou0.5": {
+     "gt": 27,
+     "pred": 27,
+     "matched": 27,
+     "pred_matched": 27,
+     "type_ok": 25,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_acc": 0.9259
+    }
+   },
+   "mapping": {
+    "n_path": 17,
+    "n_transform": 4,
+    "matched": 17,
+    "path_ok": 17,
+    "transform_ok": 4,
+    "joint_ok": 17,
+    "exact_ok": 16,
+    "matched_rate": 1.0,
+    "path_acc": 1.0,
+    "transform_acc": 1.0,
+    "joint_acc": 1.0,
+    "exact_path_set_acc": 0.9412
+   },
+   "formmap_s": 14.8,
+   "page_kinds": [
+    "digital"
+   ],
+   "text_sources": [
+    "pdf"
+   ],
+   "candidates": 27,
+   "model": "gpt-6-luna",
+   "steps": 4,
+   "input_tokens": 35234,
+   "output_tokens": 2104,
+   "wall_s": 31.1,
+   "stop_reason": "finish",
+   "finished": true,
+   "error": null,
+   "unplaceable": 4,
+   "fields": 19,
+   "fields_with_source": 17,
+   "schema_mapped": 19,
+   "schema_mappable": 23,
+   "template_path": "eval/results/templates/2026-10-21_round2/openai_eval/wadoc_auth_as_published.json",
+   "scored_pages": [
+    0
+   ],
+   "log_path": "eval/results/logs/2026-10-21_round2/openai_eval/wadoc_auth_as_published.json",
+   "fill": {
+    "units": 34,
+    "correct": 32,
+    "fill_acc": 0.9412,
+    "text": {
+     "units": 34,
+     "correct": 32
+    },
+    "choice": {
+     "units": 0,
+     "correct": 0
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
+  },
+  {
+   "form": "wadoc_auth",
+   "split": "dev",
+   "kind": "flat",
+   "variant": "fake_scan",
+   "model_env": "OPENAI_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 27,
+     "pred": 19,
+     "matched": 26,
+     "pred_matched": 19,
+     "recall": 0.963,
+     "precision": 1.0,
+     "type_ok": 26,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 1,
+      "choice": 0,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 27,
+     "pred": 19,
+     "matched": 22,
+     "pred_matched": 15,
+     "recall": 0.8148,
+     "precision": 0.7895,
+     "type_ok": 22,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 5,
+      "choice": 0,
+      "signature": 0
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDetr",
+    "pages": [
+     0
+    ],
+    "iou0.3": {
+     "gt": 27,
+     "pred": 26,
+     "matched": 26,
+     "pred_matched": 26,
+     "type_ok": 24,
+     "recall": 0.963,
+     "precision": 1.0,
+     "type_acc": 0.9231
+    },
+    "iou0.5": {
+     "gt": 27,
+     "pred": 26,
+     "matched": 12,
+     "pred_matched": 12,
+     "type_ok": 10,
+     "recall": 0.4444,
+     "precision": 0.4615,
+     "type_acc": 0.8333
+    }
+   },
+   "mapping": {
+    "n_path": 17,
+    "n_transform": 4,
+    "matched": 17,
+    "path_ok": 17,
+    "transform_ok": 4,
+    "joint_ok": 17,
+    "exact_ok": 16,
+    "matched_rate": 1.0,
+    "path_acc": 1.0,
+    "transform_acc": 1.0,
+    "joint_acc": 1.0,
+    "exact_path_set_acc": 0.9412
+   },
+   "formmap_s": 16.3,
+   "page_kinds": [
+    "scanned"
+   ],
+   "text_sources": [
+    "ocr"
+   ],
+   "candidates": 26,
+   "model": "gpt-6-luna",
+   "steps": 8,
+   "input_tokens": 89075,
+   "output_tokens": 3040,
+   "wall_s": 46.7,
+   "stop_reason": "finish",
+   "finished": true,
+   "error": null,
+   "unplaceable": 4,
+   "fields": 19,
+   "fields_with_source": 17,
+   "schema_mapped": 19,
+   "schema_mappable": 23,
+   "template_path": "eval/results/templates/2026-10-21_round2/openai_eval/wadoc_auth_fake_scan.json",
+   "scored_pages": [
+    0
+   ],
+   "log_path": "eval/results/logs/2026-10-21_round2/openai_eval/wadoc_auth_fake_scan.json",
+   "fill": {
+    "units": 34,
+    "correct": 32,
+    "fill_acc": 0.9412,
+    "text": {
+     "units": 34,
+     "correct": 32
+    },
+    "choice": {
+     "units": 0,
+     "correct": 0
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
+  },
+  {
+   "form": "coleman_pir",
+   "split": "dev",
+   "kind": "fillable",
+   "variant": "as_published",
+   "model_env": "OPENAI_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 22,
+     "pred": 25,
+     "matched": 22,
+     "pred_matched": 22,
+     "recall": 1.0,
+     "precision": 0.88,
+     "type_ok": 22,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 22,
+     "pred": 25,
+     "matched": 22,
+     "pred_matched": 22,
+     "recall": 1.0,
+     "precision": 0.88,
+     "type_ok": 22,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 0
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDNet-L",
+    "pages": [
+     0
+    ],
+    "iou0.3": {
+     "gt": 22,
+     "pred": 25,
+     "matched": 22,
+     "pred_matched": 22,
+     "type_ok": 20,
+     "recall": 1.0,
+     "precision": 0.88,
+     "type_acc": 0.9091
+    },
+    "iou0.5": {
+     "gt": 22,
+     "pred": 25,
+     "matched": 22,
+     "pred_matched": 22,
+     "type_ok": 20,
+     "recall": 1.0,
+     "precision": 0.88,
+     "type_acc": 0.9091
+    }
+   },
+   "mapping": {
+    "n_path": 9,
+    "n_transform": 2,
+    "matched": 9,
+    "path_ok": 9,
+    "transform_ok": 2,
+    "joint_ok": 9,
+    "exact_ok": 9,
+    "matched_rate": 1.0,
+    "path_acc": 1.0,
+    "transform_acc": 1.0,
+    "joint_acc": 1.0,
+    "exact_path_set_acc": 1.0
+   },
+   "formmap_s": 0.0,
+   "page_kinds": [
+    "fillable"
+   ],
+   "text_sources": [
+    "pdf"
+   ],
+   "candidates": 0,
+   "model": "gpt-6-luna",
+   "steps": 7,
+   "input_tokens": 76567,
+   "output_tokens": 2635,
+   "wall_s": 42.0,
+   "stop_reason": "finish",
+   "finished": true,
+   "error": null,
+   "unplaceable": 3,
+   "fields": 25,
+   "fields_with_source": 12,
+   "schema_mapped": 11,
+   "schema_mappable": 14,
+   "template_path": "eval/results/templates/2026-10-21_round2/openai_eval/coleman_pir_as_published.json",
+   "scored_pages": [
+    0
+   ],
+   "log_path": "eval/results/logs/2026-10-21_round2/openai_eval/coleman_pir_as_published.json",
+   "fill": {
+    "units": 27,
+    "correct": 27,
+    "fill_acc": 1.0,
+    "text": {
+     "units": 27,
+     "correct": 27
+    },
+    "choice": {
+     "units": 0,
+     "correct": 0
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
+  },
+  {
+   "form": "coleman_pir",
+   "split": "dev",
+   "kind": "fillable",
+   "variant": "fake_scan",
+   "model_env": "OPENAI_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 22,
+     "pred": 13,
+     "matched": 12,
+     "pred_matched": 10,
+     "recall": 0.5455,
+     "precision": 0.7692,
+     "type_ok": 12,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 9,
+      "choice": 0,
+      "signature": 1
+     }
+    },
+    "iou0.5": {
+     "gt": 22,
+     "pred": 13,
+     "matched": 12,
+     "pred_matched": 10,
+     "recall": 0.5455,
+     "precision": 0.7692,
+     "type_ok": 12,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 9,
+      "choice": 0,
+      "signature": 1
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDetr",
+    "pages": [
+     0
+    ],
+    "iou0.3": {
+     "gt": 22,
+     "pred": 25,
+     "matched": 22,
+     "pred_matched": 22,
+     "type_ok": 20,
+     "recall": 1.0,
+     "precision": 0.88,
+     "type_acc": 0.9091
+    },
+    "iou0.5": {
+     "gt": 22,
+     "pred": 25,
+     "matched": 22,
+     "pred_matched": 22,
+     "type_ok": 20,
+     "recall": 1.0,
+     "precision": 0.88,
+     "type_acc": 0.9091
+    }
+   },
+   "mapping": {
+    "n_path": 9,
+    "n_transform": 2,
+    "matched": 9,
+    "path_ok": 9,
+    "transform_ok": 2,
+    "joint_ok": 9,
+    "exact_ok": 9,
+    "matched_rate": 1.0,
+    "path_acc": 1.0,
+    "transform_acc": 1.0,
+    "joint_acc": 1.0,
+    "exact_path_set_acc": 1.0
+   },
+   "formmap_s": 16.3,
+   "page_kinds": [
+    "scanned"
+   ],
+   "text_sources": [
+    "ocr"
+   ],
+   "candidates": 25,
+   "model": "gpt-6-luna",
+   "steps": 6,
+   "input_tokens": 64146,
+   "output_tokens": 3825,
+   "wall_s": 52.1,
+   "stop_reason": "finish",
+   "finished": true,
+   "error": null,
+   "unplaceable": 3,
+   "fields": 13,
+   "fields_with_source": 12,
+   "schema_mapped": 11,
+   "schema_mappable": 14,
+   "template_path": "eval/results/templates/2026-10-21_round2/openai_eval/coleman_pir_fake_scan.json",
+   "scored_pages": [
+    0
+   ],
+   "log_path": "eval/results/logs/2026-10-21_round2/openai_eval/coleman_pir_fake_scan.json",
+   "fill": {
+    "units": 27,
+    "correct": 27,
+    "fill_acc": 1.0,
+    "text": {
+     "units": 27,
+     "correct": 27
+    },
+    "choice": {
+     "units": 0,
+     "correct": 0
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
+  },
+  {
+   "form": "ndguard",
+   "split": "dev",
+   "kind": "flat",
+   "variant": "as_published",
+   "model_env": "OPENAI_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 33,
+     "pred": 38,
+     "matched": 30,
+     "pred_matched": 29,
+     "recall": 0.9091,
+     "precision": 0.7632,
+     "type_ok": 30,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 3,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 33,
+     "pred": 38,
+     "matched": 25,
+     "pred_matched": 24,
+     "recall": 0.7576,
+     "precision": 0.6316,
+     "type_ok": 25,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 5,
+      "choice": 3,
+      "signature": 0
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDNet-L",
+    "pages": [
+     0
+    ],
+    "iou0.3": {
+     "gt": 33,
+     "pred": 32,
+     "matched": 22,
+     "pred_matched": 22,
+     "type_ok": 17,
+     "recall": 0.6667,
+     "precision": 0.6875,
+     "type_acc": 0.7727
+    },
+    "iou0.5": {
+     "gt": 33,
+     "pred": 32,
+     "matched": 21,
+     "pred_matched": 21,
+     "type_ok": 16,
+     "recall": 0.6364,
+     "precision": 0.6562,
+     "type_acc": 0.7619
+    }
+   },
+   "mapping": {
+    "n_path": 29,
+    "n_transform": 16,
+    "matched": 26,
+    "path_ok": 25,
+    "transform_ok": 10,
+    "joint_ok": 23,
+    "exact_ok": 22,
+    "matched_rate": 0.8966,
+    "path_acc": 0.8621,
+    "transform_acc": 0.625,
+    "joint_acc": 0.7931,
+    "exact_path_set_acc": 0.7586
+   },
+   "formmap_s": 14.7,
+   "page_kinds": [
+    "digital"
+   ],
+   "text_sources": [
+    "pdf"
+   ],
+   "candidates": 32,
+   "model": "gpt-6-luna",
+   "steps": 18,
+   "input_tokens": 257980,
+   "output_tokens": 9479,
+   "wall_s": 135.0,
+   "stop_reason": "finish",
+   "finished": true,
+   "error": null,
+   "unplaceable": 2,
+   "fields": 38,
+   "fields_with_source": 27,
+   "schema_mapped": 29,
+   "schema_mappable": 31,
+   "template_path": "eval/results/templates/2026-10-21_round2/openai_eval/ndguard_as_published.json",
+   "scored_pages": [
+    0
+   ],
+   "log_path": "eval/results/logs/2026-10-21_round2/openai_eval/ndguard_as_published.json",
+   "fill": {
+    "units": 113,
+    "correct": 95,
+    "fill_acc": 0.8407,
+    "text": {
+     "units": 105,
+     "correct": 90
+    },
+    "choice": {
+     "units": 8,
+     "correct": 5
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
+  },
+  {
+   "form": "ndguard",
+   "split": "dev",
+   "kind": "flat",
+   "variant": "fake_scan",
+   "model_env": "OPENAI_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 33,
+     "pred": 38,
+     "matched": 31,
+     "pred_matched": 31,
+     "recall": 0.9394,
+     "precision": 0.8158,
+     "type_ok": 31,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 2,
+      "choice": 0,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 33,
+     "pred": 38,
+     "matched": 24,
+     "pred_matched": 24,
+     "recall": 0.7273,
+     "precision": 0.6316,
+     "type_ok": 24,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 8,
+      "choice": 0,
+      "signature": 1
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDetr",
+    "pages": [
+     0
+    ],
+    "iou0.3": {
+     "gt": 33,
+     "pred": 34,
+     "matched": 25,
+     "pred_matched": 25,
+     "type_ok": 19,
+     "recall": 0.7576,
+     "precision": 0.7353,
+     "type_acc": 0.76
+    },
+    "iou0.5": {
+     "gt": 33,
+     "pred": 34,
+     "matched": 21,
+     "pred_matched": 21,
+     "type_ok": 16,
+     "recall": 0.6364,
+     "precision": 0.6176,
+     "type_acc": 0.7619
+    }
+   },
+   "mapping": {
+    "n_path": 29,
+    "n_transform": 16,
+    "matched": 28,
+    "path_ok": 28,
+    "transform_ok": 13,
+    "joint_ok": 25,
+    "exact_ok": 25,
+    "matched_rate": 0.9655,
+    "path_acc": 0.9655,
+    "transform_acc": 0.8125,
+    "joint_acc": 0.8621,
+    "exact_path_set_acc": 0.8621
+   },
+   "formmap_s": 6.4,
+   "page_kinds": [
+    "scanned"
+   ],
+   "text_sources": [
+    "ocr"
+   ],
+   "candidates": 34,
+   "model": "gpt-6-luna",
+   "steps": 25,
+   "input_tokens": 363603,
+   "output_tokens": 12157,
+   "wall_s": 180.4,
+   "stop_reason": "finish",
+   "finished": true,
+   "error": null,
+   "unplaceable": 1,
+   "fields": 38,
+   "fields_with_source": 29,
+   "schema_mapped": 30,
+   "schema_mappable": 31,
+   "template_path": "eval/results/templates/2026-10-21_round2/openai_eval/ndguard_fake_scan.json",
+   "scored_pages": [
+    0
+   ],
+   "log_path": "eval/results/logs/2026-10-21_round2/openai_eval/ndguard_fake_scan.json",
+   "fill": {
+    "units": 113,
+    "correct": 93,
+    "fill_acc": 0.823,
+    "text": {
+     "units": 105,
+     "correct": 85
+    },
+    "choice": {
+     "units": 8,
+     "correct": 8
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
+  },
+  {
+   "form": "i9",
+   "split": "dev",
+   "kind": "fillable",
+   "variant": "as_published",
+   "model_env": "OPENAI_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 130,
+     "pred": 123,
+     "matched": 123,
+     "pred_matched": 123,
+     "recall": 0.9462,
+     "precision": 1.0,
+     "type_ok": 123,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 7
+     }
+    },
+    "iou0.5": {
+     "gt": 130,
+     "pred": 123,
+     "matched": 123,
+     "pred_matched": 123,
+     "recall": 0.9462,
+     "precision": 1.0,
+     "type_ok": 123,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 7
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDNet-L",
+    "pages": [
+     0,
+     2,
+     3
+    ],
+    "iou0.3": {
+     "gt": 130,
+     "pred": 129,
+     "matched": 124,
+     "pred_matched": 124,
+     "type_ok": 115,
+     "recall": 0.9538,
+     "precision": 0.9612,
+     "type_acc": 0.9274
+    },
+    "iou0.5": {
+     "gt": 130,
+     "pred": 129,
+     "matched": 123,
+     "pred_matched": 123,
+     "type_ok": 114,
+     "recall": 0.9462,
+     "precision": 0.9535,
+     "type_acc": 0.9268
+    }
+   },
+   "mapping": {
+    "n_path": 114,
+    "n_transform": 42,
+    "matched": 114,
+    "path_ok": 114,
+    "transform_ok": 42,
+    "joint_ok": 114,
+    "exact_ok": 114,
+    "matched_rate": 1.0,
+    "path_acc": 1.0,
+    "transform_acc": 1.0,
+    "joint_acc": 1.0,
+    "exact_path_set_acc": 1.0
+   },
+   "formmap_s": 3.1,
+   "page_kinds": [
+    "fillable",
+    "digital",
+    "fillable",
+    "fillable"
+   ],
+   "text_sources": [
+    "pdf",
+    "pdf",
+    "pdf",
+    "pdf"
+   ],
+   "candidates": 0,
+   "model": "gpt-6-luna",
+   "steps": 13,
+   "input_tokens": 265747,
+   "output_tokens": 7515,
+   "wall_s": 103.1,
+   "stop_reason": "finish",
+   "finished": true,
+   "error": null,
+   "unplaceable": 2,
+   "fields": 71,
+   "fields_with_source": 66,
+   "schema_mapped": 65,
+   "schema_mappable": 67,
+   "template_path": "eval/results/templates/2026-10-21_round2/openai_eval/i9_as_published.json",
+   "scored_pages": [
+    0,
+    2,
+    3
+   ],
+   "log_path": "eval/results/logs/2026-10-21_round2/openai_eval/i9_as_published.json",
+   "fill": {
+    "units": 441,
+    "correct": 413,
+    "fill_acc": 0.9365,
+    "text": {
+     "units": 156,
+     "correct": 156
+    },
+    "choice": {
+     "units": 5,
+     "correct": 5
+    },
+    "cell": {
+     "units": 280,
+     "correct": 252
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": true,
+    "fill_errors": []
+   }
+  },
+  {
+   "form": "i9",
+   "split": "dev",
+   "kind": "fillable",
+   "variant": "fake_scan",
+   "model_env": "OPENAI_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 130,
+     "pred": 119,
+     "matched": 114,
+     "pred_matched": 114,
+     "recall": 0.8769,
+     "precision": 0.958,
+     "type_ok": 114,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 12,
+      "choice": 4,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 130,
+     "pred": 119,
+     "matched": 111,
+     "pred_matched": 111,
+     "recall": 0.8538,
+     "precision": 0.9328,
+     "type_ok": 111,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 15,
+      "choice": 4,
+      "signature": 0
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDetr",
+    "pages": [
+     0,
+     2,
+     3
+    ],
+    "iou0.3": {
+     "gt": 130,
+     "pred": 130,
+     "matched": 122,
+     "pred_matched": 122,
+     "type_ok": 113,
+     "recall": 0.9385,
+     "precision": 0.9385,
+     "type_acc": 0.9262
+    },
+    "iou0.5": {
+     "gt": 130,
+     "pred": 130,
+     "matched": 119,
+     "pred_matched": 119,
+     "type_ok": 110,
+     "recall": 0.9154,
+     "precision": 0.9154,
+     "type_acc": 0.9244
+    }
+   },
+   "mapping": {
+    "n_path": 114,
+    "n_transform": 42,
+    "matched": 102,
+    "path_ok": 102,
+    "transform_ok": 35,
+    "joint_ok": 100,
+    "exact_ok": 102,
+    "matched_rate": 0.8947,
+    "path_acc": 0.8947,
+    "transform_acc": 0.8333,
+    "joint_acc": 0.8772,
+    "exact_path_set_acc": 0.8947
+   },
+   "formmap_s": 24.6,
+   "page_kinds": [
+    "scanned",
+    "scanned",
+    "scanned",
+    "scanned"
+   ],
+   "text_sources": [
+    "ocr",
+    "ocr",
+    "ocr",
+    "ocr"
+   ],
+   "candidates": 132,
+   "model": "gpt-6-luna",
+   "steps": 39,
+   "input_tokens": 825372,
+   "output_tokens": 28403,
+   "wall_s": 402.7,
+   "stop_reason": "finish",
+   "finished": true,
+   "error": null,
+   "unplaceable": 2,
+   "fields": 68,
+   "fields_with_source": 60,
+   "schema_mapped": 65,
+   "schema_mappable": 67,
+   "template_path": "eval/results/templates/2026-10-21_round2/openai_eval/i9_fake_scan.json",
+   "scored_pages": [
+    0,
+    2,
+    3
+   ],
+   "log_path": "eval/results/logs/2026-10-21_round2/openai_eval/i9_fake_scan.json",
+   "fill": {
+    "units": 441,
+    "correct": 372,
+    "fill_acc": 0.8435,
+    "text": {
+     "units": 156,
+     "correct": 144
+    },
+    "choice": {
+     "units": 5,
+     "correct": 4
+    },
+    "cell": {
+     "units": 280,
+     "correct": 224
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": true,
+    "fill_errors": []
+   }
+  },
+  {
+   "form": "f8949",
+   "split": "dev",
+   "kind": "fillable",
+   "variant": "as_published",
+   "model_env": "OPENAI_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 202,
+     "pred": 178,
+     "matched": 178,
+     "pred_matched": 178,
+     "recall": 0.8812,
+     "precision": 1.0,
+     "type_ok": 178,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 24,
+      "choice": 0,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 202,
+     "pred": 178,
+     "matched": 46,
+     "pred_matched": 46,
+     "recall": 0.2277,
+     "precision": 0.2584,
+     "type_ok": 46,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 156,
+      "choice": 0,
+      "signature": 0
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDNet-L",
+    "pages": [
+     0,
+     1
+    ],
+    "iou0.3": {
+     "gt": 202,
+     "pred": 200,
+     "matched": 200,
+     "pred_matched": 200,
+     "type_ok": 200,
+     "recall": 0.9901,
+     "precision": 1.0,
+     "type_acc": 1.0
+    },
+    "iou0.5": {
+     "gt": 202,
+     "pred": 200,
+     "matched": 198,
+     "pred_matched": 198,
+     "type_ok": 198,
+     "recall": 0.9802,
+     "precision": 0.99,
+     "type_acc": 1.0
+    }
+   },
+   "mapping": {
+    "n_path": 170,
+    "n_transform": 58,
+    "matched": 170,
+    "path_ok": 170,
+    "transform_ok": 58,
+    "joint_ok": 170,
+    "exact_ok": 170,
+    "matched_rate": 1.0,
+    "path_acc": 1.0,
+    "transform_acc": 1.0,
+    "joint_acc": 1.0,
+    "exact_path_set_acc": 1.0
+   },
+   "formmap_s": 0.4,
+   "page_kinds": [
+    "fillable",
+    "fillable"
+   ],
+   "text_sources": [
+    "pdf",
+    "pdf"
+   ],
+   "candidates": 0,
+   "model": "gpt-6-luna",
+   "steps": 9,
+   "input_tokens": 173185,
+   "output_tokens": 2911,
+   "wall_s": 50.0,
+   "stop_reason": "finish",
+   "finished": true,
+   "error": null,
+   "unplaceable": 2,
+   "fields": 26,
+   "fields_with_source": 18,
+   "schema_mapped": 21,
+   "schema_mappable": 23,
+   "template_path": "eval/results/templates/2026-10-21_round2/openai_eval/f8949_as_published.json",
+   "scored_pages": [
+    0,
+    1
+   ],
+   "log_path": "eval/results/logs/2026-10-21_round2/openai_eval/f8949_as_published.json",
+   "fill": {
+    "units": 960,
+    "correct": 960,
+    "fill_acc": 1.0,
+    "text": {
+     "units": 24,
+     "correct": 24
+    },
+    "choice": {
+     "units": 12,
+     "correct": 12
+    },
+    "cell": {
+     "units": 924,
+     "correct": 924
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": true,
+    "fill_errors": []
+   }
+  },
+  {
+   "form": "f8949",
+   "split": "dev",
+   "kind": "fillable",
+   "variant": "fake_scan",
+   "model_env": "OPENAI_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 202,
+     "pred": 181,
+     "matched": 170,
+     "pred_matched": 170,
+     "recall": 0.8416,
+     "precision": 0.9392,
+     "type_ok": 170,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 27,
+      "choice": 5,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 202,
+     "pred": 181,
+     "matched": 39,
+     "pred_matched": 39,
+     "recall": 0.1931,
+     "precision": 0.2155,
+     "type_ok": 39,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 157,
+      "choice": 6,
+      "signature": 0
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDetr",
+    "pages": [
+     0,
+     1
+    ],
+    "iou0.3": {
+     "gt": 202,
+     "pred": 203,
+     "matched": 168,
+     "pred_matched": 168,
+     "type_ok": 168,
+     "recall": 0.8317,
+     "precision": 0.8276,
+     "type_acc": 1.0
+    },
+    "iou0.5": {
+     "gt": 202,
+     "pred": 203,
+     "matched": 88,
+     "pred_matched": 88,
+     "type_ok": 88,
+     "recall": 0.4356,
+     "precision": 0.4335,
+     "type_acc": 1.0
+    }
+   },
+   "mapping": {
+    "n_path": 170,
+    "n_transform": 58,
+    "matched": 156,
+    "path_ok": 156,
+    "transform_ok": 50,
+    "joint_ok": 156,
+    "exact_ok": 156,
+    "matched_rate": 0.9176,
+    "path_acc": 0.9176,
+    "transform_acc": 0.8621,
+    "joint_acc": 0.9176,
+    "exact_path_set_acc": 0.9176
+   },
+   "formmap_s": 13.2,
+   "page_kinds": [
+    "scanned",
+    "scanned"
+   ],
+   "text_sources": [
+    "ocr",
+    "ocr"
+   ],
+   "candidates": 206,
+   "model": "gpt-6-luna",
+   "steps": 12,
+   "input_tokens": 217095,
+   "output_tokens": 8298,
+   "wall_s": 122.5,
+   "stop_reason": "finish",
+   "finished": true,
+   "error": null,
+   "unplaceable": 2,
+   "fields": 36,
+   "fields_with_source": 16,
+   "schema_mapped": 21,
+   "schema_mappable": 23,
+   "template_path": "eval/results/templates/2026-10-21_round2/openai_eval/f8949_fake_scan.json",
+   "scored_pages": [
+    0,
+    1
+   ],
+   "log_path": "eval/results/logs/2026-10-21_round2/openai_eval/f8949_fake_scan.json",
+   "fill": {
+    "units": 960,
+    "correct": 900,
+    "fill_acc": 0.9375,
+    "text": {
+     "units": 24,
+     "correct": 12
+    },
+    "choice": {
+     "units": 12,
+     "correct": 6
+    },
+    "cell": {
+     "units": 924,
+     "correct": 882
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": false,
+    "fill_errors": []
+   }
+  },
+  {
+   "form": "cms1500",
+   "split": "dev",
+   "kind": "flat",
+   "variant": "as_published",
+   "model_env": "OPENAI_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 254,
+     "pred": 210,
+     "matched": 142,
+     "pred_matched": 140,
+     "recall": 0.5591,
+     "precision": 0.6667,
+     "type_ok": 136,
+     "type_acc": 0.9577,
+     "missed_by_type": {
+      "text": 107,
+      "choice": 4,
+      "signature": 1
+     }
+    },
+    "iou0.5": {
+     "gt": 254,
+     "pred": 210,
+     "matched": 83,
+     "pred_matched": 81,
+     "recall": 0.3268,
+     "precision": 0.3857,
+     "type_ok": 77,
+     "type_acc": 0.9277,
+     "missed_by_type": {
+      "text": 166,
+      "choice": 4,
+      "signature": 1
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDNet-L",
+    "pages": [
+     0
+    ],
+    "iou0.3": {
+     "gt": 254,
+     "pred": 157,
+     "matched": 131,
+     "pred_matched": 131,
+     "type_ok": 120,
+     "recall": 0.5157,
+     "precision": 0.8344,
+     "type_acc": 0.916
+    },
+    "iou0.5": {
+     "gt": 254,
+     "pred": 157,
+     "matched": 126,
+     "pred_matched": 126,
+     "type_ok": 115,
+     "recall": 0.4961,
+     "precision": 0.8025,
+     "type_acc": 0.9127
+    }
+   },
+   "mapping": {
+    "n_path": 227,
+    "n_transform": 118,
+    "matched": 85,
+    "path_ok": 73,
+    "transform_ok": 38,
+    "joint_ok": 62,
+    "exact_ok": 71,
+    "matched_rate": 0.3744,
+    "path_acc": 0.3216,
+    "transform_acc": 0.322,
+    "joint_acc": 0.2731,
+    "exact_path_set_acc": 0.3128
+   },
+   "formmap_s": 33.4,
+   "page_kinds": [
+    "digital",
+    "digital",
+    "digital",
+    "digital"
+   ],
+   "text_sources": [
+    "ocr",
+    "pdf",
+    "ocr",
+    "ocr"
+   ],
+   "candidates": 147,
+   "model": "gpt-6-luna",
+   "steps": 32,
+   "input_tokens": 765519,
+   "output_tokens": 21286,
+   "wall_s": 326.0,
+   "stop_reason": "finish",
+   "finished": true,
+   "error": null,
+   "unplaceable": 5,
+   "fields": 115,
+   "fields_with_source": 90,
+   "schema_mapped": 92,
+   "schema_mappable": 97,
+   "template_path": "eval/results/templates/2026-10-21_round2/openai_eval/cms1500_as_published.json",
+   "scored_pages": [
+    0
+   ],
+   "log_path": "eval/results/logs/2026-10-21_round2/openai_eval/cms1500_as_published.json",
+   "fill": {
+    "units": 1415,
+    "correct": 382,
+    "fill_acc": 0.27,
+    "text": {
+     "units": 504,
+     "correct": 273
+    },
+    "choice": {
+     "units": 29,
+     "correct": 22
+    },
+    "cell": {
+     "units": 882,
+     "correct": 87
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
+  },
+  {
+   "form": "cms1500",
+   "split": "dev",
+   "kind": "flat",
+   "variant": "fake_scan",
+   "model_env": "OPENAI_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 254,
+     "pred": 34,
+     "matched": 17,
+     "pred_matched": 17,
+     "recall": 0.0669,
+     "precision": 0.5,
+     "type_ok": 17,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 215,
+      "choice": 19,
+      "signature": 3
+     }
+    },
+    "iou0.5": {
+     "gt": 254,
+     "pred": 34,
+     "matched": 8,
+     "pred_matched": 8,
+     "recall": 0.0315,
+     "precision": 0.2353,
+     "type_ok": 8,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 218,
+      "choice": 25,
+      "signature": 3
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDetr",
+    "pages": [
+     0
+    ],
+    "iou0.3": {
+     "gt": 254,
+     "pred": 18,
+     "matched": 11,
+     "pred_matched": 11,
+     "type_ok": 11,
+     "recall": 0.0433,
+     "precision": 0.6111,
+     "type_acc": 1.0
+    },
+    "iou0.5": {
+     "gt": 254,
+     "pred": 18,
+     "matched": 3,
+     "pred_matched": 3,
+     "type_ok": 3,
+     "recall": 0.0118,
+     "precision": 0.1667,
+     "type_acc": 1.0
+    }
+   },
+   "mapping": {
+    "n_path": 227,
+    "n_transform": 118,
+    "matched": 17,
+    "path_ok": 17,
+    "transform_ok": 13,
+    "joint_ok": 17,
+    "exact_ok": 17,
+    "matched_rate": 0.0749,
+    "path_acc": 0.0749,
+    "transform_acc": 0.1102,
+    "joint_acc": 0.0749,
+    "exact_path_set_acc": 0.0749
+   },
+   "formmap_s": 29.8,
+   "page_kinds": [
+    "scanned",
+    "scanned",
+    "scanned",
+    "scanned"
+   ],
+   "text_sources": [
+    "ocr",
+    "ocr",
+    "ocr",
+    "ocr"
+   ],
+   "candidates": 33,
+   "model": "gpt-6-luna",
+   "steps": 40,
+   "input_tokens": 656450,
+   "output_tokens": 15807,
+   "wall_s": 258.6,
+   "stop_reason": "budget",
+   "finished": false,
+   "error": null,
+   "unplaceable": 0,
+   "fields": 64,
+   "fields_with_source": 64,
+   "schema_mapped": 84,
+   "schema_mappable": 97,
+   "template_path": "eval/results/templates/2026-10-21_round2/openai_eval/cms1500_fake_scan.json",
+   "scored_pages": [
+    0
+   ],
+   "log_path": "eval/results/logs/2026-10-21_round2/openai_eval/cms1500_fake_scan.json",
+   "fill": {
+    "units": 1415,
+    "correct": 58,
+    "fill_acc": 0.041,
+    "text": {
+     "units": 504,
+     "correct": 49
+    },
+    "choice": {
+     "units": 29,
+     "correct": 9
+    },
+    "cell": {
+     "units": 882,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
+  },
+  {
+   "form": "menomonie_app",
+   "split": "dev",
+   "kind": "fillable",
+   "variant": "as_published",
+   "model_env": "OPENAI_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 56,
+     "pred": 58,
+     "matched": 56,
+     "pred_matched": 56,
+     "recall": 1.0,
+     "precision": 0.9655,
+     "type_ok": 56,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 56,
+     "pred": 58,
+     "matched": 54,
+     "pred_matched": 54,
+     "recall": 0.9643,
+     "precision": 0.931,
+     "type_ok": 54,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 2,
+      "choice": 0,
+      "signature": 0
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDNet-L",
+    "pages": [
+     0,
+     1,
+     2
+    ],
+    "iou0.3": {
+     "gt": 56,
+     "pred": 56,
+     "matched": 56,
+     "pred_matched": 56,
+     "type_ok": 55,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_acc": 0.9821
+    },
+    "iou0.5": {
+     "gt": 56,
+     "pred": 56,
+     "matched": 56,
+     "pred_matched": 56,
+     "type_ok": 55,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_acc": 0.9821
+    }
+   },
+   "mapping": {
+    "n_path": 50,
+    "n_transform": 17,
+    "matched": 50,
+    "path_ok": 50,
+    "transform_ok": 17,
+    "joint_ok": 50,
+    "exact_ok": 49,
+    "matched_rate": 1.0,
+    "path_acc": 1.0,
+    "transform_acc": 1.0,
+    "joint_acc": 1.0,
+    "exact_path_set_acc": 0.98
+   },
+   "formmap_s": 0.1,
+   "page_kinds": [
+    "fillable",
+    "fillable",
+    "fillable"
+   ],
+   "text_sources": [
+    "pdf",
+    "pdf",
+    "pdf"
+   ],
+   "candidates": 0,
+   "model": "gpt-6-luna",
+   "steps": 17,
+   "input_tokens": 246011,
+   "output_tokens": 6781,
+   "wall_s": 111.9,
+   "stop_reason": "finish",
+   "finished": true,
+   "error": null,
+   "unplaceable": 2,
+   "fields": 46,
+   "fields_with_source": 45,
+   "schema_mapped": 46,
+   "schema_mappable": 48,
+   "template_path": "eval/results/templates/2026-10-21_round2/openai_eval/menomonie_app_as_published.json",
+   "scored_pages": [
+    0,
+    1,
+    2
+   ],
+   "log_path": "eval/results/logs/2026-10-21_round2/openai_eval/menomonie_app_as_published.json",
+   "fill": {
+    "units": 158,
+    "correct": 154,
+    "fill_acc": 0.9747,
+    "text": {
+     "units": 72,
+     "correct": 68
+    },
+    "choice": {
+     "units": 14,
+     "correct": 14
+    },
+    "cell": {
+     "units": 72,
+     "correct": 72
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": true,
+    "fill_errors": []
+   }
+  },
+  {
+   "form": "menomonie_app",
+   "split": "dev",
+   "kind": "fillable",
+   "variant": "fake_scan",
+   "model_env": "OPENAI_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 56,
+     "pred": 58,
+     "matched": 55,
+     "pred_matched": 55,
+     "recall": 0.9821,
+     "precision": 0.9483,
+     "type_ok": 55,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 1,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 56,
+     "pred": 58,
+     "matched": 48,
+     "pred_matched": 48,
+     "recall": 0.8571,
+     "precision": 0.8276,
+     "type_ok": 48,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 2,
+      "choice": 6,
+      "signature": 0
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDetr",
+    "pages": [
+     0,
+     1,
+     2
+    ],
+    "iou0.3": {
+     "gt": 56,
+     "pred": 56,
+     "matched": 55,
+     "pred_matched": 55,
+     "type_ok": 54,
+     "recall": 0.9821,
+     "precision": 0.9821,
+     "type_acc": 0.9818
+    },
+    "iou0.5": {
+     "gt": 56,
+     "pred": 56,
+     "matched": 51,
+     "pred_matched": 51,
+     "type_ok": 50,
+     "recall": 0.9107,
+     "precision": 0.9107,
+     "type_acc": 0.9804
+    }
+   },
+   "mapping": {
+    "n_path": 50,
+    "n_transform": 17,
+    "matched": 49,
+    "path_ok": 45,
+    "transform_ok": 16,
+    "joint_ok": 45,
+    "exact_ok": 44,
+    "matched_rate": 0.98,
+    "path_acc": 0.9,
+    "transform_acc": 0.9412,
+    "joint_acc": 0.9,
+    "exact_path_set_acc": 0.88
+   },
+   "formmap_s": 11.5,
+   "page_kinds": [
+    "scanned",
+    "scanned",
+    "scanned"
+   ],
+   "text_sources": [
+    "ocr",
+    "ocr",
+    "ocr"
+   ],
+   "candidates": 56,
+   "model": "gpt-6-luna",
+   "steps": 25,
+   "input_tokens": 336995,
+   "output_tokens": 8197,
+   "wall_s": 143.5,
+   "stop_reason": "finish",
+   "finished": true,
+   "error": null,
+   "unplaceable": 2,
+   "fields": 47,
+   "fields_with_source": 46,
+   "schema_mapped": 46,
+   "schema_mappable": 48,
+   "template_path": "eval/results/templates/2026-10-21_round2/openai_eval/menomonie_app_fake_scan.json",
+   "scored_pages": [
+    0,
+    1,
+    2
+   ],
+   "log_path": "eval/results/logs/2026-10-21_round2/openai_eval/menomonie_app_fake_scan.json",
+   "fill": {
+    "units": 158,
+    "correct": 153,
+    "fill_acc": 0.9684,
+    "text": {
+     "units": 72,
+     "correct": 68
+    },
+    "choice": {
+     "units": 14,
+     "correct": 13
+    },
+    "cell": {
+     "units": 72,
+     "correct": 72
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": true,
+    "fill_errors": []
+   }
+  },
+  {
+   "form": "columbus_medhist",
+   "split": "dev",
+   "kind": "fillable",
+   "variant": "as_published",
+   "model_env": "OPENAI_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 160,
+     "pred": 159,
+     "matched": 159,
+     "pred_matched": 159,
+     "recall": 0.9938,
+     "precision": 1.0,
+     "type_ok": 159,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 1,
+      "choice": 0,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 160,
+     "pred": 159,
+     "matched": 159,
+     "pred_matched": 159,
+     "recall": 0.9938,
+     "precision": 1.0,
+     "type_ok": 159,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 1,
+      "choice": 0,
+      "signature": 0
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDNet-L",
+    "pages": [
+     0,
+     1
+    ],
+    "iou0.3": {
+     "gt": 160,
+     "pred": 160,
+     "matched": 159,
+     "pred_matched": 159,
+     "type_ok": 159,
+     "recall": 0.9938,
+     "precision": 0.9938,
+     "type_acc": 1.0
+    },
+    "iou0.5": {
+     "gt": 160,
+     "pred": 160,
+     "matched": 47,
+     "pred_matched": 47,
+     "type_ok": 47,
+     "recall": 0.2938,
+     "precision": 0.2938,
+     "type_acc": 1.0
+    }
+   },
+   "mapping": {
+    "n_path": 142,
+    "n_transform": 129,
+    "matched": 142,
+    "path_ok": 142,
+    "transform_ok": 129,
+    "joint_ok": 142,
+    "exact_ok": 142,
+    "matched_rate": 1.0,
+    "path_acc": 1.0,
+    "transform_acc": 1.0,
+    "joint_acc": 1.0,
+    "exact_path_set_acc": 1.0
+   },
+   "formmap_s": 0.2,
+   "page_kinds": [
+    "fillable",
+    "fillable"
+   ],
+   "text_sources": [
+    "pdf",
+    "pdf"
+   ],
+   "candidates": 0,
+   "model": "gpt-6-luna",
+   "steps": 24,
+   "input_tokens": 480076,
+   "output_tokens": 14991,
+   "wall_s": 240.6,
+   "stop_reason": "error",
+   "finished": false,
+   "error": "FormcastError: LLM request to https://api.openai.com/v1/responses failed with HTTP 429: {\n  \"error\": {\n    \"message\": \"You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.\",\n    \"type\": \"insufficient_quota\",\n    \"param\": null,\n    \"code\": \"credit_balance_exhausted\"\n  }\n}",
+   "unplaceable": 0,
+   "fields": 159,
+   "fields_with_source": 144,
+   "schema_mapped": 56,
+   "schema_mappable": 59,
+   "template_path": "eval/results/templates/2026-10-21_round2/openai_eval/columbus_medhist_as_published.json",
+   "scored_pages": [
+    0,
+    1
+   ],
+   "log_path": "eval/results/logs/2026-10-21_round2/openai_eval/columbus_medhist_as_published.json",
+   "fill": {
+    "units": 1290,
+    "correct": 1259,
+    "fill_acc": 0.976,
+    "text": {
+     "units": 1189,
+     "correct": 1160
+    },
+    "choice": {
+     "units": 101,
+     "correct": 99
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
+  },
+  {
+   "form": "columbus_medhist",
+   "split": "dev",
+   "kind": "fillable",
+   "variant": "fake_scan",
+   "model_env": "OPENAI_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 160,
+     "pred": 150,
+     "matched": 145,
+     "pred_matched": 145,
+     "recall": 0.9062,
+     "precision": 0.9667,
+     "type_ok": 145,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 3,
+      "choice": 12,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 160,
+     "pred": 150,
+     "matched": 76,
+     "pred_matched": 76,
+     "recall": 0.475,
+     "precision": 0.5067,
+     "type_ok": 76,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 3,
+      "choice": 81,
+      "signature": 0
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDetr",
+    "pages": [
+     0,
+     1
+    ],
+    "iou0.3": {
+     "gt": 160,
+     "pred": 160,
+     "matched": 155,
+     "pred_matched": 155,
+     "type_ok": 155,
+     "recall": 0.9688,
+     "precision": 0.9688,
+     "type_acc": 1.0
+    },
+    "iou0.5": {
+     "gt": 160,
+     "pred": 160,
+     "matched": 79,
+     "pred_matched": 79,
+     "type_ok": 79,
+     "recall": 0.4938,
+     "precision": 0.4938,
+     "type_acc": 1.0
+    }
+   },
+   "mapping": {
+    "n_path": 142,
+    "n_transform": 129,
+    "matched": 135,
+    "path_ok": 115,
+    "transform_ok": 102,
+    "joint_ok": 115,
+    "exact_ok": 115,
+    "matched_rate": 0.9507,
+    "path_acc": 0.8099,
+    "transform_acc": 0.7907,
+    "joint_acc": 0.8099,
+    "exact_path_set_acc": 0.8099
+   },
+   "formmap_s": 9.1,
+   "page_kinds": [
+    "scanned",
+    "scanned"
+   ],
+   "text_sources": [
+    "ocr",
+    "ocr"
+   ],
+   "candidates": 159,
+   "model": "gpt-6-luna",
+   "steps": 11,
+   "input_tokens": 214702,
+   "output_tokens": 9773,
+   "wall_s": 138.8,
+   "stop_reason": "error",
+   "finished": false,
+   "error": "FormcastError: LLM request to https://api.openai.com/v1/responses failed with HTTP 429: {\n  \"error\": {\n    \"message\": \"You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.\",\n    \"type\": \"insufficient_quota\",\n    \"param\": null,\n    \"code\": \"credit_balance_exhausted\"\n  }\n}",
+   "unplaceable": 0,
+   "fields": 150,
+   "fields_with_source": 122,
+   "schema_mapped": 56,
+   "schema_mappable": 59,
+   "template_path": "eval/results/templates/2026-10-21_round2/openai_eval/columbus_medhist_fake_scan.json",
+   "scored_pages": [
+    0,
+    1
+   ],
+   "log_path": "eval/results/logs/2026-10-21_round2/openai_eval/columbus_medhist_fake_scan.json",
+   "fill": {
+    "units": 1290,
+    "correct": 1234,
+    "fill_acc": 0.9566,
+    "text": {
+     "units": 1189,
+     "correct": 1160
+    },
+    "choice": {
+     "units": 101,
+     "correct": 74
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
+  },
+  {
+   "form": "grandview_app",
+   "split": "dev",
+   "kind": "flat",
+   "variant": "as_published",
+   "model_env": "OPENAI_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 323,
+     "pred": 249,
+     "matched": 246,
+     "pred_matched": 246,
+     "recall": 0.7616,
+     "precision": 0.988,
+     "type_ok": 232,
+     "type_acc": 0.9431,
+     "missed_by_type": {
+      "text": 52,
+      "choice": 24,
+      "signature": 1
+     }
+    },
+    "iou0.5": {
+     "gt": 323,
+     "pred": 249,
+     "matched": 238,
+     "pred_matched": 238,
+     "recall": 0.7368,
+     "precision": 0.9558,
+     "type_ok": 224,
+     "type_acc": 0.9412,
+     "missed_by_type": {
+      "text": 59,
+      "choice": 25,
+      "signature": 1
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDNet-L",
+    "pages": [
+     0,
+     1,
+     2,
+     3
+    ],
+    "iou0.3": {
+     "gt": 323,
+     "pred": 260,
+     "matched": 246,
+     "pred_matched": 246,
+     "type_ok": 229,
+     "recall": 0.7616,
+     "precision": 0.9462,
+     "type_acc": 0.9309
+    },
+    "iou0.5": {
+     "gt": 323,
+     "pred": 260,
+     "matched": 238,
+     "pred_matched": 238,
+     "type_ok": 221,
+     "recall": 0.7368,
+     "precision": 0.9154,
+     "type_acc": 0.9286
+    }
+   },
+   "mapping": {
+    "n_path": 247,
+    "n_transform": 117,
+    "matched": 93,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 0.3765,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "formmap_s": 13.2,
+   "page_kinds": [
+    "digital",
+    "digital",
+    "digital",
+    "digital"
+   ],
+   "text_sources": [
+    "pdf",
+    "pdf",
+    "pdf",
+    "pdf"
+   ],
+   "candidates": 249,
+   "model": "gpt-6-luna",
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 10.0,
+   "stop_reason": "error",
+   "finished": false,
+   "error": "FormcastError: LLM request to https://api.openai.com/v1/responses failed with HTTP 429: {\n  \"error\": {\n    \"message\": \"You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.\",\n    \"type\": \"insufficient_quota\",\n    \"param\": null,\n    \"code\": \"credit_balance_exhausted\"\n  }\n}",
+   "unplaceable": 0,
+   "fields": 249,
+   "fields_with_source": 0,
+   "schema_mapped": 0,
+   "schema_mappable": 105,
+   "template_path": "eval/results/templates/2026-10-21_round2/openai_eval/grandview_app_as_published.json",
+   "scored_pages": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "log_path": "eval/results/logs/2026-10-21_round2/openai_eval/grandview_app_as_published.json",
+   "fill": {
+    "units": 2011,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 620,
+     "correct": 0
+    },
+    "choice": {
+     "units": 51,
+     "correct": 0
+    },
+    "cell": {
+     "units": 1340,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": false,
+    "fill_errors": []
+   }
+  },
+  {
+   "form": "grandview_app",
+   "split": "dev",
+   "kind": "flat",
+   "variant": "fake_scan",
+   "model_env": "OPENAI_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 323,
+     "pred": 213,
+     "matched": 198,
+     "pred_matched": 198,
+     "recall": 0.613,
+     "precision": 0.9296,
+     "type_ok": 197,
+     "type_acc": 0.9949,
+     "missed_by_type": {
+      "text": 83,
+      "choice": 41,
+      "signature": 1
+     }
+    },
+    "iou0.5": {
+     "gt": 323,
+     "pred": 213,
+     "matched": 156,
+     "pred_matched": 156,
+     "recall": 0.483,
+     "precision": 0.7324,
+     "type_ok": 155,
+     "type_acc": 0.9936,
+     "missed_by_type": {
+      "text": 104,
+      "choice": 62,
+      "signature": 1
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDetr",
+    "pages": [
+     0,
+     1,
+     2,
+     3
+    ],
+    "iou0.3": {
+     "gt": 323,
+     "pred": 209,
+     "matched": 192,
+     "pred_matched": 192,
+     "type_ok": 192,
+     "recall": 0.5944,
+     "precision": 0.9187,
+     "type_acc": 1.0
+    },
+    "iou0.5": {
+     "gt": 323,
+     "pred": 209,
+     "matched": 157,
+     "pred_matched": 157,
+     "type_ok": 157,
+     "recall": 0.4861,
+     "precision": 0.7512,
+     "type_acc": 1.0
+    }
+   },
+   "mapping": {
+    "n_path": 247,
+    "n_transform": 117,
+    "matched": 78,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 0.3158,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "formmap_s": 22.2,
+   "page_kinds": [
+    "scanned",
+    "scanned",
+    "scanned",
+    "scanned"
+   ],
+   "text_sources": [
+    "ocr",
+    "ocr",
+    "ocr",
+    "ocr"
+   ],
+   "candidates": 213,
+   "model": "gpt-6-luna",
+   "steps": 1,
+   "input_tokens": 11341,
+   "output_tokens": 89,
+   "wall_s": 20.9,
+   "stop_reason": "error",
+   "finished": false,
+   "error": "FormcastError: LLM request to https://api.openai.com/v1/responses failed with HTTP 429: {\n  \"error\": {\n    \"message\": \"You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.\",\n    \"type\": \"insufficient_quota\",\n    \"param\": null,\n    \"code\": \"credit_balance_exhausted\"\n  }\n}",
+   "unplaceable": 0,
+   "fields": 213,
+   "fields_with_source": 0,
+   "schema_mapped": 0,
+   "schema_mappable": 105,
+   "template_path": "eval/results/templates/2026-10-21_round2/openai_eval/grandview_app_fake_scan.json",
+   "scored_pages": [
+    0,
+    1,
+    2,
+    3
+   ],
+   "log_path": "eval/results/logs/2026-10-21_round2/openai_eval/grandview_app_fake_scan.json",
+   "fill": {
+    "units": 2011,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 620,
+     "correct": 0
+    },
+    "choice": {
+     "units": 51,
+     "correct": 0
+    },
+    "cell": {
+     "units": 1340,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": false,
+    "fill_errors": []
+   }
+  },
+  {
+   "form": "csudh_health",
+   "split": "dev",
+   "kind": "flat",
+   "variant": "as_published",
+   "model_env": "OPENAI_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 175,
+     "pred": 173,
+     "matched": 171,
+     "pred_matched": 171,
+     "recall": 0.9771,
+     "precision": 0.9884,
+     "type_ok": 169,
+     "type_acc": 0.9883,
+     "missed_by_type": {
+      "text": 1,
+      "choice": 3,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 175,
+     "pred": 173,
+     "matched": 171,
+     "pred_matched": 171,
+     "recall": 0.9771,
+     "precision": 0.9884,
+     "type_ok": 169,
+     "type_acc": 0.9883,
+     "missed_by_type": {
+      "text": 1,
+      "choice": 3,
+      "signature": 0
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDNet-L",
+    "pages": [
+     0,
+     1
+    ],
+    "iou0.3": {
+     "gt": 175,
+     "pred": 173,
+     "matched": 171,
+     "pred_matched": 171,
+     "type_ok": 169,
+     "recall": 0.9771,
+     "precision": 0.9884,
+     "type_acc": 0.9883
+    },
+    "iou0.5": {
+     "gt": 175,
+     "pred": 173,
+     "matched": 171,
+     "pred_matched": 171,
+     "type_ok": 169,
+     "recall": 0.9771,
+     "precision": 0.9884,
+     "type_acc": 0.9883
+    }
+   },
+   "mapping": {
+    "n_path": 155,
+    "n_transform": 141,
+    "matched": 151,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 0.9742,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "formmap_s": 7.5,
+   "page_kinds": [
+    "digital",
+    "digital"
+   ],
+   "text_sources": [
+    "pdf",
+    "pdf"
+   ],
+   "candidates": 173,
+   "model": "gpt-6-luna",
+   "steps": 2,
+   "input_tokens": 26459,
+   "output_tokens": 228,
+   "wall_s": 16.4,
+   "stop_reason": "error",
+   "finished": false,
+   "error": "FormcastError: LLM request to https://api.openai.com/v1/responses failed with HTTP 429: {\n  \"error\": {\n    \"message\": \"You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.\",\n    \"type\": \"insufficient_quota\",\n    \"param\": null,\n    \"code\": \"credit_balance_exhausted\"\n  }\n}",
+   "unplaceable": 0,
+   "fields": 173,
+   "fields_with_source": 0,
+   "schema_mapped": 0,
+   "schema_mappable": 80,
+   "template_path": "eval/results/templates/2026-10-21_round2/openai_eval/csudh_health_as_published.json",
+   "scored_pages": [
+    0,
+    1
+   ],
+   "log_path": "eval/results/logs/2026-10-21_round2/openai_eval/csudh_health_as_published.json",
+   "fill": {
+    "units": 1467,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 1353,
+     "correct": 0
+    },
+    "choice": {
+     "units": 114,
+     "correct": 0
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
+  },
+  {
+   "form": "csudh_health",
+   "split": "dev",
+   "kind": "flat",
+   "variant": "fake_scan",
+   "model_env": "OPENAI_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 175,
+     "pred": 134,
+     "matched": 112,
+     "pred_matched": 112,
+     "recall": 0.64,
+     "precision": 0.8358,
+     "type_ok": 110,
+     "type_acc": 0.9821,
+     "missed_by_type": {
+      "text": 16,
+      "choice": 47,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 175,
+     "pred": 134,
+     "matched": 55,
+     "pred_matched": 55,
+     "recall": 0.3143,
+     "precision": 0.4104,
+     "type_ok": 53,
+     "type_acc": 0.9636,
+     "missed_by_type": {
+      "text": 20,
+      "choice": 100,
+      "signature": 0
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDetr",
+    "pages": [
+     0,
+     1
+    ],
+    "iou0.3": {
+     "gt": 175,
+     "pred": 132,
+     "matched": 117,
+     "pred_matched": 117,
+     "type_ok": 115,
+     "recall": 0.6686,
+     "precision": 0.8864,
+     "type_acc": 0.9829
+    },
+    "iou0.5": {
+     "gt": 175,
+     "pred": 132,
+     "matched": 55,
+     "pred_matched": 55,
+     "type_ok": 53,
+     "recall": 0.3143,
+     "precision": 0.4167,
+     "type_acc": 0.9636
+    }
+   },
+   "mapping": {
+    "n_path": 155,
+    "n_transform": 141,
+    "matched": 98,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 0.6323,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "formmap_s": 13.2,
+   "page_kinds": [
+    "scanned",
+    "scanned"
+   ],
+   "text_sources": [
+    "ocr",
+    "ocr"
+   ],
+   "candidates": 134,
+   "model": "gpt-6-luna",
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 9.8,
+   "stop_reason": "error",
+   "finished": false,
+   "error": "FormcastError: LLM request to https://api.openai.com/v1/responses failed with HTTP 429: {\n  \"error\": {\n    \"message\": \"You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.\",\n    \"type\": \"insufficient_quota\",\n    \"param\": null,\n    \"code\": \"credit_balance_exhausted\"\n  }\n}",
+   "unplaceable": 0,
+   "fields": 134,
+   "fields_with_source": 0,
+   "schema_mapped": 0,
+   "schema_mappable": 80,
+   "template_path": "eval/results/templates/2026-10-21_round2/openai_eval/csudh_health_fake_scan.json",
+   "scored_pages": [
+    0,
+    1
+   ],
+   "log_path": "eval/results/logs/2026-10-21_round2/openai_eval/csudh_health_fake_scan.json",
+   "fill": {
+    "units": 1467,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 1353,
+     "correct": 0
+    },
+    "choice": {
+     "units": 114,
+     "correct": 0
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
+  },
+  {
+   "form": "fw9",
+   "split": "dev",
+   "kind": "fillable",
+   "variant": "as_published",
+   "model_env": "OPENAI_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 23,
+     "pred": 23,
+     "matched": 23,
+     "pred_matched": 23,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_ok": 23,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 23,
+     "pred": 23,
+     "matched": 23,
+     "pred_matched": 23,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_ok": 23,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 0
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDNet-L",
+    "pages": [
+     0
+    ],
+    "iou0.3": {
+     "gt": 23,
+     "pred": 23,
+     "matched": 23,
+     "pred_matched": 23,
+     "type_ok": 23,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_acc": 1.0
+    },
+    "iou0.5": {
+     "gt": 23,
+     "pred": 23,
+     "matched": 23,
+     "pred_matched": 23,
+     "type_ok": 23,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_acc": 1.0
+    }
+   },
+   "mapping": {
+    "n_path": 20,
+    "n_transform": 15,
+    "matched": 20,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 1.0,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "formmap_s": 16.7,
+   "page_kinds": [
+    "fillable",
+    "digital",
+    "digital",
+    "digital",
+    "digital",
+    "digital"
+   ],
+   "text_sources": [
+    "pdf",
+    "pdf",
+    "pdf",
+    "pdf",
+    "pdf",
+    "pdf"
+   ],
+   "candidates": 0,
+   "model": "gpt-6-luna",
+   "steps": 3,
+   "input_tokens": 31597,
+   "output_tokens": 850,
+   "wall_s": 32.2,
+   "stop_reason": "error",
+   "finished": false,
+   "error": "FormcastError: LLM request to https://api.openai.com/v1/responses failed with HTTP 429: {\n  \"error\": {\n    \"message\": \"You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.\",\n    \"type\": \"insufficient_quota\",\n    \"param\": null,\n    \"code\": \"credit_balance_exhausted\"\n  }\n}",
+   "unplaceable": 0,
+   "fields": 23,
+   "fields_with_source": 0,
+   "schema_mapped": 0,
+   "schema_mappable": 16,
+   "template_path": "eval/results/templates/2026-10-21_round2/openai_eval/fw9_as_published.json",
+   "scored_pages": [
+    0
+   ],
+   "log_path": "eval/results/logs/2026-10-21_round2/openai_eval/fw9_as_published.json",
+   "fill": {
+    "units": 92,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 84,
+     "correct": 0
+    },
+    "choice": {
+     "units": 8,
+     "correct": 0
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
+  },
+  {
+   "form": "fw9",
+   "split": "dev",
+   "kind": "fillable",
+   "variant": "fake_scan",
+   "model_env": "OPENAI_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 23,
+     "pred": 28,
+     "matched": 14,
+     "pred_matched": 14,
+     "recall": 0.6087,
+     "precision": 0.5,
+     "type_ok": 14,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 2,
+      "choice": 7,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 23,
+     "pred": 28,
+     "matched": 11,
+     "pred_matched": 11,
+     "recall": 0.4783,
+     "precision": 0.3929,
+     "type_ok": 11,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 4,
+      "choice": 8,
+      "signature": 0
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDetr",
+    "pages": [
+     0
+    ],
+    "iou0.3": {
+     "gt": 23,
+     "pred": 27,
+     "matched": 13,
+     "pred_matched": 13,
+     "type_ok": 13,
+     "recall": 0.5652,
+     "precision": 0.4815,
+     "type_acc": 1.0
+    },
+    "iou0.5": {
+     "gt": 23,
+     "pred": 27,
+     "matched": 11,
+     "pred_matched": 11,
+     "type_ok": 11,
+     "recall": 0.4783,
+     "precision": 0.4074,
+     "type_acc": 1.0
+    }
+   },
+   "mapping": {
+    "n_path": 20,
+    "n_transform": 15,
+    "matched": 13,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 0.65,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "formmap_s": 44.2,
+   "page_kinds": [
+    "scanned",
+    "scanned",
+    "scanned",
+    "scanned",
+    "scanned",
+    "scanned"
+   ],
+   "text_sources": [
+    "ocr",
+    "ocr",
+    "ocr",
+    "ocr",
+    "ocr",
+    "ocr"
+   ],
+   "candidates": 45,
+   "model": "gpt-6-luna",
+   "steps": 2,
+   "input_tokens": 14510,
+   "output_tokens": 112,
+   "wall_s": 16.3,
+   "stop_reason": "error",
+   "finished": false,
+   "error": "FormcastError: LLM request to https://api.openai.com/v1/responses failed with HTTP 429: {\n  \"error\": {\n    \"message\": \"You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.\",\n    \"type\": \"insufficient_quota\",\n    \"param\": null,\n    \"code\": \"credit_balance_exhausted\"\n  }\n}",
+   "unplaceable": 0,
+   "fields": 45,
+   "fields_with_source": 0,
+   "schema_mapped": 0,
+   "schema_mappable": 16,
+   "template_path": "eval/results/templates/2026-10-21_round2/openai_eval/fw9_fake_scan.json",
+   "scored_pages": [
+    0
+   ],
+   "log_path": "eval/results/logs/2026-10-21_round2/openai_eval/fw9_fake_scan.json",
+   "fill": {
+    "units": 92,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 84,
+     "correct": 0
+    },
+    "choice": {
+     "units": 8,
+     "correct": 0
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
+  },
+  {
+   "form": "fw4",
+   "split": "dev",
+   "kind": "fillable",
+   "variant": "as_published",
+   "model_env": "OPENAI_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 48,
+     "pred": 50,
+     "matched": 48,
+     "pred_matched": 48,
+     "recall": 1.0,
+     "precision": 0.96,
+     "type_ok": 48,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 48,
+     "pred": 50,
+     "matched": 48,
+     "pred_matched": 48,
+     "recall": 1.0,
+     "precision": 0.96,
+     "type_ok": 48,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 0
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDNet-L",
+    "pages": [
+     0,
+     2,
+     3
+    ],
+    "iou0.3": {
+     "gt": 48,
+     "pred": 49,
+     "matched": 48,
+     "pred_matched": 48,
+     "type_ok": 48,
+     "recall": 1.0,
+     "precision": 0.9796,
+     "type_acc": 1.0
+    },
+    "iou0.5": {
+     "gt": 48,
+     "pred": 49,
+     "matched": 48,
+     "pred_matched": 48,
+     "type_ok": 48,
+     "recall": 1.0,
+     "precision": 0.9796,
+     "type_acc": 1.0
+    }
+   },
+   "mapping": {
+    "n_path": 17,
+    "n_transform": 9,
+    "matched": 17,
+    "path_ok": 17,
+    "transform_ok": 9,
+    "joint_ok": 17,
+    "exact_ok": 17,
+    "matched_rate": 1.0,
+    "path_acc": 1.0,
+    "transform_acc": 1.0,
+    "joint_acc": 1.0,
+    "exact_path_set_acc": 1.0
+   },
+   "formmap_s": 7.6,
+   "page_kinds": [
+    "fillable",
+    "digital",
+    "fillable",
+    "fillable",
+    "digital"
+   ],
+   "text_sources": [
+    "pdf",
+    "pdf",
+    "pdf",
+    "pdf",
+    "pdf"
+   ],
+   "candidates": 0,
+   "model": "gpt-6-luna",
+   "steps": 4,
+   "input_tokens": 55297,
+   "output_tokens": 3963,
+   "wall_s": 67.0,
+   "stop_reason": "error",
+   "finished": false,
+   "error": "FormcastError: LLM request to https://api.openai.com/v1/responses failed with HTTP 429: {\n  \"error\": {\n    \"message\": \"You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.\",\n    \"type\": \"insufficient_quota\",\n    \"param\": null,\n    \"code\": \"credit_balance_exhausted\"\n  }\n}",
+   "unplaceable": 0,
+   "fields": 50,
+   "fields_with_source": 18,
+   "schema_mapped": 23,
+   "schema_mappable": 25,
+   "template_path": "eval/results/templates/2026-10-21_round2/openai_eval/fw4_as_published.json",
+   "scored_pages": [
+    0,
+    2,
+    3
+   ],
+   "log_path": "eval/results/logs/2026-10-21_round2/openai_eval/fw4_as_published.json",
+   "fill": {
+    "units": 41,
+    "correct": 41,
+    "fill_acc": 1.0,
+    "text": {
+     "units": 36,
+     "correct": 36
+    },
+    "choice": {
+     "units": 5,
+     "correct": 5
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
+  },
+  {
+   "form": "fw4",
+   "split": "dev",
+   "kind": "fillable",
+   "variant": "fake_scan",
+   "model_env": "OPENAI_EVAL",
+   "detection": {
+    "iou0.3": {
+     "gt": 48,
+     "pred": 44,
+     "matched": 42,
+     "pred_matched": 42,
+     "recall": 0.875,
+     "precision": 0.9545,
+     "type_ok": 42,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 5,
+      "choice": 1,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 48,
+     "pred": 44,
+     "matched": 39,
+     "pred_matched": 39,
+     "recall": 0.8125,
+     "precision": 0.8864,
+     "type_ok": 39,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 8,
+      "choice": 1,
+      "signature": 0
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDetr",
+    "pages": [
+     0,
+     2,
+     3
+    ],
+    "iou0.3": {
+     "gt": 48,
+     "pred": 44,
+     "matched": 42,
+     "pred_matched": 42,
+     "type_ok": 42,
+     "recall": 0.875,
+     "precision": 0.9545,
+     "type_acc": 1.0
+    },
+    "iou0.5": {
+     "gt": 48,
+     "pred": 44,
+     "matched": 39,
+     "pred_matched": 39,
+     "type_ok": 39,
+     "recall": 0.8125,
+     "precision": 0.8864,
+     "type_acc": 1.0
+    }
+   },
+   "mapping": {
+    "n_path": 17,
+    "n_transform": 9,
+    "matched": 16,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 0.9412,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "formmap_s": 29.4,
+   "page_kinds": [
+    "scanned",
+    "scanned",
+    "scanned",
+    "scanned",
+    "scanned"
+   ],
+   "text_sources": [
+    "ocr",
+    "ocr",
+    "ocr",
+    "ocr",
+    "ocr"
+   ],
+   "candidates": 44,
+   "model": "gpt-6-luna",
+   "steps": 5,
+   "input_tokens": 59021,
+   "output_tokens": 608,
+   "wall_s": 42.7,
+   "stop_reason": "error",
+   "finished": false,
+   "error": "FormcastError: LLM request to https://api.openai.com/v1/responses failed with HTTP 429: {\n  \"error\": {\n    \"message\": \"You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/.\",\n    \"type\": \"insufficient_quota\",\n    \"param\": null,\n    \"code\": \"credit_balance_exhausted\"\n  }\n}",
+   "unplaceable": 0,
+   "fields": 44,
+   "fields_with_source": 0,
+   "schema_mapped": 0,
+   "schema_mappable": 25,
+   "template_path": "eval/results/templates/2026-10-21_round2/openai_eval/fw4_fake_scan.json",
+   "scored_pages": [
+    0,
+    2,
+    3
+   ],
+   "log_path": "eval/results/logs/2026-10-21_round2/openai_eval/fw4_fake_scan.json",
+   "fill": {
+    "units": 41,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 36,
+     "correct": 0
+    },
+    "choice": {
+     "units": 5,
+     "correct": 0
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
+  }
+ ],
+ "totals": {
+  "all": {
+   "forms": 14,
+   "failed": 10,
+   "errored": [
+    "columbus_medhist/as_published",
+    "columbus_medhist/fake_scan",
+    "grandview_app/as_published",
+    "grandview_app/fake_scan",
+    "csudh_health/as_published",
+    "csudh_health/fake_scan",
+    "fw9/as_published",
+    "fw9/fake_scan",
+    "fw4/as_published",
+    "fw4/fake_scan"
+   ],
+   "finished": 13,
+   "detection": {
+    "iou0.3": {
+     "gt": 1448,
+     "pred": 1113,
+     "matched": 1003,
+     "pred_matched": 983,
+     "type_ok": 995,
+     "recall": 0.6927,
+     "precision": 0.8832,
+     "type_acc": 0.992
+    },
+    "iou0.5": {
+     "gt": 1448,
+     "pred": 1113,
+     "matched": 644,
+     "pred_matched": 624,
+     "type_ok": 636,
+     "recall": 0.4448,
+     "precision": 0.5606,
+     "type_acc": 0.9876
+    }
+   },
+   "baseline": {
+    "forms": 14,
+    "iou0.3": {
+     "gt": 1448,
+     "pred": 1118,
+     "matched": 1011,
+     "pred_matched": 1011,
+     "type_ok": 961,
+     "recall": 0.6982,
+     "precision": 0.9043,
+     "type_acc": 0.9505
+    },
+    "iou0.5": {
+     "gt": 1448,
+     "pred": 1118,
+     "matched": 889,
+     "pred_matched": 889,
+     "type_ok": 840,
+     "recall": 0.614,
+     "precision": 0.7952,
+     "type_acc": 0.9449
+    }
+   },
+   "mapping": {
+    "n_path": 1232,
+    "n_transform": 514,
+    "matched": 849,
+    "path_ok": 832,
+    "transform_ok": 304,
+    "joint_ok": 814,
+    "exact_ok": 820,
+    "path_acc": 0.6753,
+    "transform_acc": 0.5914,
+    "joint_acc": 0.6607,
+    "exact_path_set_acc": 0.6656
+   },
+   "fill": {
+    "forms": 14,
+    "units": 6296,
+    "correct": 3698,
+    "fill_acc": 0.5874,
+    "text": {
+     "units": 1844,
+     "correct": 1087,
+     "acc": 0.5895
+    },
+    "choice": {
+     "units": 136,
+     "correct": 98,
+     "acc": 0.7206
+    },
+    "cell": {
+     "units": 4316,
+     "correct": 2513,
+     "acc": 0.5823
+    },
+    "rows_dropped": {
+     "checked": 6,
+     "ok": 5
+    },
+    "static_choice": 0
+   },
+   "steps": 307,
+   "input_tokens": 5265982,
+   "output_tokens": 163052,
+   "wall_s": 2600.3
+  },
+  "as_published": {
+   "forms": 7,
+   "failed": 5,
+   "errored": [
+    "columbus_medhist/as_published",
+    "grandview_app/as_published",
+    "csudh_health/as_published",
+    "fw9/as_published",
+    "fw4/as_published"
+   ],
+   "finished": 7,
+   "detection": {
+    "iou0.3": {
+     "gt": 724,
+     "pred": 651,
+     "matched": 578,
+     "pred_matched": 567,
+     "type_ok": 570,
+     "recall": 0.7983,
+     "precision": 0.871,
+     "type_acc": 0.9862
+    },
+    "iou0.5": {
+     "gt": 724,
+     "pred": 651,
+     "matched": 380,
+     "pred_matched": 369,
+     "type_ok": 372,
+     "recall": 0.5249,
+     "precision": 0.5668,
+     "type_acc": 0.9789
+    }
+   },
+   "baseline": {
+    "forms": 7,
+    "iou0.3": {
+     "gt": 724,
+     "pred": 626,
+     "matched": 582,
+     "pred_matched": 582,
+     "type_ok": 552,
+     "recall": 0.8039,
+     "precision": 0.9297,
+     "type_acc": 0.9485
+    },
+    "iou0.5": {
+     "gt": 724,
+     "pred": 626,
+     "matched": 573,
+     "pred_matched": 573,
+     "type_ok": 543,
+     "recall": 0.7914,
+     "precision": 0.9153,
+     "type_acc": 0.9476
+    }
+   },
+   "mapping": {
+    "n_path": 616,
+    "n_transform": 257,
+    "matched": 471,
+    "path_ok": 458,
+    "transform_ok": 171,
+    "joint_ok": 445,
+    "exact_ok": 451,
+    "path_acc": 0.7435,
+    "transform_acc": 0.6654,
+    "joint_acc": 0.7224,
+    "exact_path_set_acc": 0.7321
+   },
+   "fill": {
+    "forms": 7,
+    "units": 3148,
+    "correct": 2063,
+    "fill_acc": 0.6553,
+    "text": {
+     "units": 922,
+     "correct": 670,
+     "acc": 0.7267
+    },
+    "choice": {
+     "units": 68,
+     "correct": 58,
+     "acc": 0.8529
+    },
+    "cell": {
+     "units": 2158,
+     "correct": 1335,
+     "acc": 0.6186
+    },
+    "rows_dropped": {
+     "checked": 3,
+     "ok": 3
+    },
+    "static_choice": 0
+   },
+   "steps": 133,
+   "input_tokens": 2413672,
+   "output_tokens": 72743,
+   "wall_s": 1165.3
+  },
+  "fake_scan": {
+   "forms": 7,
+   "failed": 5,
+   "errored": [
+    "columbus_medhist/fake_scan",
+    "grandview_app/fake_scan",
+    "csudh_health/fake_scan",
+    "fw9/fake_scan",
+    "fw4/fake_scan"
+   ],
+   "finished": 6,
+   "detection": {
+    "iou0.3": {
+     "gt": 724,
+     "pred": 462,
+     "matched": 425,
+     "pred_matched": 416,
+     "type_ok": 425,
+     "recall": 0.587,
+     "precision": 0.9004,
+     "type_acc": 1.0
+    },
+    "iou0.5": {
+     "gt": 724,
+     "pred": 462,
+     "matched": 264,
+     "pred_matched": 255,
+     "type_ok": 264,
+     "recall": 0.3646,
+     "precision": 0.5519,
+     "type_acc": 1.0
+    }
+   },
+   "baseline": {
+    "forms": 7,
+    "iou0.3": {
+     "gt": 724,
+     "pred": 492,
+     "matched": 429,
+     "pred_matched": 429,
+     "type_ok": 409,
+     "recall": 0.5925,
+     "precision": 0.872,
+     "type_acc": 0.9534
+    },
+    "iou0.5": {
+     "gt": 724,
+     "pred": 492,
+     "matched": 316,
+     "pred_matched": 316,
+     "type_ok": 297,
+     "recall": 0.4365,
+     "precision": 0.6423,
+     "type_acc": 0.9399
+    }
+   },
+   "mapping": {
+    "n_path": 616,
+    "n_transform": 257,
+    "matched": 378,
+    "path_ok": 374,
+    "transform_ok": 133,
+    "joint_ok": 369,
+    "exact_ok": 369,
+    "path_acc": 0.6071,
+    "transform_acc": 0.5175,
+    "joint_acc": 0.599,
+    "exact_path_set_acc": 0.599
+   },
+   "fill": {
+    "forms": 7,
+    "units": 3148,
+    "correct": 1635,
+    "fill_acc": 0.5194,
+    "text": {
+     "units": 922,
+     "correct": 417,
+     "acc": 0.4523
+    },
+    "choice": {
+     "units": 68,
+     "correct": 40,
+     "acc": 0.5882
+    },
+    "cell": {
+     "units": 2158,
+     "correct": 1178,
+     "acc": 0.5459
+    },
+    "rows_dropped": {
+     "checked": 3,
+     "ok": 2
+    },
+    "static_choice": 0
+   },
+   "steps": 174,
+   "input_tokens": 2852310,
+   "output_tokens": 90309,
+   "wall_s": 1435.0
+  }
+ }
+}
