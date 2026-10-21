@@ -17,16 +17,18 @@
    "type": "object",
    "description": "Property owner.",
    "properties": {
-    "name": {
+    "first_name": {
+     "type": "string"
+    },
+    "last_name": {
      "type": "string"
     },
     "mailing_address": {
-     "type": "string",
-     "description": "Single-line mailing address."
+     "$ref": "#/$defs/address"
     },
     "physical_address": {
-     "type": "string",
-     "description": "Owner's residence, if different from mailing address."
+     "$ref": "#/$defs/address",
+     "description": "Owner's residence, if different from the mailing address."
     },
     "phone": {
      "type": "string"
@@ -37,7 +39,7 @@
     }
    },
    "required": [
-    "name"
+    "last_name"
    ]
   },
   "site": {
@@ -45,7 +47,7 @@
    "description": "The building site.",
    "properties": {
     "address": {
-     "type": "string"
+     "$ref": "#/$defs/address"
     },
     "subdivision": {
      "type": "string"
@@ -78,11 +80,11 @@
    "type": "object",
    "description": "Builder or general contractor; omit when the owner is acting as contractor.",
    "properties": {
-    "name": {
+    "company_name": {
      "type": "string"
     },
     "mailing_address": {
-     "type": "string"
+     "$ref": "#/$defs/address"
     },
     "phone": {
      "type": "string"
@@ -274,5 +276,28 @@
   "site",
   "improvement_types",
   "applicant_signed_on"
- ]
+ ],
+ "$defs": {
+  "address": {
+   "type": "object",
+   "properties": {
+    "street": {
+     "type": "string"
+    },
+    "city": {
+     "type": "string"
+    },
+    "state": {
+     "type": "string",
+     "description": "Two-letter code."
+    },
+    "zip": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "street"
+   ]
+  }
+ }
 }

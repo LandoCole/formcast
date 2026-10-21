@@ -1,11 +1,9 @@
 """Consistency of the corpus ground truth (forms/gt) and schemas (forms/schemas).
 
-Checks whatever GT and schema files exist. With ``FORMCAST_GT_COMPLETE=1`` it
-also requires every manifest form to have both.
+Every manifest form must have both files; each existing file is checked.
 """
 
 import json
-import os
 from pathlib import Path
 
 import pymupdf
@@ -23,7 +21,6 @@ MANIFEST = json.loads((FORMS / "manifest.json").read_text())["forms"]
 BY_ID = {f["id"]: f for f in MANIFEST}
 TYPES = {"text", "choice", "signature"}
 OPS = {t["name"] for t in list_transforms()}
-COMPLETE = os.environ.get("FORMCAST_GT_COMPLETE") == "1"
 
 GT_IDS = sorted(p.stem for p in GT_DIR.glob("*.json") if not p.name.endswith(".draft.json"))
 SCHEMA_IDS = sorted(p.stem for p in SCHEMA_DIR.glob("*.json"))
@@ -65,7 +62,6 @@ def test_manifest_scored_pages_are_valid_page_indexes(form):
     assert all(isinstance(p, int) and 0 <= p < form["pages"] for p in pages)
 
 
-@pytest.mark.skipif(not COMPLETE, reason="set FORMCAST_GT_COMPLETE=1 once every form is labeled")
 @pytest.mark.parametrize("form", MANIFEST, ids=lambda f: f["id"])
 def test_every_manifest_form_has_gt_and_schema(form):
     assert (GT_DIR / f"{form['id']}.json").exists()
@@ -146,3 +142,9 @@ def test_widget_paths_name_widgets_of_the_form(form_id):
         doc.close()
     missing = sorted(set(_gt(form_id).get("widget_paths", {})) - names)
     assert not missing
+
+
+@pytest.mark.parametrize("form_id", [i for i in GT_IDS if BY_ID.get(i, {}).get("kind") == "fillable"])
+def test_widget_paths_type_overrides_are_valid_types(form_id):
+    for name, entry in _gt(form_id).get("widget_paths", {}).items():
+        assert entry.get("type", "text") in TYPES, name

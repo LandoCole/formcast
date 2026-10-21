@@ -11,7 +11,13 @@
    ],
    "type": "text",
    "label": "Property Owner - Name",
-   "path": "owner.name"
+   "path": "owner.first_name",
+   "also_paths": [
+    "owner.last_name"
+   ],
+   "transforms": [
+    "join"
+   ]
   },
   {
    "page": 0,
@@ -23,7 +29,15 @@
    ],
    "type": "text",
    "label": "Property Owner - Mailing Address",
-   "path": "owner.mailing_address"
+   "path": "owner.mailing_address.street",
+   "also_paths": [
+    "owner.mailing_address.city",
+    "owner.mailing_address.state",
+    "owner.mailing_address.zip"
+   ],
+   "transforms": [
+    "join"
+   ]
   },
   {
    "page": 0,
@@ -35,7 +49,15 @@
    ],
    "type": "text",
    "label": "Property Owner - Physical Address",
-   "path": "owner.physical_address"
+   "path": "owner.physical_address.street",
+   "also_paths": [
+    "owner.physical_address.city",
+    "owner.physical_address.state",
+    "owner.physical_address.zip"
+   ],
+   "transforms": [
+    "join"
+   ]
   },
   {
    "page": 0,
@@ -59,7 +81,15 @@
    ],
    "type": "text",
    "label": "Property Owner - Building Site Address",
-   "path": "site.address"
+   "path": "site.address.street",
+   "also_paths": [
+    "site.address.city",
+    "site.address.state",
+    "site.address.zip"
+   ],
+   "transforms": [
+    "join"
+   ]
   },
   {
    "page": 0,
@@ -113,7 +143,7 @@
    ],
    "type": "text",
    "label": "Builder/Contractor - Name",
-   "path": "contractor.name"
+   "path": "contractor.company_name"
   },
   {
    "page": 0,
@@ -125,7 +155,15 @@
    ],
    "type": "text",
    "label": "Builder/Contractor - Mailing Address",
-   "path": "contractor.mailing_address"
+   "path": "contractor.mailing_address.street",
+   "also_paths": [
+    "contractor.mailing_address.city",
+    "contractor.mailing_address.state",
+    "contractor.mailing_address.zip"
+   ],
+   "transforms": [
+    "join"
+   ]
   },
   {
    "page": 0,
@@ -1322,5 +1360,5 @@
    ]
   }
  ],
- "notes": "Real scan; coordinates from Tesseract words (build_form_map ocr='always') and rules found in the rendered image (scratch pixel analysis). Page 0: owner/builder information lines, Type of Improvement and Electrical/Gas/Mechanical/Plumbing option lists (no printed boxes: one ~10x10pt choice box left of each option), the 13 'Description (Be Specific)' lines treated as one multi-line answer (path on line 1), and the 2-line trade-work DESCRIPTION. Page 1: lot dimensions, setbacks, Principal Type Frame '[ ]' boxes (rect = bracket pair) + Other line, stories/bedrooms/bathrooms, and the fee schedule. Fee-schedule amount/EDU blanks are GT boxes but pathless (fees are computed by the Town); meter sizes are mapped. Page 2 is the back of the application: requirements text plus the applicant's Signature and Date (in GT). Excluded (Town staff only): the PERMIT # box on page 0, and on page 2 the Building Inspector / [ ] Approved / [ ] Denied Reason / Date Issued / Permit # / Certificate of Occupancy Issue Date block. All three pages are part of the form, so no scored_pages."
+ "notes": "Schema differs in shape from the form: owner name is first/last (join into NAME), owner/contractor/site addresses are structured {street, city, state, zip} (join into the one-line blanks), Subdivision / Lot # joins two fields, dates are ISO (date_format). Real scan; coordinates from Tesseract words (build_form_map ocr='always') and rules found in the rendered image (scratch pixel analysis). Page 0: owner/builder information lines, Type of Improvement and Electrical/Gas/Mechanical/Plumbing option lists (no printed boxes: one ~10x10pt choice box left of each option), the 13 'Description (Be Specific)' lines treated as one multi-line answer (path on line 1), and the 2-line trade-work DESCRIPTION. Page 1: lot dimensions, setbacks, Principal Type Frame '[ ]' boxes (rect = bracket pair) + Other line, stories/bedrooms/bathrooms, and the fee schedule. Fee-schedule amount/EDU blanks are GT boxes but pathless (fees are computed by the Town); meter sizes are mapped. Page 2 is the back of the application: requirements text plus the applicant's Signature and Date (in GT). Excluded (Town staff only): the PERMIT # box on page 0, and on page 2 the Building Inspector / [ ] Approved / [ ] Denied Reason / Date Issued / Permit # / Certificate of Occupancy Issue Date block. All three pages are part of the form, so no scored_pages."
 }

@@ -139,7 +139,9 @@ def load_gt(form: dict, pdf_path, gt_dir: Path | None = None) -> list[GTField] |
     classes: check boxes and radio buttons are "choice", signatures
     "signature", everything else "text"; push buttons (not data fields) and
     widgets under 3 pt are dropped. A ``widget_paths`` entry for the widget's
-    field name adds ``path``, ``also_paths`` and ``transforms``. A fillable form
+    field name adds ``path``, ``also_paths`` and ``transforms``, and its optional
+    ``type`` (text, choice or signature) overrides the widget's type, e.g. for a
+    signature line made as a text widget. A fillable form
     with no widgets has no ground truth. Flat and scanned forms read ``fields``
     from the GT file and have none without it.
 
@@ -157,6 +159,9 @@ def load_gt(form: dict, pdf_path, gt_dir: Path | None = None) -> list[GTField] |
         return fields if keep is None else [g for g in fields if g.page in keep]
 
     widget_paths = (data or {}).get("widget_paths", {})
+    for name, extra in widget_paths.items():
+        if "type" in extra and extra["type"] not in TYPES:
+            raise ValueError(f"{source}: widget_paths[{name!r}] has unknown type {extra['type']!r}")
     out: list[GTField] = []
     doc = open_pdf(pdf_path)
     try:
@@ -172,7 +177,7 @@ def load_gt(form: dict, pdf_path, gt_dir: Path | None = None) -> list[GTField] |
                     GTField(
                         page=page.number,
                         rect=(w.rect.x0, w.rect.y0, w.rect.x1, w.rect.y1),
-                        type=_widget_type(w),
+                        type=extra.get("type") or _widget_type(w),
                         label=w.field_label or w.field_name or "",
                         path=extra.get("path"),
                         transforms=list(extra.get("transforms", [])),

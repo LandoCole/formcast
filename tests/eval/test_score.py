@@ -286,6 +286,20 @@ def test_load_gt_reads_also_paths(fillable_form_pdf, flat_form_pdf, tmp_path):
     assert [g.also_paths for g in gt] == [["p.last"], []]
 
 
+def test_load_gt_widget_paths_type_overrides_the_widget_type(fillable_form_pdf, tmp_path):
+    _write_gt(tmp_path, "ff", {"form": "ff", "widget_paths": {"applicant_name": {"type": "signature"}}})
+    gt = score.load_gt({"id": "ff", "kind": "fillable"}, fillable_form_pdf, gt_dir=tmp_path)
+    by_label = {g.label: g for g in gt}
+    assert by_label["applicant_name"].type == "signature" and by_label["applicant_name"].path is None
+    assert by_label["agree"].type == "choice"
+
+
+def test_load_gt_rejects_an_unknown_widget_paths_type(fillable_form_pdf, tmp_path):
+    _write_gt(tmp_path, "ff", {"form": "ff", "widget_paths": {"applicant_name": {"type": "radio"}}})
+    with pytest.raises(ValueError, match="ff.json"):
+        score.load_gt({"id": "ff", "kind": "fillable"}, fillable_form_pdf, gt_dir=tmp_path)
+
+
 def test_scored_pages_default_to_all_pages():
     assert score.scored_pages({"id": "x"}, 3) == [0, 1, 2]
     assert score.scored_pages({"id": "x", "scored_pages": [2, 0]}, 3) == [0, 2]

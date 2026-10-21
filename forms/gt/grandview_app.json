@@ -241,7 +241,8 @@
     273.13
    ],
    "type": "text",
-   "label": "Referral Source: Walk-in: (name the source)"
+   "label": "Referral Source: Walk-in: (name the source)",
+   "path": "referral.detail"
   },
   {
    "page": 0,
@@ -267,7 +268,8 @@
     273.13
    ],
    "type": "text",
-   "label": "Referral Source: School: (name the source)"
+   "label": "Referral Source: School: (name the source)",
+   "path": "referral.detail"
   },
   {
    "page": 0,
@@ -293,7 +295,8 @@
     291.49
    ],
    "type": "text",
-   "label": "Referral Source: Employee: (name the source)"
+   "label": "Referral Source: Employee: (name the source)",
+   "path": "referral.detail"
   },
   {
    "page": 0,
@@ -319,7 +322,8 @@
     291.49
    ],
    "type": "text",
-   "label": "Referral Source: Job Fair: (name the source)"
+   "label": "Referral Source: Job Fair: (name the source)",
+   "path": "referral.detail"
   },
   {
    "page": 0,
@@ -345,7 +349,8 @@
     308.89
    ],
    "type": "text",
-   "label": "Referral Source: Advertisement: (name the source)"
+   "label": "Referral Source: Advertisement: (name the source)",
+   "path": "referral.detail"
   },
   {
    "page": 0,
@@ -371,7 +376,8 @@
     308.89
    ],
    "type": "text",
-   "label": "Referral Source: Staffing Agency: (name the source)"
+   "label": "Referral Source: Staffing Agency: (name the source)",
+   "path": "referral.detail"
   },
   {
    "page": 0,
@@ -397,7 +403,8 @@
     326.65
    ],
    "type": "text",
-   "label": "Referral Source: City of Grandview Website: (name the source)"
+   "label": "Referral Source: City of Grandview Website: (name the source)",
+   "path": "referral.detail"
   },
   {
    "page": 0,
@@ -423,7 +430,8 @@
     326.65
    ],
    "type": "text",
-   "label": "Referral Source: Government Employment Agency: (name the source)"
+   "label": "Referral Source: Government Employment Agency: (name the source)",
+   "path": "referral.detail"
   },
   {
    "page": 0,
@@ -449,7 +457,8 @@
     344.53
    ],
    "type": "text",
-   "label": "Referral Source: Other Internet: (name the source)"
+   "label": "Referral Source: Other Internet: (name the source)",
+   "path": "referral.detail"
   },
   {
    "page": 0,
@@ -475,7 +484,8 @@
     344.53
    ],
    "type": "text",
-   "label": "Referral Source: Other: (name the source)"
+   "label": "Referral Source: Other: (name the source)",
+   "path": "referral.detail"
   },
   {
    "page": 0,
@@ -4188,5 +4198,5 @@
    ]
   }
  ],
- "notes": "All 4 pages. Excluded: header/section underlines and the equal-access notice. Table and form cells are their interior inset 1pt; underlined blanks follow the underline convention; date blanks are one box per printed MM/DD/YY group; phones split at the printed parentheses; SSN is 3 groups. 'am'/'pm' next to the call-time blanks are option words (one choice box each). Multi-line answers are one box per printed line; only the first line carries the path. The four employer blocks on page 1 map to employment_history[] columns (one block per item). Pathless by design: the 10 'name the source' blanks in Referral Source (which one applies depends on the checked category), best-time-to-call hour/minute/am/pm, and checkboxes inside repeated structures (employer-block Hourly/Salary and May-we-contact boxes, education Completed boxes, computer-skills 'Other' rows), since a checkbox cannot be a table column."
+ "notes": "All 4 pages. Excluded: header/section underlines and the equal-access notice. Table and form cells are their interior inset 1pt; underlined blanks follow the underline convention; date blanks are one box per printed MM/DD/YY group; phones split at the printed parentheses; SSN is 3 groups. 'am'/'pm' next to the call-time blanks are option words (one choice box each). Multi-line answers are one box per printed line; only the first line carries the path. The four employer blocks on page 1 map to employment_history[] columns (one block per item). The 10 'name the source' blanks in Referral Source each map to referral.detail (a correct template fills the one matching the checked category conditionally; the condition is not scored). Pathless by design: best-time-to-call hour/minute/am/pm, and checkboxes inside repeated structures (employer-block Hourly/Salary and May-we-contact boxes, education Completed boxes, computer-skills 'Other' rows), since a checkbox cannot be a table column."
 }

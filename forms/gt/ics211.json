@@ -65,6 +65,9 @@
   "R1 Resource Name or ID 1": {
    "path": "check_ins[].resource_identifier"
   },
+  "R1 ST or TF 1": {
+   "path": "check_ins[].strike_team_or_task_force"
+  },
   "R1 Order Request": {
    "path": "check_ins[].order_request_number"
   },
@@ -115,6 +118,9 @@
   },
   "R2 Resource Name or ID 2": {
    "path": "check_ins[].resource_identifier"
+  },
+  "R2 ST or TF 2": {
+   "path": "check_ins[].strike_team_or_task_force"
   },
   "R2 Order Request Row2": {
    "path": "check_ins[].order_request_number"
@@ -167,6 +173,9 @@
   "R3 Resource Name or ID 3": {
    "path": "check_ins[].resource_identifier"
   },
+  "R3 ST or TF 3": {
+   "path": "check_ins[].strike_team_or_task_force"
+  },
   "R3 Order Request Row3": {
    "path": "check_ins[].order_request_number"
   },
@@ -217,6 +226,9 @@
   },
   "R4 Resource Name or ID 4": {
    "path": "check_ins[].resource_identifier"
+  },
+  "R4 ST or TF 4": {
+   "path": "check_ins[].strike_team_or_task_force"
   },
   "R4 Order Request Row4": {
    "path": "check_ins[].order_request_number"
@@ -269,6 +281,9 @@
   "R5 Resource Name or ID 5": {
    "path": "check_ins[].resource_identifier"
   },
+  "R5 ST or TF 5": {
+   "path": "check_ins[].strike_team_or_task_force"
+  },
   "R5 Order Request Row5": {
    "path": "check_ins[].order_request_number"
   },
@@ -319,6 +334,9 @@
   },
   "R6 Resource Name or ID 6": {
    "path": "check_ins[].resource_identifier"
+  },
+  "R6 ST or TF 6": {
+   "path": "check_ins[].strike_team_or_task_force"
   },
   "R6 Order Request Row6": {
    "path": "check_ins[].order_request_number"
@@ -371,6 +389,9 @@
   "R7 Resource Name or ID 7": {
    "path": "check_ins[].resource_identifier"
   },
+  "R7 ST or TF 7": {
+   "path": "check_ins[].strike_team_or_task_force"
+  },
   "R7 Order Request": {
    "path": "check_ins[].order_request_number"
   },
@@ -422,6 +443,9 @@
   "R8 Resource Name or ID 8": {
    "path": "check_ins[].resource_identifier"
   },
+  "R8 ST or TF 8": {
+   "path": "check_ins[].strike_team_or_task_force"
+  },
   "R8 Order Request Row8": {
    "path": "check_ins[].order_request_number"
   },
@@ -468,5 +492,5 @@
    ]
   }
  },
- "notes": "Only page 0 has widgets (the landscape form); pages 1-3 are block-by-block instructions with no blanks. The 8 check-in rows map to check_ins[] columns. Pathless: column 5 'ST or TF' and column 16 'Data Provided to Resources Unit' (the schema does not keep them), and Signature_18 (signature). Check-In Location checkboxes are a multi-select ('complete all that apply'): contains. Departure Point, Date and Time is one cell per row, stored as one string."
+ "notes": "Only page 0 has widgets (the landscape form); pages 1-3 are block-by-block instructions with no blanks. The 8 check-in rows map to check_ins[] columns. Column 5 'ST or TF' maps to check_ins[].strike_team_or_task_force (enum ST/TF, written as-is). Pathless: column 16 'Data Provided to Resources Unit' (the schema does not keep it), and Signature_18 (signature). Check-In Location checkboxes are a multi-select ('complete all that apply'): contains. Departure Point, Date and Time is one cell per row, stored as one string. Coverage is 148/157 = 94.3% mapped, above the ~90% target: the form is almost entirely the check-in table and every remaining column is something a Resources Unit keeps."
 }

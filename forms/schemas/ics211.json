@@ -75,8 +75,12 @@
       "description": "Resource name or ID."
      },
      "strike_team_or_task_force": {
-      "type": "boolean",
-      "description": "Part of a strike team or task force."
+      "type": "string",
+      "enum": [
+       "ST",
+       "TF"
+      ],
+      "description": "Set when the resource is part of a strike team (ST) or task force (TF)."
      },
      "order_request_number": {
       "type": "string",

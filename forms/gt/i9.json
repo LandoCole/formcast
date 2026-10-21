@@ -481,7 +481,34 @@
   },
   "Addtl Info 2": {
    "path": "reverifications[].additional_information"
+  },
+  "Signature of Employee": {
+   "type": "signature"
+  },
+  "Signature of Employer or AR": {
+   "type": "signature"
+  },
+  "Signature of Preparer or Translator 0": {
+   "type": "signature"
+  },
+  "Signature of Preparer or Translator 1": {
+   "type": "signature"
+  },
+  "Signature of Preparer or Translator 2": {
+   "type": "signature"
+  },
+  "Signature of Preparer or Translator 3": {
+   "type": "signature"
+  },
+  "Signature of Emp Rep 0": {
+   "type": "signature"
+  },
+  "Signature of Emp Rep 1": {
+   "type": "signature"
+  },
+  "Signature of Emp Rep 2": {
+   "type": "signature"
   }
  },
- "notes": "Boxes are the PDF widgets; page 1 (instructions/lists of documents) has none. Section 1 maps to employee.*; the middle-initial boxes (maxlen 1) take char_at of the stored middle name; the SSN box is a 9-digit comb, so the schema stores digits only. The citizenship checkboxes CB_1..CB_4 map to the citizenship_status enum with equals. Both A-Number boxes (item 3 and the item-4 'USCIS A-Number') carry alien_registration_number. Section 2 List A is three stacked document blocks mapped as employer_review.list_a_documents[] columns (one block per item); List B and List C are single objects. Supplement A's four preparer blocks map to preparers[] and Supplement B's three blocks to reverifications[] (one block per item); the Supplement A/B header name boxes repeat the employee's name. Signature boxes (text widgets here) are pathless. Two widget names are shared by two boxes, so their single widget_paths entry would apply to both: 'Document Title 1' is both Section 2 List A document 1's title and Supplement B block 2's document title, and 'Preparer or Translator Last Name (Family Name) 1' is both the last and the first name of preparer block 2; all four boxes are pathless. The alternative-procedure checkboxes inside Supplement B blocks (CB_Alt_0..2) are pathless (checkboxes inside repeated blocks)."
+ "notes": "Boxes are the PDF widgets; page 1 (instructions/lists of documents) has none. Section 1 maps to employee.*; the middle-initial boxes (maxlen 1) take char_at of the stored middle name; the SSN box is a 9-digit comb, so the schema stores digits only. The citizenship checkboxes CB_1..CB_4 map to the citizenship_status enum with equals. Both A-Number boxes (item 3 and the item-4 'USCIS A-Number') carry alien_registration_number. Section 2 List A is three stacked document blocks mapped as employer_review.list_a_documents[] columns (one block per item); List B and List C are single objects. Supplement A's four preparer blocks map to preparers[] and Supplement B's three blocks to reverifications[] (one block per item); the Supplement A/B header name boxes repeat the employee's name. Signature boxes (text widgets here) are pathless. Two widget names are shared by two boxes, so their single widget_paths entry would apply to both: 'Document Title 1' is both Section 2 List A document 1's title and Supplement B block 2's document title, and 'Preparer or Translator Last Name (Family Name) 1' is both the last and the first name of preparer block 2; all four boxes are pathless. The alternative-procedure checkboxes inside Supplement B blocks (CB_Alt_0..2) are pathless (checkboxes inside repeated blocks). Signature lines are text widgets in this PDF; their widget_paths entries carry type 'signature' (no path)."
 }
