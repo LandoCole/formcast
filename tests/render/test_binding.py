@@ -29,6 +29,41 @@ def test_widget_name_for():
     assert widget_name_for("f_name") == "f_name"
 
 
+def test_widget_name_for_sanitises_path_punctuation():
+    assert widget_name_for("t[0].sched.time") == "t_r0_sched_time"
+    assert widget_name_for(cell_key("t", 3, "addr.city")) == "t_r3_addr_city"
+    assert widget_name_for(cell_key("t", 1, 'dose["mg"]')) == 't_r1_dose_"mg"'
+    assert widget_name_for(cell_key("t", 1, '["dose mg"]')) == 't_r1_"dose mg"'
+    for key in ("t[0].sched.time", "t[0].a[b].c", "f.x[1]"):
+        assert not set(widget_name_for(key)) & set(".[]")
+
+
+def test_created_names_for_path_shaped_columns_are_unique_and_clean():
+    k1, k2 = cell_key("t", 0, "a.b"), cell_key("t", 0, "a[b]")
+    b = bind([T(k1, rect=(0, 0, 9, 9), field_id="t"), T(k2, rect=(0, 20, 9, 29), field_id="t")], [])
+    assert b[k1].new_name == "t_r0_a_b" and b[k2].new_name == "t_r0_a_b_2"
+
+
+def test_two_named_targets_resolving_to_one_widget_both_bind():
+    # Detecting the shared-widget clobber is the orchestrator's job (ruling G), not bind()'s.
+    w = W("shared", index=1)
+    b = bind([T("a", existing="shared"), T("b", existing="shared")], [w])
+    assert b["a"].how == "named" and b["b"].how == "named"
+    assert b["a"].widget is w and b["b"].widget is w
+
+
+def test_bind_is_stable_across_repeat_calls():
+    existing = [W("f1", rect=(0, 0, 5, 5), index=0), W("t_r0_a", rect=(0, 10, 5, 15), index=1)]
+    targets = [
+        T("f1", rect=(300, 300, 400, 312)),
+        T(cell_key("t", 0, "a"), rect=(300, 320, 400, 332), field_id="t"),
+        T("m", "choice_mark", rect=(10, 10, 30, 30)),
+    ]
+    first, second = bind(targets, existing), bind(targets, existing)
+    assert {k: (b.how, b.new_name) for k, b in first.items()} == {k: (b.how, b.new_name) for k, b in second.items()}
+    assert first["f1"].new_name == "f1_2"
+
+
 def test_named_single_widget_used_regardless_of_rect():
     w = W("name", rect=(400, 700, 500, 712), index=3)
     b = bind([T("f", rect=(10, 10, 50, 22), existing="name")], [w])
@@ -168,10 +203,34 @@ def test_adoption_order_is_page_then_top_then_left_then_key():
     assert b["x"].widget.name == "p1" and b["y"].widget.name == "p0"
 
 
-def test_choice_mark_never_adopts():
+def test_choice_mark_never_adopts_foreign_widgets():
     cb = W("cb", "checkbox", rect=(100, 100, 112, 112))
     b = bind([T("m", "choice_mark", rect=(95, 95, 120, 120))], [cb])
     assert b["m"].how == "created" and b["m"].new_name == "m"
+
+
+def test_choice_mark_refill_adopts_own_widget():
+    own = W("m", "checkbox", rect=(95, 95, 120, 120), index=4)
+    b = bind([T("m", "choice_mark", rect=(95, 95, 120, 120))], [own])
+    assert b["m"].how == "adopted" and b["m"].widget is own and b["m"].new_name is None
+    assert codes(b["m"]) == ["adopted"]
+
+
+def test_choice_mark_refill_adopts_suffixed_own_widget_and_needs_iou():
+    suffixed = W("m_2", "checkbox", rect=(95, 95, 120, 120), index=0)
+    b = bind([T("m", "choice_mark", rect=(95, 95, 120, 120))], [suffixed])
+    assert b["m"].how == "adopted" and b["m"].widget is suffixed
+    far = W("m", "checkbox", rect=(95, 95, 105, 105), index=0)  # IoU 100/625 < 0.5
+    b = bind([T("m", "choice_mark", rect=(95, 95, 120, 120))], [far])
+    assert b["m"].how == "created" and b["m"].new_name == "m_2"
+
+
+def test_choice_mark_refill_ignores_wrong_kind_and_claimed_widgets():
+    text = W("m", "text", rect=(95, 95, 120, 120), index=0)
+    assert bind([T("m", "choice_mark", rect=(95, 95, 120, 120))], [text])["m"].how == "created"
+    own = W("m", "checkbox", rect=(95, 95, 120, 120), index=0)
+    targets = [T("x", "checkbox", rect=(0, 0, 5, 5), existing="m"), T("m", "choice_mark", rect=(95, 95, 120, 120))]
+    assert bind(targets, [own])["m"].how == "created"
 
 
 def test_choice_mark_ignores_existing_widget_name():

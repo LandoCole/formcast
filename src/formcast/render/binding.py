@@ -9,15 +9,17 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Literal
 
 from formcast.geometry import Rect, iou
-from formcast.render.report import FillWarning
+from formcast.render.report import Binding as How
+from formcast.render.report import FillWarning, WarningCode
 from formcast.template.model import WIDGET_FIELD_TYPES
 
 __all__ = ["Binding", "ExistingWidget", "Target", "bind", "cell_key", "widget_name_for"]
 
 _CELL_KEY = re.compile(r"^(.*?)\[(\d+)\]\.(.*)$", re.DOTALL)
+
+MARK_REFILL_IOU = 0.5  # a choice_mark re-adopts its own earlier widget at this overlap or better
 
 SIGNATURE_NOT_WRITABLE = (
     "the form's own signature field can only be signed in a PDF viewer; value not written"
@@ -50,7 +52,7 @@ class Target:
 @dataclass
 class Binding:
     key: str
-    how: Literal["named", "adopted", "created", "none"]
+    how: How
     widget: ExistingWidget | None = None
     new_name: str | None = None
     warnings: list[FillWarning] = field(default_factory=list)
@@ -60,12 +62,17 @@ def cell_key(table_id: str, row: int, col_key: str) -> str:
     return f"{table_id}[{row}].{col_key}"
 
 
+_PATH_PUNCT = re.compile(r"_*[.\[\]]+_*")
+
+
 def widget_name_for(key: str) -> str:
-    """Readable PDF field name for a target key: cells become ``<table>_r<row>_<col>``."""
+    """Readable PDF field name for a target key: cells become ``<table>_r<row>_<col>``.
+
+    ``.``, ``[`` and ``]`` (hierarchy separators in an AcroForm partial name) become ``_``.
+    """
     m = _CELL_KEY.match(key)
-    if m:
-        return f"{m.group(1)}_r{m.group(2)}_{m.group(3)}"
-    return key
+    name = f"{m.group(1)}_r{m.group(2)}_{m.group(3)}" if m else key
+    return _PATH_PUNCT.sub("_", name).rstrip("_") or "_"
 
 
 def _centre(r: Rect) -> tuple[float, float]:
@@ -77,7 +84,7 @@ def _centre_dist(a: Rect, b: Rect) -> float:
     return ((ax - bx) ** 2 + (ay - by) ** 2) ** 0.5
 
 
-def _warn(code, message: str, t: Target):
+def _warn(code: WarningCode, message: str, t: Target) -> FillWarning:
     return FillWarning.make(code, message, field=t.field_id, page=t.page, rect=t.rect)
 
 
@@ -126,17 +133,26 @@ def bind(targets: list[Target], existing: list[ExistingWidget]) -> dict[str, Bin
         claimed_names.add(t.existing_widget)
         out[t.key], _ = _bind_named(t, existing)
 
-    # Rule 2: adopt, in page / top / left / key order so the outcome is deterministic.
+    # Rule 2: adopt (a choice_mark may only re-adopt its own earlier mark, so refills don't stack), in page / top / left / key order so the outcome is deterministic.
     claimed: set[tuple[int, int]] = {(w.page, w.index) for w in existing if w.name in claimed_names}
-    pending = [t for t in targets if t.key not in out and t.field_type != "choice_mark" and t.existing_widget is None]
+    pending = [t for t in targets if t.key not in out and (t.field_type == "choice_mark" or t.existing_widget is None)]
     for t in sorted(pending, key=lambda t: (t.page, t.rect[1], t.rect[0], t.key)):
         best: tuple[float, int, ExistingWidget] | None = None
+        mark = t.field_type == "choice_mark"
+        own_name = re.compile(rf"^{re.escape(widget_name_for(t.key))}(_\d+)?$") if mark else None
         for w in existing:
-            if w.page != t.page or (w.page, w.index) in claimed or not _backs(w, t.field_type):
+            if w.page != t.page or (w.page, w.index) in claimed:
                 continue
-            cx, cy = _centre(w.rect)
-            if not (t.rect[0] <= cx <= t.rect[2] and t.rect[1] <= cy <= t.rect[3]):
-                continue
+            if own_name is not None:
+                # Refill: a choice_mark adopts only its own earlier mark, never a foreign widget.
+                if w.kind != "checkbox" or not own_name.match(w.name) or iou(w.rect, t.rect) < MARK_REFILL_IOU:
+                    continue
+            else:
+                if not _backs(w, t.field_type):
+                    continue
+                cx, cy = _centre(w.rect)
+                if not (t.rect[0] <= cx <= t.rect[2] and t.rect[1] <= cy <= t.rect[3]):
+                    continue
             score = (iou(w.rect, t.rect), -w.index)
             if best is None or score > best[:2]:
                 best = (score[0], score[1], w)
