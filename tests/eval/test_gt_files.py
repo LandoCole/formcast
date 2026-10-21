@@ -3,15 +3,21 @@
 Every manifest form must have both files; each existing file is checked.
 """
 
+import functools
 import json
+import sys
 from pathlib import Path
 
 import pymupdf
 import pytest
 from jsonschema.validators import validator_for
 
-from formcast.schema import flatten_schema
-from formcast.transforms import list_transforms
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "eval"))
+
+import score  # noqa: E402  (eval/score.py)
+from formcast.schema import flatten_schema  # noqa: E402
+from formcast.transforms import list_transforms  # noqa: E402
+from gt_choice_values import options_of  # noqa: E402  (eval/gt_choice_values.py)
 
 REPO = Path(__file__).resolve().parents[2]
 FORMS = REPO / "forms"
@@ -148,3 +154,72 @@ def test_widget_paths_name_widgets_of_the_form(form_id):
 def test_widget_paths_type_overrides_are_valid_types(form_id):
     for name, entry in _gt(form_id).get("widget_paths", {}).items():
         assert entry.get("type", "text") in TYPES, name
+
+
+# ---------- choice-box values ----------
+
+
+@functools.cache
+def _all_gt_entries() -> list[tuple[str, str, score.GTField]]:
+    """(form id, entry key, GT field) of every GT choice box that names a path, dev and held-out."""
+    out = []
+    for form in MANIFEST:
+        for key, g, _ in score.gt_entries(form, _pdf(form["id"])) or []:
+            if g.type == "choice" and g.path:
+                out.append((form["id"], key, g))
+    return out
+
+
+def _schema_paths(form_id: str) -> dict:
+    return {p.path: p for p in flatten_schema(_schema(form_id))}
+
+
+def _value_problem(sp, value) -> str | None:
+    """Why ``value`` cannot be a choice box's value on schema path ``sp``, else None."""
+    if sp.type == "boolean":
+        return None if value is None or isinstance(value, bool) else f"{value!r} is not true/false"
+    if value is None:
+        return "no value"
+    options = options_of(sp)
+    if options is None:  # an open-ended path (no enum): the box's own text
+        return None if isinstance(value, str) and value.strip() else f"{value!r} is not a text"
+    return None if value in options else f"{value!r} not in {options}"
+
+
+def test_present_choice_values_are_valid():
+    problems = []
+    for form_id, key, g in _all_gt_entries():
+        if g.value is not None and (why := _value_problem(_schema_paths(form_id)[g.path], g.value)):
+            problems.append(f"{form_id} {key} {g.label!r}: {why}")
+    assert not problems, "\n".join(problems)
+
+
+@pytest.mark.parametrize("form_id", [i for i in GT_IDS if BY_ID.get(i, {}).get("kind") == "fillable"])
+def test_widget_value_objects_are_keyed_by_the_widgets_on_state_names(form_id):
+    doc = pymupdf.open(_pdf(form_id))
+    try:
+        states: dict[str, set[str]] = {}
+        for page in doc:
+            for w in page.widgets() or []:
+                states.setdefault(w.field_name, set()).add(w.on_state())
+    finally:
+        doc.close()
+    for name, entry in _gt(form_id).get("widget_paths", {}).items():
+        if isinstance(entry.get("value"), dict):
+            assert set(entry["value"]) <= states[name], (name, sorted(states[name]))
+
+
+@pytest.mark.xfail(strict=True, reason="labels added in Task 8 step 4")
+def test_choice_entries_have_valid_value():
+    problems = []
+    group_size = {}
+    for form_id, key, _ in _all_gt_entries():
+        group_size[form_id, key] = group_size.get((form_id, key), 0) + 1
+    for form_id, key, g in _all_gt_entries():
+        sp = _schema_paths(form_id)[g.path]
+        why = _value_problem(sp, g.value)
+        if why is None and g.value is None and group_size[form_id, key] > 1:
+            why = "widgets sharing a field name need a value each"  # a Yes/No pair must say which is which
+        if why:
+            problems.append(f"{form_id} {key} {g.label!r}: {why}")
+    assert not problems, f"{len(problems)} choice boxes\n" + "\n".join(problems[:20])

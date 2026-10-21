@@ -9,8 +9,10 @@ Ground-truth file ``forms/gt/<id>.json``::
 
     {"form": id,
      "fields": [{"page": int, "rect": [x0, y0, x1, y1], "type": "text"|"choice"|"signature",
-                 "label": str, "path"?: str, "also_paths"?: [str], "transforms"?: [op names]}],
-     "widget_paths": {widget_name: {"path": str, "also_paths"?: [str], "transforms"?: [op names]}},
+                 "label": str, "path"?: str, "also_paths"?: [str], "transforms"?: [op names],
+                 "value"?: any}],
+     "widget_paths": {widget_name: {"path": str, "also_paths"?: [str], "transforms"?: [op names],
+                                    "value"?: any}},
      "notes": str}
 
 Fillable forms take their boxes from the PDF's widgets (``widget_paths`` adds
@@ -19,6 +21,13 @@ fields and are skipped); flat and scanned forms take them from ``fields``. A
 table is ground-truthed one box per cell with path ``arr[].col``. ``also_paths``
 lists the further schema paths a box is fed from (a full name from first + last:
 ``path`` is the first, ``also_paths`` the rest).
+
+``value`` (choice boxes with a path) is the option the box stands for: an enum value, a
+member of the item enum of a multi-select array (or, on a path with no enum, the box's
+text), or on a boolean path ``true``/``false`` for a Yes/No pair (absent on a boolean
+path means ``true``). Widgets that share a field name (a radio group) cannot share one
+value: their ``widget_paths`` ``value`` is then an object keyed by each widget's on-state
+name, ``{"M": "male", "F": "female"}``.
 
 A manifest entry's ``scored_pages`` (0-based page indexes; absent = every page)
 limits ground truth and scoring to those pages.
@@ -34,7 +43,7 @@ import sys
 from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))  # eval scripts do not rely on the editable install
@@ -98,6 +107,7 @@ class GTField:
     path: str | None = None
     transforms: list[str] = field(default_factory=list)
     also_paths: list[str] = field(default_factory=list)
+    value: Any = None
 
 
 # ---------- ground truth ----------
@@ -152,9 +162,75 @@ def _gt_from_entry(entry: dict, source: str) -> GTField:
             path=entry.get("path"),
             transforms=list(entry.get("transforms", [])),
             also_paths=list(entry.get("also_paths", [])),
+            value=entry.get("value"),
         )
     except (KeyError, TypeError, ValueError) as exc:
         raise ValueError(f"{source}: bad field entry {entry!r}") from exc
+
+
+def _on_state(w) -> str | None:
+    """A check box's or radio button's on-state name, else None."""
+    if w.field_type not in (pymupdf.PDF_WIDGET_TYPE_CHECKBOX, pymupdf.PDF_WIDGET_TYPE_RADIOBUTTON):
+        return None
+    state = w.on_state()
+    return state if isinstance(state, str) and state != "Off" else None
+
+
+def _widget_value(value: Any, on_state: str | None) -> Any:
+    """A ``widget_paths`` value: an object is keyed by the widget's on-state name."""
+    if isinstance(value, dict):
+        return value.get(on_state) if on_state is not None else None
+    return value
+
+
+def gt_entries(form: dict, pdf_path, gt_dir: Path | None = None) -> list[tuple[str, GTField, str | None]] | None:
+    """The ground-truth fields of ``load_gt``, each with the key of its GT-file entry.
+
+    The key is ``"fields[<index in the file>]"`` for a flat or scanned form (the index
+    counts entries on unscored pages too) and the widget's field name for a fillable
+    one. The third item is a check box's or radio button's on-state name, else None.
+    Same ``None`` and error rules as ``load_gt``.
+    """
+    gt_dir = GT_DIR if gt_dir is None else Path(gt_dir)
+    data = _read_gt_file(gt_dir, form["id"])
+    source = f"{form['id']}.json"
+    if form["kind"] != "fillable":
+        if data is None:
+            return None
+        keep = form.get("scored_pages")
+        entries = [(f"fields[{i}]", _gt_from_entry(e, source), None) for i, e in enumerate(data.get("fields", []))]
+        return entries if keep is None else [e for e in entries if e[1].page in keep]
+
+    widget_paths = (data or {}).get("widget_paths", {})
+    for name, extra in widget_paths.items():
+        if "type" in extra and extra["type"] not in TYPES:
+            raise ValueError(f"{source}: widget_paths[{name!r}] has unknown type {extra['type']!r}")
+    out: list[tuple[str, GTField, str | None]] = []
+    doc = open_pdf(pdf_path)
+    try:
+        for pno in scored_pages(form, doc.page_count):
+            page = doc[pno]
+            for w in page.widgets() or []:
+                if w.field_type == pymupdf.PDF_WIDGET_TYPE_BUTTON:
+                    continue
+                if w.rect.width < MIN_WIDGET_SIZE or w.rect.height < MIN_WIDGET_SIZE:
+                    continue
+                extra = widget_paths.get(w.field_name) or {}
+                on_state = _on_state(w)
+                gt = GTField(
+                    page=page.number,
+                    rect=(w.rect.x0, w.rect.y0, w.rect.x1, w.rect.y1),
+                    type=extra.get("type") or _widget_type(w),
+                    label=w.field_label or w.field_name or "",
+                    path=extra.get("path"),
+                    transforms=list(extra.get("transforms", [])),
+                    also_paths=list(extra.get("also_paths", [])),
+                    value=_widget_value(extra.get("value"), on_state),
+                )
+                out.append((w.field_name, gt, on_state))
+    finally:
+        doc.close()
+    return out or None
 
 
 def load_gt(form: dict, pdf_path, gt_dir: Path | None = None) -> list[GTField] | None:
@@ -166,7 +242,7 @@ def load_gt(form: dict, pdf_path, gt_dir: Path | None = None) -> list[GTField] |
     classes: check boxes and radio buttons are "choice", signatures
     "signature", everything else "text"; push buttons (not data fields) and
     widgets under 3 pt are dropped. A ``widget_paths`` entry for the widget's
-    field name adds ``path``, ``also_paths`` and ``transforms``, and its optional
+    field name adds ``path``, ``also_paths``, ``transforms`` and ``value``, and its optional
     ``type`` (text, choice or signature) overrides the widget's type, e.g. for a
     signature line made as a text widget. A fillable form
     with no widgets has no ground truth. Flat and scanned forms read ``fields``
@@ -175,45 +251,8 @@ def load_gt(form: dict, pdf_path, gt_dir: Path | None = None) -> list[GTField] |
     Raises:
         ValueError: when the GT file is not valid JSON or has a malformed field.
     """
-    gt_dir = GT_DIR if gt_dir is None else Path(gt_dir)
-    data = _read_gt_file(gt_dir, form["id"])
-    source = f"{form['id']}.json"
-    if form["kind"] != "fillable":
-        if data is None:
-            return None
-        fields = [_gt_from_entry(e, source) for e in data.get("fields", [])]
-        keep = form.get("scored_pages")
-        return fields if keep is None else [g for g in fields if g.page in keep]
-
-    widget_paths = (data or {}).get("widget_paths", {})
-    for name, extra in widget_paths.items():
-        if "type" in extra and extra["type"] not in TYPES:
-            raise ValueError(f"{source}: widget_paths[{name!r}] has unknown type {extra['type']!r}")
-    out: list[GTField] = []
-    doc = open_pdf(pdf_path)
-    try:
-        for pno in scored_pages(form, doc.page_count):
-            page = doc[pno]
-            for w in page.widgets() or []:
-                if w.field_type == pymupdf.PDF_WIDGET_TYPE_BUTTON:
-                    continue
-                if w.rect.width < MIN_WIDGET_SIZE or w.rect.height < MIN_WIDGET_SIZE:
-                    continue
-                extra = widget_paths.get(w.field_name) or {}
-                out.append(
-                    GTField(
-                        page=page.number,
-                        rect=(w.rect.x0, w.rect.y0, w.rect.x1, w.rect.y1),
-                        type=extra.get("type") or _widget_type(w),
-                        label=w.field_label or w.field_name or "",
-                        path=extra.get("path"),
-                        transforms=list(extra.get("transforms", [])),
-                        also_paths=list(extra.get("also_paths", [])),
-                    )
-                )
-    finally:
-        doc.close()
-    return out or None
+    entries = gt_entries(form, pdf_path, gt_dir)
+    return None if entries is None else [g for _, g, _ in entries]
 
 
 # ---------- matching ----------
