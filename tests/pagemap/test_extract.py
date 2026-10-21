@@ -248,11 +248,13 @@ def test_dark_vector_shapes_do_not_make_a_digital_page_scanned():
     assert extract_page(page).kind == "digital"
 
 
-def test_labels_drawn_as_glyph_paths_need_ocr():
-    # Labels drawn as small filled outlines (curves and line polygons), as some
-    # born-digital forms do; only a few real words and some drawn rules.
+def _glyph_label_page(white_background: bool = False) -> pymupdf.Page:
+    """Labels drawn as small filled outlines (curves and line polygons), as some
+    born-digital forms do; only a few real words and some drawn rules."""
     doc = pymupdf.open()
     page = doc.new_page(width=612, height=792)
+    if white_background:
+        page.draw_rect(page.rect, color=None, fill=(1, 1, 1))
     for row in range(10):
         y = 80 + row * 40
         for col in range(20):
@@ -266,5 +268,24 @@ def test_labels_drawn_as_glyph_paths_need_ocr():
         page.draw_line((40, y + 20), (560, y + 20), width=0.75)
         page.draw_rect(pymupdf.Rect(400, y, 410, y + 10), width=0.75)
     page.insert_text((40, 700), "Form 1", fontsize=8)
+    return page
+
+
+@pytest.mark.parametrize("white_background", [False, True])
+def test_labels_drawn_as_glyph_paths_need_ocr(white_background):
+    page = _glyph_label_page(white_background)
     assert needs_ocr(page) is True
     assert extract_page(page).kind == "scanned"
+
+
+def test_invisible_paint_is_not_geometry():
+    doc = pymupdf.open()
+    page = doc.new_page(width=612, height=792)
+    page.draw_rect(page.rect, color=None, fill=(1, 1, 1))  # white page background
+    page.draw_rect(pymupdf.Rect(36, 300, 576, 340), color=(0.95, 0.95, 0.95), width=1)
+    page.draw_rect(pymupdf.Rect(36, 400, 576, 440), color=(0, 0, 0), fill_opacity=0,
+                   stroke_opacity=0, fill=(0, 0, 0))
+    page.insert_text((72, 100), "Name:", fontsize=12)
+    page.draw_line((120, 100), (300, 100), width=0.75)
+    pm = extract_page(page)
+    assert [r.rect for r in pm.rules] == [(120.0, 100.0, 300.0, 100.0)]

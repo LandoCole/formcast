@@ -31,6 +31,9 @@ INK_THRESHOLD = 160  # gray level below which a pixel is ink
 RULE_MASK_PAD = 2.0  # points around a rule whose ink is ignored
 # Filled paths whose bbox fits in this many points may be glyph outlines.
 GLYPH_MAX_SIZE = 20.0
+# Paint this light (every channel) or this transparent leaves no visible ink.
+NEAR_WHITE = 0.9
+MIN_OPACITY = 0.01
 
 # Expand ligatures into their letters so text matching works on plain words.
 _TEXT_FLAGS = pymupdf.TEXTFLAGS_RAWDICT & ~pymupdf.TEXT_PRESERVE_LIGATURES
@@ -258,21 +261,23 @@ def _geometric_rects(drawings: list[dict]) -> list[Rect]:
     Stroked paths count edge by edge (a frame does not hide what it encloses);
     filled paths count whole when they have no curves and are rects or larger
     than a glyph, or when they are bigger than a glyph both ways. Small filled
-    outlines are left out: they may be label glyphs drawn as paths.
+    outlines are left out: they may be label glyphs drawn as paths. Invisible
+    paint (near-white or transparent, e.g. a white page background) never
+    counts, so it cannot hide the ink drawn over it.
     """
     out: list[Rect] = []
     for path in drawings:
         items = path["items"]
         ops = {item[0] for item in items}
         bbox = path["rect"]
-        if "f" in path.get("type", ""):
-            rect_only = ops <= {"re", "qu"}
-            if (
-                ("c" not in ops and (rect_only or max(bbox.width, bbox.height) > GLYPH_MAX_SIZE))
-                or min(bbox.width, bbox.height) > GLYPH_MAX_SIZE
-            ):
-                out.append((bbox.x0, bbox.y0, bbox.x1, bbox.y1))
-        elif path.get("color") is not None:
+        fill_geometric = "c" not in ops and (
+            ops <= {"re", "qu"} or max(bbox.width, bbox.height) > GLYPH_MAX_SIZE
+        )
+        if _fill_visible(path) and (
+            fill_geometric or min(bbox.width, bbox.height) > GLYPH_MAX_SIZE
+        ):
+            out.append((bbox.x0, bbox.y0, bbox.x1, bbox.y1))
+        elif _stroke_visible(path):
             pad = (path.get("width") or 1.0) / 2
             for item in items:
                 if item[0] == "l":
@@ -286,6 +291,22 @@ def _geometric_rects(drawings: list[dict]) -> list[Rect]:
                     r = pymupdf.Rect(item[1], item[1]) | item[2] | item[3] | item[4]
                     out.append((r.x0 - pad, r.y0 - pad, r.x1 + pad, r.y1 + pad))
     return out
+
+
+def _visible(color, opacity) -> bool:
+    if color is None or (opacity is not None and opacity <= MIN_OPACITY):
+        return False
+    return not all(c >= NEAR_WHITE for c in color)
+
+
+def _fill_visible(path: dict) -> bool:
+    return "f" in (path.get("type") or "") and _visible(path.get("fill"), path.get("fill_opacity"))
+
+
+def _stroke_visible(path: dict) -> bool:
+    return "s" in (path.get("type") or "") and _visible(
+        path.get("color"), path.get("stroke_opacity")
+    )
 
 
 def _edges(r: pymupdf.Rect) -> list[Rect]:
@@ -302,8 +323,8 @@ def _extract_drawn_rules(page: pymupdf.Page, drawings: list[dict]) -> list[Rule]
     width, height = page_size(page)
     rules: list[Rule] = []
     for path in drawings:
-        if path.get("color") is None and path.get("fill") is None:
-            continue  # invisible
+        if not (_fill_visible(path) or _stroke_visible(path)):
+            continue  # leaves no visible ink
         for item in path["items"]:
             op = item[0]
             if op == "l":
