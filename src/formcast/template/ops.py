@@ -33,7 +33,8 @@ from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from formcast.errors import OpError
 from formcast.geometry import Rect, contained_fraction, iou
-from formcast.schema import SchemaPath
+from formcast.pagemap.model import FormMap
+from formcast.schema import SchemaPath, flatten_schema
 from formcast.template.model import Field, HistoryEntry, Source, Style, TableSegment, Template
 from formcast.template.op_models import (
     OP_CLASSES,
@@ -88,19 +89,37 @@ class OpContext(BaseModel):
     page_sizes: list[tuple[float, float]]
     widget_names: list[str] | None = None
 
+    @classmethod
+    def from_template(cls, template: Template, form_map: FormMap | None = None) -> OpContext:
+        """Context from the template's own schema and page sizes; widget names from ``form_map`` if given."""
+        return cls(
+            schema_paths=flatten_schema(template.schema_),
+            page_sizes=list(template.form.page_sizes),
+            widget_names=None if form_map is None else [w.name for p in form_map.pages for w in p.widgets],
+        )
+
 
 # ------------------------------------------------------------------ public API
 
 
 def apply(
-    template: Template, op: Op | dict, *, author: str, note: str = "", context: OpContext
+    template: Template, op: Op | dict, *, author: str, note: str = "", context: OpContext | None = None
 ) -> tuple[Template, list[str]]:
-    """Validate and apply ``op``; return the new template and any warnings."""
+    """Validate and apply ``op``; return the new template and any warnings.
+
+    Without ``context`` the op is validated against ``OpContext.from_template(template)``
+    (its schema and page sizes; any widget name may be linked).
+    """
+    context = context if context is not None else OpContext.from_template(template)
     return _apply(template, op, author=author, note=note, context=context, at=None)
 
 
-def replay(base: Template, history: list[HistoryEntry], context: OpContext) -> Template:
-    """Re-apply ``history`` on ``base``, keeping each entry's author, note and timestamp."""
+def replay(base: Template, history: list[HistoryEntry], context: OpContext | None = None) -> Template:
+    """Re-apply ``history`` on ``base``, keeping each entry's author, note and timestamp.
+
+    ``context`` defaults to ``OpContext.from_template(base)``.
+    """
+    context = context if context is not None else OpContext.from_template(base)
     t = base
     for entry in history:
         t, _ = _apply(t, entry.op, author=entry.author, note=entry.note, context=context, at=entry.at)

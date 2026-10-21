@@ -300,7 +300,7 @@ from formcast import LLMConfig, build_template, revise, fill, preview, to_smart_
 llm = LLMConfig(base_url=..., api_key=..., model=..., api_format="responses")
 tpl = build_template(schema, "intake.pdf", llm)
 pngs = preview(tpl, "intake.pdf")                     # human reviews
-tpl = apply(tpl, ops.Move("f_dob_month", dx=4), author="human")
+tpl, warnings = apply(tpl, ops.Move("f_dob_month", dx=4), author="human")  # context derived from tpl
 tpl = revise(tpl, "intake.pdf", "Phone goes on the line under Address", llm, region=(0, [72, 300, 540, 330]))
 pdf_bytes, report = fill(tpl, "intake.pdf", record)
 tpl.model_dump_json()                                 # app stores this

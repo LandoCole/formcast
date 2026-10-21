@@ -6,7 +6,7 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Literal, Union
+from typing import Annotated, Any, Literal, Union
 
 import pydantic
 from pydantic import BaseModel, ConfigDict
@@ -21,6 +21,17 @@ class OpBase(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class _FieldOp(OpBase):
+    """An op on one existing field, whose ``id`` may also be given first: ``Move("f1", dx=4)``."""
+
+    def __init__(self, id: str | None = None, /, **data: Any) -> None:
+        if id is not None:
+            if "id" in data:
+                raise TypeError(f"{type(self).__name__}() got the field id twice (positionally and as id=)")
+            data["id"] = id
+        super().__init__(**data)
+
+
 class AddField(OpBase):
     op: Literal["add_field"] = "add_field"
     id: str | None = None
@@ -32,12 +43,12 @@ class AddField(OpBase):
     style: Style | None = None
 
 
-class RemoveField(OpBase):
+class RemoveField(_FieldOp):
     op: Literal["remove_field"] = "remove_field"
     id: str
 
 
-class Move(OpBase):
+class Move(_FieldOp):
     op: Literal["move"] = "move"
     id: str
     rect: Rect | None = None
@@ -55,32 +66,32 @@ class Move(OpBase):
         return self
 
 
-class Resize(OpBase):
+class Resize(_FieldOp):
     op: Literal["resize"] = "resize"
     id: str
     rect: Rect
     segment: int | None = None  # table fields only (required for them)
 
 
-class SetLabel(OpBase):
+class SetLabel(_FieldOp):
     op: Literal["set_label"] = "set_label"
     id: str
     label: str
 
 
-class SetType(OpBase):
+class SetType(_FieldOp):
     op: Literal["set_type"] = "set_type"
     id: str
     type: FieldType
 
 
-class SetSource(OpBase):
+class SetSource(_FieldOp):
     op: Literal["set_source"] = "set_source"
     id: str
     source: Source | None
 
 
-class SetStyle(OpBase):
+class SetStyle(_FieldOp):
     op: Literal["set_style"] = "set_style"
     id: str
     style: Style
@@ -94,14 +105,14 @@ class AddTable(OpBase):
     segments: list[TableSegment]
 
 
-class SetTableColumns(OpBase):
+class SetTableColumns(_FieldOp):
     op: Literal["set_table_columns"] = "set_table_columns"
     id: str
     segment: int
     columns: list[Column]
 
 
-class SetTableRows(OpBase):
+class SetTableRows(_FieldOp):
     op: Literal["set_table_rows"] = "set_table_rows"
     id: str
     segment: int
@@ -110,13 +121,13 @@ class SetTableRows(OpBase):
     max_rows: int
 
 
-class AddTableSegment(OpBase):
+class AddTableSegment(_FieldOp):
     op: Literal["add_table_segment"] = "add_table_segment"
     id: str
     segment: TableSegment
 
 
-class LinkWidget(OpBase):
+class LinkWidget(_FieldOp):
     op: Literal["link_widget"] = "link_widget"
     id: str
     widget: str | None
