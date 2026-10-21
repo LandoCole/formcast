@@ -654,4 +654,27 @@ The causes, in order of size:
 
 **Next step (not run: it would be a third round).** Warn when an op adds or maps an agent field that overlaps an unmapped seeded field (IoU ≥ 0.3), naming the seeded id and saying to map or move that field instead. Optionally, `add_field` could refuse a box that overlaps an unmapped seeded box of the same type. This targets cause 1 directly and is generic (geometry and origin only). A dev round would then show whether path returns to about 0.70 with recall held at the seed.
 
+**Round 3: defer to the seeded placement** (`defer-placement`, code at 866942f, 9.9M input tokens). Per the user, the agent no longer competes with the detector on placement. The saved runs back this up: of the agent's moves and resizes of seeded boxes in round3-gen and both recall-guard rounds, 13 were closer to the GT box than the seed and 57 further away. 34 fell below IoU .5 and none rose above it. Without the page image the agent does not place boxes better than the detector.
+- The prompt says the seeded boxes come from the form's widgets and a field detector trained on many forms, whose placement is better than the agent's; the agent maps them and adds a field only where no seeded box sits on or next to a blank.
+- An agent's `move` and `resize` of seeded fields are refused. Removal is still refused, except for a duplicate, a replacing table cell, or a detected box split into parts that cover at least 70% of it.
+- A boolean path on a text field warns when a checkbox or radio box sits in the same row. (It never fired in this round; see below.)
+
+| all 24 dev sessions | recall@.5 | recall@.3 | precision@.3 | path | joint | exact path set | steps/session | input tok/session |
+|---|---|---|---|---|---|---|---|---|
+| seeded (no agent) | 0.65 | 0.76 | 0.93 | 0 | 0 | 0 | 0 | 0 |
+| round3-gen (before) | 0.55 | 0.74 | 0.91 | 0.70 | 0.64 | 0.68 | 20.0 | 450K |
+| recall-guard round 2 | 0.66 | 0.78 | 0.92 | 0.62 | 0.55 | 0.61 | 22.8 | 517K |
+| round 3, defer placement | **0.66** | 0.78 | **0.93** | 0.63 | 0.55 | 0.62 | **18.0** | **411K** |
+
+- **By group** (recall@.5 / path / joint): fillable 1.00 / 0.96 / 0.81, digital 0.74 / 0.66 / 0.62, scanned 0.47 / 0.48 / 0.40. Recall stays at or above the seed in every group, and precision is back at the seed's 0.93.
+- **Digital path** recovers from 0.57 to 0.66 (round3-gen 0.71). Sessions are shorter: 18 steps and 411K input tokens on average, against 23 and 517K.
+- **Mapping is still below round3-gen** overall: path 0.63 against 0.70, joint 0.55 against 0.64.
+
+Counting path GT by outcome, round 2 → round 3: right path 1,487 → 1,517; on the wrong box 48 → 16; GT matched to an unmapped seeded box while its path sits elsewhere 156 → 161. The remaining loss is mapping, not placement:
+- **One path, several boxes.** 45 of those GT boxes are checkboxes whose path the agent put only on the text box in the same row. The path is a list (for example "relatives with the condition"): GT writes it into the text box (join) and also ticks the checkbox when the list is not empty (bool_to_check). round3-gen mapped both; the recall-guard rounds map only the text box. The boolean warning cannot catch this, since the path is not a boolean.
+- **Haiku variance in transforms.** For example, `f8949` as published lost date_format on its two date columns in this round (joint 1.00 → 0.74), with the same geometry and paths.
+- **Long scanned forms**: `menomonie_app`, `grandview_app` and `i9` fake scans, path 0.26–0.62.
+
+Next generic lever (not run): step 8 of the prompt could say that one path may fill several boxes, for example a list written into a text box and a checkbox marked when that list is non-empty, and that a checkbox beside a mapped text box usually takes the same path with bool_to_check. Mapping, not placement, is now where the agent loses points.
+
 **Freeze.** Unchanged: the held-out reruns must run from tag `plan1-heldout-frozen`; the held-out split was not run or read for this work.
