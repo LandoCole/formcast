@@ -147,8 +147,18 @@ class _OpSpec:
         # ops that create a field take an optional id, pre-assigned when absent.
         self.positional_id = id_field is not None and id_field.is_required()
         self.creates = id_field is not None and not id_field.is_required()
-        rest = [_param_text(n, f) for n, f in self.fields.items() if not (self.positional_id and n == "id")]
+        # An op on an existing field with exactly one other required argument (set_label's
+        # label, set_source's source, ...) also takes that argument as the second positional.
+        others = [n for n in self.required if n != "id"]
+        self.positional_value = others[0] if self.positional_id and len(others) == 1 else None
+        rest = [
+            _param_text(n, f)
+            for n, f in self.fields.items()
+            if not (self.positional_id and n == "id") and n != self.positional_value
+        ]
         head = ["id"] if self.positional_id else []
+        if self.positional_value:
+            head.append(_param_text(self.positional_value, self.fields[self.positional_value]))
         self.signature = "(" + ", ".join(head + (["*", *rest] if rest else [])) + ")"
         self.doc = f"{self.name}{self.signature}\nRecords a {self.name!r} edit op; returns the field id."
 
@@ -156,13 +166,21 @@ class _OpSpec:
         if args:
             if not self.positional_id:
                 raise TypeError(f"{self.name}() takes keyword arguments only: {self.name}{self.signature}")
-            if len(args) > 1:
+            limit = 2 if self.positional_value else 1
+            if len(args) > limit:
+                what = f"the field id and {self.positional_value}" if self.positional_value else "the field id"
                 raise TypeError(
-                    f"{self.name}() takes only the field id positionally; pass the rest by name: "
+                    f"{self.name}() takes only {what} positionally; pass the rest by name: "
                     f"{self.name}{self.signature}"
                 )
             if "id" in kwargs:
                 raise TypeError(f"{self.name}() got the id both positionally and as id=")
+            if len(args) == 2:
+                if self.positional_value in kwargs:
+                    raise TypeError(
+                        f"{self.name}() got {self.positional_value} both positionally and by name"
+                    )
+                kwargs = {self.positional_value: args[1], **kwargs}
             kwargs = {"id": args[0], **kwargs}
         unknown = [k for k in kwargs if k not in self.fields]
         if unknown:

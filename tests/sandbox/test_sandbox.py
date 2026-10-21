@@ -188,6 +188,21 @@ def test_positional_id_only_for_ops_on_existing_fields(sandbox):
     assert "TypeError" in result.error
 
 
+def test_an_op_with_one_value_argument_also_takes_it_positionally(sandbox):
+    result = _ok(sandbox.exec(
+        'set_label("f1", "Name")\nset_type("f1", "checkbox")\n'
+        'set_source("f1", {"paths": ["a"]})\nresize("f1", [0, 0, 9, 9])'
+    ))
+    assert result.ops == [
+        {"op": "set_label", "id": "f1", "label": "Name"},
+        {"op": "set_type", "id": "f1", "type": "checkbox"},
+        {"op": "set_source", "id": "f1", "source": {"paths": ["a"]}},
+        {"op": "resize", "id": "f1", "rect": [0, 0, 9, 9]},
+    ]
+    both = sandbox.exec('set_label("f1", "A", label="B")')
+    assert "TypeError" in both.error and "label" in both.error
+
+
 def test_non_json_argument_values_raise_type_error(sandbox):
     result = sandbox.exec('set_label("f1", label={1, 2})')
     assert "TypeError" in result.error and "JSON" in result.error
