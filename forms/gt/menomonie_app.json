@@ -41,7 +41,8 @@
    "path": "applicant.us_born_citizen",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   "Yes": {
    "path": "applicant.us_born_citizen",
@@ -54,7 +55,8 @@
    "path": "previous_application.applied_before",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   "Yes_2": {
    "path": "previous_application.applied_before",
@@ -89,7 +91,8 @@
    "path": "drivers_license.valid",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   "Yes_3": {
    "path": "drivers_license.valid",
@@ -105,7 +108,8 @@
    "path": "commercial_drivers_license.valid",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   "Yes_4": {
    "path": "commercial_drivers_license.valid",
@@ -135,7 +139,8 @@
    "path": "criminal_history.has_record",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   "toggle_6": {
    "path": "criminal_history.has_record",

@@ -516,7 +516,8 @@
    "path": "condition_related_to.employment",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -531,7 +532,8 @@
    "path": "condition_related_to.employment",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -546,7 +548,8 @@
    "path": "condition_related_to.auto_accident",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -561,7 +564,8 @@
    "path": "condition_related_to.auto_accident",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -576,7 +580,8 @@
    "path": "condition_related_to.other_accident",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -591,7 +596,8 @@
    "path": "condition_related_to.other_accident",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -752,7 +758,8 @@
    "path": "has_other_health_plan",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -767,7 +774,8 @@
    "path": "has_other_health_plan",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -1178,7 +1186,8 @@
    "path": "outside_lab",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -1193,7 +1202,8 @@
    "path": "outside_lab",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -3211,7 +3221,8 @@
    "path": "accept_assignment",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -3226,7 +3237,8 @@
    "path": "accept_assignment",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,

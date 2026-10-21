@@ -122,7 +122,7 @@ def test_propose_booleans_from_yes_no_and_ignoring_a_lone_checkbox_default():
     assert gcv.propose(SP["smokes"], "Do you smoke", "Yes", near)[0] is None  # "Yes" is the default on-state
     assert gcv.propose(SP["smokes"], "Do you smoke", "Yes", near, shared=True)[:2] == (True, "high")
     assert gcv.propose(SP["smokes"], "Do you smoke", "No", near)[:2] == (False, "high")
-    assert gcv.propose(SP["smokes"], "Smoker", None, near)[0] is None  # no Yes/No: the box means true
+    assert gcv.propose(SP["smokes"], "Smoker", None, near)[0] is None  # no Yes/No word: a lone box, the labeler decides
 
 
 def test_propose_open_paths_use_the_boxs_own_text():
@@ -182,10 +182,10 @@ def test_draft_values_for_a_flat_form(tmp_path):
     assert draft["fields[4]"]["proposed"] is True and draft["fields[5]"]["proposed"] is False
     assert draft["fields[6]"]["proposed"] is None and draft["fields[6]"]["confidence"] is None
     e = draft["fields[1]"]
-    assert (e["kind"], e["page"], e["path"], e["path_type"], e["needs_value"]) == ("fields", 0, "status", "enum", True)
+    assert (e["kind"], e["page"], e["path"], e["path_type"]) == ("fields", 0, "status", "enum")
     assert e["options"] == ["single", "married", "not_married", "widowed"] and e["transforms"] == []
     assert e["rect"] == [72.0, 120.0, 82.0, 130.0] and "Single" in e["evidence"]
-    assert draft["fields[4]"]["needs_value"] is False and draft["fields[4]"]["options"] == [True, False]
+    assert draft["fields[4]"]["path_type"] == "boolean" and draft["fields[4]"]["options"] == [True, False]
     assert gcv.summarize(draft) == {"need": 3, "high": 0, "nearby": 2, "text": 0, "none": 1, "bool": 2, "bool_yes_no": 2}
 
 
@@ -209,7 +209,7 @@ def test_draft_values_for_a_fillable_form_keys_by_widget_name_and_ignores_the_fi
     }))
     draft = gcv.draft_values({"id": "w", "kind": "fillable"}, pdf, SCHEMA, gt_dir=gt_dir)
     assert sorted(draft) == ["agree", "pet_box"]
-    assert draft["agree"]["kind"] == "widget_paths" and draft["agree"]["needs_value"] is False
+    assert draft["agree"]["kind"] == "widget_paths" and draft["agree"]["path_type"] == "boolean"
     assert draft["agree"]["proposed"] is None  # a lone check box's default "Yes" on-state says nothing
     assert draft["agree"]["on_state"] == "Yes" and "label" in draft["agree"]
     assert draft["pet_box"]["transforms"] == ["equals"]
@@ -232,8 +232,16 @@ def test_draft_values_groups_widgets_that_share_a_name(tmp_path, monkeypatch):
 
 
 def test_cli_writes_a_draft_file(tmp_path, monkeypatch, capsys):
+    # the committed i9 labels are complete, so draft from a copy with its values removed
+    gt = json.loads((gcv.score.GT_DIR / "i9.json").read_text())
+    for entry in gt["widget_paths"].values():
+        entry.pop("value", None)
+    gt_dir = tmp_path / "gt"
+    gt_dir.mkdir()
+    (gt_dir / "i9.json").write_text(json.dumps(gt))
+    monkeypatch.setattr(gcv.score, "GT_DIR", gt_dir)
     monkeypatch.setattr(gcv, "DRAFT_DIR", tmp_path / "drafts")
     assert gcv.main(["--form", "i9", "--write-draft"]) == 0
     out = json.loads((tmp_path / "drafts" / "i9.values.json").read_text())
-    assert out and all("proposed" in e and "evidence" in e and e["path"] for e in out.values())
+    assert len(out) == 5 and all("proposed" in e and "evidence" in e and e["path"] for e in out.values())
     assert "i9:" in capsys.readouterr().out

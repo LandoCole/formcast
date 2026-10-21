@@ -71,7 +71,8 @@
    "path": "has_foreign_partners",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   "topmostSubform[0].Page1[0].f1_05[0]": {
    "path": "exempt_payee_code"

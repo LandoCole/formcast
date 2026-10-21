@@ -24,8 +24,9 @@ lists the further schema paths a box is fed from (a full name from first + last:
 
 ``value`` (choice boxes with a path) is the option the box stands for: an enum value, a
 member of the item enum of a multi-select array (or, on a path with no enum, the box's
-text), or on a boolean path ``true``/``false`` for a Yes/No pair (absent on a boolean
-path means ``true``). Widgets that share a field name (a radio group) cannot share one
+text), or on a boolean path ``true`` or ``false`` (the Yes box of a Yes/No pair, a lone
+box that means yes: ``true``; the No box: ``false``); every choice box on a boolean path
+carries one. Widgets that share a field name (a radio group) cannot share one
 value: their ``widget_paths`` ``value`` is then an object keyed by each widget's on-state
 name, ``{"M": "male", "F": "female"}``.
 

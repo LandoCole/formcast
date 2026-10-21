@@ -554,7 +554,8 @@
    "path": "applicant.may_contact_at_work",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -569,7 +570,8 @@
    "path": "applicant.may_contact_at_work",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -658,7 +660,8 @@
    "path": "applicant.can_furnish_work_permit",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -673,7 +676,8 @@
    "path": "applicant.can_furnish_work_permit",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -699,7 +703,8 @@
    "path": "previous_application.submitted",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -714,7 +719,8 @@
    "path": "previous_application.submitted",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -752,7 +758,8 @@
    "path": "previous_employment.employed_here",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -767,7 +774,8 @@
    "path": "previous_employment.employed_here",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -872,7 +880,8 @@
    "path": "applicant.legally_eligible",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -887,7 +896,8 @@
    "path": "applicant.legally_eligible",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -1051,7 +1061,8 @@
    "path": "applicant.willing_to_relocate",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -1066,7 +1077,8 @@
    "path": "applicant.willing_to_relocate",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -1081,7 +1093,8 @@
    "path": "applicant.willing_to_travel",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -1096,7 +1109,8 @@
    "path": "applicant.willing_to_travel",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -1159,7 +1173,8 @@
    "path": "applicant.willing_to_work_overtime",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -1174,7 +1189,8 @@
    "path": "applicant.willing_to_work_overtime",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -1283,7 +1299,8 @@
    "path": "applicant.has_been_bonded",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -1298,7 +1315,8 @@
    "path": "applicant.has_been_bonded",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -1313,7 +1331,8 @@
    "path": "criminal_history.convicted_last_10_years",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -1328,7 +1347,8 @@
    "path": "criminal_history.convicted_last_10_years",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -2880,7 +2900,8 @@
    "path": "terminated_or_asked_to_resign",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 2,
@@ -2895,7 +2916,8 @@
    "path": "terminated_or_asked_to_resign",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 2,

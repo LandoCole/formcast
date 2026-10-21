@@ -187,7 +187,8 @@
    "path": "employer_review.alternative_procedure_used",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   "FirstDayEmployed mmddyyyy": {
    "path": "employer_review.first_day_of_employment",

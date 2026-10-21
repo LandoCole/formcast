@@ -18,7 +18,7 @@ final: a reviewer confirms each against the PDF.
 
 ``--write-draft`` writes ``forms/gt/drafts/<id>.values.json``::
 
-    {key: {"kind": "fields"|"widget_paths", "needs_value": bool, "page", "rect", "label",
+    {key: {"kind": "fields"|"widget_paths", "page", "rect", "label",
            "path", "path_type", "transforms", "options": [...]|null, "on_state"?,
            "near_text": {"right": str, "left": str}, "proposed": value|null,
            "confidence": "high"|"text"|null, "evidence": str, "widgets"?: [...]}}
@@ -258,7 +258,7 @@ def propose(
             return value, "nearby", f"{name} text: {why}"
         notes.append(f"{name} text: {why}")
     if sp.type == "boolean":
-        return None, None, "no Yes/No word (a box on a boolean path means true); " + "; ".join(notes)
+        return None, None, "no Yes/No word (a lone box usually means true); " + "; ".join(notes)
     return None, None, "; ".join(notes) or "no text near the box"
 
 
@@ -315,7 +315,6 @@ def draft_values(form: dict, pdf_path, schema: dict, gt_dir: Path | None = None)
             items.append(_entry_for(g, st, sp, near, fillable and g.label == key, len(members) > 1))
         head = {
             "kind": "widget_paths" if fillable else "fields",
-            "needs_value": sp.type != "boolean",
             "path": g0.path,
             "path_type": sp.type if sp.type != "array" else f"array of {sp.item_type}",
             "transforms": g0.transforms,
@@ -344,7 +343,7 @@ def summarize(draft: dict) -> dict[str, int]:
     out = dict.fromkeys(("need", "high", "nearby", "text", "none", "bool", "bool_yes_no"), 0)
     for e in draft.values():
         for box in e.get("widgets", [e]):
-            if e["needs_value"]:
+            if e["path_type"] != "boolean":
                 out["need"] += 1
                 out[box["confidence"] or "none"] += 1
             else:

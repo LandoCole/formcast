@@ -281,19 +281,22 @@
    "path": "social_history.alcohol_use",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   "Check Box34": {
    "path": "social_history.alcohol_use",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   "Check Box35": {
    "path": "social_history.abuse.reported",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   "Check Box36": {
    "path": "social_history.abuse.timing",
@@ -341,7 +344,8 @@
    "path": "social_history.owns_gun",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   "Check Box45": {
    "path": "social_history.marital_status",
@@ -473,25 +477,29 @@
    "path": "social_history.vaping.uses",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   "Check Box67": {
    "path": "social_history.marijuana.uses",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   "Check Box69": {
    "path": "social_history.drug_use",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   "Check Box70": {
    "path": "social_history.drug_use",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   "NAME_2": {
    "path": "student.first_name",
@@ -509,7 +517,8 @@
    "path": "family_history.adopted_unknown",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   "Check Box73": {
    "path": "family_history.conditions.alcohol_drug_dependency",

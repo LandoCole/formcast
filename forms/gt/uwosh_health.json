@@ -518,7 +518,8 @@
    "path": "tobacco.smokes_cigarettes",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -533,7 +534,8 @@
    "path": "tobacco.smokes_cigarettes",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -548,7 +550,8 @@
    "path": "tobacco.uses_smokeless",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -563,7 +566,8 @@
    "path": "tobacco.uses_smokeless",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -635,7 +639,8 @@
    "path": "alcohol.drinks",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -650,7 +655,8 @@
    "path": "alcohol.drinks",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -665,7 +671,8 @@
    "path": "alcohol.felt_need_to_cut_down",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -680,7 +687,8 @@
    "path": "alcohol.felt_need_to_cut_down",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -707,7 +715,8 @@
    "path": "drugs.uses_street_drugs",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -722,7 +731,8 @@
    "path": "drugs.uses_street_drugs",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -761,7 +771,8 @@
    "path": "exercise.exercises_regularly",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -776,7 +787,8 @@
    "path": "exercise.exercises_regularly",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -803,7 +815,8 @@
    "path": "wears_seat_belt",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -818,7 +831,8 @@
    "path": "wears_seat_belt",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -3756,7 +3770,8 @@
    "path": "sexual_health.had_std",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 1,
@@ -3771,7 +3786,8 @@
    "path": "sexual_health.had_std",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 1,
@@ -4077,7 +4093,8 @@
    "path": "sexual_health.aware_of_emergency_contraception",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 1,
@@ -4092,7 +4109,8 @@
    "path": "sexual_health.aware_of_emergency_contraception",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 1,
@@ -4107,7 +4125,8 @@
    "path": "womens_health.monthly_periods",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 1,
@@ -4122,7 +4141,8 @@
    "path": "womens_health.monthly_periods",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 1,
@@ -4211,7 +4231,8 @@
    "path": "womens_health.ever_pregnant",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 1,
@@ -4226,7 +4247,8 @@
    "path": "womens_health.ever_pregnant",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 1,

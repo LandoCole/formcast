@@ -176,10 +176,10 @@ def _schema_paths(form_id: str) -> dict:
 
 def _value_problem(sp, value) -> str | None:
     """Why ``value`` cannot be a choice box's value on schema path ``sp``, else None."""
-    if sp.type == "boolean":
-        return None if value is None or isinstance(value, bool) else f"{value!r} is not true/false"
     if value is None:
-        return "no value"
+        return "no value"  # a boolean box too: true for a Yes (or lone) box, false for a No box (Ruling Q)
+    if sp.type == "boolean":
+        return None if isinstance(value, bool) else f"{value!r} is not true/false"
     options = options_of(sp)
     if options is None:  # an open-ended path (no enum): the box's own text
         return None if isinstance(value, str) and value.strip() else f"{value!r} is not a text"
