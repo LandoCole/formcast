@@ -18,6 +18,11 @@ Records (fill design section 6.1):
 * Booleans alternate; enums take option ``k mod n``; multi-selects take options
   ``k mod n`` and ``(k+1) mod n``.
 * Tables get one row more than the ground truth has for them (``maxItems`` caps it).
+* Free-text choice options (Ruling P): a ground-truth choice box on a string path, or an
+  array of strings, with no enum carries free text as its ``value``. Those texts are the
+  path's options: record ``k`` takes option ``k mod (n + 1)``, where the extra slot leaves the
+  path missing (absent; ``[]`` for an array), so every such box is on in one record and off
+  in another. K counts ``n + 1``.
 * Every record is checked with ``validate_data``.
 
 Override file ``forms/probes/<id>.json``: ``{"<path>": value_or_list}``. A list
@@ -63,6 +68,7 @@ _DAYS_FIRST = list(range(13, 29))  # days 13-28 cannot be mistaken for months
 _DAYS_LAST = list(range(1, 13))
 _YEARS = list(range(1950, 2021))
 _SCALARS = {"string", "integer", "number", "boolean", "date", "enum"}
+_MISSING = object()  # a property left out of its object
 
 
 # ------------------------------------------------------------- ground truth rows
@@ -158,12 +164,29 @@ def _strings(value: object):
             yield from _strings(v)
 
 
+def free_text_options(gt: list[GTField], paths: list[SchemaPath]) -> dict[str, list[str]]:
+    """Path -> the free-text ``value``s of its GT choice boxes, for string paths and arrays of
+    strings that have no enum (Ruling P), in GT order without repeats."""
+    by_path = {p.path: p for p in paths}
+    out: dict[str, list[str]] = {}
+    for g in gt:
+        sp = by_path.get(g.path) if g.path else None
+        if g.type != "choice" or not isinstance(g.value, str) or sp is None:
+            continue
+        if sp.type == "string" or (sp.type == "array" and sp.item_type == "string"):
+            options = out.setdefault(g.path, [])
+            if g.value not in options:
+                options.append(g.value)
+    return out
+
+
 def _option_trigrams(gen: "_Gen") -> set[str]:
-    """Trigrams of every alphabetic run in the schema's enum options and consts, uppercased.
+    """Trigrams of every alphabetic run in the schema's enum options and consts, and in the
+    free-text choice options, uppercased.
 
     Option text is given, not generated, so tokens must avoid sharing trigrams with it.
     """
-    texts: list[str] = []
+    texts: list[str] = [t for options in gen.choice_options.values() for t in options]
     for sp in gen.paths:
         for path in (sp.path, sp.path + "[]"):
             node = gen.node(path) if path == sp.path or sp.type == "array" else {}
@@ -199,7 +222,10 @@ class _Gen:
         unknown = sorted(set(self.overrides) - set(self.by_path) - {p.path + "[]" for p in self.paths})
         if unknown:
             raise ValueError(f"{form_id}: overrides name paths the schema does not have: {unknown}")
-        self.k_count = max([2] + [len(p.enum) for p in self.paths if p.enum])
+        self.choice_options = free_text_options(gt or [], self.paths)
+        self.k_count = max(
+            [2] + [len(p.enum) for p in self.paths if p.enum] + [len(o) + 1 for o in self.choice_options.values()]
+        )
         self.used_trigrams: set[str] = set(_option_trigrams(self))
         self.used_short: set[str] = set()
         self.used_numbers: set[int] = set()
@@ -359,7 +385,13 @@ class _Gen:
     def value(self, sp: SchemaPath, k: int, row: int | None) -> object:
         node = self.node(sp.path)
         if sp.type == "object":
-            return {_key(s): self.value(s, k, row) for s in self.children.get(sp.path, [])}
+            return self.obj(sp.path, k, row)
+        if sp.path in self.choice_options and sp.path not in self.overrides:
+            options = self.choice_options[sp.path]
+            pick = k % (len(options) + 1)
+            if sp.type == "array":
+                return [options[pick]] if pick < len(options) else []
+            return options[pick] if pick < len(options) else _MISSING
         if sp.type != "array":
             return self.scalar(sp.path, sp.type, node, k, row)
         item_path = sp.path + "[]"
@@ -374,16 +406,18 @@ class _Gen:
             return []
         rows = self.row_count(sp.path, node)
         if sp.item_type == "object":
-            return [
-                {_key(s): self.value(s, k, r) for s in self.children.get(item_path, [])}
-                for r in range(rows)
-            ]
+            return [self.obj(item_path, k, r) for r in range(rows)]
         if sp.item_type == "array":
             return [self.value(self.by_path[item_path], k, r) for r in range(rows)]
         return [self.scalar(item_path, sp.item_type, item_node, k, r) for r in range(rows)]
 
+    def obj(self, path: str, k: int, row: int | None) -> dict:
+        """The object at ``path`` (``""``: the record), leaving out properties that are missing."""
+        values = ((_key(s), self.value(s, k, row)) for s in self.children.get(path, []))
+        return {key: v for key, v in values if v is not _MISSING}
+
     def record(self, k: int) -> dict:
-        return {_key(s): self.value(s, k, None) for s in self.children.get("", [])}
+        return self.obj("", k, None)
 
 
 def _key(sp: SchemaPath) -> str:

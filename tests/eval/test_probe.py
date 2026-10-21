@@ -79,6 +79,31 @@ def test_booleans_alternate():
     assert [r["flag"] for r in records] == [True, False, True, False]
 
 
+def _choice_gt(path, value, x=0.0):
+    return score.GTField(page=0, rect=(x, 0, x + 10, 10), type="choice", path=path, value=value)
+
+
+def test_free_text_choice_values_act_as_options_with_a_missing_slot():
+    # Ruling P: a choice box on a string path (or array of strings) with no enum carries free text;
+    # those texts are the path's options, plus one record where the path is missing (box off).
+    schema = _obj(sw={"type": "string"}, rel={"type": "array", "items": {"type": "string"}}, flag={"type": "boolean"})
+    gt = [_choice_gt("sw", "Word Processing"), _choice_gt("rel", "Asthma", 20), _choice_gt("rel", "Cancer", 40),
+          _choice_gt("flag", True, 60)]  # fmt: skip
+    records = probe.probe_records(schema, gt, seed="t")
+    assert len(records) == 3  # K counts rel's two texts plus the missing slot
+    assert [r.get("sw", "<absent>") for r in records] == ["Word Processing", "<absent>", "Word Processing"]
+    assert [r["rel"] for r in records] == [["Asthma"], ["Cancer"], []]
+
+
+def test_free_text_choice_values_keep_tokens_off_their_trigrams():
+    text = "Abcdefghijklmnopqrstuvwxyz Zyxwvutsrqponmlkjihgfedcba Aeioubcdfghjklmnpqrstvwxyz"  # ~70 trigrams
+    schema = _obj(sw={"type": "string"}, **{f"t{i}": {"type": "string"} for i in range(300)})
+    records = probe.probe_records(schema, [_choice_gt("sw", text)], seed="t")
+    given = {g for word in text.upper().split() for g in _trigrams(word)}
+    for t in _tokens(records):
+        assert not _trigrams(t) & given, t
+
+
 # -------------------------------------------------------------------- strings
 
 

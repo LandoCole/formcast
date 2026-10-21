@@ -14,7 +14,7 @@ import baseline_detection  # noqa: E402
 import score  # noqa: E402
 from formcast.llm import LLMResponse, Message, ToolCall, Usage  # noqa: E402
 from formcast.pagemap.ocr import render  # noqa: E402
-from formcast.template.model import Field, FormInfo, Template  # noqa: E402
+from formcast.template.model import Field, FormInfo, Source, Template  # noqa: E402
 
 A = (10.0, 10.0, 110.0, 30.0)
 B = (10.0, 50.0, 110.0, 70.0)
@@ -332,3 +332,77 @@ def test_rescore_with_missing_templates_says_to_extract_the_archive(tmp_path, mo
     assert "1 of 1 saved template" in msg and "f_as_published.json" in msg
     assert "tar -xzf eval/results/templates.tar.gz" in msg
     assert results.read_text() == before  # nothing rewritten
+
+
+# ---------- fill correctness ----------
+
+
+def _fill(units, correct, rows_dropped_ok=True):
+    part = {"units": units, "correct": correct}
+    return {"units": units, "correct": correct, "fill_acc": correct / units, "text": dict(part),
+            "choice": {"units": 0, "correct": 0}, "cell": {"units": 0, "correct": 0},
+            "rows_dropped_ok": rows_dropped_ok, "fill_errors": []}  # fmt: skip
+
+
+def test_totals_include_fill_acc():
+    rows = [
+        {**_row("as_published", 10, 10, 9, 4, 4, 100, 10), "fill": _fill(10, 5)},
+        {**_row("as_published", 10, 10, 9, 4, 4, 100, 10), "fill": _fill(30, 27, rows_dropped_ok=False)},
+        {**_row("fake_scan", 10, 10, 9, 4, 4, 100, 10), "fill": _fill(40, 0, rows_dropped_ok=None)},
+        _row("fake_scan", 10, 10, 9, 4, 4, 100, 10),  # scored before fill_acc existed: left out of the fill figure
+    ]
+    out = agent_eval.totals(rows)
+    ap = out["as_published"]["fill"]
+    assert (ap["forms"], ap["units"], ap["correct"]) == (2, 40, 32)
+    assert ap["fill_acc"] == pytest.approx(32 / 40)
+    assert ap["text"] == {"units": 40, "correct": 32, "acc": pytest.approx(0.8)}
+    assert ap["rows_dropped"] == {"checked": 2, "ok": 1}
+    assert out["all"]["fill"]["fill_acc"] == pytest.approx(32 / 80)
+    assert out["fake_scan"]["fill"]["forms"] == 1
+    assert agent_eval.totals([_row("as_published", 10, 10, 9, 4, 4, 100, 10)])["all"]["fill"] is None
+
+
+def test_markdown_has_fill_column():
+    row = {**_row("as_published", 10, 10, 9, 4, 4, 100, 10), "form": "x", "kind": "flat", "stop_reason": "finish",
+           "error": None, "unplaceable": 0, "fill": _fill(8, 6)}  # fmt: skip
+    old = {**row, "form": "z"}
+    del old["fill"]
+    for r in (row, old):
+        for k in ("iou0.3", "iou0.5"):
+            r["detection"][k] = {**r["detection"][k], "recall": 0.9, "precision": 0.9, "type_acc": 1.0}
+        r["mapping"] = {**r["mapping"], "path_acc": 1.0, "transform_acc": 0.0, "joint_acc": 0.5,
+                        "exact_path_set_acc": 1.0}  # fmt: skip
+    meta = {"model": "m", "model_env": "X_EVAL", "split": "dev", "run": "r", "api_format": "responses", "tag": None,
+            "commit": "abc", "budget": {}, "baseline_file": "b.json"}  # fmt: skip
+    md = agent_eval.render_markdown(meta, [row, old], agent_eval.totals([row, old]))
+    headers = [line for line in md.splitlines() if line.startswith("| form |") or line.startswith("| variant |")]
+    assert len(headers) == 2 and all("| joint | fill |" in h for h in headers)
+    assert "| 0.50 | 0.75 |" in md  # x: joint, then fill
+    assert "| 0.50 | – |" in md  # z has no fill figure
+    assert "fill_acc" in md or "fill:" in md  # the notes explain the column
+
+
+def test_score_row_adds_fill_scored_on_the_variant_pdf(tmp_path, monkeypatch, flat_form_pdf):
+    forms, gt_dir = tmp_path / "forms", tmp_path / "gt"
+    (forms / "dev").mkdir(parents=True)
+    (forms / "schemas").mkdir()
+    gt_dir.mkdir()
+    (forms / "dev" / "ff.pdf").write_bytes(flat_form_pdf.read_bytes())
+    schema = {"type": "object", "properties": {"name": {"type": "string"}}}
+    (forms / "schemas" / "ff.json").write_text(json.dumps(schema))
+    name_box = [120.0, 86.0, 300.0, 100.0]
+    (gt_dir / "ff.json").write_text(json.dumps(
+        {"form": "ff", "fields": [{"page": 0, "rect": name_box, "type": "text", "path": "name"}]}))  # fmt: skip
+    monkeypatch.setattr(agent_eval, "FORMS", forms)
+    monkeypatch.setattr(score, "GT_DIR", gt_dir)
+    form = {"id": "ff", "split": "dev", "kind": "flat"}
+    t = Template(
+        template_id="t", schema=schema,
+        form=FormInfo(fingerprint="x", page_count=1, page_sizes=[(612, 792)], kinds=["digital"]),
+        fields=[Field(id="n", type="text", page=0, rect=tuple(name_box), source=Source(paths=["name"]))],
+    )  # fmt: skip
+    for variant in ("as_published", "fake_scan"):
+        row = {"form": "ff", "variant": variant}
+        agent_eval.score_row(row, t, form)
+        assert row["fill"]["units"] == 2 and row["fill"]["fill_acc"] == 1.0, variant  # K = 2 records
+        assert row["mapping"]["path_acc"] == 1.0
