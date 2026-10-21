@@ -191,3 +191,32 @@ def test_missing_tesseract_raises(flat_form_pdf, monkeypatch):
         "OCR requested but Tesseract is not installed; "
         "pip install formcast[ocr] and install tesseract"
     )
+
+
+def test_unrotate_box_is_the_normalized_bounds_of_the_mapped_corners():
+    size = (400, 300)
+    # No rotation: just normalization.
+    assert ocr.unrotate_box((40, 30, 200, 90), 0.0, size) == pytest.approx((0.1, 0.1, 0.5, 0.3))
+    # With rotation it covers every mapped corner.
+    box = (40, 30, 200, 90)
+    out = ocr.unrotate_box(box, 2.0, size)
+    for x, y in ((40, 30), (200, 30), (40, 90), (200, 90)):
+        px, py = ocr.unrotate_point(x, y, 2.0, size)
+        assert out[0] - 1e-9 <= px / 400 <= out[2] + 1e-9
+        assert out[1] - 1e-9 <= py / 300 <= out[3] + 1e-9
+
+
+def test_straighten_skips_small_skew_and_reports_the_angle_applied(flat_form_pdf):
+    clean = _form_image(flat_form_pdf)
+    same, angle = ocr.straighten(clean)
+    assert angle == 0.0 and same is clean
+    skewed = clean.rotate(1.5, resample=Image.BICUBIC, fillcolor=(255, 255, 255))
+    fixed, angle = ocr.straighten(skewed)
+    assert angle == pytest.approx(1.5, abs=0.3)
+    assert fixed.size == skewed.size and fixed is not skewed
+
+
+def test_render_is_an_rgb_image_at_the_requested_dpi(flat_form_pdf):
+    with pymupdf.open(flat_form_pdf) as doc:
+        image = ocr.render(doc[0], 72)
+    assert image.mode == "RGB" and image.size == (612, 792)

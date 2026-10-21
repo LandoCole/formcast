@@ -21,7 +21,7 @@ from formcast.errors import FormcastError
 from formcast.geometry import Rect, iou
 from formcast.pagemap.extract import image_norm_to_points
 from formcast.pagemap.model import Candidate
-from formcast.pagemap.ocr import MIN_DESKEW, deskew, estimate_skew, unrotate_point
+from formcast.pagemap.ocr import render, straighten, unrotate_box
 
 # Rows of candidates whose top edges differ by less than this fraction of the
 # page height count as one row (the same bucketing as commonforms' sort_widgets).
@@ -149,21 +149,15 @@ def merge_detections(lists: list[list[Candidate]], iou_threshold: float = 0.5) -
     return kept
 
 
-def _render(page: pymupdf.Page, dpi: int) -> Image.Image:
-    pix = page.get_pixmap(dpi=dpi, alpha=False)
-    return Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
-
-
 def _to_page_points(
     page: pymupdf.Page, box: Rect, angle: float, size: tuple[int, int]
 ) -> Rect:
     """Box normalized to the (possibly deskewed) detector image -> unrotated crop-box points."""
-    width, height = size
     if angle:
-        x0, y0, x1, y1 = box[0] * width, box[1] * height, box[2] * width, box[3] * height
-        corners = [unrotate_point(x, y, angle, size) for x, y in ((x0, y0), (x1, y0), (x0, y1), (x1, y1))]
-        xs, ys = [c[0] for c in corners], [c[1] for c in corners]
-        box = (min(xs) / width, min(ys) / height, max(xs) / width, max(ys) / height)
+        width, height = size
+        box = unrotate_box(
+            (box[0] * width, box[1] * height, box[2] * width, box[3] * height), angle, size
+        )
     box = tuple(min(1.0, max(0.0, v)) for v in box)
     return image_norm_to_points(page, box)
 
@@ -199,14 +193,10 @@ def detect_page(
     if missing:
         raise FormcastError(f"detector {missing[0]!r} is not available; have {sorted(detectors)}")
 
-    image = _render(page, policy.dpi)
+    image = render(page, policy.dpi)
     angle = 0.0
     if scanned and policy.deskew_scanned:
-        angle = estimate_skew(image)
-        if abs(angle) >= MIN_DESKEW:
-            image = deskew(image, angle)
-        else:
-            angle = 0.0
+        image, angle = straighten(image)
 
     per_detector: list[list[Candidate]] = []
     for name in names:

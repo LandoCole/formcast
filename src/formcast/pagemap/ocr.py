@@ -122,9 +122,37 @@ def unrotate_point(x: float, y: float, angle: float, size: tuple[int, int]) -> t
     )
 
 
-def _render(page: pymupdf.Page, dpi: int) -> Image.Image:
+def unrotate_box(box: Rect, angle: float, size: tuple[int, int]) -> Rect:
+    """Axis-aligned box, normalized to ``image``, covering a pixel box of ``deskew(image, angle)``.
+
+    ``box`` is ``(x0, y0, x1, y1)`` in pixels of the deskewed image. All four
+    corners are mapped back with ``unrotate_point`` and their bounding box is
+    returned, divided by ``size`` (the image's width and height).
+    """
+    x0, y0, x1, y1 = box
+    corners = [unrotate_point(x, y, angle, size) for x, y in ((x0, y0), (x1, y0), (x0, y1), (x1, y1))]
+    xs, ys = [c[0] for c in corners], [c[1] for c in corners]
+    width, height = size
+    return (min(xs) / width, min(ys) / height, max(xs) / width, max(ys) / height)
+
+
+def render(page: pymupdf.Page, dpi: int) -> Image.Image:
+    """The page as an RGB image (cropped and rotated as ``get_pixmap`` shows it)."""
     pix = page.get_pixmap(dpi=dpi, alpha=False)
     return Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+
+
+def straighten(image: Image.Image) -> tuple[Image.Image, float]:
+    """Deskew ``image`` when its skew is worth correcting.
+
+    Returns the image to use and the angle applied; ``(image, 0.0)`` when the
+    skew is below ``MIN_DESKEW``. A nonzero angle is what ``unrotate_point`` and
+    ``unrotate_box`` need to map positions back into ``image``.
+    """
+    angle = estimate_skew(image)
+    if abs(angle) < MIN_DESKEW:
+        return image, 0.0
+    return deskew(image, angle), angle
 
 
 def ocr_page(page: pymupdf.Page, dpi: int = 300) -> tuple[list[Word], list[TextLine]]:
@@ -137,18 +165,12 @@ def ocr_page(page: pymupdf.Page, dpi: int = 300) -> tuple[list[Word], list[TextL
         raise FormcastError(NOT_INSTALLED)
     import pytesseract
 
-    image = _render(page, dpi)
-    angle = estimate_skew(image)
-    if abs(angle) >= MIN_DESKEW:
-        scan = deskew(image, angle)
-    else:
-        angle, scan = 0.0, image
+    scan, angle = straighten(render(page, dpi))
     try:
         data = pytesseract.image_to_data(scan, output_type=pytesseract.Output.DICT)
     except pytesseract.TesseractNotFoundError as exc:
         raise FormcastError(NOT_INSTALLED) from exc
 
-    width, height = scan.size
     groups: dict[tuple[int, int, int], list[tuple[str, Rect, float]]] = defaultdict(list)
     for i, raw in enumerate(data["text"]):
         text = str(raw).strip()
@@ -156,17 +178,9 @@ def ocr_page(page: pymupdf.Page, dpi: int = 300) -> tuple[list[Word], list[TextL
         if not text or conf < 0:
             continue
         left, top = data["left"][i], data["top"][i]
-        corners = [
-            unrotate_point(x, y, angle, scan.size)
-            for x, y in (
-                (left, top),
-                (left + data["width"][i], top),
-                (left, top + data["height"][i]),
-                (left + data["width"][i], top + data["height"][i]),
-            )
-        ]
-        xs, ys = [c[0] for c in corners], [c[1] for c in corners]
-        norm = (min(xs) / width, min(ys) / height, max(xs) / width, max(ys) / height)
+        norm = unrotate_box(
+            (left, top, left + data["width"][i], top + data["height"][i]), angle, scan.size
+        )
         key = (data["block_num"][i], data["par_num"][i], data["line_num"][i])
         groups[key].append((text, image_norm_to_points(page, norm), min(conf / 100.0, 1.0)))
 
