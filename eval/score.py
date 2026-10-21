@@ -61,6 +61,16 @@ _DETECTION_TYPE = {
 # (type, page, rect)
 Box = tuple[str, int, Rect]
 
+# Transform ops that do the same job in different ways: a GT op is credited by
+# any op of its group (taking characters out of a value; formatting a date or a
+# part of it; testing a choice value).
+TRANSFORM_EQUIVALENCE: tuple[frozenset[str], ...] = (
+    frozenset({"slice", "split", "char_at"}),
+    frozenset({"date_part", "date_format"}),
+    frozenset({"equals", "contains"}),
+)
+_CANONICAL_OP = {op: min(group) for group in TRANSFORM_EQUIVALENCE for op in group}
+
 
 @dataclass
 class GTField:
@@ -261,7 +271,7 @@ class _Item:
     page: int
     rect: Rect
     paths: list[str]  # schema paths this box fills (a cell: its single column path)
-    ops: list[str]  # transform op names applied to it
+    ops: list[str]  # transform op names applied to it, incl. "join" and the when condition's op
     is_cell: bool = False
 
 
@@ -296,10 +306,27 @@ def _template_items(template: Template) -> list[_Item]:
                     f.page,
                     f.rect,
                     list(f.source.paths) if f.source else [],
-                    [t.op for t in f.source.transforms] if f.source else [],
+                    _source_ops(f.source),
                 )
             )
     return items
+
+
+def _source_ops(source) -> list[str]:
+    """Op names a source applies: its transforms, "join" when it joins paths, and its ``when`` op.
+
+    GT lists all three as transform names ("join", "equals", ...), while a
+    template carries the join separator and the choice condition in their own
+    ``Source`` fields.
+    """
+    if source is None:
+        return []
+    ops = [t.op for t in source.transforms]
+    if source.join is not None:
+        ops.append("join")
+    if source.when is not None:
+        ops.append(source.when.op)
+    return ops
 
 
 def template_boxes(template: Template) -> list[Box]:
@@ -313,6 +340,16 @@ def template_boxes(template: Template) -> list[Box]:
 
 
 # ---------- mapping ----------
+
+
+def transforms_match(gt_ops: list[str], field_ops: list[str]) -> bool:
+    """Whether ``field_ops`` cover every GT op, with multiplicity, up to ``TRANSFORM_EQUIVALENCE``.
+
+    Extra field ops are fine.
+    """
+    need = Counter(_CANONICAL_OP.get(op, op) for op in gt_ops)
+    have = Counter(_CANONICAL_OP.get(op, op) for op in field_ops)
+    return not (need - have)
 
 
 def score_mapping(gt: list[GTField], template: Template, iou_thr: float = 0.3) -> dict:
@@ -331,11 +368,22 @@ def score_mapping(gt: list[GTField], template: Template, iou_thr: float = 0.3) -
       path-wrong.
     * Among GT fields with non-empty ``transforms``, one is *transform-correct*
       if it matched and every GT op name appears (with multiplicity) in the
-      matched field's transform ops (``source.transforms``, or the column's
-      ``transforms`` for a cell). Extra ops are fine. Independent of the path.
+      matched field's ops, where an op of the same ``TRANSFORM_EQUIVALENCE``
+      group counts (``transforms_match``). A field's ops are its
+      ``source.transforms``, plus "join" when ``source.join`` is set and the
+      op of ``source.when`` (a cell: its column's ``transforms``). Extra ops
+      are fine. Independent of the path.
+    * A GT field is *joint-correct* if it is path-correct and, when it has
+      ``transforms``, transform-correct.
+    * A GT field is *exact* if it matched and the matched field's set of
+      source paths equals ``{path} | also_paths`` (so extra or missing source
+      paths fail it).
 
-    Returns ``n_path`` and ``n_transform`` (denominators), ``matched`` (path GT
-    that found a template box), ``matched_rate``, ``path_acc`` and ``transform_acc``.
+    Returns ``n_path`` and ``n_transform`` (denominators); counts ``matched``
+    (path GT that found a template box), ``path_ok``, ``transform_ok``,
+    ``joint_ok`` and ``exact_ok``; and ``matched_rate``, ``path_acc``,
+    ``transform_acc`` (over ``n_transform``), ``joint_acc`` and
+    ``exact_path_set_acc`` (over ``n_path``).
     """
     items = _template_items(template)
 
@@ -348,22 +396,35 @@ def score_mapping(gt: list[GTField], template: Template, iou_thr: float = 0.3) -
     matched = dict(
         _greedy_match([(g.page, g.rect) for g in gt], [(i.page, i.rect) for i in items], iou_thr, allowed)
     )
-    n_path = n_transform = n_matched = path_ok = transform_ok = 0
+    n_path = n_transform = n_matched = path_ok = transform_ok = joint_ok = exact_ok = 0
     for gi, g in enumerate(gt):
         if g.path is None:
             continue
         item = items[matched[gi]] if gi in matched else None
         n_path += 1
-        n_matched += item is not None
-        path_ok += item is not None and g.path in item.paths
+        if item is None:
+            n_transform += bool(g.transforms)
+            continue
+        n_matched += 1
+        path_right = g.path in item.paths
+        transforms_right = transforms_match(g.transforms, item.ops)
+        path_ok += path_right
         if g.transforms:
             n_transform += 1
-            transform_ok += item is not None and not (Counter(g.transforms) - Counter(item.ops))
+            transform_ok += transforms_right
+        joint_ok += path_right and transforms_right
+        exact_ok += set(item.paths) == {g.path, *g.also_paths}
     return {
         "n_path": n_path,
         "n_transform": n_transform,
         "matched": n_matched,
+        "path_ok": path_ok,
+        "transform_ok": transform_ok,
+        "joint_ok": joint_ok,
+        "exact_ok": exact_ok,
         "matched_rate": _ratio(n_matched, n_path),
         "path_acc": _ratio(path_ok, n_path),
         "transform_acc": _ratio(transform_ok, n_transform),
+        "joint_acc": _ratio(joint_ok, n_path),
+        "exact_path_set_acc": _ratio(exact_ok, n_path),
     }

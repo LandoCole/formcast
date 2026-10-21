@@ -326,3 +326,68 @@ def test_load_gt_keeps_only_scored_pages(fillable_form_pdf, flat_form_pdf, tmp_p
     gt = score.load_gt({**form, "scored_pages": [1]}, path, gt_dir=tmp_path)
     assert [g.label for g in gt] == ["page_two"]
     assert score.load_gt({**form, "scored_pages": [0]}, path, gt_dir=tmp_path)[0].page == 0
+
+
+# ---------- transform equivalence, joint and exact-path-set metrics ----------
+
+
+@pytest.mark.parametrize(
+    "gt_op, field_op",
+    [("slice", "split"), ("char_at", "slice"), ("date_part", "date_format"), ("equals", "contains"),
+     ("contains", "equals"), ("split", "char_at")],
+)
+def test_mapping_credits_an_equivalent_transform(gt_op, field_op):
+    gt = [score.GTField(0, A, "text", path="p.a", transforms=[gt_op])]
+    out = score.score_mapping(gt, _template([_field("f", A, ["p.a"], [field_op])]))
+    assert out["transform_acc"] == 1.0
+
+
+@pytest.mark.parametrize("gt_op, field_op", [("date_part", "slice"), ("equals", "bool_to_check"), ("join", "upper")])
+def test_mapping_does_not_credit_a_transform_from_another_group(gt_op, field_op):
+    gt = [score.GTField(0, A, "text", path="p.a", transforms=[gt_op])]
+    out = score.score_mapping(gt, _template([_field("f", A, ["p.a"], [field_op])]))
+    assert out["transform_acc"] == 0.0
+
+
+def test_mapping_equivalence_keeps_multiplicity():
+    gt = [score.GTField(0, A, "text", path="p.a", transforms=["slice", "split"])]
+    one = score.score_mapping(gt, _template([_field("f", A, ["p.a"], ["char_at"])]))
+    two = score.score_mapping(gt, _template([_field("f", A, ["p.a"], ["char_at", "slice"])]))
+    assert one["transform_acc"] == 0.0 and two["transform_acc"] == 1.0
+
+
+def test_mapping_counts_a_when_condition_and_a_source_join_as_ops():
+    gt = [
+        score.GTField(0, A, "choice", path="p.kind", transforms=["equals"]),
+        score.GTField(0, B, "text", path="p.first", also_paths=["p.last"], transforms=["join"]),
+    ]
+    box = Field(id="f1", type="checkbox", page=0, rect=A,
+                source=Source(paths=["p.kind"], when=Transform(op="contains", args={"value": "x"})))
+    name = Field(id="f2", type="text", page=0, rect=B, source=Source(paths=["p.first", "p.last"], join=" "))
+    out = score.score_mapping(gt, _template([box, name]))
+    assert out["transform_acc"] == 1.0
+
+
+def test_mapping_joint_needs_path_and_transforms_and_exact_needs_the_whole_path_set():
+    gt = [
+        score.GTField(0, A, "text", path="p.dob", transforms=["date_format"]),  # path ok, transform wrong
+        score.GTField(0, B, "text", path="p.first", also_paths=["p.last"], transforms=["join"]),  # all ok
+        score.GTField(0, C, "text", path="p.ssn"),  # path ok, extra source path
+        score.GTField(0, FAR, "text", path="p.zip"),  # no field here
+    ]
+    t = _template([
+        _field("f1", A, ["p.dob"], ["upper"]),
+        Field(id="f2", type="text", page=0, rect=B, source=Source(paths=["p.last", "p.first"], join=" ")),
+        _field("f3", C, ["p.ssn", "p.zip"]),
+    ])  # fmt: skip
+    out = score.score_mapping(gt, t)
+    assert (out["path_ok"], out["transform_ok"], out["joint_ok"], out["exact_ok"]) == (3, 1, 2, 2)
+    assert out["joint_acc"] == pytest.approx(2 / 4)
+    assert out["exact_path_set_acc"] == pytest.approx(2 / 4)
+    assert out["path_acc"] == pytest.approx(3 / 4)
+
+
+def test_mapping_table_cell_is_exact_when_gt_has_no_also_paths():
+    gt = [score.GTField(0, (50, 100, 150, 120), "text", path="items[].name")]
+    out = score.score_mapping(gt, _template([_table({"name": (50, 150)})]))
+    assert out["joint_acc"] == 1.0 and out["exact_path_set_acc"] == 1.0

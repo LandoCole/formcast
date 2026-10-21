@@ -9,3 +9,5 @@ __pycache__/
 .DS_Store
 eval/results/overlays/
 .superpowers/
+eval/results/templates/
+eval/results/logs/
