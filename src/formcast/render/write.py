@@ -24,7 +24,7 @@ from formcast.render.fit import Fit
 from formcast.render.report import FillWarning
 from formcast.template.model import Style
 
-__all__ = ["read_existing", "text_font_for", "write_choice", "write_choice_mark", "write_text"]
+__all__ = ["read_existing", "text_font_for", "widget_rotation", "write_choice", "write_choice_mark", "write_text"]
 
 # Fonts MuPDF's regenerated text appearance honours; any other /DA font is drawn in Helvetica.
 KEPT_FONTS = ("Helv", "Cour", "TiRo", "ZaDb")
@@ -111,6 +111,21 @@ def text_font_for(page: pymupdf.Page, binding: Binding) -> str:
     return _kept_font(_load(page, binding.widget).text_font) or DEFAULT_FONT
 
 
+def widget_rotation(page: pymupdf.Page, binding: Binding) -> int:
+    """How far the widget's text is turned (0/90/180/270): its ``/MK /R``, which MuPDF's appearance
+    honours. A created widget gets the page's ``/Rotate``, so it reads upright on a rotated page.
+
+    For 90 and 270 the text runs along the rect's height, so fit with width and height swapped.
+    """
+    if binding.how == "created" or binding.widget is None:
+        return page.rotation % 360
+    kind, val = page.parent.xref_get_key(_load(page, binding.widget).xref, "MK/R")
+    try:
+        return int(float(val)) % 360 if kind in ("int", "real") else 0
+    except ValueError:
+        return 0
+
+
 # ---------------------------------------------------------------- helpers
 
 
@@ -154,6 +169,15 @@ def _new_widget(page: pymupdf.Page, binding: Binding, field_type: int, rect: Rec
     w.field_name = binding.new_name
     w.rect = _need_rect(binding, rect)
     return w
+
+
+def _turn_upright(page: pymupdf.Page, w: pymupdf.Widget) -> bool:
+    """Give a just-added widget ``/MK /R`` = the page's rotation (before its ``update()``), so its
+    appearance reads upright on a rotated page. Returns whether the page is rotated."""
+    rot = page.rotation % 360
+    if rot:
+        page.parent.xref_set_key(w.xref, "MK/R", str(rot))
+    return bool(rot)
 
 
 def _parent_xref(doc: pymupdf.Document, xref: int) -> int | None:
@@ -334,6 +358,7 @@ def write_text(
         w.field_flags = flags
         w.field_value = value or ""
         page.add_widget(w)
+        _turn_upright(page, w)
         q = str(_QUADDING[style.align])
         doc.xref_set_key(w.xref, "Q", q)  # MuPDF's appearance reads /Q only from the widget
         parent = _parent_xref(doc, w.xref)
@@ -426,6 +451,8 @@ def write_choice(
         w = _new_widget(page, binding, pymupdf.PDF_WIDGET_TYPE_CHECKBOX, rect)
         w.field_value = bool(on)
         page.add_widget(w)
+        if _turn_upright(page, w):
+            w.update()
         name, got = _read_back(page, w.xref)
         return name, got, []
     if binding.widget.kind not in ("checkbox", "radio"):
@@ -500,6 +527,9 @@ def write_choice_mark(
         w = _new_widget(page, binding, pymupdf.PDF_WIDGET_TYPE_CHECKBOX, rect)
         w.field_value = bool(on)
         page.add_widget(w)
+        # The custom ellipse needs no turning (its form maps onto /Rect); /MK /R is for viewers that
+        # regenerate the look.
+        _turn_upright(page, w)
     else:
         if binding.widget.kind != "checkbox":
             raise ValueError(f"choice_mark widget {binding.widget.name!r} must be a checkbox")

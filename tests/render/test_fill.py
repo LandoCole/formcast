@@ -748,3 +748,71 @@ def test_data_dependent_transform_failure_stays_a_report_entry(make_pdf):
     f.source.transforms = [Transform(op="date_format", args={"format": "%m/%d/%Y"})]
     _, rep = fill(_tpl(pdf, f), pdf, {"dob": "next Tuesday"})
     assert "transform_error" in _codes(rep)
+
+
+# ---------------------------------------------------------------- I1: rotated pages
+
+
+def _upright_lines(out: bytes, page: int = 0) -> dict[str, tuple[float, float]]:
+    """Each text line's direction as the viewer sees it (after /Rotate)."""
+    p = pymupdf.open(stream=out)[page]
+    m = p.rotation_matrix
+    rot = pymupdf.Matrix(m.a, m.b, m.c, m.d, 0, 0)
+    out_ = {}
+    for b in p.get_text("dict")["blocks"]:
+        for ln in b.get("lines", []):
+            d = pymupdf.Point(ln["dir"]) * rot
+            out_["".join(s["text"] for s in ln["spans"])] = (round(d.x, 3), round(d.y, 3))
+    return out_
+
+
+# On a /Rotate 90 page, a box that is wide on screen is tall in unrotated space.
+ROT_RECT = {90: (100, 300, 118, 500), 270: (500, 300, 518, 500)}
+
+
+@pytest.mark.parametrize("rot", [90, 270])
+def test_created_text_on_rotated_page_reads_upright(make_pdf, rot):
+    pdf = make_pdf(rotate=rot, text=[{"at": (150, 400), "text": "Name label", "rotate": rot}])
+    out, rep = fill(_tpl(pdf, _text("f_name", "name", ROT_RECT[rot])), pdf, {"name": "Ada Lovelace"})
+    lines = _upright_lines(out)
+    assert lines["Name label"] == (1.0, 0.0)  # the form reads upright
+    assert lines["Ada Lovelace"] == (1.0, 0.0)
+    assert rep.warnings == [] and rep.fields[0].font_size >= 10
+
+
+def test_existing_widget_with_mk_r_fits_along_its_text(make_pdf):
+    pdf = make_pdf(rotate=90, text=[{"at": (150, 400), "text": "Name label", "rotate": 90}],
+                   widgets=[{"type": "text", "name": "nm", "rect": ROT_RECT[90], "mk_r": 90}])  # fmt: skip
+    out, rep = fill(_tpl(pdf, _text("f_name", "name", ROT_RECT[90], widget="nm")), pdf, {"name": "Ada Lovelace"})
+    assert _upright_lines(out)["Ada Lovelace"] == (1.0, 0.0)
+    assert rep.warnings == [] and rep.fields[0].font_size >= 10
+
+
+def test_created_boxes_on_rotated_page(make_pdf):
+    pdf = make_pdf(rotate=90, text=[{"at": (150, 400), "text": "Yes", "rotate": 90}])
+    mark_rect = (138, 395, 156, 425)
+    tpl = _tpl(pdf, _choice("f_married", "married", (200, 300, 212, 312)),
+               _choice("f_status", "status", mark_rect, type="choice_mark",
+                       when=Transform(op="equals", args={"value": "married"})))  # fmt: skip
+    out, rep = fill(tpl, pdf, {"married": True, "status": "married"})
+    doc = pymupdf.open(stream=out)
+    by = {w.field_name: w for w in doc[0].widgets()}
+    for name in ("f_married", "f_status"):
+        assert doc.xref_get_key(by[name].xref, "MK/R") == ("int", "90")
+    assert rep.warnings == []
+    # the ellipse still lands in the mark's box
+    page = doc[0]
+    clip = pymupdf.Rect(mark_rect) * page.rotation_matrix
+    blank = pymupdf.open(stream=pdf)[0]
+
+    def dark(p):
+        pix = p.get_pixmap(clip=clip, dpi=144)
+        s, n = pix.samples, pix.n
+        return sum(1 for i in range(0, len(s), n) if min(s[i : i + 3]) < 128)
+
+    assert dark(page) > dark(blank) + 50
+    assert _close_rect(by["f_status"].rect, mark_rect)
+
+
+def _close_rect(a, b, tol=0.5) -> bool:
+    return all(abs(x - y) <= tol for x, y in zip(a, b))

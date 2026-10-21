@@ -22,7 +22,14 @@ from formcast.render.binding import Binding, Target, bind, cell_key
 from formcast.render.fit import Fit, fit_text
 from formcast.render.report import FillReport, FillWarning
 from formcast.render.values import CellTarget, Resolved, resolve
-from formcast.render.write import read_existing, text_font_for, write_choice, write_choice_mark, write_text
+from formcast.render.write import (
+    read_existing,
+    text_font_for,
+    widget_rotation,
+    write_choice,
+    write_choice_mark,
+    write_text,
+)
 from formcast.schema import flatten_schema, validate_data
 from formcast.template.model import Style, Template
 from formcast.transforms import validate_chain
@@ -265,6 +272,9 @@ def _fit(page: pymupdf.Page, s: Slot, b: Binding, text: str, style: Style, lines
         comb = max_len if flags & pymupdf.PDF_TX_FIELD_IS_COMB and max_len else None
         if not multiline:
             lines = None  # a single-line widget draws one line whatever the column's wrap
+    if widget_rotation(page, b) in (90, 270):  # the text runs along the rect's height (/MK /R)
+        x0, y0, x1, y1 = rect
+        rect = (x0, y0, x0 + (y1 - y0), y0 + (x1 - x0))
     return fit_text(text, rect, font_size=style.font_size, min_font_size=style.min_font_size, fontname=font,
                     multiline=multiline or lines is not None, max_lines=lines, max_len=max_len, comb=comb)  # fmt: skip
 
