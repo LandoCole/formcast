@@ -1,0 +1,465 @@
+{
+ "form": "ndguard",
+ "fields": [
+  {
+   "page": 0,
+   "rect": [
+    63.64,
+    161.18,
+    307.44,
+    175.18
+   ],
+   "type": "text",
+   "label": "Name",
+   "path": "requester.first_name",
+   "also_paths": [
+    "requester.last_name"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    330.16,
+    161.18,
+    425.4,
+    175.18
+   ],
+   "type": "text",
+   "label": "DOB",
+   "path": "requester.date_of_birth",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    464.72,
+    161.18,
+    569.64,
+    175.18
+   ],
+   "type": "text",
+   "label": "Phone #",
+   "path": "requester.phone"
+  },
+  {
+   "page": 0,
+   "rect": [
+    130.35,
+    193.46,
+    307.08,
+    207.46
+   ],
+   "type": "text",
+   "label": "Maiden/Other Name"
+  },
+  {
+   "page": 0,
+   "rect": [
+    327.99,
+    193.46,
+    423.36,
+    207.46
+   ],
+   "type": "text",
+   "label": "SSN",
+   "path": "requester.ssn"
+  },
+  {
+   "page": 0,
+   "rect": [
+    437.67,
+    193.46,
+    571.2,
+    207.46
+   ],
+   "type": "text",
+   "label": "SN",
+   "path": "requester.service_number"
+  },
+  {
+   "page": 0,
+   "rect": [
+    76.35,
+    225.62,
+    184.6,
+    239.62
+   ],
+   "type": "text",
+   "label": "Address - Street",
+   "path": "requester.address.street"
+  },
+  {
+   "page": 0,
+   "rect": [
+    184.6,
+    225.62,
+    322.0,
+    239.62
+   ],
+   "type": "text",
+   "label": "Address - City",
+   "path": "requester.address.city"
+  },
+  {
+   "page": 0,
+   "rect": [
+    322.0,
+    225.62,
+    434.31,
+    239.62
+   ],
+   "type": "text",
+   "label": "Address - State",
+   "path": "requester.address.state"
+  },
+  {
+   "page": 0,
+   "rect": [
+    434.31,
+    225.62,
+    573.72,
+    239.62
+   ],
+   "type": "text",
+   "label": "Address - Zip",
+   "path": "requester.address.postal_code"
+  },
+  {
+   "page": 0,
+   "rect": [
+    124.17,
+    255.5,
+    200.64,
+    269.5
+   ],
+   "type": "text",
+   "label": "Branch of Military:",
+   "path": "service.branch"
+  },
+  {
+   "page": 0,
+   "rect": [
+    200.64,
+    256.36,
+    214.67,
+    270.62
+   ],
+   "type": "choice",
+   "label": "AD/NG/Res (Circle one): AD",
+   "path": "service.component",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    217.56,
+    256.36,
+    232.51,
+    270.62
+   ],
+   "type": "choice",
+   "label": "AD/NG/Res (Circle one): NG",
+   "path": "service.component",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    235.32,
+    256.36,
+    253.58,
+    270.62
+   ],
+   "type": "choice",
+   "label": "AD/NG/Res (Circle one): Res",
+   "path": "service.component",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    344.84,
+    255.5,
+    445.2,
+    269.5
+   ],
+   "type": "text",
+   "label": "Dates of Service:",
+   "path": "service.start_date",
+   "also_paths": [
+    "service.end_date"
+   ],
+   "transforms": [
+    "date_format",
+    "join"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    473.38,
+    255.5,
+    576.0,
+    269.5
+   ],
+   "type": "text",
+   "label": "Rank:",
+   "path": "service.rank"
+  },
+  {
+   "page": 0,
+   "rect": [
+    101.38,
+    331.94,
+    574.8,
+    345.94
+   ],
+   "type": "text",
+   "label": "To release to: (Full Name of person/facility to receive information)",
+   "path": "recipient.name"
+  },
+  {
+   "page": 0,
+   "rect": [
+    123.36,
+    361.32,
+    573.74,
+    375.32
+   ],
+   "type": "text",
+   "label": "Release by: Mail (Address of person/facility and Telephone Number)",
+   "path": "recipient.address.street",
+   "also_paths": [
+    "recipient.address.city",
+    "recipient.address.state",
+    "recipient.address.postal_code",
+    "recipient.phone"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    124.08,
+    391.2,
+    568.95,
+    405.2
+   ],
+   "type": "text",
+   "label": "Fax: (Fax number of person/facility and Telephone Number)",
+   "path": "recipient.fax",
+   "also_paths": [
+    "recipient.phone"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    166.7,
+    421.08,
+    566.57,
+    435.08
+   ],
+   "type": "text",
+   "label": "Email Address: (of person/facility and Telephone Number)",
+   "path": "recipient.email",
+   "also_paths": [
+    "recipient.phone"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    40.8,
+    457.46,
+    76.2,
+    467.8
+   ],
+   "type": "choice",
+   "label": "The following information: DD Form 214 (Active Duty discharge)",
+   "path": "documents_requested",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    255.6,
+    453.8,
+    291.0,
+    467.8
+   ],
+   "type": "choice",
+   "label": "The following information: NGB Form 22 (NG discharge)",
+   "path": "documents_requested",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    40.44,
+    466.8,
+    75.84,
+    479.32
+   ],
+   "type": "choice",
+   "label": "The following information: NGB Form 23 (Retirement History)",
+   "path": "documents_requested",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    256.2,
+    466.8,
+    291.6,
+    479.32
+   ],
+   "type": "choice",
+   "label": "The following information: Medical documentation dated/related to:",
+   "path": "documents_requested",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    40.44,
+    478.32,
+    75.84,
+    490.84
+   ],
+   "type": "choice",
+   "label": "The following information: Other: (Specify below)",
+   "path": "documents_requested",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    470.32,
+    466.3,
+    576.0,
+    479.3
+   ],
+   "type": "text",
+   "label": "Medical documentation dated/related to:"
+  },
+  {
+   "page": 0,
+   "rect": [
+    36.0,
+    491.64,
+    576.0,
+    502.42
+   ],
+   "type": "text",
+   "label": "Other: (Specify below)",
+   "path": "other_documents"
+  },
+  {
+   "page": 0,
+   "rect": [
+    36.0,
+    526.47,
+    576.0,
+    536.86
+   ],
+   "type": "text",
+   "label": "Reason for Request:",
+   "path": "reason"
+  },
+  {
+   "page": 0,
+   "rect": [
+    36.0,
+    545.9,
+    576.0,
+    559.9
+   ],
+   "type": "text",
+   "label": "Reason for Request: (line 2)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    82.59,
+    595.08,
+    148.44,
+    605.8
+   ],
+   "type": "text",
+   "label": "expires on",
+   "path": "authorization_expires_on",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    36.0,
+    672.32,
+    235.65,
+    686.32
+   ],
+   "type": "signature",
+   "label": "Signature of Person or Responsible Party"
+  },
+  {
+   "page": 0,
+   "rect": [
+    235.65,
+    672.32,
+    418.1,
+    686.32
+   ],
+   "type": "text",
+   "label": "Relationship",
+   "path": "signer_relationship"
+  },
+  {
+   "page": 0,
+   "rect": [
+    418.1,
+    672.32,
+    576.0,
+    686.32
+   ],
+   "type": "text",
+   "label": "Date",
+   "path": "signed_on",
+   "transforms": [
+    "date_format"
+   ]
+  }
+ ],
+ "notes": "Excluded: 'For NGND-G1 Internal Use Only' table (Received/Completed/Mailed-Faxed-Other, initials, date) and the pre-printed, already-filled 'I hereby authorize North Dakota Army National Guard ... FAX' underlines. Address line and the signature line are split at their printed sub-labels. 'AD/NG/Res (Circle one)' is one choice box per option word. The unlined space after 'Medical documentation dated/related to:' is a text blank. 'Reason for Request' has two lines; only the first carries the path."
+}

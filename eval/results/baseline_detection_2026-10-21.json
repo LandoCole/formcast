@@ -6,13 +6,31 @@
   "page": 0,
   "variant": "as_published",
   "detector": "FFDNet-L",
-  "gt": null,
+  "gt": 27,
   "pred": 27,
   "pred_by_type": {
    "text": 27,
    "choice": 0,
    "signature": 0
-  }
+  },
+  "matched@0.5": 27,
+  "type_ok@0.5": 25,
+  "missed_by_type@0.5": {
+   "text": 0,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.5": 1.0,
+  "precision@0.5": 1.0,
+  "matched@0.3": 27,
+  "type_ok@0.3": 25,
+  "missed_by_type@0.3": {
+   "text": 0,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.3": 1.0,
+  "precision@0.3": 1.0
  },
  {
   "form": "wadoc_auth",
@@ -21,13 +39,31 @@
   "page": 0,
   "variant": "as_published",
   "detector": "FFDetr",
-  "gt": null,
+  "gt": 27,
   "pred": 26,
   "pred_by_type": {
    "text": 25,
    "choice": 0,
    "signature": 1
-  }
+  },
+  "matched@0.5": 26,
+  "type_ok@0.5": 25,
+  "missed_by_type@0.5": {
+   "text": 1,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.5": 0.963,
+  "precision@0.5": 1.0,
+  "matched@0.3": 26,
+  "type_ok@0.3": 25,
+  "missed_by_type@0.3": {
+   "text": 1,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.3": 0.963,
+  "precision@0.3": 1.0
  },
  {
   "form": "wadoc_auth",
@@ -36,13 +72,31 @@
   "page": 0,
   "variant": "fake_scan",
   "detector": "FFDNet-L",
-  "gt": null,
+  "gt": 27,
   "pred": 27,
   "pred_by_type": {
    "text": 27,
    "choice": 0,
    "signature": 0
-  }
+  },
+  "matched@0.5": 23,
+  "type_ok@0.5": 21,
+  "missed_by_type@0.5": {
+   "text": 4,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.5": 0.8519,
+  "precision@0.5": 0.8519,
+  "matched@0.3": 27,
+  "type_ok@0.3": 25,
+  "missed_by_type@0.3": {
+   "text": 0,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.3": 1.0,
+  "precision@0.3": 1.0
  },
  {
   "form": "wadoc_auth",
@@ -51,13 +105,31 @@
   "page": 0,
   "variant": "fake_scan",
   "detector": "FFDetr",
-  "gt": null,
+  "gt": 27,
   "pred": 26,
   "pred_by_type": {
    "text": 26,
    "choice": 0,
    "signature": 0
-  }
+  },
+  "matched@0.5": 12,
+  "type_ok@0.5": 10,
+  "missed_by_type@0.5": {
+   "text": 15,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.5": 0.4444,
+  "precision@0.5": 0.4615,
+  "matched@0.3": 26,
+  "type_ok@0.3": 24,
+  "missed_by_type@0.3": {
+   "text": 1,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.3": 0.963,
+  "precision@0.3": 1.0
  },
  {
   "form": "coleman_pir",
@@ -198,13 +270,31 @@
   "page": 0,
   "variant": "as_published",
   "detector": "FFDNet-L",
-  "gt": null,
+  "gt": 33,
   "pred": 32,
   "pred_by_type": {
    "text": 32,
    "choice": 0,
    "signature": 0
-  }
+  },
+  "matched@0.5": 21,
+  "type_ok@0.5": 16,
+  "missed_by_type@0.5": {
+   "text": 8,
+   "choice": 3,
+   "signature": 1
+  },
+  "recall@0.5": 0.6364,
+  "precision@0.5": 0.6562,
+  "matched@0.3": 22,
+  "type_ok@0.3": 17,
+  "missed_by_type@0.3": {
+   "text": 7,
+   "choice": 3,
+   "signature": 1
+  },
+  "recall@0.3": 0.6667,
+  "precision@0.3": 0.6875
  },
  {
   "form": "ndguard",
@@ -213,13 +303,31 @@
   "page": 0,
   "variant": "as_published",
   "detector": "FFDetr",
-  "gt": null,
+  "gt": 33,
   "pred": 31,
   "pred_by_type": {
    "text": 30,
    "choice": 1,
    "signature": 0
-  }
+  },
+  "matched@0.5": 20,
+  "type_ok@0.5": 16,
+  "missed_by_type@0.5": {
+   "text": 9,
+   "choice": 3,
+   "signature": 1
+  },
+  "recall@0.5": 0.6061,
+  "precision@0.5": 0.6452,
+  "matched@0.3": 22,
+  "type_ok@0.3": 18,
+  "missed_by_type@0.3": {
+   "text": 7,
+   "choice": 3,
+   "signature": 1
+  },
+  "recall@0.3": 0.6667,
+  "precision@0.3": 0.7097
  },
  {
   "form": "ndguard",
@@ -228,13 +336,31 @@
   "page": 0,
   "variant": "fake_scan",
   "detector": "FFDNet-L",
-  "gt": null,
+  "gt": 33,
   "pred": 15,
   "pred_by_type": {
    "text": 15,
    "choice": 0,
    "signature": 0
-  }
+  },
+  "matched@0.5": 14,
+  "type_ok@0.5": 14,
+  "missed_by_type@0.5": {
+   "text": 10,
+   "choice": 8,
+   "signature": 1
+  },
+  "recall@0.5": 0.4242,
+  "precision@0.5": 0.9333,
+  "matched@0.3": 14,
+  "type_ok@0.3": 14,
+  "missed_by_type@0.3": {
+   "text": 10,
+   "choice": 8,
+   "signature": 1
+  },
+  "recall@0.3": 0.4242,
+  "precision@0.3": 0.9333
  },
  {
   "form": "ndguard",
@@ -243,13 +369,31 @@
   "page": 0,
   "variant": "fake_scan",
   "detector": "FFDetr",
-  "gt": null,
+  "gt": 33,
   "pred": 34,
   "pred_by_type": {
    "text": 34,
    "choice": 0,
    "signature": 0
-  }
+  },
+  "matched@0.5": 21,
+  "type_ok@0.5": 16,
+  "missed_by_type@0.5": {
+   "text": 8,
+   "choice": 3,
+   "signature": 1
+  },
+  "recall@0.5": 0.6364,
+  "precision@0.5": 0.6176,
+  "matched@0.3": 25,
+  "type_ok@0.3": 19,
+  "missed_by_type@0.3": {
+   "text": 5,
+   "choice": 3,
+   "signature": 0
+  },
+  "recall@0.3": 0.7576,
+  "precision@0.3": 0.7353
  },
  {
   "form": "i9",
@@ -918,13 +1062,31 @@
   "page": 0,
   "variant": "as_published",
   "detector": "FFDNet-L",
-  "gt": null,
+  "gt": 254,
   "pred": 157,
   "pred_by_type": {
    "text": 134,
    "choice": 23,
    "signature": 0
-  }
+  },
+  "matched@0.5": 126,
+  "type_ok@0.5": 115,
+  "missed_by_type@0.5": {
+   "text": 124,
+   "choice": 3,
+   "signature": 1
+  },
+  "recall@0.5": 0.4961,
+  "precision@0.5": 0.8025,
+  "matched@0.3": 131,
+  "type_ok@0.3": 120,
+  "missed_by_type@0.3": {
+   "text": 119,
+   "choice": 3,
+   "signature": 1
+  },
+  "recall@0.3": 0.5157,
+  "precision@0.3": 0.8344
  },
  {
   "form": "cms1500",
@@ -933,13 +1095,31 @@
   "page": 0,
   "variant": "as_published",
   "detector": "FFDetr",
-  "gt": null,
+  "gt": 254,
   "pred": 43,
   "pred_by_type": {
    "text": 23,
    "choice": 20,
    "signature": 0
-  }
+  },
+  "matched@0.5": 27,
+  "type_ok@0.5": 26,
+  "missed_by_type@0.5": {
+   "text": 211,
+   "choice": 13,
+   "signature": 3
+  },
+  "recall@0.5": 0.1063,
+  "precision@0.5": 0.6279,
+  "matched@0.3": 33,
+  "type_ok@0.3": 30,
+  "missed_by_type@0.3": {
+   "text": 210,
+   "choice": 10,
+   "signature": 1
+  },
+  "recall@0.3": 0.1299,
+  "precision@0.3": 0.7674
  },
  {
   "form": "cms1500",
@@ -948,13 +1128,31 @@
   "page": 0,
   "variant": "fake_scan",
   "detector": "FFDNet-L",
-  "gt": null,
+  "gt": 254,
   "pred": 156,
   "pred_by_type": {
    "text": 142,
    "choice": 14,
    "signature": 0
-  }
+  },
+  "matched@0.5": 46,
+  "type_ok@0.5": 44,
+  "missed_by_type@0.5": {
+   "text": 185,
+   "choice": 22,
+   "signature": 1
+  },
+  "recall@0.5": 0.1811,
+  "precision@0.5": 0.2949,
+  "matched@0.3": 112,
+  "type_ok@0.3": 110,
+  "missed_by_type@0.3": {
+   "text": 122,
+   "choice": 19,
+   "signature": 1
+  },
+  "recall@0.3": 0.4409,
+  "precision@0.3": 0.7179
  },
  {
   "form": "cms1500",
@@ -963,13 +1161,31 @@
   "page": 0,
   "variant": "fake_scan",
   "detector": "FFDetr",
-  "gt": null,
+  "gt": 254,
   "pred": 18,
   "pred_by_type": {
    "text": 0,
    "choice": 18,
    "signature": 0
-  }
+  },
+  "matched@0.5": 3,
+  "type_ok@0.5": 3,
+  "missed_by_type@0.5": {
+   "text": 222,
+   "choice": 26,
+   "signature": 3
+  },
+  "recall@0.5": 0.0118,
+  "precision@0.5": 0.1667,
+  "matched@0.3": 11,
+  "type_ok@0.3": 11,
+  "missed_by_type@0.3": {
+   "text": 222,
+   "choice": 18,
+   "signature": 3
+  },
+  "recall@0.3": 0.0433,
+  "precision@0.3": 0.6111
  },
  {
   "form": "menomonie_app",
@@ -1638,13 +1854,31 @@
   "page": 0,
   "variant": "as_published",
   "detector": "FFDNet-L",
-  "gt": null,
+  "gt": 101,
   "pred": 90,
   "pred_by_type": {
    "text": 59,
    "choice": 31,
    "signature": 0
-  }
+  },
+  "matched@0.5": 76,
+  "type_ok@0.5": 60,
+  "missed_by_type@0.5": {
+   "text": 20,
+   "choice": 5,
+   "signature": 0
+  },
+  "recall@0.5": 0.7525,
+  "precision@0.5": 0.8444,
+  "matched@0.3": 80,
+  "type_ok@0.3": 64,
+  "missed_by_type@0.3": {
+   "text": 16,
+   "choice": 5,
+   "signature": 0
+  },
+  "recall@0.3": 0.7921,
+  "precision@0.3": 0.8889
  },
  {
   "form": "grandview_app",
@@ -1653,13 +1887,31 @@
   "page": 0,
   "variant": "as_published",
   "detector": "FFDetr",
-  "gt": null,
+  "gt": 101,
   "pred": 81,
   "pred_by_type": {
    "text": 49,
    "choice": 32,
    "signature": 0
-  }
+  },
+  "matched@0.5": 58,
+  "type_ok@0.5": 58,
+  "missed_by_type@0.5": {
+   "text": 28,
+   "choice": 15,
+   "signature": 0
+  },
+  "recall@0.5": 0.5743,
+  "precision@0.5": 0.716,
+  "matched@0.3": 73,
+  "type_ok@0.3": 73,
+  "missed_by_type@0.3": {
+   "text": 15,
+   "choice": 13,
+   "signature": 0
+  },
+  "recall@0.3": 0.7228,
+  "precision@0.3": 0.9012
  },
  {
   "form": "grandview_app",
@@ -1668,13 +1920,31 @@
   "page": 0,
   "variant": "fake_scan",
   "detector": "FFDNet-L",
-  "gt": null,
+  "gt": 101,
   "pred": 51,
   "pred_by_type": {
    "text": 49,
    "choice": 2,
    "signature": 0
-  }
+  },
+  "matched@0.5": 37,
+  "type_ok@0.5": 31,
+  "missed_by_type@0.5": {
+   "text": 27,
+   "choice": 37,
+   "signature": 0
+  },
+  "recall@0.5": 0.3663,
+  "precision@0.5": 0.7255,
+  "matched@0.3": 41,
+  "type_ok@0.3": 32,
+  "missed_by_type@0.3": {
+   "text": 26,
+   "choice": 34,
+   "signature": 0
+  },
+  "recall@0.3": 0.4059,
+  "precision@0.3": 0.8039
  },
  {
   "form": "grandview_app",
@@ -1683,13 +1953,31 @@
   "page": 0,
   "variant": "fake_scan",
   "detector": "FFDetr",
-  "gt": null,
+  "gt": 101,
   "pred": 79,
   "pred_by_type": {
    "text": 40,
    "choice": 39,
    "signature": 0
-  }
+  },
+  "matched@0.5": 51,
+  "type_ok@0.5": 51,
+  "missed_by_type@0.5": {
+   "text": 29,
+   "choice": 21,
+   "signature": 0
+  },
+  "recall@0.5": 0.505,
+  "precision@0.5": 0.6456,
+  "matched@0.3": 71,
+  "type_ok@0.3": 71,
+  "missed_by_type@0.3": {
+   "text": 24,
+   "choice": 6,
+   "signature": 0
+  },
+  "recall@0.3": 0.703,
+  "precision@0.3": 0.8987
  },
  {
   "form": "grandview_app",
@@ -1698,13 +1986,31 @@
   "page": 1,
   "variant": "as_published",
   "detector": "FFDNet-L",
-  "gt": null,
+  "gt": 112,
   "pred": 82,
   "pred_by_type": {
    "text": 64,
    "choice": 18,
    "signature": 0
-  }
+  },
+  "matched@0.5": 81,
+  "type_ok@0.5": 81,
+  "missed_by_type@0.5": {
+   "text": 20,
+   "choice": 11,
+   "signature": 0
+  },
+  "recall@0.5": 0.7232,
+  "precision@0.5": 0.9878,
+  "matched@0.3": 82,
+  "type_ok@0.3": 82,
+  "missed_by_type@0.3": {
+   "text": 20,
+   "choice": 10,
+   "signature": 0
+  },
+  "recall@0.3": 0.7321,
+  "precision@0.3": 1.0
  },
  {
   "form": "grandview_app",
@@ -1713,13 +2019,31 @@
   "page": 1,
   "variant": "as_published",
   "detector": "FFDetr",
-  "gt": null,
+  "gt": 112,
   "pred": 81,
   "pred_by_type": {
    "text": 61,
    "choice": 20,
    "signature": 0
-  }
+  },
+  "matched@0.5": 63,
+  "type_ok@0.5": 63,
+  "missed_by_type@0.5": {
+   "text": 33,
+   "choice": 16,
+   "signature": 0
+  },
+  "recall@0.5": 0.5625,
+  "precision@0.5": 0.7778,
+  "matched@0.3": 71,
+  "type_ok@0.3": 71,
+  "missed_by_type@0.3": {
+   "text": 27,
+   "choice": 14,
+   "signature": 0
+  },
+  "recall@0.3": 0.6339,
+  "precision@0.3": 0.8765
  },
  {
   "form": "grandview_app",
@@ -1728,13 +2052,31 @@
   "page": 1,
   "variant": "fake_scan",
   "detector": "FFDNet-L",
-  "gt": null,
+  "gt": 112,
   "pred": 84,
   "pred_by_type": {
    "text": 69,
    "choice": 15,
    "signature": 0
-  }
+  },
+  "matched@0.5": 84,
+  "type_ok@0.5": 84,
+  "missed_by_type@0.5": {
+   "text": 15,
+   "choice": 13,
+   "signature": 0
+  },
+  "recall@0.5": 0.75,
+  "precision@0.5": 1.0,
+  "matched@0.3": 84,
+  "type_ok@0.3": 84,
+  "missed_by_type@0.3": {
+   "text": 15,
+   "choice": 13,
+   "signature": 0
+  },
+  "recall@0.3": 0.75,
+  "precision@0.3": 1.0
  },
  {
   "form": "grandview_app",
@@ -1743,13 +2085,31 @@
   "page": 1,
   "variant": "fake_scan",
   "detector": "FFDetr",
-  "gt": null,
+  "gt": 112,
   "pred": 74,
   "pred_by_type": {
    "text": 57,
    "choice": 17,
    "signature": 0
-  }
+  },
+  "matched@0.5": 61,
+  "type_ok@0.5": 61,
+  "missed_by_type@0.5": {
+   "text": 35,
+   "choice": 16,
+   "signature": 0
+  },
+  "recall@0.5": 0.5446,
+  "precision@0.5": 0.8243,
+  "matched@0.3": 72,
+  "type_ok@0.3": 72,
+  "missed_by_type@0.3": {
+   "text": 28,
+   "choice": 12,
+   "signature": 0
+  },
+  "recall@0.3": 0.6429,
+  "precision@0.3": 0.973
  },
  {
   "form": "grandview_app",
@@ -1758,13 +2118,31 @@
   "page": 2,
   "variant": "as_published",
   "detector": "FFDNet-L",
-  "gt": null,
+  "gt": 97,
   "pred": 80,
   "pred_by_type": {
    "text": 64,
    "choice": 16,
    "signature": 0
-  }
+  },
+  "matched@0.5": 74,
+  "type_ok@0.5": 73,
+  "missed_by_type@0.5": {
+   "text": 14,
+   "choice": 9,
+   "signature": 0
+  },
+  "recall@0.5": 0.7629,
+  "precision@0.5": 0.925,
+  "matched@0.3": 76,
+  "type_ok@0.3": 75,
+  "missed_by_type@0.3": {
+   "text": 12,
+   "choice": 9,
+   "signature": 0
+  },
+  "recall@0.3": 0.7835,
+  "precision@0.3": 0.95
  },
  {
   "form": "grandview_app",
@@ -1773,13 +2151,31 @@
   "page": 2,
   "variant": "as_published",
   "detector": "FFDetr",
-  "gt": null,
+  "gt": 97,
   "pred": 60,
   "pred_by_type": {
    "text": 54,
    "choice": 6,
    "signature": 0
-  }
+  },
+  "matched@0.5": 47,
+  "type_ok@0.5": 47,
+  "missed_by_type@0.5": {
+   "text": 27,
+   "choice": 23,
+   "signature": 0
+  },
+  "recall@0.5": 0.4845,
+  "precision@0.5": 0.7833,
+  "matched@0.3": 58,
+  "type_ok@0.3": 58,
+  "missed_by_type@0.3": {
+   "text": 19,
+   "choice": 20,
+   "signature": 0
+  },
+  "recall@0.3": 0.5979,
+  "precision@0.3": 0.9667
  },
  {
   "form": "grandview_app",
@@ -1788,13 +2184,31 @@
   "page": 2,
   "variant": "fake_scan",
   "detector": "FFDNet-L",
-  "gt": null,
+  "gt": 97,
   "pred": 55,
   "pred_by_type": {
    "text": 55,
    "choice": 0,
    "signature": 0
-  }
+  },
+  "matched@0.5": 51,
+  "type_ok@0.5": 47,
+  "missed_by_type@0.5": {
+   "text": 25,
+   "choice": 21,
+   "signature": 0
+  },
+  "recall@0.5": 0.5258,
+  "precision@0.5": 0.9273,
+  "matched@0.3": 53,
+  "type_ok@0.3": 49,
+  "missed_by_type@0.3": {
+   "text": 23,
+   "choice": 21,
+   "signature": 0
+  },
+  "recall@0.3": 0.5464,
+  "precision@0.3": 0.9636
  },
  {
   "form": "grandview_app",
@@ -1803,13 +2217,31 @@
   "page": 2,
   "variant": "fake_scan",
   "detector": "FFDetr",
-  "gt": null,
+  "gt": 97,
   "pred": 44,
   "pred_by_type": {
    "text": 35,
    "choice": 9,
    "signature": 0
-  }
+  },
+  "matched@0.5": 37,
+  "type_ok@0.5": 37,
+  "missed_by_type@0.5": {
+   "text": 38,
+   "choice": 22,
+   "signature": 0
+  },
+  "recall@0.5": 0.3814,
+  "precision@0.5": 0.8409,
+  "matched@0.3": 40,
+  "type_ok@0.3": 40,
+  "missed_by_type@0.3": {
+   "text": 38,
+   "choice": 19,
+   "signature": 0
+  },
+  "recall@0.3": 0.4124,
+  "precision@0.3": 0.9091
  },
  {
   "form": "grandview_app",
@@ -1818,13 +2250,31 @@
   "page": 3,
   "variant": "as_published",
   "detector": "FFDNet-L",
-  "gt": null,
+  "gt": 13,
   "pred": 8,
   "pred_by_type": {
    "text": 5,
    "choice": 3,
    "signature": 0
-  }
+  },
+  "matched@0.5": 7,
+  "type_ok@0.5": 7,
+  "missed_by_type@0.5": {
+   "text": 5,
+   "choice": 0,
+   "signature": 1
+  },
+  "recall@0.5": 0.5385,
+  "precision@0.5": 0.875,
+  "matched@0.3": 8,
+  "type_ok@0.3": 8,
+  "missed_by_type@0.3": {
+   "text": 4,
+   "choice": 0,
+   "signature": 1
+  },
+  "recall@0.3": 0.6154,
+  "precision@0.3": 1.0
  },
  {
   "form": "grandview_app",
@@ -1833,13 +2283,31 @@
   "page": 3,
   "variant": "as_published",
   "detector": "FFDetr",
-  "gt": null,
+  "gt": 13,
   "pred": 11,
   "pred_by_type": {
    "text": 8,
    "choice": 3,
    "signature": 0
-  }
+  },
+  "matched@0.5": 8,
+  "type_ok@0.5": 7,
+  "missed_by_type@0.5": {
+   "text": 5,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.5": 0.6154,
+  "precision@0.5": 0.7273,
+  "matched@0.3": 11,
+  "type_ok@0.3": 10,
+  "missed_by_type@0.3": {
+   "text": 2,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.3": 0.8462,
+  "precision@0.3": 1.0
  },
  {
   "form": "grandview_app",
@@ -1848,13 +2316,31 @@
   "page": 3,
   "variant": "fake_scan",
   "detector": "FFDNet-L",
-  "gt": null,
+  "gt": 13,
   "pred": 9,
   "pred_by_type": {
    "text": 6,
    "choice": 3,
    "signature": 0
-  }
+  },
+  "matched@0.5": 8,
+  "type_ok@0.5": 8,
+  "missed_by_type@0.5": {
+   "text": 4,
+   "choice": 0,
+   "signature": 1
+  },
+  "recall@0.5": 0.6154,
+  "precision@0.5": 0.8889,
+  "matched@0.3": 9,
+  "type_ok@0.3": 9,
+  "missed_by_type@0.3": {
+   "text": 3,
+   "choice": 0,
+   "signature": 1
+  },
+  "recall@0.3": 0.6923,
+  "precision@0.3": 1.0
  },
  {
   "form": "grandview_app",
@@ -1863,13 +2349,31 @@
   "page": 3,
   "variant": "fake_scan",
   "detector": "FFDetr",
-  "gt": null,
+  "gt": 13,
   "pred": 12,
   "pred_by_type": {
    "text": 8,
    "choice": 4,
    "signature": 0
-  }
+  },
+  "matched@0.5": 8,
+  "type_ok@0.5": 8,
+  "missed_by_type@0.5": {
+   "text": 4,
+   "choice": 0,
+   "signature": 1
+  },
+  "recall@0.5": 0.6154,
+  "precision@0.5": 0.6667,
+  "matched@0.3": 9,
+  "type_ok@0.3": 9,
+  "missed_by_type@0.3": {
+   "text": 3,
+   "choice": 0,
+   "signature": 1
+  },
+  "recall@0.3": 0.6923,
+  "precision@0.3": 0.75
  },
  {
   "form": "csudh_health",
@@ -1878,13 +2382,31 @@
   "page": 0,
   "variant": "as_published",
   "detector": "FFDNet-L",
-  "gt": null,
+  "gt": 87,
   "pred": 87,
   "pred_by_type": {
    "text": 32,
    "choice": 55,
    "signature": 0
-  }
+  },
+  "matched@0.5": 86,
+  "type_ok@0.5": 86,
+  "missed_by_type@0.5": {
+   "text": 1,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.5": 0.9885,
+  "precision@0.5": 0.9885,
+  "matched@0.3": 86,
+  "type_ok@0.3": 86,
+  "missed_by_type@0.3": {
+   "text": 1,
+   "choice": 0,
+   "signature": 0
+  },
+  "recall@0.3": 0.9885,
+  "precision@0.3": 0.9885
  },
  {
   "form": "csudh_health",
@@ -1893,13 +2415,31 @@
   "page": 0,
   "variant": "as_published",
   "detector": "FFDetr",
-  "gt": null,
+  "gt": 87,
   "pred": 51,
   "pred_by_type": {
    "text": 18,
    "choice": 33,
    "signature": 0
-  }
+  },
+  "matched@0.5": 33,
+  "type_ok@0.5": 33,
+  "missed_by_type@0.5": {
+   "text": 16,
+   "choice": 38,
+   "signature": 0
+  },
+  "recall@0.5": 0.3793,
+  "precision@0.5": 0.6471,
+  "matched@0.3": 46,
+  "type_ok@0.3": 46,
+  "missed_by_type@0.3": {
+   "text": 15,
+   "choice": 26,
+   "signature": 0
+  },
+  "recall@0.3": 0.5287,
+  "precision@0.3": 0.902
  },
  {
   "form": "csudh_health",
@@ -1908,13 +2448,31 @@
   "page": 0,
   "variant": "fake_scan",
   "detector": "FFDNet-L",
-  "gt": null,
+  "gt": 87,
   "pred": 0,
   "pred_by_type": {
    "text": 0,
    "choice": 0,
    "signature": 0
-  }
+  },
+  "matched@0.5": 0,
+  "type_ok@0.5": 0,
+  "missed_by_type@0.5": {
+   "text": 32,
+   "choice": 55,
+   "signature": 0
+  },
+  "recall@0.5": 0.0,
+  "precision@0.5": 0.0,
+  "matched@0.3": 0,
+  "type_ok@0.3": 0,
+  "missed_by_type@0.3": {
+   "text": 32,
+   "choice": 55,
+   "signature": 0
+  },
+  "recall@0.3": 0.0,
+  "precision@0.3": 0.0
  },
  {
   "form": "csudh_health",
@@ -1923,13 +2481,31 @@
   "page": 0,
   "variant": "fake_scan",
   "detector": "FFDetr",
-  "gt": null,
+  "gt": 87,
   "pred": 61,
   "pred_by_type": {
    "text": 22,
    "choice": 39,
    "signature": 0
-  }
+  },
+  "matched@0.5": 38,
+  "type_ok@0.5": 38,
+  "missed_by_type@0.5": {
+   "text": 14,
+   "choice": 35,
+   "signature": 0
+  },
+  "recall@0.5": 0.4368,
+  "precision@0.5": 0.623,
+  "matched@0.3": 55,
+  "type_ok@0.3": 55,
+  "missed_by_type@0.3": {
+   "text": 10,
+   "choice": 22,
+   "signature": 0
+  },
+  "recall@0.3": 0.6322,
+  "precision@0.3": 0.9016
  },
  {
   "form": "csudh_health",
@@ -1938,13 +2514,31 @@
   "page": 1,
   "variant": "as_published",
   "detector": "FFDNet-L",
-  "gt": null,
+  "gt": 88,
   "pred": 86,
   "pred_by_type": {
    "text": 26,
    "choice": 60,
    "signature": 0
-  }
+  },
+  "matched@0.5": 85,
+  "type_ok@0.5": 83,
+  "missed_by_type@0.5": {
+   "text": 0,
+   "choice": 3,
+   "signature": 0
+  },
+  "recall@0.5": 0.9659,
+  "precision@0.5": 0.9884,
+  "matched@0.3": 85,
+  "type_ok@0.3": 83,
+  "missed_by_type@0.3": {
+   "text": 0,
+   "choice": 3,
+   "signature": 0
+  },
+  "recall@0.3": 0.9659,
+  "precision@0.3": 0.9884
  },
  {
   "form": "csudh_health",
@@ -1953,13 +2547,31 @@
   "page": 1,
   "variant": "as_published",
   "detector": "FFDetr",
-  "gt": null,
+  "gt": 88,
   "pred": 62,
   "pred_by_type": {
    "text": 18,
    "choice": 44,
    "signature": 0
-  }
+  },
+  "matched@0.5": 12,
+  "type_ok@0.5": 11,
+  "missed_by_type@0.5": {
+   "text": 12,
+   "choice": 63,
+   "signature": 1
+  },
+  "recall@0.5": 0.1364,
+  "precision@0.5": 0.1935,
+  "matched@0.3": 56,
+  "type_ok@0.3": 55,
+  "missed_by_type@0.3": {
+   "text": 8,
+   "choice": 23,
+   "signature": 1
+  },
+  "recall@0.3": 0.6364,
+  "precision@0.3": 0.9032
  },
  {
   "form": "csudh_health",
@@ -1968,13 +2580,31 @@
   "page": 1,
   "variant": "fake_scan",
   "detector": "FFDNet-L",
-  "gt": null,
+  "gt": 88,
   "pred": 0,
   "pred_by_type": {
    "text": 0,
    "choice": 0,
    "signature": 0
-  }
+  },
+  "matched@0.5": 0,
+  "type_ok@0.5": 0,
+  "missed_by_type@0.5": {
+   "text": 23,
+   "choice": 63,
+   "signature": 2
+  },
+  "recall@0.5": 0.0,
+  "precision@0.5": 0.0,
+  "matched@0.3": 0,
+  "type_ok@0.3": 0,
+  "missed_by_type@0.3": {
+   "text": 23,
+   "choice": 63,
+   "signature": 2
+  },
+  "recall@0.3": 0.0,
+  "precision@0.3": 0.0
  },
  {
   "form": "csudh_health",
@@ -1983,13 +2613,31 @@
   "page": 1,
   "variant": "fake_scan",
   "detector": "FFDetr",
-  "gt": null,
+  "gt": 88,
   "pred": 71,
   "pred_by_type": {
    "text": 21,
    "choice": 50,
    "signature": 0
-  }
+  },
+  "matched@0.5": 17,
+  "type_ok@0.5": 15,
+  "missed_by_type@0.5": {
+   "text": 8,
+   "choice": 63,
+   "signature": 0
+  },
+  "recall@0.5": 0.1932,
+  "precision@0.5": 0.2394,
+  "matched@0.3": 62,
+  "type_ok@0.3": 60,
+  "missed_by_type@0.3": {
+   "text": 6,
+   "choice": 20,
+   "signature": 0
+  },
+  "recall@0.3": 0.7045,
+  "precision@0.3": 0.8732
  },
  {
   "form": "fw9",

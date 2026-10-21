@@ -1,0 +1,3426 @@
+{
+ "form": "cms1500",
+ "fields": [
+  {
+   "page": 0,
+   "rect": [
+    60.7,
+    144.13,
+    71.78,
+    155.11
+   ],
+   "type": "choice",
+   "label": "1. MEDICARE",
+   "path": "insurance_program",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    109.59,
+    143.93,
+    120.67,
+    154.91
+   ],
+   "type": "choice",
+   "label": "1. MEDICAID",
+   "path": "insurance_program",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    159.98,
+    144.13,
+    171.06,
+    155.11
+   ],
+   "type": "choice",
+   "label": "1. TRICARE",
+   "path": "insurance_program",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    224.78,
+    143.93,
+    235.86,
+    154.91
+   ],
+   "type": "choice",
+   "label": "1. CHAMPVA",
+   "path": "insurance_program",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    275.38,
+    143.93,
+    286.46,
+    154.91
+   ],
+   "type": "choice",
+   "label": "1. GROUP HEALTH PLAN",
+   "path": "insurance_program",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    332.87,
+    143.93,
+    343.95,
+    154.91
+   ],
+   "type": "choice",
+   "label": "1. FECA BLK LUNG",
+   "path": "insurance_program",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    376.17,
+    143.93,
+    387.25,
+    154.91
+   ],
+   "type": "choice",
+   "label": "1. OTHER",
+   "path": "insurance_program",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    412.3,
+    143.0,
+    627.4,
+    156.0
+   ],
+   "type": "text",
+   "label": "1a. INSURED'S I.D. NUMBER",
+   "path": "insured.id_number"
+  },
+  {
+   "page": 0,
+   "rect": [
+    61.4,
+    165.69,
+    265.6,
+    178.6
+   ],
+   "type": "text",
+   "label": "2. PATIENT'S NAME (Last Name, First Name, Middle Initial)",
+   "path": "patient.last_name",
+   "also_paths": [
+    "patient.first_name",
+    "patient.middle_initial"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    274.3,
+    169.1,
+    294.4,
+    178.6
+   ],
+   "type": "text",
+   "label": "3. PATIENT'S BIRTH DATE MM",
+   "path": "patient.date_of_birth",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    296.4,
+    169.1,
+    316.5,
+    178.6
+   ],
+   "type": "text",
+   "label": "3. PATIENT'S BIRTH DATE DD",
+   "path": "patient.date_of_birth",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    318.5,
+    169.1,
+    344.0,
+    178.6
+   ],
+   "type": "text",
+   "label": "3. PATIENT'S BIRTH DATE YY",
+   "path": "patient.date_of_birth",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    354.49,
+    167.63,
+    365.57,
+    178.61
+   ],
+   "type": "choice",
+   "label": "3. SEX M",
+   "path": "patient.sex",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    390.39,
+    167.54,
+    401.47,
+    178.52
+   ],
+   "type": "choice",
+   "label": "3. SEX F",
+   "path": "patient.sex",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    412.3,
+    165.67,
+    627.4,
+    178.6
+   ],
+   "type": "text",
+   "label": "4. INSURED'S NAME (Last Name, First Name, Middle Initial)",
+   "path": "insured.last_name",
+   "also_paths": [
+    "insured.first_name",
+    "insured.middle_initial"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    61.4,
+    190.5,
+    265.6,
+    203.5
+   ],
+   "type": "text",
+   "label": "5. PATIENT'S ADDRESS (No., Street)",
+   "path": "patient.address.street"
+  },
+  {
+   "page": 0,
+   "rect": [
+    289.8,
+    192.2,
+    300.88,
+    203.18
+   ],
+   "type": "choice",
+   "label": "6. PATIENT RELATIONSHIP TO INSURED Self",
+   "path": "patient.relationship_to_insured",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    326.18,
+    192.3,
+    337.26,
+    203.28
+   ],
+   "type": "choice",
+   "label": "6. PATIENT RELATIONSHIP TO INSURED Spouse",
+   "path": "patient.relationship_to_insured",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    354.69,
+    192.3,
+    365.77,
+    203.28
+   ],
+   "type": "choice",
+   "label": "6. PATIENT RELATIONSHIP TO INSURED Child",
+   "path": "patient.relationship_to_insured",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    390.79,
+    191.63,
+    401.87,
+    202.61
+   ],
+   "type": "choice",
+   "label": "6. PATIENT RELATIONSHIP TO INSURED Other",
+   "path": "patient.relationship_to_insured",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    412.3,
+    190.5,
+    627.4,
+    203.5
+   ],
+   "type": "text",
+   "label": "7. INSURED'S ADDRESS (No., Street)",
+   "path": "insured.address.street"
+  },
+  {
+   "page": 0,
+   "rect": [
+    61.4,
+    213.6,
+    239.0,
+    226.6
+   ],
+   "type": "text",
+   "label": "5. CITY",
+   "path": "patient.address.city"
+  },
+  {
+   "page": 0,
+   "rect": [
+    241.0,
+    213.6,
+    265.6,
+    226.6
+   ],
+   "type": "text",
+   "label": "5. STATE",
+   "path": "patient.address.state"
+  },
+  {
+   "page": 0,
+   "rect": [
+    61.4,
+    239.0,
+    152.6,
+    252.0
+   ],
+   "type": "text",
+   "label": "5. ZIP CODE",
+   "path": "patient.address.postal_code"
+  },
+  {
+   "page": 0,
+   "rect": [
+    163.1,
+    238.6,
+    184.9,
+    252.0
+   ],
+   "type": "text",
+   "label": "5. TELEPHONE (Include Area Code) area code",
+   "path": "patient.phone",
+   "transforms": [
+    "slice"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    188.9,
+    238.6,
+    265.6,
+    252.0
+   ],
+   "type": "text",
+   "label": "5. TELEPHONE (Include Area Code)",
+   "path": "patient.phone",
+   "transforms": [
+    "slice"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    412.3,
+    213.6,
+    581.0,
+    226.6
+   ],
+   "type": "text",
+   "label": "7. CITY",
+   "path": "insured.address.city"
+  },
+  {
+   "page": 0,
+   "rect": [
+    583.0,
+    213.6,
+    627.4,
+    226.6
+   ],
+   "type": "text",
+   "label": "7. STATE",
+   "path": "insured.address.state"
+  },
+  {
+   "page": 0,
+   "rect": [
+    412.3,
+    239.0,
+    502.9,
+    252.0
+   ],
+   "type": "text",
+   "label": "7. ZIP CODE",
+   "path": "insured.address.postal_code"
+  },
+  {
+   "page": 0,
+   "rect": [
+    521.4,
+    238.6,
+    545.1,
+    252.0
+   ],
+   "type": "text",
+   "label": "7. TELEPHONE (Include Area Code) area code",
+   "path": "insured.phone",
+   "transforms": [
+    "slice"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    549.1,
+    238.6,
+    627.4,
+    252.0
+   ],
+   "type": "text",
+   "label": "7. TELEPHONE (Include Area Code)",
+   "path": "insured.phone",
+   "transforms": [
+    "slice"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    61.4,
+    261.6,
+    265.6,
+    274.6
+   ],
+   "type": "text",
+   "label": "9. OTHER INSURED'S NAME (Last Name, First Name, Middle Initial)",
+   "path": "other_coverage.insured_last_name",
+   "also_paths": [
+    "other_coverage.insured_first_name",
+    "other_coverage.insured_middle_initial"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    61.4,
+    285.0,
+    265.6,
+    298.0
+   ],
+   "type": "text",
+   "label": "a. OTHER INSURED'S POLICY OR GROUP NUMBER",
+   "path": "other_coverage.policy_group_number"
+  },
+  {
+   "page": 0,
+   "rect": [
+    61.4,
+    358.5,
+    265.6,
+    371.5
+   ],
+   "type": "text",
+   "label": "d. INSURANCE PLAN NAME OR PROGRAM NAME",
+   "path": "other_coverage.plan_name"
+  },
+  {
+   "page": 0,
+   "rect": [
+    304.41,
+    288.36,
+    315.49,
+    299.34
+   ],
+   "type": "choice",
+   "label": "10a. EMPLOYMENT? (Current or Previous) YES",
+   "path": "condition_related_to.employment",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    347.51,
+    288.26,
+    358.59,
+    299.24
+   ],
+   "type": "choice",
+   "label": "10a. EMPLOYMENT? (Current or Previous) NO",
+   "path": "condition_related_to.employment",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    304.48,
+    312.13,
+    315.56,
+    323.11
+   ],
+   "type": "choice",
+   "label": "10b. AUTO ACCIDENT? YES",
+   "path": "condition_related_to.auto_accident",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    347.59,
+    312.03,
+    358.66,
+    323.01
+   ],
+   "type": "choice",
+   "label": "10b. AUTO ACCIDENT? NO",
+   "path": "condition_related_to.auto_accident",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    304.68,
+    335.73,
+    315.76,
+    346.71
+   ],
+   "type": "choice",
+   "label": "10c. OTHER ACCIDENT? YES",
+   "path": "condition_related_to.other_accident",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    347.79,
+    335.63,
+    358.87,
+    346.61
+   ],
+   "type": "choice",
+   "label": "10c. OTHER ACCIDENT? NO",
+   "path": "condition_related_to.other_accident",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    375.5,
+    309.5,
+    396.3,
+    322.9
+   ],
+   "type": "text",
+   "label": "b. AUTO ACCIDENT? PLACE (State)",
+   "path": "condition_related_to.auto_accident_state"
+  },
+  {
+   "page": 0,
+   "rect": [
+    267.6,
+    358.5,
+    410.3,
+    371.5
+   ],
+   "type": "text",
+   "label": "10d. CLAIM CODES (Designated by NUCC)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    412.3,
+    262.3,
+    627.4,
+    275.3
+   ],
+   "type": "text",
+   "label": "11. INSURED'S POLICY GROUP OR FECA NUMBER",
+   "path": "insured.policy_group_number"
+  },
+  {
+   "page": 0,
+   "rect": [
+    433.8,
+    289.3,
+    453.1,
+    300.3
+   ],
+   "type": "text",
+   "label": "a. INSURED'S DATE OF BIRTH MM",
+   "path": "insured.date_of_birth",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    455.1,
+    289.3,
+    474.4,
+    300.3
+   ],
+   "type": "text",
+   "label": "a. INSURED'S DATE OF BIRTH DD",
+   "path": "insured.date_of_birth",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    476.4,
+    289.3,
+    504.0,
+    300.3
+   ],
+   "type": "text",
+   "label": "a. INSURED'S DATE OF BIRTH YY",
+   "path": "insured.date_of_birth",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    541.47,
+    287.73,
+    552.55,
+    298.71
+   ],
+   "type": "choice",
+   "label": "a. INSURED'S SEX M",
+   "path": "insured.sex",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    592.16,
+    287.93,
+    603.24,
+    298.91
+   ],
+   "type": "choice",
+   "label": "a. INSURED'S SEX F",
+   "path": "insured.sex",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    412.3,
+    310.0,
+    427.8,
+    323.1
+   ],
+   "type": "text",
+   "label": "b. OTHER CLAIM ID (Designated by NUCC) qualifier"
+  },
+  {
+   "page": 0,
+   "rect": [
+    429.8,
+    310.0,
+    627.4,
+    323.1
+   ],
+   "type": "text",
+   "label": "b. OTHER CLAIM ID (Designated by NUCC)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    412.3,
+    334.5,
+    627.4,
+    347.5
+   ],
+   "type": "text",
+   "label": "c. INSURANCE PLAN NAME OR PROGRAM NAME",
+   "path": "insured.plan_name"
+  },
+  {
+   "page": 0,
+   "rect": [
+    426.18,
+    359.73,
+    437.25,
+    370.71
+   ],
+   "type": "choice",
+   "label": "d. IS THERE ANOTHER HEALTH BENEFIT PLAN? YES",
+   "path": "has_other_health_plan",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    462.41,
+    359.78,
+    473.55,
+    370.76
+   ],
+   "type": "choice",
+   "label": "d. IS THERE ANOTHER HEALTH BENEFIT PLAN? NO",
+   "path": "has_other_health_plan",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    96.4,
+    403.7,
+    276.4,
+    417.7
+   ],
+   "type": "signature",
+   "label": "12. PATIENT'S OR AUTHORIZED PERSON'S SIGNATURE SIGNED"
+  },
+  {
+   "page": 0,
+   "rect": [
+    312.4,
+    403.7,
+    410.3,
+    417.7
+   ],
+   "type": "text",
+   "label": "12. DATE",
+   "path": "patient_signed_on",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    452.8,
+    404.2,
+    627.4,
+    418.2
+   ],
+   "type": "signature",
+   "label": "13. INSURED'S OR AUTHORIZED PERSON'S SIGNATURE SIGNED"
+  },
+  {
+   "page": 0,
+   "rect": [
+    66.7,
+    433.4,
+    85.8,
+    442.6
+   ],
+   "type": "text",
+   "label": "14. DATE OF CURRENT ILLNESS, INJURY, or PREGNANCY (LMP) MM",
+   "path": "current_illness.date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    87.8,
+    433.4,
+    107.0,
+    442.6
+   ],
+   "type": "text",
+   "label": "14. DATE OF CURRENT ILLNESS, INJURY, or PREGNANCY (LMP) DD",
+   "path": "current_illness.date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    109.0,
+    433.4,
+    139.0,
+    442.6
+   ],
+   "type": "text",
+   "label": "14. DATE OF CURRENT ILLNESS, INJURY, or PREGNANCY (LMP) YY",
+   "path": "current_illness.date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    167.0,
+    430.9,
+    251.6,
+    442.6
+   ],
+   "type": "text",
+   "label": "14. QUAL.",
+   "path": "current_illness.qualifier"
+  },
+  {
+   "page": 0,
+   "rect": [
+    274.6,
+    430.9,
+    298.3,
+    442.6
+   ],
+   "type": "text",
+   "label": "15. OTHER DATE QUAL."
+  },
+  {
+   "page": 0,
+   "rect": [
+    319.0,
+    430.9,
+    338.3,
+    442.6
+   ],
+   "type": "text",
+   "label": "15. OTHER DATE MM"
+  },
+  {
+   "page": 0,
+   "rect": [
+    340.3,
+    430.9,
+    359.5,
+    442.6
+   ],
+   "type": "text",
+   "label": "15. OTHER DATE DD"
+  },
+  {
+   "page": 0,
+   "rect": [
+    361.5,
+    430.9,
+    391.0,
+    442.6
+   ],
+   "type": "text",
+   "label": "15. OTHER DATE YY"
+  },
+  {
+   "page": 0,
+   "rect": [
+    440.0,
+    433.6,
+    458.0,
+    442.6
+   ],
+   "type": "text",
+   "label": "16. DATES PATIENT UNABLE TO WORK IN CURRENT OCCUPATION FROM MM",
+   "path": "unable_to_work.from",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    460.0,
+    433.6,
+    482.0,
+    442.6
+   ],
+   "type": "text",
+   "label": "16. DATES PATIENT UNABLE TO WORK IN CURRENT OCCUPATION FROM DD",
+   "path": "unable_to_work.from",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    484.0,
+    433.6,
+    514.0,
+    442.6
+   ],
+   "type": "text",
+   "label": "16. DATES PATIENT UNABLE TO WORK IN CURRENT OCCUPATION FROM YY",
+   "path": "unable_to_work.from",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    542.0,
+    433.6,
+    560.0,
+    442.6
+   ],
+   "type": "text",
+   "label": "16. DATES PATIENT UNABLE TO WORK IN CURRENT OCCUPATION TO MM",
+   "path": "unable_to_work.to",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    562.0,
+    433.6,
+    581.0,
+    442.6
+   ],
+   "type": "text",
+   "label": "16. DATES PATIENT UNABLE TO WORK IN CURRENT OCCUPATION TO DD",
+   "path": "unable_to_work.to",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    583.0,
+    433.6,
+    613.0,
+    442.6
+   ],
+   "type": "text",
+   "label": "16. DATES PATIENT UNABLE TO WORK IN CURRENT OCCUPATION TO YY",
+   "path": "unable_to_work.to",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    440.2,
+    456.1,
+    458.2,
+    466.6
+   ],
+   "type": "text",
+   "label": "18. HOSPITALIZATION DATES RELATED TO CURRENT SERVICES FROM MM",
+   "path": "hospitalization.from",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    460.2,
+    456.1,
+    482.2,
+    466.6
+   ],
+   "type": "text",
+   "label": "18. HOSPITALIZATION DATES RELATED TO CURRENT SERVICES FROM DD",
+   "path": "hospitalization.from",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    484.2,
+    456.1,
+    514.2,
+    466.6
+   ],
+   "type": "text",
+   "label": "18. HOSPITALIZATION DATES RELATED TO CURRENT SERVICES FROM YY",
+   "path": "hospitalization.from",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    542.2,
+    456.1,
+    560.2,
+    466.6
+   ],
+   "type": "text",
+   "label": "18. HOSPITALIZATION DATES RELATED TO CURRENT SERVICES TO MM",
+   "path": "hospitalization.to",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    562.2,
+    456.1,
+    581.2,
+    466.6
+   ],
+   "type": "text",
+   "label": "18. HOSPITALIZATION DATES RELATED TO CURRENT SERVICES TO DD",
+   "path": "hospitalization.to",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    583.2,
+    456.1,
+    613.2,
+    466.6
+   ],
+   "type": "text",
+   "label": "18. HOSPITALIZATION DATES RELATED TO CURRENT SERVICES TO YY",
+   "path": "hospitalization.to",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    61.4,
+    453.9,
+    79.9,
+    466.6
+   ],
+   "type": "text",
+   "label": "17. NAME OF REFERRING PROVIDER OR OTHER SOURCE qualifier",
+   "path": "referring_provider.qualifier"
+  },
+  {
+   "page": 0,
+   "rect": [
+    81.9,
+    453.9,
+    251.6,
+    466.6
+   ],
+   "type": "text",
+   "label": "17. NAME OF REFERRING PROVIDER OR OTHER SOURCE",
+   "path": "referring_provider.first_name",
+   "also_paths": [
+    "referring_provider.last_name"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    270.0,
+    444.6,
+    283.6,
+    455.0
+   ],
+   "type": "text",
+   "label": "17a. qualifier",
+   "path": "referring_provider.other_id_qualifier"
+  },
+  {
+   "page": 0,
+   "rect": [
+    285.6,
+    444.6,
+    410.3,
+    455.0
+   ],
+   "type": "text",
+   "label": "17a.",
+   "path": "referring_provider.other_id"
+  },
+  {
+   "page": 0,
+   "rect": [
+    285.6,
+    456.5,
+    410.3,
+    466.6
+   ],
+   "type": "text",
+   "label": "17b. NPI",
+   "path": "referring_provider.npi"
+  },
+  {
+   "page": 0,
+   "rect": [
+    61.4,
+    478.1,
+    410.3,
+    491.1
+   ],
+   "type": "text",
+   "label": "19. ADDITIONAL CLAIM INFORMATION (Designated by NUCC)",
+   "path": "additional_claim_info"
+  },
+  {
+   "page": 0,
+   "rect": [
+    426.98,
+    479.33,
+    438.06,
+    490.31
+   ],
+   "type": "choice",
+   "label": "20. OUTSIDE LAB? YES",
+   "path": "outside_lab",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    463.24,
+    479.36,
+    474.36,
+    490.43
+   ],
+   "type": "choice",
+   "label": "20. OUTSIDE LAB? NO",
+   "path": "outside_lab",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    495.6,
+    478.3,
+    562.9,
+    491.1
+   ],
+   "type": "text",
+   "label": "20. $ CHARGES",
+   "path": "outside_lab_charges",
+   "transforms": [
+    "number_format",
+    "split"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    564.9,
+    478.3,
+    627.4,
+    491.1
+   ],
+   "type": "text",
+   "label": "20. $ CHARGES cents",
+   "path": "outside_lab_charges",
+   "transforms": [
+    "number_format",
+    "split"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    355.8,
+    493.1,
+    367.5,
+    504.8
+   ],
+   "type": "text",
+   "label": "21. ICD Ind.",
+   "path": "icd_indicator"
+  },
+  {
+   "page": 0,
+   "rect": [
+    74.5,
+    504.3,
+    124.72,
+    515.8
+   ],
+   "type": "text",
+   "label": "21. DIAGNOSIS OR NATURE OF ILLNESS OR INJURY A.",
+   "path": "principal_diagnosis_code"
+  },
+  {
+   "page": 0,
+   "rect": [
+    167.82,
+    504.3,
+    218.32,
+    515.8
+   ],
+   "type": "text",
+   "label": "21. DIAGNOSIS OR NATURE OF ILLNESS OR INJURY B."
+  },
+  {
+   "page": 0,
+   "rect": [
+    261.9,
+    504.3,
+    311.83,
+    515.8
+   ],
+   "type": "text",
+   "label": "21. DIAGNOSIS OR NATURE OF ILLNESS OR INJURY C."
+  },
+  {
+   "page": 0,
+   "rect": [
+    355.1,
+    504.3,
+    406.07,
+    515.8
+   ],
+   "type": "text",
+   "label": "21. DIAGNOSIS OR NATURE OF ILLNESS OR INJURY D."
+  },
+  {
+   "page": 0,
+   "rect": [
+    74.5,
+    516.1,
+    124.61,
+    527.6
+   ],
+   "type": "text",
+   "label": "21. DIAGNOSIS OR NATURE OF ILLNESS OR INJURY E."
+  },
+  {
+   "page": 0,
+   "rect": [
+    167.7,
+    516.1,
+    218.24,
+    527.6
+   ],
+   "type": "text",
+   "label": "21. DIAGNOSIS OR NATURE OF ILLNESS OR INJURY F."
+  },
+  {
+   "page": 0,
+   "rect": [
+    261.9,
+    516.1,
+    311.92,
+    527.6
+   ],
+   "type": "text",
+   "label": "21. DIAGNOSIS OR NATURE OF ILLNESS OR INJURY G."
+  },
+  {
+   "page": 0,
+   "rect": [
+    355.1,
+    516.1,
+    406.11,
+    527.6
+   ],
+   "type": "text",
+   "label": "21. DIAGNOSIS OR NATURE OF ILLNESS OR INJURY H."
+  },
+  {
+   "page": 0,
+   "rect": [
+    74.5,
+    528.1,
+    124.61,
+    539.6
+   ],
+   "type": "text",
+   "label": "21. DIAGNOSIS OR NATURE OF ILLNESS OR INJURY I."
+  },
+  {
+   "page": 0,
+   "rect": [
+    167.7,
+    528.1,
+    218.27,
+    539.6
+   ],
+   "type": "text",
+   "label": "21. DIAGNOSIS OR NATURE OF ILLNESS OR INJURY J."
+  },
+  {
+   "page": 0,
+   "rect": [
+    261.9,
+    528.1,
+    311.96,
+    539.6
+   ],
+   "type": "text",
+   "label": "21. DIAGNOSIS OR NATURE OF ILLNESS OR INJURY K."
+  },
+  {
+   "page": 0,
+   "rect": [
+    355.1,
+    528.1,
+    406.24,
+    539.6
+   ],
+   "type": "text",
+   "label": "21. DIAGNOSIS OR NATURE OF ILLNESS OR INJURY L."
+  },
+  {
+   "page": 0,
+   "rect": [
+    412.3,
+    504.6,
+    492.9,
+    514.8
+   ],
+   "type": "text",
+   "label": "22. RESUBMISSION CODE",
+   "path": "resubmission.code"
+  },
+  {
+   "page": 0,
+   "rect": [
+    494.9,
+    504.6,
+    627.4,
+    514.8
+   ],
+   "type": "text",
+   "label": "22. ORIGINAL REF. NO.",
+   "path": "resubmission.original_reference_number"
+  },
+  {
+   "page": 0,
+   "rect": [
+    412.3,
+    526.6,
+    627.4,
+    539.6
+   ],
+   "type": "text",
+   "label": "23. PRIOR AUTHORIZATION NUMBER",
+   "path": "prior_authorization_number"
+  },
+  {
+   "page": 0,
+   "rect": [
+    61.4,
+    563.9,
+    503.0,
+    574.7
+   ],
+   "type": "text",
+   "label": "24. line 1 supplemental information (shaded)",
+   "path": "service_lines[].supplemental_info"
+  },
+  {
+   "page": 0,
+   "rect": [
+    519.9,
+    563.9,
+    538.9,
+    574.7
+   ],
+   "type": "text",
+   "label": "24I. ID. QUAL. line 1 (shaded)",
+   "path": "service_lines[].rendering_provider_id_qualifier"
+  },
+  {
+   "page": 0,
+   "rect": [
+    540.9,
+    563.9,
+    627.6,
+    574.7
+   ],
+   "type": "text",
+   "label": "24J. RENDERING PROVIDER ID. # line 1 (shaded)",
+   "path": "service_lines[].rendering_provider_other_id"
+  },
+  {
+   "page": 0,
+   "rect": [
+    61.4,
+    576.2,
+    78.5,
+    586.0
+   ],
+   "type": "text",
+   "label": "24A. From MM line 1",
+   "path": "service_lines[].from_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    80.5,
+    576.2,
+    99.5,
+    586.0
+   ],
+   "type": "text",
+   "label": "24A. From DD line 1",
+   "path": "service_lines[].from_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    101.5,
+    576.2,
+    121.6,
+    586.0
+   ],
+   "type": "text",
+   "label": "24A. From YY line 1",
+   "path": "service_lines[].from_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    123.6,
+    576.2,
+    142.5,
+    586.0
+   ],
+   "type": "text",
+   "label": "24A. To MM line 1",
+   "path": "service_lines[].to_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    144.5,
+    576.2,
+    165.3,
+    586.0
+   ],
+   "type": "text",
+   "label": "24A. To DD line 1",
+   "path": "service_lines[].to_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    167.3,
+    576.2,
+    186.0,
+    586.0
+   ],
+   "type": "text",
+   "label": "24A. To YY line 1",
+   "path": "service_lines[].to_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    188.0,
+    576.2,
+    209.0,
+    586.0
+   ],
+   "type": "text",
+   "label": "24B. PLACE OF SERVICE line 1",
+   "path": "service_lines[].place_of_service"
+  },
+  {
+   "page": 0,
+   "rect": [
+    211.0,
+    576.2,
+    230.6,
+    586.0
+   ],
+   "type": "text",
+   "label": "24C. EMG line 1",
+   "path": "service_lines[].emergency_indicator"
+  },
+  {
+   "page": 0,
+   "rect": [
+    232.6,
+    576.2,
+    283.1,
+    586.0
+   ],
+   "type": "text",
+   "label": "24D. CPT/HCPCS line 1",
+   "path": "service_lines[].procedure_code"
+  },
+  {
+   "page": 0,
+   "rect": [
+    285.1,
+    576.2,
+    308.5,
+    586.0
+   ],
+   "type": "text",
+   "label": "24D. MODIFIER 1 line 1",
+   "path": "service_lines[].modifier_1"
+  },
+  {
+   "page": 0,
+   "rect": [
+    310.5,
+    576.2,
+    330.0,
+    586.0
+   ],
+   "type": "text",
+   "label": "24D. MODIFIER 2 line 1",
+   "path": "service_lines[].modifier_2"
+  },
+  {
+   "page": 0,
+   "rect": [
+    332.0,
+    576.2,
+    351.5,
+    586.0
+   ],
+   "type": "text",
+   "label": "24D. MODIFIER 3 line 1",
+   "path": "service_lines[].modifier_3"
+  },
+  {
+   "page": 0,
+   "rect": [
+    353.5,
+    576.2,
+    373.6,
+    586.0
+   ],
+   "type": "text",
+   "label": "24D. MODIFIER 4 line 1",
+   "path": "service_lines[].modifier_4"
+  },
+  {
+   "page": 0,
+   "rect": [
+    375.6,
+    576.2,
+    410.4,
+    586.0
+   ],
+   "type": "text",
+   "label": "24E. DIAGNOSIS POINTER line 1",
+   "path": "service_lines[].diagnosis_pointer"
+  },
+  {
+   "page": 0,
+   "rect": [
+    412.4,
+    576.2,
+    455.9,
+    586.0
+   ],
+   "type": "text",
+   "label": "24F. $ CHARGES line 1",
+   "path": "service_lines[].charges",
+   "transforms": [
+    "number_format",
+    "split"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    457.9,
+    576.2,
+    474.0,
+    586.0
+   ],
+   "type": "text",
+   "label": "24F. $ CHARGES cents line 1",
+   "path": "service_lines[].charges",
+   "transforms": [
+    "number_format",
+    "split"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    476.0,
+    576.2,
+    503.0,
+    586.0
+   ],
+   "type": "text",
+   "label": "24G. DAYS OR UNITS line 1",
+   "path": "service_lines[].units"
+  },
+  {
+   "page": 0,
+   "rect": [
+    505.0,
+    576.2,
+    517.9,
+    586.0
+   ],
+   "type": "text",
+   "label": "24H. EPSDT Family Plan line 1"
+  },
+  {
+   "page": 0,
+   "rect": [
+    540.9,
+    576.2,
+    627.6,
+    586.0
+   ],
+   "type": "text",
+   "label": "24J. RENDERING PROVIDER ID. # (NPI) line 1",
+   "path": "service_lines[].rendering_provider_npi"
+  },
+  {
+   "page": 0,
+   "rect": [
+    61.4,
+    588.0,
+    503.0,
+    598.9
+   ],
+   "type": "text",
+   "label": "24. line 2 supplemental information (shaded)",
+   "path": "service_lines[].supplemental_info"
+  },
+  {
+   "page": 0,
+   "rect": [
+    519.9,
+    588.0,
+    538.9,
+    598.9
+   ],
+   "type": "text",
+   "label": "24I. ID. QUAL. line 2 (shaded)",
+   "path": "service_lines[].rendering_provider_id_qualifier"
+  },
+  {
+   "page": 0,
+   "rect": [
+    540.9,
+    588.0,
+    627.6,
+    598.9
+   ],
+   "type": "text",
+   "label": "24J. RENDERING PROVIDER ID. # line 2 (shaded)",
+   "path": "service_lines[].rendering_provider_other_id"
+  },
+  {
+   "page": 0,
+   "rect": [
+    61.4,
+    600.4,
+    78.5,
+    610.5
+   ],
+   "type": "text",
+   "label": "24A. From MM line 2",
+   "path": "service_lines[].from_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    80.5,
+    600.4,
+    99.5,
+    610.5
+   ],
+   "type": "text",
+   "label": "24A. From DD line 2",
+   "path": "service_lines[].from_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    101.5,
+    600.4,
+    121.6,
+    610.5
+   ],
+   "type": "text",
+   "label": "24A. From YY line 2",
+   "path": "service_lines[].from_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    123.6,
+    600.4,
+    142.5,
+    610.5
+   ],
+   "type": "text",
+   "label": "24A. To MM line 2",
+   "path": "service_lines[].to_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    144.5,
+    600.4,
+    165.3,
+    610.5
+   ],
+   "type": "text",
+   "label": "24A. To DD line 2",
+   "path": "service_lines[].to_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    167.3,
+    600.4,
+    186.0,
+    610.5
+   ],
+   "type": "text",
+   "label": "24A. To YY line 2",
+   "path": "service_lines[].to_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    188.0,
+    600.4,
+    209.0,
+    610.5
+   ],
+   "type": "text",
+   "label": "24B. PLACE OF SERVICE line 2",
+   "path": "service_lines[].place_of_service"
+  },
+  {
+   "page": 0,
+   "rect": [
+    211.0,
+    600.4,
+    230.6,
+    610.5
+   ],
+   "type": "text",
+   "label": "24C. EMG line 2",
+   "path": "service_lines[].emergency_indicator"
+  },
+  {
+   "page": 0,
+   "rect": [
+    232.6,
+    600.4,
+    283.1,
+    610.5
+   ],
+   "type": "text",
+   "label": "24D. CPT/HCPCS line 2",
+   "path": "service_lines[].procedure_code"
+  },
+  {
+   "page": 0,
+   "rect": [
+    285.1,
+    600.4,
+    308.5,
+    610.5
+   ],
+   "type": "text",
+   "label": "24D. MODIFIER 1 line 2",
+   "path": "service_lines[].modifier_1"
+  },
+  {
+   "page": 0,
+   "rect": [
+    310.5,
+    600.4,
+    330.0,
+    610.5
+   ],
+   "type": "text",
+   "label": "24D. MODIFIER 2 line 2",
+   "path": "service_lines[].modifier_2"
+  },
+  {
+   "page": 0,
+   "rect": [
+    332.0,
+    600.4,
+    351.5,
+    610.5
+   ],
+   "type": "text",
+   "label": "24D. MODIFIER 3 line 2",
+   "path": "service_lines[].modifier_3"
+  },
+  {
+   "page": 0,
+   "rect": [
+    353.5,
+    600.4,
+    373.6,
+    610.5
+   ],
+   "type": "text",
+   "label": "24D. MODIFIER 4 line 2",
+   "path": "service_lines[].modifier_4"
+  },
+  {
+   "page": 0,
+   "rect": [
+    375.6,
+    600.4,
+    410.4,
+    610.5
+   ],
+   "type": "text",
+   "label": "24E. DIAGNOSIS POINTER line 2",
+   "path": "service_lines[].diagnosis_pointer"
+  },
+  {
+   "page": 0,
+   "rect": [
+    412.4,
+    600.4,
+    455.9,
+    610.5
+   ],
+   "type": "text",
+   "label": "24F. $ CHARGES line 2",
+   "path": "service_lines[].charges",
+   "transforms": [
+    "number_format",
+    "split"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    457.9,
+    600.4,
+    474.0,
+    610.5
+   ],
+   "type": "text",
+   "label": "24F. $ CHARGES cents line 2",
+   "path": "service_lines[].charges",
+   "transforms": [
+    "number_format",
+    "split"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    476.0,
+    600.4,
+    503.0,
+    610.5
+   ],
+   "type": "text",
+   "label": "24G. DAYS OR UNITS line 2",
+   "path": "service_lines[].units"
+  },
+  {
+   "page": 0,
+   "rect": [
+    505.0,
+    600.4,
+    517.9,
+    610.5
+   ],
+   "type": "text",
+   "label": "24H. EPSDT Family Plan line 2"
+  },
+  {
+   "page": 0,
+   "rect": [
+    540.9,
+    600.4,
+    627.6,
+    610.5
+   ],
+   "type": "text",
+   "label": "24J. RENDERING PROVIDER ID. # (NPI) line 2",
+   "path": "service_lines[].rendering_provider_npi"
+  },
+  {
+   "page": 0,
+   "rect": [
+    61.4,
+    612.5,
+    503.0,
+    622.4
+   ],
+   "type": "text",
+   "label": "24. line 3 supplemental information (shaded)",
+   "path": "service_lines[].supplemental_info"
+  },
+  {
+   "page": 0,
+   "rect": [
+    519.9,
+    612.5,
+    538.9,
+    622.4
+   ],
+   "type": "text",
+   "label": "24I. ID. QUAL. line 3 (shaded)",
+   "path": "service_lines[].rendering_provider_id_qualifier"
+  },
+  {
+   "page": 0,
+   "rect": [
+    540.9,
+    612.5,
+    627.6,
+    622.4
+   ],
+   "type": "text",
+   "label": "24J. RENDERING PROVIDER ID. # line 3 (shaded)",
+   "path": "service_lines[].rendering_provider_other_id"
+  },
+  {
+   "page": 0,
+   "rect": [
+    61.4,
+    623.9,
+    78.5,
+    634.0
+   ],
+   "type": "text",
+   "label": "24A. From MM line 3",
+   "path": "service_lines[].from_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    80.5,
+    623.9,
+    99.5,
+    634.0
+   ],
+   "type": "text",
+   "label": "24A. From DD line 3",
+   "path": "service_lines[].from_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    101.5,
+    623.9,
+    121.6,
+    634.0
+   ],
+   "type": "text",
+   "label": "24A. From YY line 3",
+   "path": "service_lines[].from_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    123.6,
+    623.9,
+    142.5,
+    634.0
+   ],
+   "type": "text",
+   "label": "24A. To MM line 3",
+   "path": "service_lines[].to_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    144.5,
+    623.9,
+    165.3,
+    634.0
+   ],
+   "type": "text",
+   "label": "24A. To DD line 3",
+   "path": "service_lines[].to_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    167.3,
+    623.9,
+    186.0,
+    634.0
+   ],
+   "type": "text",
+   "label": "24A. To YY line 3",
+   "path": "service_lines[].to_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    188.0,
+    623.9,
+    209.0,
+    634.0
+   ],
+   "type": "text",
+   "label": "24B. PLACE OF SERVICE line 3",
+   "path": "service_lines[].place_of_service"
+  },
+  {
+   "page": 0,
+   "rect": [
+    211.0,
+    623.9,
+    230.6,
+    634.0
+   ],
+   "type": "text",
+   "label": "24C. EMG line 3",
+   "path": "service_lines[].emergency_indicator"
+  },
+  {
+   "page": 0,
+   "rect": [
+    232.6,
+    623.9,
+    283.1,
+    634.0
+   ],
+   "type": "text",
+   "label": "24D. CPT/HCPCS line 3",
+   "path": "service_lines[].procedure_code"
+  },
+  {
+   "page": 0,
+   "rect": [
+    285.1,
+    623.9,
+    308.5,
+    634.0
+   ],
+   "type": "text",
+   "label": "24D. MODIFIER 1 line 3",
+   "path": "service_lines[].modifier_1"
+  },
+  {
+   "page": 0,
+   "rect": [
+    310.5,
+    623.9,
+    330.0,
+    634.0
+   ],
+   "type": "text",
+   "label": "24D. MODIFIER 2 line 3",
+   "path": "service_lines[].modifier_2"
+  },
+  {
+   "page": 0,
+   "rect": [
+    332.0,
+    623.9,
+    351.5,
+    634.0
+   ],
+   "type": "text",
+   "label": "24D. MODIFIER 3 line 3",
+   "path": "service_lines[].modifier_3"
+  },
+  {
+   "page": 0,
+   "rect": [
+    353.5,
+    623.9,
+    373.6,
+    634.0
+   ],
+   "type": "text",
+   "label": "24D. MODIFIER 4 line 3",
+   "path": "service_lines[].modifier_4"
+  },
+  {
+   "page": 0,
+   "rect": [
+    375.6,
+    623.9,
+    410.4,
+    634.0
+   ],
+   "type": "text",
+   "label": "24E. DIAGNOSIS POINTER line 3",
+   "path": "service_lines[].diagnosis_pointer"
+  },
+  {
+   "page": 0,
+   "rect": [
+    412.4,
+    623.9,
+    455.9,
+    634.0
+   ],
+   "type": "text",
+   "label": "24F. $ CHARGES line 3",
+   "path": "service_lines[].charges",
+   "transforms": [
+    "number_format",
+    "split"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    457.9,
+    623.9,
+    474.0,
+    634.0
+   ],
+   "type": "text",
+   "label": "24F. $ CHARGES cents line 3",
+   "path": "service_lines[].charges",
+   "transforms": [
+    "number_format",
+    "split"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    476.0,
+    623.9,
+    503.0,
+    634.0
+   ],
+   "type": "text",
+   "label": "24G. DAYS OR UNITS line 3",
+   "path": "service_lines[].units"
+  },
+  {
+   "page": 0,
+   "rect": [
+    505.0,
+    623.9,
+    517.9,
+    634.0
+   ],
+   "type": "text",
+   "label": "24H. EPSDT Family Plan line 3"
+  },
+  {
+   "page": 0,
+   "rect": [
+    540.9,
+    623.9,
+    627.6,
+    634.0
+   ],
+   "type": "text",
+   "label": "24J. RENDERING PROVIDER ID. # (NPI) line 3",
+   "path": "service_lines[].rendering_provider_npi"
+  },
+  {
+   "page": 0,
+   "rect": [
+    61.4,
+    636.0,
+    503.0,
+    647.0
+   ],
+   "type": "text",
+   "label": "24. line 4 supplemental information (shaded)",
+   "path": "service_lines[].supplemental_info"
+  },
+  {
+   "page": 0,
+   "rect": [
+    519.9,
+    636.0,
+    538.9,
+    647.0
+   ],
+   "type": "text",
+   "label": "24I. ID. QUAL. line 4 (shaded)",
+   "path": "service_lines[].rendering_provider_id_qualifier"
+  },
+  {
+   "page": 0,
+   "rect": [
+    540.9,
+    636.0,
+    627.6,
+    647.0
+   ],
+   "type": "text",
+   "label": "24J. RENDERING PROVIDER ID. # line 4 (shaded)",
+   "path": "service_lines[].rendering_provider_other_id"
+  },
+  {
+   "page": 0,
+   "rect": [
+    61.4,
+    648.5,
+    78.5,
+    658.6
+   ],
+   "type": "text",
+   "label": "24A. From MM line 4",
+   "path": "service_lines[].from_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    80.5,
+    648.5,
+    99.5,
+    658.6
+   ],
+   "type": "text",
+   "label": "24A. From DD line 4",
+   "path": "service_lines[].from_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    101.5,
+    648.5,
+    121.6,
+    658.6
+   ],
+   "type": "text",
+   "label": "24A. From YY line 4",
+   "path": "service_lines[].from_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    123.6,
+    648.5,
+    142.5,
+    658.6
+   ],
+   "type": "text",
+   "label": "24A. To MM line 4",
+   "path": "service_lines[].to_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    144.5,
+    648.5,
+    165.3,
+    658.6
+   ],
+   "type": "text",
+   "label": "24A. To DD line 4",
+   "path": "service_lines[].to_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    167.3,
+    648.5,
+    186.0,
+    658.6
+   ],
+   "type": "text",
+   "label": "24A. To YY line 4",
+   "path": "service_lines[].to_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    188.0,
+    648.5,
+    209.0,
+    658.6
+   ],
+   "type": "text",
+   "label": "24B. PLACE OF SERVICE line 4",
+   "path": "service_lines[].place_of_service"
+  },
+  {
+   "page": 0,
+   "rect": [
+    211.0,
+    648.5,
+    230.6,
+    658.6
+   ],
+   "type": "text",
+   "label": "24C. EMG line 4",
+   "path": "service_lines[].emergency_indicator"
+  },
+  {
+   "page": 0,
+   "rect": [
+    232.6,
+    648.5,
+    283.1,
+    658.6
+   ],
+   "type": "text",
+   "label": "24D. CPT/HCPCS line 4",
+   "path": "service_lines[].procedure_code"
+  },
+  {
+   "page": 0,
+   "rect": [
+    285.1,
+    648.5,
+    308.5,
+    658.6
+   ],
+   "type": "text",
+   "label": "24D. MODIFIER 1 line 4",
+   "path": "service_lines[].modifier_1"
+  },
+  {
+   "page": 0,
+   "rect": [
+    310.5,
+    648.5,
+    330.0,
+    658.6
+   ],
+   "type": "text",
+   "label": "24D. MODIFIER 2 line 4",
+   "path": "service_lines[].modifier_2"
+  },
+  {
+   "page": 0,
+   "rect": [
+    332.0,
+    648.5,
+    351.5,
+    658.6
+   ],
+   "type": "text",
+   "label": "24D. MODIFIER 3 line 4",
+   "path": "service_lines[].modifier_3"
+  },
+  {
+   "page": 0,
+   "rect": [
+    353.5,
+    648.5,
+    373.6,
+    658.6
+   ],
+   "type": "text",
+   "label": "24D. MODIFIER 4 line 4",
+   "path": "service_lines[].modifier_4"
+  },
+  {
+   "page": 0,
+   "rect": [
+    375.6,
+    648.5,
+    410.4,
+    658.6
+   ],
+   "type": "text",
+   "label": "24E. DIAGNOSIS POINTER line 4",
+   "path": "service_lines[].diagnosis_pointer"
+  },
+  {
+   "page": 0,
+   "rect": [
+    412.4,
+    648.5,
+    455.9,
+    658.6
+   ],
+   "type": "text",
+   "label": "24F. $ CHARGES line 4",
+   "path": "service_lines[].charges",
+   "transforms": [
+    "number_format",
+    "split"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    457.9,
+    648.5,
+    474.0,
+    658.6
+   ],
+   "type": "text",
+   "label": "24F. $ CHARGES cents line 4",
+   "path": "service_lines[].charges",
+   "transforms": [
+    "number_format",
+    "split"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    476.0,
+    648.5,
+    503.0,
+    658.6
+   ],
+   "type": "text",
+   "label": "24G. DAYS OR UNITS line 4",
+   "path": "service_lines[].units"
+  },
+  {
+   "page": 0,
+   "rect": [
+    505.0,
+    648.5,
+    517.9,
+    658.6
+   ],
+   "type": "text",
+   "label": "24H. EPSDT Family Plan line 4"
+  },
+  {
+   "page": 0,
+   "rect": [
+    540.9,
+    648.5,
+    627.6,
+    658.6
+   ],
+   "type": "text",
+   "label": "24J. RENDERING PROVIDER ID. # (NPI) line 4",
+   "path": "service_lines[].rendering_provider_npi"
+  },
+  {
+   "page": 0,
+   "rect": [
+    61.4,
+    660.6,
+    503.0,
+    670.4
+   ],
+   "type": "text",
+   "label": "24. line 5 supplemental information (shaded)",
+   "path": "service_lines[].supplemental_info"
+  },
+  {
+   "page": 0,
+   "rect": [
+    519.9,
+    660.6,
+    538.9,
+    670.4
+   ],
+   "type": "text",
+   "label": "24I. ID. QUAL. line 5 (shaded)",
+   "path": "service_lines[].rendering_provider_id_qualifier"
+  },
+  {
+   "page": 0,
+   "rect": [
+    540.9,
+    660.6,
+    627.6,
+    670.4
+   ],
+   "type": "text",
+   "label": "24J. RENDERING PROVIDER ID. # line 5 (shaded)",
+   "path": "service_lines[].rendering_provider_other_id"
+  },
+  {
+   "page": 0,
+   "rect": [
+    61.4,
+    671.9,
+    78.5,
+    682.0
+   ],
+   "type": "text",
+   "label": "24A. From MM line 5",
+   "path": "service_lines[].from_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    80.5,
+    671.9,
+    99.5,
+    682.0
+   ],
+   "type": "text",
+   "label": "24A. From DD line 5",
+   "path": "service_lines[].from_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    101.5,
+    671.9,
+    121.6,
+    682.0
+   ],
+   "type": "text",
+   "label": "24A. From YY line 5",
+   "path": "service_lines[].from_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    123.6,
+    671.9,
+    142.5,
+    682.0
+   ],
+   "type": "text",
+   "label": "24A. To MM line 5",
+   "path": "service_lines[].to_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    144.5,
+    671.9,
+    165.3,
+    682.0
+   ],
+   "type": "text",
+   "label": "24A. To DD line 5",
+   "path": "service_lines[].to_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    167.3,
+    671.9,
+    186.0,
+    682.0
+   ],
+   "type": "text",
+   "label": "24A. To YY line 5",
+   "path": "service_lines[].to_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    188.0,
+    671.9,
+    209.0,
+    682.0
+   ],
+   "type": "text",
+   "label": "24B. PLACE OF SERVICE line 5",
+   "path": "service_lines[].place_of_service"
+  },
+  {
+   "page": 0,
+   "rect": [
+    211.0,
+    671.9,
+    230.6,
+    682.0
+   ],
+   "type": "text",
+   "label": "24C. EMG line 5",
+   "path": "service_lines[].emergency_indicator"
+  },
+  {
+   "page": 0,
+   "rect": [
+    232.6,
+    671.9,
+    283.1,
+    682.0
+   ],
+   "type": "text",
+   "label": "24D. CPT/HCPCS line 5",
+   "path": "service_lines[].procedure_code"
+  },
+  {
+   "page": 0,
+   "rect": [
+    285.1,
+    671.9,
+    308.5,
+    682.0
+   ],
+   "type": "text",
+   "label": "24D. MODIFIER 1 line 5",
+   "path": "service_lines[].modifier_1"
+  },
+  {
+   "page": 0,
+   "rect": [
+    310.5,
+    671.9,
+    330.0,
+    682.0
+   ],
+   "type": "text",
+   "label": "24D. MODIFIER 2 line 5",
+   "path": "service_lines[].modifier_2"
+  },
+  {
+   "page": 0,
+   "rect": [
+    332.0,
+    671.9,
+    351.5,
+    682.0
+   ],
+   "type": "text",
+   "label": "24D. MODIFIER 3 line 5",
+   "path": "service_lines[].modifier_3"
+  },
+  {
+   "page": 0,
+   "rect": [
+    353.5,
+    671.9,
+    373.6,
+    682.0
+   ],
+   "type": "text",
+   "label": "24D. MODIFIER 4 line 5",
+   "path": "service_lines[].modifier_4"
+  },
+  {
+   "page": 0,
+   "rect": [
+    375.6,
+    671.9,
+    410.4,
+    682.0
+   ],
+   "type": "text",
+   "label": "24E. DIAGNOSIS POINTER line 5",
+   "path": "service_lines[].diagnosis_pointer"
+  },
+  {
+   "page": 0,
+   "rect": [
+    412.4,
+    671.9,
+    455.9,
+    682.0
+   ],
+   "type": "text",
+   "label": "24F. $ CHARGES line 5",
+   "path": "service_lines[].charges",
+   "transforms": [
+    "number_format",
+    "split"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    457.9,
+    671.9,
+    474.0,
+    682.0
+   ],
+   "type": "text",
+   "label": "24F. $ CHARGES cents line 5",
+   "path": "service_lines[].charges",
+   "transforms": [
+    "number_format",
+    "split"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    476.0,
+    671.9,
+    503.0,
+    682.0
+   ],
+   "type": "text",
+   "label": "24G. DAYS OR UNITS line 5",
+   "path": "service_lines[].units"
+  },
+  {
+   "page": 0,
+   "rect": [
+    505.0,
+    671.9,
+    517.9,
+    682.0
+   ],
+   "type": "text",
+   "label": "24H. EPSDT Family Plan line 5"
+  },
+  {
+   "page": 0,
+   "rect": [
+    540.9,
+    671.9,
+    627.6,
+    682.0
+   ],
+   "type": "text",
+   "label": "24J. RENDERING PROVIDER ID. # (NPI) line 5",
+   "path": "service_lines[].rendering_provider_npi"
+  },
+  {
+   "page": 0,
+   "rect": [
+    61.4,
+    684.0,
+    503.0,
+    694.6
+   ],
+   "type": "text",
+   "label": "24. line 6 supplemental information (shaded)",
+   "path": "service_lines[].supplemental_info"
+  },
+  {
+   "page": 0,
+   "rect": [
+    519.9,
+    684.0,
+    538.9,
+    694.6
+   ],
+   "type": "text",
+   "label": "24I. ID. QUAL. line 6 (shaded)",
+   "path": "service_lines[].rendering_provider_id_qualifier"
+  },
+  {
+   "page": 0,
+   "rect": [
+    540.9,
+    684.0,
+    627.6,
+    694.6
+   ],
+   "type": "text",
+   "label": "24J. RENDERING PROVIDER ID. # line 6 (shaded)",
+   "path": "service_lines[].rendering_provider_other_id"
+  },
+  {
+   "page": 0,
+   "rect": [
+    61.4,
+    696.1,
+    78.5,
+    706.0
+   ],
+   "type": "text",
+   "label": "24A. From MM line 6",
+   "path": "service_lines[].from_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    80.5,
+    696.1,
+    99.5,
+    706.0
+   ],
+   "type": "text",
+   "label": "24A. From DD line 6",
+   "path": "service_lines[].from_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    101.5,
+    696.1,
+    121.6,
+    706.0
+   ],
+   "type": "text",
+   "label": "24A. From YY line 6",
+   "path": "service_lines[].from_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    123.6,
+    696.1,
+    142.5,
+    706.0
+   ],
+   "type": "text",
+   "label": "24A. To MM line 6",
+   "path": "service_lines[].to_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    144.5,
+    696.1,
+    165.3,
+    706.0
+   ],
+   "type": "text",
+   "label": "24A. To DD line 6",
+   "path": "service_lines[].to_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    167.3,
+    696.1,
+    186.0,
+    706.0
+   ],
+   "type": "text",
+   "label": "24A. To YY line 6",
+   "path": "service_lines[].to_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    188.0,
+    696.1,
+    209.0,
+    706.0
+   ],
+   "type": "text",
+   "label": "24B. PLACE OF SERVICE line 6",
+   "path": "service_lines[].place_of_service"
+  },
+  {
+   "page": 0,
+   "rect": [
+    211.0,
+    696.1,
+    230.6,
+    706.0
+   ],
+   "type": "text",
+   "label": "24C. EMG line 6",
+   "path": "service_lines[].emergency_indicator"
+  },
+  {
+   "page": 0,
+   "rect": [
+    232.6,
+    696.1,
+    283.1,
+    706.0
+   ],
+   "type": "text",
+   "label": "24D. CPT/HCPCS line 6",
+   "path": "service_lines[].procedure_code"
+  },
+  {
+   "page": 0,
+   "rect": [
+    285.1,
+    696.1,
+    308.5,
+    706.0
+   ],
+   "type": "text",
+   "label": "24D. MODIFIER 1 line 6",
+   "path": "service_lines[].modifier_1"
+  },
+  {
+   "page": 0,
+   "rect": [
+    310.5,
+    696.1,
+    330.0,
+    706.0
+   ],
+   "type": "text",
+   "label": "24D. MODIFIER 2 line 6",
+   "path": "service_lines[].modifier_2"
+  },
+  {
+   "page": 0,
+   "rect": [
+    332.0,
+    696.1,
+    351.5,
+    706.0
+   ],
+   "type": "text",
+   "label": "24D. MODIFIER 3 line 6",
+   "path": "service_lines[].modifier_3"
+  },
+  {
+   "page": 0,
+   "rect": [
+    353.5,
+    696.1,
+    373.6,
+    706.0
+   ],
+   "type": "text",
+   "label": "24D. MODIFIER 4 line 6",
+   "path": "service_lines[].modifier_4"
+  },
+  {
+   "page": 0,
+   "rect": [
+    375.6,
+    696.1,
+    410.4,
+    706.0
+   ],
+   "type": "text",
+   "label": "24E. DIAGNOSIS POINTER line 6",
+   "path": "service_lines[].diagnosis_pointer"
+  },
+  {
+   "page": 0,
+   "rect": [
+    412.4,
+    696.1,
+    455.9,
+    706.0
+   ],
+   "type": "text",
+   "label": "24F. $ CHARGES line 6",
+   "path": "service_lines[].charges",
+   "transforms": [
+    "number_format",
+    "split"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    457.9,
+    696.1,
+    474.0,
+    706.0
+   ],
+   "type": "text",
+   "label": "24F. $ CHARGES cents line 6",
+   "path": "service_lines[].charges",
+   "transforms": [
+    "number_format",
+    "split"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    476.0,
+    696.1,
+    503.0,
+    706.0
+   ],
+   "type": "text",
+   "label": "24G. DAYS OR UNITS line 6",
+   "path": "service_lines[].units"
+  },
+  {
+   "page": 0,
+   "rect": [
+    505.0,
+    696.1,
+    517.9,
+    706.0
+   ],
+   "type": "text",
+   "label": "24H. EPSDT Family Plan line 6"
+  },
+  {
+   "page": 0,
+   "rect": [
+    540.9,
+    696.1,
+    627.6,
+    706.0
+   ],
+   "type": "text",
+   "label": "24J. RENDERING PROVIDER ID. # (NPI) line 6",
+   "path": "service_lines[].rendering_provider_npi"
+  },
+  {
+   "page": 0,
+   "rect": [
+    61.4,
+    717.2,
+    169.0,
+    730.2
+   ],
+   "type": "text",
+   "label": "25. FEDERAL TAX I.D. NUMBER",
+   "path": "billing_provider.tax_id"
+  },
+  {
+   "page": 0,
+   "rect": [
+    175.69,
+    718.83,
+    186.77,
+    729.81
+   ],
+   "type": "choice",
+   "label": "25. SSN",
+   "path": "billing_provider.tax_id_type",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    189.99,
+    718.83,
+    201.07,
+    729.81
+   ],
+   "type": "choice",
+   "label": "25. EIN",
+   "path": "billing_provider.tax_id_type",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    217.5,
+    717.2,
+    321.0,
+    730.2
+   ],
+   "type": "text",
+   "label": "26. PATIENT'S ACCOUNT NO.",
+   "path": "patient.account_number"
+  },
+  {
+   "page": 0,
+   "rect": [
+    326.69,
+    718.84,
+    337.77,
+    729.82
+   ],
+   "type": "choice",
+   "label": "27. ACCEPT ASSIGNMENT? YES",
+   "path": "accept_assignment",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    362.49,
+    718.92,
+    373.57,
+    729.9
+   ],
+   "type": "choice",
+   "label": "27. ACCEPT ASSIGNMENT? NO",
+   "path": "accept_assignment",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    421.4,
+    718.0,
+    471.4,
+    730.2
+   ],
+   "type": "text",
+   "label": "28. TOTAL CHARGE $",
+   "path": "total_charge",
+   "transforms": [
+    "number_format",
+    "split"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    473.4,
+    718.0,
+    491.0,
+    730.2
+   ],
+   "type": "text",
+   "label": "28. TOTAL CHARGE cents",
+   "path": "total_charge",
+   "transforms": [
+    "number_format",
+    "split"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    502.2,
+    718.0,
+    542.8,
+    730.2
+   ],
+   "type": "text",
+   "label": "29. AMOUNT PAID $",
+   "path": "amount_paid",
+   "transforms": [
+    "number_format",
+    "split"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    544.8,
+    718.0,
+    559.4,
+    730.2
+   ],
+   "type": "text",
+   "label": "29. AMOUNT PAID cents",
+   "path": "amount_paid",
+   "transforms": [
+    "number_format",
+    "split"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    87.0,
+    777.0,
+    170.0,
+    791.2
+   ],
+   "type": "signature",
+   "label": "31. SIGNATURE OF PHYSICIAN OR SUPPLIER INCLUDING DEGREES OR CREDENTIALS SIGNED"
+  },
+  {
+   "page": 0,
+   "rect": [
+    188.0,
+    777.0,
+    215.5,
+    791.2
+   ],
+   "type": "text",
+   "label": "31. DATE",
+   "path": "provider_signed_on",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    217.5,
+    739.0,
+    410.3,
+    777.1
+   ],
+   "type": "text",
+   "label": "32. SERVICE FACILITY LOCATION INFORMATION",
+   "path": "service_facility.name",
+   "also_paths": [
+    "service_facility.address.street",
+    "service_facility.address.city",
+    "service_facility.address.state",
+    "service_facility.address.postal_code"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    224.0,
+    779.1,
+    299.0,
+    790.6
+   ],
+   "type": "text",
+   "label": "32a. NPI",
+   "path": "service_facility.npi"
+  },
+  {
+   "page": 0,
+   "rect": [
+    305.0,
+    779.1,
+    410.3,
+    790.6
+   ],
+   "type": "text",
+   "label": "32b.",
+   "path": "service_facility.other_id"
+  },
+  {
+   "page": 0,
+   "rect": [
+    529.84,
+    732.2,
+    550.13,
+    744.5
+   ],
+   "type": "text",
+   "label": "33. BILLING PROVIDER INFO & PH # area code",
+   "path": "billing_provider.phone",
+   "transforms": [
+    "slice"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    554.9,
+    732.2,
+    627.4,
+    744.5
+   ],
+   "type": "text",
+   "label": "33. BILLING PROVIDER INFO & PH #",
+   "path": "billing_provider.phone",
+   "transforms": [
+    "slice"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    412.3,
+    745.0,
+    627.4,
+    777.1
+   ],
+   "type": "text",
+   "label": "33. BILLING PROVIDER INFO",
+   "path": "billing_provider.name",
+   "also_paths": [
+    "billing_provider.address.street",
+    "billing_provider.address.city",
+    "billing_provider.address.state",
+    "billing_provider.address.postal_code"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    419.0,
+    779.1,
+    493.3,
+    790.6
+   ],
+   "type": "text",
+   "label": "33a. NPI",
+   "path": "billing_provider.npi"
+  },
+  {
+   "page": 0,
+   "rect": [
+    499.0,
+    779.1,
+    627.7,
+    790.6
+   ],
+   "type": "text",
+   "label": "33b.",
+   "path": "billing_provider.other_id"
+  }
+ ],
+ "notes": "Page 0 only (manifest scored_pages). Excluded: PICA alignment boxes; items reserved for NUCC use (8, 9b, 9c, 30); the 24H shaded (EPSDT referral) cell; pre-printed 'NPI' in 24I. Cells are their writing area below the printed caption (lower data line), inset 1pt. Date groups are one box per MM/DD/YY group; money boxes are split at the printed dollars|cents divider; phones are split at the printed parentheses. 24 is a 6-row table: per row 18 lower cells, the shaded supplemental strip (24A-24G), and shaded 24I qualifier / 24J other ID. 32 and 33 multi-line areas are one box each. Diagnosis B-L are pathless (the schema keeps them as an array of scalar codes; only A maps to principal_diagnosis_code)."
+}

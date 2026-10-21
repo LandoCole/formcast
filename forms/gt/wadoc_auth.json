@@ -1,0 +1,335 @@
+{
+ "form": "wadoc_auth",
+ "fields": [
+  {
+   "page": 0,
+   "rect": [
+    43.2,
+    81.76,
+    306.05,
+    95.76
+   ],
+   "type": "text",
+   "label": "I, (name)",
+   "path": "individual.first_name",
+   "also_paths": [
+    "individual.last_name"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    157.58,
+    123.16,
+    576.09,
+    137.16
+   ],
+   "type": "text",
+   "label": "Name of organization:",
+   "path": "releasing_organization.name"
+  },
+  {
+   "page": 0,
+   "rect": [
+    85.58,
+    142.96,
+    576.09,
+    156.96
+   ],
+   "type": "text",
+   "label": "Address:",
+   "path": "releasing_organization.address.street"
+  },
+  {
+   "page": 0,
+   "rect": [
+    63.0,
+    162.76,
+    279.05,
+    176.76
+   ],
+   "type": "text",
+   "label": "City:",
+   "path": "releasing_organization.address.city"
+  },
+  {
+   "page": 0,
+   "rect": [
+    328.61,
+    162.76,
+    477.1,
+    176.76
+   ],
+   "type": "text",
+   "label": "State:",
+   "path": "releasing_organization.address.state"
+  },
+  {
+   "page": 0,
+   "rect": [
+    513.1,
+    162.76,
+    576.1,
+    176.76
+   ],
+   "type": "text",
+   "label": "Zip:",
+   "path": "releasing_organization.address.postal_code"
+  },
+  {
+   "page": 0,
+   "rect": [
+    157.58,
+    210.16,
+    576.09,
+    224.16
+   ],
+   "type": "text",
+   "label": "Release information to: Name of organization:",
+   "path": "recipient_organization.name"
+  },
+  {
+   "page": 0,
+   "rect": [
+    85.58,
+    229.96,
+    576.09,
+    243.96
+   ],
+   "type": "text",
+   "label": "Release information to: Address:",
+   "path": "recipient_organization.address.street"
+  },
+  {
+   "page": 0,
+   "rect": [
+    63.0,
+    249.79,
+    279.05,
+    263.79
+   ],
+   "type": "text",
+   "label": "Release information to: City:",
+   "path": "recipient_organization.address.city"
+  },
+  {
+   "page": 0,
+   "rect": [
+    328.61,
+    249.79,
+    477.1,
+    263.79
+   ],
+   "type": "text",
+   "label": "Release information to: State:",
+   "path": "recipient_organization.address.state"
+  },
+  {
+   "page": 0,
+   "rect": [
+    513.1,
+    249.79,
+    576.1,
+    263.79
+   ],
+   "type": "text",
+   "label": "Release information to: Zip:",
+   "path": "recipient_organization.address.postal_code"
+  },
+  {
+   "page": 0,
+   "rect": [
+    36.0,
+    297.19,
+    576.1,
+    311.19
+   ],
+   "type": "text",
+   "label": "Information to disclose from my records:",
+   "path": "information_requested"
+  },
+  {
+   "page": 0,
+   "rect": [
+    36.0,
+    313.99,
+    576.1,
+    327.99
+   ],
+   "type": "text",
+   "label": "Information to disclose from my records: (line 2)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    36.0,
+    330.79,
+    576.1,
+    344.79
+   ],
+   "type": "text",
+   "label": "Information to disclose from my records: (line 3)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    36.0,
+    347.59,
+    576.1,
+    361.59
+   ],
+   "type": "text",
+   "label": "Information to disclose from my records: (line 4)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    36.0,
+    364.39,
+    576.1,
+    378.39
+   ],
+   "type": "text",
+   "label": "Information to disclose from my records: (line 5)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    36.0,
+    415.51,
+    576.1,
+    429.51
+   ],
+   "type": "text",
+   "label": "Information will be used/disclosed as follows:",
+   "path": "purpose"
+  },
+  {
+   "page": 0,
+   "rect": [
+    36.0,
+    432.33,
+    576.1,
+    446.33
+   ],
+   "type": "text",
+   "label": "Information will be used/disclosed as follows: (line 2)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    36.0,
+    449.13,
+    576.1,
+    463.13
+   ],
+   "type": "text",
+   "label": "Information will be used/disclosed as follows: (line 3)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    36.0,
+    465.93,
+    576.1,
+    479.93
+   ],
+   "type": "text",
+   "label": "Information will be used/disclosed as follows: (line 4)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    36.0,
+    482.73,
+    576.1,
+    496.73
+   ],
+   "type": "text",
+   "label": "Information will be used/disclosed as follows: (line 5)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    36.0,
+    527.13,
+    252.05,
+    541.13
+   ],
+   "type": "signature",
+   "label": "Signature"
+  },
+  {
+   "page": 0,
+   "rect": [
+    270.05,
+    527.13,
+    450.07,
+    541.13
+   ],
+   "type": "text",
+   "label": "Date of birth",
+   "path": "individual.date_of_birth",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    468.1,
+    527.13,
+    576.1,
+    541.13
+   ],
+   "type": "text",
+   "label": "Date",
+   "path": "signed_on",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    36.0,
+    568.53,
+    252.05,
+    582.53
+   ],
+   "type": "text",
+   "label": "Witness",
+   "path": "witness.name"
+  },
+  {
+   "page": 0,
+   "rect": [
+    270.05,
+    568.53,
+    450.07,
+    582.53
+   ],
+   "type": "signature",
+   "label": "Signature (witness)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    468.1,
+    568.53,
+    576.1,
+    582.53
+   ],
+   "type": "text",
+   "label": "Date (witness)",
+   "path": "witness.signed_on",
+   "transforms": [
+    "date_format"
+   ]
+  }
+ ],
+ "notes": "Multi-line blocks ('Information to disclose', 'used/disclosed as follows') are one GT field per printed line; only the first line carries the schema path (continuation lines are pathless). Row 2 read as witness printed name / witness signature / date."
+}

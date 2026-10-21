@@ -1,0 +1,444 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://example.org/schemas/professional-claim.json",
+ "title": "Professional claim",
+ "description": "One professional (physician/supplier) health insurance claim as stored by the billing system.",
+ "type": "object",
+ "properties": {
+  "claim_id": {
+   "type": "string",
+   "description": "Internal claim number."
+  },
+  "insurance_program": {
+   "type": "string",
+   "enum": [
+    "medicare",
+    "medicaid",
+    "tricare",
+    "champva",
+    "group_health_plan",
+    "feca_black_lung",
+    "other"
+   ]
+  },
+  "patient": {
+   "type": "object",
+   "properties": {
+    "first_name": {
+     "type": "string"
+    },
+    "middle_initial": {
+     "type": "string",
+     "maxLength": 1
+    },
+    "last_name": {
+     "type": "string"
+    },
+    "date_of_birth": {
+     "type": "string",
+     "format": "date"
+    },
+    "sex": {
+     "type": "string",
+     "enum": [
+      "M",
+      "F"
+     ]
+    },
+    "address": {
+     "$ref": "#/$defs/address"
+    },
+    "phone": {
+     "$ref": "#/$defs/phone"
+    },
+    "relationship_to_insured": {
+     "type": "string",
+     "enum": [
+      "self",
+      "spouse",
+      "child",
+      "other"
+     ]
+    },
+    "account_number": {
+     "type": "string",
+     "description": "Patient account number in the practice system."
+    }
+   },
+   "required": [
+    "first_name",
+    "last_name",
+    "date_of_birth"
+   ]
+  },
+  "insured": {
+   "type": "object",
+   "description": "Primary insured (policyholder).",
+   "properties": {
+    "id_number": {
+     "type": "string",
+     "description": "Member ID on the insurance card."
+    },
+    "first_name": {
+     "type": "string"
+    },
+    "middle_initial": {
+     "type": "string",
+     "maxLength": 1
+    },
+    "last_name": {
+     "type": "string"
+    },
+    "date_of_birth": {
+     "type": "string",
+     "format": "date"
+    },
+    "sex": {
+     "type": "string",
+     "enum": [
+      "M",
+      "F"
+     ]
+    },
+    "address": {
+     "$ref": "#/$defs/address"
+    },
+    "phone": {
+     "$ref": "#/$defs/phone"
+    },
+    "policy_group_number": {
+     "type": "string"
+    },
+    "plan_name": {
+     "type": "string"
+    }
+   },
+   "required": [
+    "id_number"
+   ]
+  },
+  "other_coverage": {
+   "type": "object",
+   "description": "Secondary coverage, when there is another health benefit plan.",
+   "properties": {
+    "insured_first_name": {
+     "type": "string"
+    },
+    "insured_middle_initial": {
+     "type": "string"
+    },
+    "insured_last_name": {
+     "type": "string"
+    },
+    "policy_group_number": {
+     "type": "string"
+    },
+    "plan_name": {
+     "type": "string"
+    }
+   }
+  },
+  "has_other_health_plan": {
+   "type": "boolean"
+  },
+  "condition_related_to": {
+   "type": "object",
+   "properties": {
+    "employment": {
+     "type": "boolean"
+    },
+    "auto_accident": {
+     "type": "boolean"
+    },
+    "auto_accident_state": {
+     "type": "string",
+     "description": "Two-letter state where the accident happened."
+    },
+    "other_accident": {
+     "type": "boolean"
+    }
+   }
+  },
+  "patient_signed_on": {
+   "type": "string",
+   "format": "date"
+  },
+  "current_illness": {
+   "type": "object",
+   "properties": {
+    "date": {
+     "type": "string",
+     "format": "date"
+    },
+    "qualifier": {
+     "type": "string",
+     "enum": [
+      "431",
+      "484"
+     ]
+    }
+   }
+  },
+  "unable_to_work": {
+   "$ref": "#/$defs/period"
+  },
+  "hospitalization": {
+   "$ref": "#/$defs/period"
+  },
+  "referring_provider": {
+   "type": "object",
+   "properties": {
+    "qualifier": {
+     "type": "string",
+     "enum": [
+      "DN",
+      "DK",
+      "DQ"
+     ]
+    },
+    "first_name": {
+     "type": "string"
+    },
+    "last_name": {
+     "type": "string"
+    },
+    "other_id_qualifier": {
+     "type": "string"
+    },
+    "other_id": {
+     "type": "string"
+    },
+    "npi": {
+     "type": "string",
+     "pattern": "^\\d{10}$"
+    }
+   }
+  },
+  "additional_claim_info": {
+   "type": "string"
+  },
+  "outside_lab": {
+   "type": "boolean"
+  },
+  "outside_lab_charges": {
+   "type": "number",
+   "minimum": 0
+  },
+  "icd_indicator": {
+   "type": "string",
+   "enum": [
+    "9",
+    "0"
+   ],
+   "description": "9 = ICD-9-CM, 0 = ICD-10-CM."
+  },
+  "principal_diagnosis_code": {
+   "type": "string"
+  },
+  "other_diagnosis_codes": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   },
+   "maxItems": 11
+  },
+  "resubmission": {
+   "type": "object",
+   "properties": {
+    "code": {
+     "type": "string",
+     "enum": [
+      "1",
+      "7",
+      "8"
+     ]
+    },
+    "original_reference_number": {
+     "type": "string"
+    }
+   }
+  },
+  "prior_authorization_number": {
+   "type": "string"
+  },
+  "service_lines": {
+   "type": "array",
+   "maxItems": 6,
+   "items": {
+    "type": "object",
+    "properties": {
+     "from_date": {
+      "type": "string",
+      "format": "date"
+     },
+     "to_date": {
+      "type": "string",
+      "format": "date"
+     },
+     "place_of_service": {
+      "type": "string",
+      "pattern": "^\\d{2}$"
+     },
+     "emergency_indicator": {
+      "type": "string",
+      "enum": [
+       "Y",
+       "N"
+      ]
+     },
+     "procedure_code": {
+      "type": "string",
+      "description": "CPT/HCPCS code."
+     },
+     "modifier_1": {
+      "type": "string"
+     },
+     "modifier_2": {
+      "type": "string"
+     },
+     "modifier_3": {
+      "type": "string"
+     },
+     "modifier_4": {
+      "type": "string"
+     },
+     "diagnosis_pointer": {
+      "type": "string",
+      "description": "Letters A-L pointing at the diagnosis codes."
+     },
+     "charges": {
+      "type": "number",
+      "minimum": 0
+     },
+     "units": {
+      "type": "number",
+      "minimum": 0
+     },
+     "rendering_provider_id_qualifier": {
+      "type": "string"
+     },
+     "rendering_provider_other_id": {
+      "type": "string"
+     },
+     "rendering_provider_npi": {
+      "type": "string",
+      "pattern": "^\\d{10}$"
+     },
+     "supplemental_info": {
+      "type": "string",
+      "description": "NDC or other supplemental information for the line."
+     }
+    },
+    "required": [
+     "from_date",
+     "procedure_code",
+     "charges"
+    ]
+   }
+  },
+  "accept_assignment": {
+   "type": "boolean"
+  },
+  "total_charge": {
+   "type": "number",
+   "minimum": 0
+  },
+  "amount_paid": {
+   "type": "number",
+   "minimum": 0
+  },
+  "provider_signed_on": {
+   "type": "string",
+   "format": "date"
+  },
+  "service_facility": {
+   "$ref": "#/$defs/facility"
+  },
+  "billing_provider": {
+   "allOf": [
+    {
+     "$ref": "#/$defs/facility"
+    },
+    {
+     "type": "object",
+     "properties": {
+      "phone": {
+       "$ref": "#/$defs/phone"
+      },
+      "tax_id": {
+       "type": "string"
+      },
+      "tax_id_type": {
+       "type": "string",
+       "enum": [
+        "ssn",
+        "ein"
+       ]
+      }
+     }
+    }
+   ]
+  }
+ },
+ "required": [
+  "insurance_program",
+  "patient",
+  "insured",
+  "service_lines"
+ ],
+ "$defs": {
+  "address": {
+   "type": "object",
+   "properties": {
+    "street": {
+     "type": "string"
+    },
+    "city": {
+     "type": "string"
+    },
+    "state": {
+     "type": "string"
+    },
+    "postal_code": {
+     "type": "string"
+    }
+   }
+  },
+  "phone": {
+   "type": "string",
+   "pattern": "^\\d{3}-\\d{3}-\\d{4}$",
+   "description": "Ten digits formatted NNN-NNN-NNNN."
+  },
+  "period": {
+   "type": "object",
+   "properties": {
+    "from": {
+     "type": "string",
+     "format": "date"
+    },
+    "to": {
+     "type": "string",
+     "format": "date"
+    }
+   }
+  },
+  "facility": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string"
+    },
+    "address": {
+     "$ref": "#/$defs/address"
+    },
+    "npi": {
+     "type": "string",
+     "pattern": "^\\d{10}$"
+    },
+    "other_id": {
+     "type": "string"
+    }
+   }
+  }
+ }
+}

@@ -1,0 +1,4192 @@
+{
+ "form": "grandview_app",
+ "fields": [
+  {
+   "page": 0,
+   "rect": [
+    76.58,
+    147.98,
+    196.34,
+    158.46
+   ],
+   "type": "text",
+   "label": "Name - Last",
+   "path": "applicant.last_name"
+  },
+  {
+   "page": 0,
+   "rect": [
+    196.34,
+    147.98,
+    312.88,
+    158.46
+   ],
+   "type": "text",
+   "label": "Name - First",
+   "path": "applicant.first_name"
+  },
+  {
+   "page": 0,
+   "rect": [
+    312.89,
+    147.98,
+    403.87,
+    158.46
+   ],
+   "type": "text",
+   "label": "Name - Middle",
+   "path": "applicant.middle_name"
+  },
+  {
+   "page": 0,
+   "rect": [
+    471.58,
+    147.98,
+    509.26,
+    158.46
+   ],
+   "type": "text",
+   "label": "Social Security # (group 1)",
+   "path": "applicant.ssn",
+   "transforms": [
+    "slice"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    511.94,
+    147.98,
+    549.58,
+    158.46
+   ],
+   "type": "text",
+   "label": "Social Security # (group 2)",
+   "path": "applicant.ssn",
+   "transforms": [
+    "slice"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    552.26,
+    147.98,
+    580.66,
+    158.46
+   ],
+   "type": "text",
+   "label": "Social Security # (group 3)",
+   "path": "applicant.ssn",
+   "transforms": [
+    "slice"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    76.58,
+    179.78,
+    312.88,
+    190.14
+   ],
+   "type": "text",
+   "label": "Address - Street",
+   "path": "applicant.address.street"
+  },
+  {
+   "page": 0,
+   "rect": [
+    312.89,
+    179.78,
+    467.38,
+    190.14
+   ],
+   "type": "text",
+   "label": "Address - City",
+   "path": "applicant.address.city"
+  },
+  {
+   "page": 0,
+   "rect": [
+    467.38,
+    179.78,
+    521.98,
+    190.14
+   ],
+   "type": "text",
+   "label": "Address - State",
+   "path": "applicant.address.state"
+  },
+  {
+   "page": 0,
+   "rect": [
+    521.98,
+    179.78,
+    580.66,
+    190.14
+   ],
+   "type": "text",
+   "label": "Address - Zip Code",
+   "path": "applicant.address.postal_code"
+  },
+  {
+   "page": 0,
+   "rect": [
+    93.54,
+    210.98,
+    120.24,
+    221.46
+   ],
+   "type": "text",
+   "label": "Telephone (area code)",
+   "path": "applicant.home_phone",
+   "transforms": [
+    "slice"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    122.92,
+    210.98,
+    209.08,
+    221.46
+   ],
+   "type": "text",
+   "label": "Telephone",
+   "path": "applicant.home_phone",
+   "transforms": [
+    "slice"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    305.13,
+    210.98,
+    334.1,
+    221.46
+   ],
+   "type": "text",
+   "label": "Mobile/Beeper/Other Phone (area code)",
+   "path": "applicant.mobile_phone",
+   "transforms": [
+    "slice"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    336.78,
+    210.98,
+    415.87,
+    221.46
+   ],
+   "type": "text",
+   "label": "Mobile/Beeper/Other Phone",
+   "path": "applicant.mobile_phone",
+   "transforms": [
+    "slice"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    459.07,
+    210.98,
+    580.65,
+    221.46
+   ],
+   "type": "text",
+   "label": "E-mail address",
+   "path": "applicant.email"
+  },
+  {
+   "page": 0,
+   "rect": [
+    120.5,
+    233.42,
+    580.65,
+    243.78
+   ],
+   "type": "text",
+   "label": "Position(s) applied for",
+   "path": "positions_applied_for",
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    37.0,
+    257.22,
+    51.92,
+    273.13
+   ],
+   "type": "choice",
+   "label": "Referral Source: Walk-in",
+   "path": "referral.source",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    88.35,
+    257.22,
+    300.97,
+    273.13
+   ],
+   "type": "text",
+   "label": "Referral Source: Walk-in: (name the source)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    302.97,
+    257.22,
+    317.89,
+    273.13
+   ],
+   "type": "choice",
+   "label": "Referral Source: School",
+   "path": "referral.source",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    351.98,
+    257.22,
+    579.42,
+    273.13
+   ],
+   "type": "text",
+   "label": "Referral Source: School: (name the source)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    37.0,
+    275.13,
+    51.92,
+    291.49
+   ],
+   "type": "choice",
+   "label": "Referral Source: Employee",
+   "path": "referral.source",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    97.19,
+    275.13,
+    300.97,
+    291.49
+   ],
+   "type": "text",
+   "label": "Referral Source: Employee: (name the source)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    302.97,
+    275.13,
+    317.89,
+    291.49
+   ],
+   "type": "choice",
+   "label": "Referral Source: Job Fair",
+   "path": "referral.source",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    356.42,
+    275.13,
+    579.42,
+    291.49
+   ],
+   "type": "text",
+   "label": "Referral Source: Job Fair: (name the source)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    37.0,
+    293.49,
+    51.92,
+    308.89
+   ],
+   "type": "choice",
+   "label": "Referral Source: Advertisement",
+   "path": "referral.source",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    112.75,
+    293.49,
+    300.97,
+    308.89
+   ],
+   "type": "text",
+   "label": "Referral Source: Advertisement: (name the source)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    302.97,
+    293.49,
+    317.89,
+    308.89
+   ],
+   "type": "choice",
+   "label": "Referral Source: Staffing Agency",
+   "path": "referral.source",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    383.65,
+    293.49,
+    579.42,
+    308.89
+   ],
+   "type": "text",
+   "label": "Referral Source: Staffing Agency: (name the source)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    37.0,
+    310.89,
+    51.92,
+    326.65
+   ],
+   "type": "choice",
+   "label": "Referral Source: City of Grandview Website",
+   "path": "referral.source",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    155.82,
+    310.89,
+    300.97,
+    326.65
+   ],
+   "type": "text",
+   "label": "Referral Source: City of Grandview Website: (name the source)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    302.97,
+    310.89,
+    317.89,
+    326.65
+   ],
+   "type": "choice",
+   "label": "Referral Source: Government Employment Agency",
+   "path": "referral.source",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    447.12,
+    310.89,
+    579.42,
+    326.65
+   ],
+   "type": "text",
+   "label": "Referral Source: Government Employment Agency: (name the source)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    37.0,
+    328.65,
+    51.92,
+    344.53
+   ],
+   "type": "choice",
+   "label": "Referral Source: Other Internet",
+   "path": "referral.source",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    110.95,
+    328.65,
+    300.97,
+    344.53
+   ],
+   "type": "text",
+   "label": "Referral Source: Other Internet: (name the source)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    302.97,
+    328.65,
+    317.89,
+    344.53
+   ],
+   "type": "choice",
+   "label": "Referral Source: Other",
+   "path": "referral.source",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    347.55,
+    328.65,
+    579.42,
+    344.53
+   ],
+   "type": "text",
+   "label": "Referral Source: Other: (name the source)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    199.3,
+    355.45,
+    255.9,
+    369.45
+   ],
+   "type": "text",
+   "label": "If necessary, best time to call you at home is (hour)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    259.0,
+    355.45,
+    296.0,
+    369.45
+   ],
+   "type": "text",
+   "label": "If necessary, best time to call you at home is (minutes)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    297.17,
+    349.89,
+    308.18,
+    358.86
+   ],
+   "type": "choice",
+   "label": "best time to call you at home: am"
+  },
+  {
+   "page": 0,
+   "rect": [
+    296.69,
+    359.13,
+    307.71,
+    368.1
+   ],
+   "type": "choice",
+   "label": "best time to call you at home: pm"
+  },
+  {
+   "page": 0,
+   "rect": [
+    227.73,
+    369.45,
+    238.93,
+    381.01
+   ],
+   "type": "choice",
+   "label": "May we contact you at work? Yes",
+   "path": "applicant.may_contact_at_work",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    271.65,
+    369.45,
+    283.09,
+    381.01
+   ],
+   "type": "choice",
+   "label": "May we contact you at work? No",
+   "path": "applicant.may_contact_at_work",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    55.36,
+    406.81,
+    88.65,
+    420.81
+   ],
+   "type": "text",
+   "label": "If yes, work number (area code)",
+   "path": "applicant.work_phone",
+   "transforms": [
+    "slice"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    91.33,
+    406.81,
+    224.9,
+    420.81
+   ],
+   "type": "text",
+   "label": "If yes, work number",
+   "path": "applicant.work_phone",
+   "transforms": [
+    "slice"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    225.9,
+    406.81,
+    255.4,
+    420.81
+   ],
+   "type": "text",
+   "label": "best time to call at work (hour)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    258.6,
+    406.81,
+    295.4,
+    420.81
+   ],
+   "type": "text",
+   "label": "best time to call at work (minutes)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    297.29,
+    401.25,
+    308.31,
+    410.22
+   ],
+   "type": "choice",
+   "label": "best time to call at work: am"
+  },
+  {
+   "page": 0,
+   "rect": [
+    295.95,
+    410.37,
+    306.96,
+    419.34
+   ],
+   "type": "choice",
+   "label": "best time to call at work: pm"
+  },
+  {
+   "page": 0,
+   "rect": [
+    227.73,
+    434.27,
+    238.93,
+    446.43
+   ],
+   "type": "choice",
+   "label": "If you are under 18 and it is required, can you furnish a work permit? Yes",
+   "path": "applicant.can_furnish_work_permit",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    271.65,
+    434.27,
+    283.09,
+    446.43
+   ],
+   "type": "choice",
+   "label": "If you are under 18 and it is required, can you furnish a work permit? No",
+   "path": "applicant.can_furnish_work_permit",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    125.1,
+    455.07,
+    312.53,
+    469.07
+   ],
+   "type": "text",
+   "label": "If no, please explain (work permit)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    227.73,
+    469.07,
+    238.93,
+    480.63
+   ],
+   "type": "choice",
+   "label": "Have you submitted an application here before? Yes",
+   "path": "previous_application.submitted",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    271.65,
+    469.07,
+    283.09,
+    480.63
+   ],
+   "type": "choice",
+   "label": "Have you submitted an application here before? No",
+   "path": "previous_application.submitted",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    174.0,
+    486.63,
+    312.53,
+    500.63
+   ],
+   "type": "text",
+   "label": "If yes, give date(s) and position(s)",
+   "path": "previous_application.details"
+  },
+  {
+   "page": 0,
+   "rect": [
+    36.0,
+    504.63,
+    312.53,
+    518.63
+   ],
+   "type": "text",
+   "label": "If yes, give date(s) and position(s) (line 2)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    227.73,
+    518.63,
+    238.93,
+    530.07
+   ],
+   "type": "choice",
+   "label": "Have you ever been employed here before? Yes",
+   "path": "previous_employment.employed_here",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    271.65,
+    518.63,
+    283.09,
+    530.07
+   ],
+   "type": "choice",
+   "label": "Have you ever been employed here before? No",
+   "path": "previous_employment.employed_here",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    144.6,
+    536.07,
+    170.82,
+    550.07
+   ],
+   "type": "text",
+   "label": "If yes, give date(s) From MM",
+   "path": "previous_employment.from",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    173.05,
+    536.07,
+    197.45,
+    550.07
+   ],
+   "type": "text",
+   "label": "If yes, give date(s) From DD",
+   "path": "previous_employment.from",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    199.68,
+    536.07,
+    239.78,
+    550.07
+   ],
+   "type": "text",
+   "label": "If yes, give date(s) From YY",
+   "path": "previous_employment.from",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    249.2,
+    536.07,
+    269.04,
+    550.07
+   ],
+   "type": "text",
+   "label": "If yes, give date(s) To MM",
+   "path": "previous_employment.to",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    271.28,
+    536.07,
+    295.78,
+    550.07
+   ],
+   "type": "text",
+   "label": "If yes, give date(s) To DD",
+   "path": "previous_employment.to",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    298.02,
+    536.07,
+    312.53,
+    550.07
+   ],
+   "type": "text",
+   "label": "If yes, give date(s) To YY",
+   "path": "previous_employment.to",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    227.73,
+    559.79,
+    238.93,
+    567.51
+   ],
+   "type": "choice",
+   "label": "Are you legally eligible for employment in this country? Yes",
+   "path": "applicant.legally_eligible",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    271.65,
+    559.79,
+    283.09,
+    567.51
+   ],
+   "type": "choice",
+   "label": "Are you legally eligible for employment in this country? No",
+   "path": "applicant.legally_eligible",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    214.9,
+    581.67,
+    242.93,
+    595.67
+   ],
+   "type": "text",
+   "label": "Date available for work MM",
+   "path": "available_from",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    245.17,
+    581.67,
+    271.83,
+    595.67
+   ],
+   "type": "text",
+   "label": "Date available for work DD",
+   "path": "available_from",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    274.07,
+    581.67,
+    312.53,
+    595.67
+   ],
+   "type": "text",
+   "label": "Date available for work YY",
+   "path": "available_from",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    46.4,
+    609.78,
+    199.0,
+    623.78
+   ],
+   "type": "text",
+   "label": "What is your desired salary range or hourly rate of pay? $",
+   "path": "desired_pay.amount"
+  },
+  {
+   "page": 0,
+   "rect": [
+    212.4,
+    609.78,
+    312.53,
+    623.78
+   ],
+   "type": "text",
+   "label": "desired salary range or hourly rate of pay: Per",
+   "path": "desired_pay.period"
+  },
+  {
+   "page": 0,
+   "rect": [
+    163.02,
+    623.78,
+    174.22,
+    631.5
+   ],
+   "type": "choice",
+   "label": "Type of employment desired: Full-Time",
+   "path": "employment_types_desired",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    240.93,
+    623.78,
+    252.37,
+    631.5
+   ],
+   "type": "choice",
+   "label": "Type of employment desired: Part-Time",
+   "path": "employment_types_desired",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    37.0,
+    633.5,
+    48.08,
+    641.82
+   ],
+   "type": "choice",
+   "label": "Type of employment desired: Educational Co-Op",
+   "path": "employment_types_desired",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    163.02,
+    633.5,
+    174.22,
+    641.82
+   ],
+   "type": "choice",
+   "label": "Type of employment desired: Seasonal",
+   "path": "employment_types_desired",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    240.93,
+    633.5,
+    252.37,
+    641.82
+   ],
+   "type": "choice",
+   "label": "Type of employment desired: Temporary",
+   "path": "employment_types_desired",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    227.73,
+    653.54,
+    238.93,
+    661.14
+   ],
+   "type": "choice",
+   "label": "Will you relocate if job requires it? Yes",
+   "path": "applicant.willing_to_relocate",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    271.65,
+    653.54,
+    283.09,
+    661.14
+   ],
+   "type": "choice",
+   "label": "Will you relocate if job requires it? No",
+   "path": "applicant.willing_to_relocate",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    227.73,
+    672.86,
+    238.93,
+    680.58
+   ],
+   "type": "choice",
+   "label": "Will you travel if job requires it? Yes",
+   "path": "applicant.willing_to_travel",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    271.65,
+    672.86,
+    283.09,
+    680.58
+   ],
+   "type": "choice",
+   "label": "Will you travel if job requires it? No",
+   "path": "applicant.willing_to_travel",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    183.9,
+    700.58,
+    195.34,
+    708.3
+   ],
+   "type": "choice",
+   "label": "are you able to meet the attendance requirements of the position? N/A",
+   "path": "applicant.meets_attendance_requirements",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    227.73,
+    700.58,
+    238.93,
+    708.3
+   ],
+   "type": "choice",
+   "label": "are you able to meet the attendance requirements of the position? Yes",
+   "path": "applicant.meets_attendance_requirements",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    271.65,
+    700.58,
+    283.09,
+    708.3
+   ],
+   "type": "choice",
+   "label": "are you able to meet the attendance requirements of the position? No",
+   "path": "applicant.meets_attendance_requirements",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    492.14,
+    353.73,
+    507.18,
+    367.45
+   ],
+   "type": "choice",
+   "label": "Will you work overtime if required? Yes",
+   "path": "applicant.willing_to_work_overtime",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    535.82,
+    353.73,
+    550.86,
+    367.45
+   ],
+   "type": "choice",
+   "label": "Will you work overtime if required? No",
+   "path": "applicant.willing_to_work_overtime",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    402.7,
+    369.01,
+    581.74,
+    383.01
+   ],
+   "type": "text",
+   "label": "If no, please explain (overtime)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    314.69,
+    387.85,
+    581.74,
+    401.85
+   ],
+   "type": "text",
+   "label": "If no, please explain (overtime, line 2)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    315.69,
+    453.35,
+    330.37,
+    467.07
+   ],
+   "type": "choice",
+   "label": "Are you able to perform the essential functions of the job? Yes",
+   "path": "applicant.can_perform_essential_functions",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    370.55,
+    453.35,
+    385.59,
+    467.07
+   ],
+   "type": "choice",
+   "label": "Are you able to perform the essential functions of the job? No",
+   "path": "applicant.can_perform_essential_functions",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    425.27,
+    453.35,
+    440.19,
+    467.07
+   ],
+   "type": "choice",
+   "label": "Are you able to perform the essential functions of the job? Need more information about the job's essential functions to respond",
+   "path": "applicant.can_perform_essential_functions",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    350.3,
+    504.63,
+    494.5,
+    518.63
+   ],
+   "type": "text",
+   "label": "Driver's license Number:",
+   "path": "applicant.drivers_license.number"
+  },
+  {
+   "page": 0,
+   "rect": [
+    518.0,
+    504.63,
+    581.74,
+    518.63
+   ],
+   "type": "text",
+   "label": "Driver's license State:",
+   "path": "applicant.drivers_license.state"
+  },
+  {
+   "page": 0,
+   "rect": [
+    492.14,
+    518.63,
+    507.18,
+    530.07
+   ],
+   "type": "choice",
+   "label": "Have you ever been bonded? Yes",
+   "path": "applicant.has_been_bonded",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    535.82,
+    518.63,
+    550.86,
+    530.07
+   ],
+   "type": "choice",
+   "label": "Have you ever been bonded? No",
+   "path": "applicant.has_been_bonded",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    491.66,
+    595.67,
+    507.18,
+    604.85
+   ],
+   "type": "choice",
+   "label": "Have you pled guilty or no contest to or been convicted of a crime within the last ten (10) years? Yes",
+   "path": "criminal_history.convicted_last_10_years",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    535.82,
+    595.67,
+    550.86,
+    604.85
+   ],
+   "type": "choice",
+   "label": "Have you pled guilty or no contest to or been convicted of a crime within the last ten (10) years? No",
+   "path": "criminal_history.convicted_last_10_years",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    315.69,
+    606.85,
+    580.74,
+    621.78
+   ],
+   "type": "text",
+   "label": "If yes, please provide date(s) and details:",
+   "path": "criminal_history.details"
+  },
+  {
+   "page": 0,
+   "rect": [
+    315.69,
+    623.78,
+    580.74,
+    641.82
+   ],
+   "type": "text",
+   "label": "If yes, please provide date(s) and details: (line 2)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    315.69,
+    643.82,
+    580.74,
+    661.14
+   ],
+   "type": "text",
+   "label": "If yes, please provide date(s) and details: (line 3)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    315.69,
+    663.14,
+    580.74,
+    680.58
+   ],
+   "type": "text",
+   "label": "If yes, please provide date(s) and details: (line 4)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    315.69,
+    682.58,
+    580.74,
+    698.58
+   ],
+   "type": "text",
+   "label": "If yes, please provide date(s) and details: (line 5)"
+  },
+  {
+   "page": 0,
+   "rect": [
+    315.69,
+    700.58,
+    580.74,
+    719.58
+   ],
+   "type": "text",
+   "label": "If yes, please provide date(s) and details: (line 6)"
+  },
+  {
+   "page": 1,
+   "rect": [
+    37.0,
+    47.0,
+    248.65,
+    62.0
+   ],
+   "type": "text",
+   "label": "Employment History (employer 1): Employer",
+   "path": "employment_history[].employer"
+  },
+  {
+   "page": 1,
+   "rect": [
+    258.2,
+    47.0,
+    299.5,
+    62.0
+   ],
+   "type": "text",
+   "label": "Employment History (employer 1): Telephone # (area code)",
+   "path": "employment_history[].phone",
+   "transforms": [
+    "slice"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    303.2,
+    47.0,
+    364.35,
+    62.0
+   ],
+   "type": "text",
+   "label": "Employment History (employer 1): Telephone #",
+   "path": "employment_history[].phone",
+   "transforms": [
+    "slice"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    417.9,
+    47.0,
+    462.65,
+    62.0
+   ],
+   "type": "text",
+   "label": "Employment History (employer 1): Dates employed: from Month",
+   "path": "employment_history[].start_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    465.9,
+    47.0,
+    509.5,
+    62.0
+   ],
+   "type": "text",
+   "label": "Employment History (employer 1): Dates employed: from Year",
+   "path": "employment_history[].start_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    515.5,
+    47.0,
+    562.76,
+    62.0
+   ],
+   "type": "text",
+   "label": "Employment History (employer 1): Dates employed: to Month",
+   "path": "employment_history[].end_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    566.0,
+    47.0,
+    580.5,
+    62.0
+   ],
+   "type": "text",
+   "label": "Employment History (employer 1): Dates employed: to Year",
+   "path": "employment_history[].end_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    37.0,
+    70.5,
+    248.5,
+    84.2
+   ],
+   "type": "text",
+   "label": "Employment History (employer 1): Street address",
+   "path": "employment_history[].street"
+  },
+  {
+   "page": 1,
+   "rect": [
+    249.05,
+    70.5,
+    335.4,
+    84.2
+   ],
+   "type": "text",
+   "label": "Employment History (employer 1): City",
+   "path": "employment_history[].city"
+  },
+  {
+   "page": 1,
+   "rect": [
+    335.92,
+    70.5,
+    364.35,
+    84.2
+   ],
+   "type": "text",
+   "label": "Employment History (employer 1): State",
+   "path": "employment_history[].state"
+  },
+  {
+   "page": 1,
+   "rect": [
+    366.35,
+    70.82,
+    378.87,
+    77.26
+   ],
+   "type": "choice",
+   "label": "Employment History (employer 1): Compensation (Starting) Hourly"
+  },
+  {
+   "page": 1,
+   "rect": [
+    366.35,
+    78.26,
+    378.87,
+    84.16
+   ],
+   "type": "choice",
+   "label": "Employment History (employer 1): Compensation (Starting) Salary"
+  },
+  {
+   "page": 1,
+   "rect": [
+    433.6,
+    71.62,
+    532.6,
+    85.66
+   ],
+   "type": "text",
+   "label": "Employment History (employer 1): Compensation (Starting) $",
+   "path": "employment_history[].starting_pay_amount"
+  },
+  {
+   "page": 1,
+   "rect": [
+    542.3,
+    71.62,
+    581.0,
+    85.66
+   ],
+   "type": "text",
+   "label": "Employment History (employer 1): Compensation (Starting) per",
+   "path": "employment_history[].starting_pay_period"
+  },
+  {
+   "page": 1,
+   "rect": [
+    366.35,
+    93.04,
+    378.87,
+    99.48
+   ],
+   "type": "choice",
+   "label": "Employment History (employer 1): Compensation (Final) Hourly"
+  },
+  {
+   "page": 1,
+   "rect": [
+    366.35,
+    100.48,
+    378.87,
+    106.38
+   ],
+   "type": "choice",
+   "label": "Employment History (employer 1): Compensation (Final) Salary"
+  },
+  {
+   "page": 1,
+   "rect": [
+    433.6,
+    93.84,
+    531.1,
+    107.88
+   ],
+   "type": "text",
+   "label": "Employment History (employer 1): Compensation (Final) $",
+   "path": "employment_history[].final_pay_amount"
+  },
+  {
+   "page": 1,
+   "rect": [
+    540.8,
+    93.84,
+    581.0,
+    107.88
+   ],
+   "type": "text",
+   "label": "Employment History (employer 1): Compensation (Final) per",
+   "path": "employment_history[].final_pay_period"
+  },
+  {
+   "page": 1,
+   "rect": [
+    37.0,
+    92.7,
+    364.35,
+    106.4
+   ],
+   "type": "text",
+   "label": "Employment History (employer 1): Starting job title/final job title",
+   "path": "employment_history[].starting_title",
+   "also_paths": [
+    "employment_history[].final_title"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    37.0,
+    114.9,
+    248.65,
+    127.24
+   ],
+   "type": "text",
+   "label": "Employment History (employer 1): Immediate supervisor and title (for most recent position held)",
+   "path": "employment_history[].supervisor_name",
+   "also_paths": [
+    "employment_history[].supervisor_title"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    250.65,
+    117.12,
+    263.65,
+    127.24
+   ],
+   "type": "choice",
+   "label": "Employment History (employer 1): May we contact for reference? Yes"
+  },
+  {
+   "page": 1,
+   "rect": [
+    287.97,
+    117.12,
+    299.17,
+    127.24
+   ],
+   "type": "choice",
+   "label": "Employment History (employer 1): May we contact for reference? No"
+  },
+  {
+   "page": 1,
+   "rect": [
+    327.45,
+    117.12,
+    338.67,
+    127.24
+   ],
+   "type": "choice",
+   "label": "Employment History (employer 1): May we contact for reference? Later"
+  },
+  {
+   "page": 1,
+   "rect": [
+    489.4,
+    114.24,
+    580.5,
+    127.74
+   ],
+   "type": "text",
+   "label": "Employment History (employer 1): Commission/Bonus/Other Compensation $",
+   "path": "employment_history[].other_compensation"
+  },
+  {
+   "page": 1,
+   "rect": [
+    37.0,
+    137.9,
+    580.5,
+    151.54
+   ],
+   "type": "text",
+   "label": "Employment History (employer 1): Why did you leave?",
+   "path": "employment_history[].reason_for_leaving"
+  },
+  {
+   "page": 1,
+   "rect": [
+    37.0,
+    160.1,
+    580.5,
+    173.74
+   ],
+   "type": "text",
+   "label": "Employment History (employer 1): Summarize the type of work performed and job responsibilities:",
+   "path": "employment_history[].duties"
+  },
+  {
+   "page": 1,
+   "rect": [
+    37.0,
+    182.3,
+    580.5,
+    195.94
+   ],
+   "type": "text",
+   "label": "Employment History (employer 1): What did you like the most about your position?",
+   "path": "employment_history[].liked_most"
+  },
+  {
+   "page": 1,
+   "rect": [
+    37.0,
+    204.5,
+    580.5,
+    217.84
+   ],
+   "type": "text",
+   "label": "Employment History (employer 1): What were the things you liked least about the position?",
+   "path": "employment_history[].liked_least"
+  },
+  {
+   "page": 1,
+   "rect": [
+    37.0,
+    228.46,
+    248.65,
+    243.46
+   ],
+   "type": "text",
+   "label": "Employment History (employer 2): Employer",
+   "path": "employment_history[].employer"
+  },
+  {
+   "page": 1,
+   "rect": [
+    258.2,
+    228.46,
+    299.5,
+    243.46
+   ],
+   "type": "text",
+   "label": "Employment History (employer 2): Telephone # (area code)",
+   "path": "employment_history[].phone",
+   "transforms": [
+    "slice"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    303.2,
+    228.46,
+    364.35,
+    243.46
+   ],
+   "type": "text",
+   "label": "Employment History (employer 2): Telephone #",
+   "path": "employment_history[].phone",
+   "transforms": [
+    "slice"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    417.9,
+    228.46,
+    462.65,
+    243.46
+   ],
+   "type": "text",
+   "label": "Employment History (employer 2): Dates employed: from Month",
+   "path": "employment_history[].start_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    465.9,
+    228.46,
+    509.5,
+    243.46
+   ],
+   "type": "text",
+   "label": "Employment History (employer 2): Dates employed: from Year",
+   "path": "employment_history[].start_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    515.5,
+    228.46,
+    562.76,
+    243.46
+   ],
+   "type": "text",
+   "label": "Employment History (employer 2): Dates employed: to Month",
+   "path": "employment_history[].end_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    566.0,
+    228.46,
+    580.5,
+    243.46
+   ],
+   "type": "text",
+   "label": "Employment History (employer 2): Dates employed: to Year",
+   "path": "employment_history[].end_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    37.0,
+    251.96,
+    248.5,
+    265.66
+   ],
+   "type": "text",
+   "label": "Employment History (employer 2): Street address",
+   "path": "employment_history[].street"
+  },
+  {
+   "page": 1,
+   "rect": [
+    249.05,
+    251.96,
+    335.4,
+    265.66
+   ],
+   "type": "text",
+   "label": "Employment History (employer 2): City",
+   "path": "employment_history[].city"
+  },
+  {
+   "page": 1,
+   "rect": [
+    335.92,
+    251.96,
+    364.35,
+    265.66
+   ],
+   "type": "text",
+   "label": "Employment History (employer 2): State",
+   "path": "employment_history[].state"
+  },
+  {
+   "page": 1,
+   "rect": [
+    366.35,
+    252.28,
+    378.87,
+    258.72
+   ],
+   "type": "choice",
+   "label": "Employment History (employer 2): Compensation (Starting) Hourly"
+  },
+  {
+   "page": 1,
+   "rect": [
+    366.35,
+    259.72,
+    378.87,
+    265.62
+   ],
+   "type": "choice",
+   "label": "Employment History (employer 2): Compensation (Starting) Salary"
+  },
+  {
+   "page": 1,
+   "rect": [
+    433.6,
+    253.08,
+    532.6,
+    267.12
+   ],
+   "type": "text",
+   "label": "Employment History (employer 2): Compensation (Starting) $",
+   "path": "employment_history[].starting_pay_amount"
+  },
+  {
+   "page": 1,
+   "rect": [
+    542.3,
+    253.08,
+    581.0,
+    267.12
+   ],
+   "type": "text",
+   "label": "Employment History (employer 2): Compensation (Starting) per",
+   "path": "employment_history[].starting_pay_period"
+  },
+  {
+   "page": 1,
+   "rect": [
+    366.35,
+    274.5,
+    378.87,
+    280.94
+   ],
+   "type": "choice",
+   "label": "Employment History (employer 2): Compensation (Final) Hourly"
+  },
+  {
+   "page": 1,
+   "rect": [
+    366.35,
+    281.94,
+    378.87,
+    287.84
+   ],
+   "type": "choice",
+   "label": "Employment History (employer 2): Compensation (Final) Salary"
+  },
+  {
+   "page": 1,
+   "rect": [
+    433.6,
+    275.3,
+    531.1,
+    289.34
+   ],
+   "type": "text",
+   "label": "Employment History (employer 2): Compensation (Final) $",
+   "path": "employment_history[].final_pay_amount"
+  },
+  {
+   "page": 1,
+   "rect": [
+    540.8,
+    275.3,
+    581.0,
+    289.34
+   ],
+   "type": "text",
+   "label": "Employment History (employer 2): Compensation (Final) per",
+   "path": "employment_history[].final_pay_period"
+  },
+  {
+   "page": 1,
+   "rect": [
+    37.0,
+    274.16,
+    364.35,
+    287.86
+   ],
+   "type": "text",
+   "label": "Employment History (employer 2): Starting job title/final job title",
+   "path": "employment_history[].starting_title",
+   "also_paths": [
+    "employment_history[].final_title"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    37.0,
+    296.36,
+    248.65,
+    308.7
+   ],
+   "type": "text",
+   "label": "Employment History (employer 2): Immediate supervisor and title (for most recent position held)",
+   "path": "employment_history[].supervisor_name",
+   "also_paths": [
+    "employment_history[].supervisor_title"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    250.65,
+    298.58,
+    263.65,
+    308.7
+   ],
+   "type": "choice",
+   "label": "Employment History (employer 2): May we contact for reference? Yes"
+  },
+  {
+   "page": 1,
+   "rect": [
+    287.97,
+    298.58,
+    299.17,
+    308.7
+   ],
+   "type": "choice",
+   "label": "Employment History (employer 2): May we contact for reference? No"
+  },
+  {
+   "page": 1,
+   "rect": [
+    327.45,
+    298.58,
+    338.67,
+    308.7
+   ],
+   "type": "choice",
+   "label": "Employment History (employer 2): May we contact for reference? Later"
+  },
+  {
+   "page": 1,
+   "rect": [
+    489.4,
+    295.7,
+    580.5,
+    309.2
+   ],
+   "type": "text",
+   "label": "Employment History (employer 2): Commission/Bonus/Other Compensation $",
+   "path": "employment_history[].other_compensation"
+  },
+  {
+   "page": 1,
+   "rect": [
+    37.0,
+    319.36,
+    580.5,
+    333.0
+   ],
+   "type": "text",
+   "label": "Employment History (employer 2): Why did you leave?",
+   "path": "employment_history[].reason_for_leaving"
+  },
+  {
+   "page": 1,
+   "rect": [
+    37.0,
+    341.56,
+    580.5,
+    355.2
+   ],
+   "type": "text",
+   "label": "Employment History (employer 2): Summarize the type of work performed and job responsibilities:",
+   "path": "employment_history[].duties"
+  },
+  {
+   "page": 1,
+   "rect": [
+    37.0,
+    363.76,
+    580.5,
+    377.4
+   ],
+   "type": "text",
+   "label": "Employment History (employer 2): What did you like the most about your position?",
+   "path": "employment_history[].liked_most"
+  },
+  {
+   "page": 1,
+   "rect": [
+    37.0,
+    385.96,
+    580.5,
+    399.3
+   ],
+   "type": "text",
+   "label": "Employment History (employer 2): What were the things you liked least about the position?",
+   "path": "employment_history[].liked_least"
+  },
+  {
+   "page": 1,
+   "rect": [
+    37.0,
+    409.81,
+    248.65,
+    424.81
+   ],
+   "type": "text",
+   "label": "Employment History (employer 3): Employer",
+   "path": "employment_history[].employer"
+  },
+  {
+   "page": 1,
+   "rect": [
+    258.2,
+    409.81,
+    299.5,
+    424.81
+   ],
+   "type": "text",
+   "label": "Employment History (employer 3): Telephone # (area code)",
+   "path": "employment_history[].phone",
+   "transforms": [
+    "slice"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    303.2,
+    409.81,
+    364.35,
+    424.81
+   ],
+   "type": "text",
+   "label": "Employment History (employer 3): Telephone #",
+   "path": "employment_history[].phone",
+   "transforms": [
+    "slice"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    417.9,
+    409.81,
+    462.65,
+    424.81
+   ],
+   "type": "text",
+   "label": "Employment History (employer 3): Dates employed: from Month",
+   "path": "employment_history[].start_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    465.9,
+    409.81,
+    509.5,
+    424.81
+   ],
+   "type": "text",
+   "label": "Employment History (employer 3): Dates employed: from Year",
+   "path": "employment_history[].start_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    515.5,
+    409.81,
+    562.76,
+    424.81
+   ],
+   "type": "text",
+   "label": "Employment History (employer 3): Dates employed: to Month",
+   "path": "employment_history[].end_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    566.0,
+    409.81,
+    580.5,
+    424.81
+   ],
+   "type": "text",
+   "label": "Employment History (employer 3): Dates employed: to Year",
+   "path": "employment_history[].end_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    37.0,
+    433.31,
+    248.5,
+    447.01
+   ],
+   "type": "text",
+   "label": "Employment History (employer 3): Street address",
+   "path": "employment_history[].street"
+  },
+  {
+   "page": 1,
+   "rect": [
+    249.05,
+    433.31,
+    335.4,
+    447.01
+   ],
+   "type": "text",
+   "label": "Employment History (employer 3): City",
+   "path": "employment_history[].city"
+  },
+  {
+   "page": 1,
+   "rect": [
+    335.92,
+    433.31,
+    364.35,
+    447.01
+   ],
+   "type": "text",
+   "label": "Employment History (employer 3): State",
+   "path": "employment_history[].state"
+  },
+  {
+   "page": 1,
+   "rect": [
+    366.35,
+    433.63,
+    378.87,
+    440.07
+   ],
+   "type": "choice",
+   "label": "Employment History (employer 3): Compensation (Starting) Hourly"
+  },
+  {
+   "page": 1,
+   "rect": [
+    366.35,
+    441.07,
+    378.87,
+    446.97
+   ],
+   "type": "choice",
+   "label": "Employment History (employer 3): Compensation (Starting) Salary"
+  },
+  {
+   "page": 1,
+   "rect": [
+    433.6,
+    434.43,
+    532.6,
+    448.47
+   ],
+   "type": "text",
+   "label": "Employment History (employer 3): Compensation (Starting) $",
+   "path": "employment_history[].starting_pay_amount"
+  },
+  {
+   "page": 1,
+   "rect": [
+    542.3,
+    434.43,
+    581.0,
+    448.47
+   ],
+   "type": "text",
+   "label": "Employment History (employer 3): Compensation (Starting) per",
+   "path": "employment_history[].starting_pay_period"
+  },
+  {
+   "page": 1,
+   "rect": [
+    366.35,
+    455.85,
+    378.87,
+    462.29
+   ],
+   "type": "choice",
+   "label": "Employment History (employer 3): Compensation (Final) Hourly"
+  },
+  {
+   "page": 1,
+   "rect": [
+    366.35,
+    463.29,
+    378.87,
+    469.19
+   ],
+   "type": "choice",
+   "label": "Employment History (employer 3): Compensation (Final) Salary"
+  },
+  {
+   "page": 1,
+   "rect": [
+    433.6,
+    456.65,
+    531.1,
+    470.69
+   ],
+   "type": "text",
+   "label": "Employment History (employer 3): Compensation (Final) $",
+   "path": "employment_history[].final_pay_amount"
+  },
+  {
+   "page": 1,
+   "rect": [
+    540.8,
+    456.65,
+    581.0,
+    470.69
+   ],
+   "type": "text",
+   "label": "Employment History (employer 3): Compensation (Final) per",
+   "path": "employment_history[].final_pay_period"
+  },
+  {
+   "page": 1,
+   "rect": [
+    37.0,
+    455.51,
+    364.35,
+    469.21
+   ],
+   "type": "text",
+   "label": "Employment History (employer 3): Starting job title/final job title",
+   "path": "employment_history[].starting_title",
+   "also_paths": [
+    "employment_history[].final_title"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    37.0,
+    477.71,
+    248.65,
+    490.05
+   ],
+   "type": "text",
+   "label": "Employment History (employer 3): Immediate supervisor and title (for most recent position held)",
+   "path": "employment_history[].supervisor_name",
+   "also_paths": [
+    "employment_history[].supervisor_title"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    250.65,
+    479.93,
+    263.65,
+    490.05
+   ],
+   "type": "choice",
+   "label": "Employment History (employer 3): May we contact for reference? Yes"
+  },
+  {
+   "page": 1,
+   "rect": [
+    287.97,
+    479.93,
+    299.17,
+    490.05
+   ],
+   "type": "choice",
+   "label": "Employment History (employer 3): May we contact for reference? No"
+  },
+  {
+   "page": 1,
+   "rect": [
+    327.45,
+    479.93,
+    338.67,
+    490.05
+   ],
+   "type": "choice",
+   "label": "Employment History (employer 3): May we contact for reference? Later"
+  },
+  {
+   "page": 1,
+   "rect": [
+    489.4,
+    477.05,
+    580.5,
+    490.55
+   ],
+   "type": "text",
+   "label": "Employment History (employer 3): Commission/Bonus/Other Compensation $",
+   "path": "employment_history[].other_compensation"
+  },
+  {
+   "page": 1,
+   "rect": [
+    37.0,
+    500.71,
+    580.5,
+    514.35
+   ],
+   "type": "text",
+   "label": "Employment History (employer 3): Why did you leave?",
+   "path": "employment_history[].reason_for_leaving"
+  },
+  {
+   "page": 1,
+   "rect": [
+    37.0,
+    522.91,
+    580.5,
+    536.55
+   ],
+   "type": "text",
+   "label": "Employment History (employer 3): Summarize the type of work performed and job responsibilities:",
+   "path": "employment_history[].duties"
+  },
+  {
+   "page": 1,
+   "rect": [
+    37.0,
+    545.11,
+    580.5,
+    558.75
+   ],
+   "type": "text",
+   "label": "Employment History (employer 3): What did you like the most about your position?",
+   "path": "employment_history[].liked_most"
+  },
+  {
+   "page": 1,
+   "rect": [
+    37.0,
+    567.31,
+    580.5,
+    580.65
+   ],
+   "type": "text",
+   "label": "Employment History (employer 3): What were the things you liked least about the position?",
+   "path": "employment_history[].liked_least"
+  },
+  {
+   "page": 1,
+   "rect": [
+    37.0,
+    591.27,
+    248.65,
+    606.27
+   ],
+   "type": "text",
+   "label": "Employment History (employer 4): Employer",
+   "path": "employment_history[].employer"
+  },
+  {
+   "page": 1,
+   "rect": [
+    258.2,
+    591.27,
+    299.5,
+    606.27
+   ],
+   "type": "text",
+   "label": "Employment History (employer 4): Telephone # (area code)",
+   "path": "employment_history[].phone",
+   "transforms": [
+    "slice"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    303.2,
+    591.27,
+    364.35,
+    606.27
+   ],
+   "type": "text",
+   "label": "Employment History (employer 4): Telephone #",
+   "path": "employment_history[].phone",
+   "transforms": [
+    "slice"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    417.9,
+    591.27,
+    462.65,
+    606.27
+   ],
+   "type": "text",
+   "label": "Employment History (employer 4): Dates employed: from Month",
+   "path": "employment_history[].start_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    465.9,
+    591.27,
+    509.5,
+    606.27
+   ],
+   "type": "text",
+   "label": "Employment History (employer 4): Dates employed: from Year",
+   "path": "employment_history[].start_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    515.5,
+    591.27,
+    562.76,
+    606.27
+   ],
+   "type": "text",
+   "label": "Employment History (employer 4): Dates employed: to Month",
+   "path": "employment_history[].end_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    566.0,
+    591.27,
+    580.5,
+    606.27
+   ],
+   "type": "text",
+   "label": "Employment History (employer 4): Dates employed: to Year",
+   "path": "employment_history[].end_date",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    37.0,
+    614.77,
+    248.5,
+    628.47
+   ],
+   "type": "text",
+   "label": "Employment History (employer 4): Street address",
+   "path": "employment_history[].street"
+  },
+  {
+   "page": 1,
+   "rect": [
+    249.05,
+    614.77,
+    335.4,
+    628.47
+   ],
+   "type": "text",
+   "label": "Employment History (employer 4): City",
+   "path": "employment_history[].city"
+  },
+  {
+   "page": 1,
+   "rect": [
+    335.92,
+    614.77,
+    364.35,
+    628.47
+   ],
+   "type": "text",
+   "label": "Employment History (employer 4): State",
+   "path": "employment_history[].state"
+  },
+  {
+   "page": 1,
+   "rect": [
+    366.35,
+    615.09,
+    378.87,
+    621.53
+   ],
+   "type": "choice",
+   "label": "Employment History (employer 4): Compensation (Starting) Hourly"
+  },
+  {
+   "page": 1,
+   "rect": [
+    366.35,
+    622.53,
+    378.87,
+    628.43
+   ],
+   "type": "choice",
+   "label": "Employment History (employer 4): Compensation (Starting) Salary"
+  },
+  {
+   "page": 1,
+   "rect": [
+    433.6,
+    615.89,
+    532.6,
+    629.93
+   ],
+   "type": "text",
+   "label": "Employment History (employer 4): Compensation (Starting) $",
+   "path": "employment_history[].starting_pay_amount"
+  },
+  {
+   "page": 1,
+   "rect": [
+    542.3,
+    615.89,
+    581.0,
+    629.93
+   ],
+   "type": "text",
+   "label": "Employment History (employer 4): Compensation (Starting) per",
+   "path": "employment_history[].starting_pay_period"
+  },
+  {
+   "page": 1,
+   "rect": [
+    366.35,
+    637.31,
+    378.87,
+    643.75
+   ],
+   "type": "choice",
+   "label": "Employment History (employer 4): Compensation (Final) Hourly"
+  },
+  {
+   "page": 1,
+   "rect": [
+    366.35,
+    644.75,
+    378.87,
+    650.65
+   ],
+   "type": "choice",
+   "label": "Employment History (employer 4): Compensation (Final) Salary"
+  },
+  {
+   "page": 1,
+   "rect": [
+    433.6,
+    638.11,
+    531.1,
+    652.15
+   ],
+   "type": "text",
+   "label": "Employment History (employer 4): Compensation (Final) $",
+   "path": "employment_history[].final_pay_amount"
+  },
+  {
+   "page": 1,
+   "rect": [
+    540.8,
+    638.11,
+    581.0,
+    652.15
+   ],
+   "type": "text",
+   "label": "Employment History (employer 4): Compensation (Final) per",
+   "path": "employment_history[].final_pay_period"
+  },
+  {
+   "page": 1,
+   "rect": [
+    37.0,
+    636.97,
+    364.35,
+    650.67
+   ],
+   "type": "text",
+   "label": "Employment History (employer 4): Starting job title/final job title",
+   "path": "employment_history[].starting_title",
+   "also_paths": [
+    "employment_history[].final_title"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    37.0,
+    659.17,
+    248.65,
+    671.51
+   ],
+   "type": "text",
+   "label": "Employment History (employer 4): Immediate supervisor and title (for most recent position held)",
+   "path": "employment_history[].supervisor_name",
+   "also_paths": [
+    "employment_history[].supervisor_title"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    250.65,
+    661.39,
+    263.65,
+    671.51
+   ],
+   "type": "choice",
+   "label": "Employment History (employer 4): May we contact for reference? Yes"
+  },
+  {
+   "page": 1,
+   "rect": [
+    287.97,
+    661.39,
+    299.17,
+    671.51
+   ],
+   "type": "choice",
+   "label": "Employment History (employer 4): May we contact for reference? No"
+  },
+  {
+   "page": 1,
+   "rect": [
+    327.45,
+    661.39,
+    338.67,
+    671.51
+   ],
+   "type": "choice",
+   "label": "Employment History (employer 4): May we contact for reference? Later"
+  },
+  {
+   "page": 1,
+   "rect": [
+    489.4,
+    658.51,
+    580.5,
+    672.01
+   ],
+   "type": "text",
+   "label": "Employment History (employer 4): Commission/Bonus/Other Compensation $",
+   "path": "employment_history[].other_compensation"
+  },
+  {
+   "page": 1,
+   "rect": [
+    37.0,
+    682.17,
+    580.5,
+    695.81
+   ],
+   "type": "text",
+   "label": "Employment History (employer 4): Why did you leave?",
+   "path": "employment_history[].reason_for_leaving"
+  },
+  {
+   "page": 1,
+   "rect": [
+    37.0,
+    704.37,
+    580.5,
+    718.01
+   ],
+   "type": "text",
+   "label": "Employment History (employer 4): Summarize the type of work performed and job responsibilities:",
+   "path": "employment_history[].duties"
+  },
+  {
+   "page": 1,
+   "rect": [
+    37.0,
+    726.57,
+    580.5,
+    740.21
+   ],
+   "type": "text",
+   "label": "Employment History (employer 4): What did you like the most about your position?",
+   "path": "employment_history[].liked_most"
+  },
+  {
+   "page": 1,
+   "rect": [
+    37.0,
+    748.77,
+    580.5,
+    762.11
+   ],
+   "type": "text",
+   "label": "Employment History (employer 4): What were the things you liked least about the position?",
+   "path": "employment_history[].liked_least"
+  },
+  {
+   "page": 2,
+   "rect": [
+    36.0,
+    53.96,
+    581.5,
+    67.96
+   ],
+   "type": "text",
+   "label": "Explain any gaps in your employment",
+   "path": "employment_gaps_explanation"
+  },
+  {
+   "page": 2,
+   "rect": [
+    36.0,
+    76.06,
+    581.5,
+    90.06
+   ],
+   "type": "text",
+   "label": "Explain any gaps in your employment (line 2)"
+  },
+  {
+   "page": 2,
+   "rect": [
+    36.0,
+    98.5,
+    581.5,
+    112.5
+   ],
+   "type": "text",
+   "label": "Explain any gaps in your employment (line 3)"
+  },
+  {
+   "page": 2,
+   "rect": [
+    490.1,
+    112.5,
+    501.3,
+    120.22
+   ],
+   "type": "choice",
+   "label": "have you ever been fired or asked to resign from a job? Yes",
+   "path": "terminated_or_asked_to_resign",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 2,
+   "rect": [
+    542.3,
+    112.5,
+    552.06,
+    120.22
+   ],
+   "type": "choice",
+   "label": "have you ever been fired or asked to resign from a job? No",
+   "path": "terminated_or_asked_to_resign",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 2,
+   "rect": [
+    128.6,
+    126.22,
+    581.5,
+    140.22
+   ],
+   "type": "text",
+   "label": "If yes, please explain (fired or asked to resign)",
+   "path": "termination_explanation"
+  },
+  {
+   "page": 2,
+   "rect": [
+    36.0,
+    148.3,
+    581.5,
+    162.3
+   ],
+   "type": "text",
+   "label": "If yes, please explain (fired or asked to resign) (line 2)"
+  },
+  {
+   "page": 2,
+   "rect": [
+    36.0,
+    170.62,
+    581.5,
+    184.62
+   ],
+   "type": "text",
+   "label": "If yes, please explain (fired or asked to resign) (line 3)"
+  },
+  {
+   "page": 2,
+   "rect": [
+    36.0,
+    223.06,
+    581.5,
+    237.06
+   ],
+   "type": "text",
+   "label": "Summarize any special training, skills, licenses and/or certificates",
+   "path": "skills_summary"
+  },
+  {
+   "page": 2,
+   "rect": [
+    36.0,
+    245.02,
+    581.5,
+    259.02
+   ],
+   "type": "text",
+   "label": "Summarize any special training, skills, licenses and/or certificates (line 2)"
+  },
+  {
+   "page": 2,
+   "rect": [
+    36.0,
+    263.53,
+    581.5,
+    277.53
+   ],
+   "type": "text",
+   "label": "Summarize any special training, skills, licenses and/or certificates (line 3)"
+  },
+  {
+   "page": 2,
+   "rect": [
+    37.0,
+    287.25,
+    48.2,
+    294.97
+   ],
+   "type": "choice",
+   "label": "Computer Skills: Word Processing",
+   "path": "computer_skills.word_processing.software",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 2,
+   "rect": [
+    118.25,
+    287.25,
+    246.13,
+    294.97
+   ],
+   "type": "text",
+   "label": "Computer Skills: Word Processing: (software)",
+   "path": "computer_skills.word_processing.software"
+  },
+  {
+   "page": 2,
+   "rect": [
+    276.2,
+    287.25,
+    309.5,
+    294.97
+   ],
+   "type": "text",
+   "label": "Computer Skills: Word Processing Years:",
+   "path": "computer_skills.word_processing.years"
+  },
+  {
+   "page": 2,
+   "rect": [
+    313.65,
+    287.25,
+    323.65,
+    294.97
+   ],
+   "type": "choice",
+   "label": "Computer Skills: Internet",
+   "path": "computer_skills.internet.software",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 2,
+   "rect": [
+    360.24,
+    287.25,
+    507.78,
+    294.97
+   ],
+   "type": "text",
+   "label": "Computer Skills: Internet: (software)",
+   "path": "computer_skills.internet.software"
+  },
+  {
+   "page": 2,
+   "rect": [
+    537.9,
+    287.25,
+    580.5,
+    294.97
+   ],
+   "type": "text",
+   "label": "Computer Skills: Internet Years:",
+   "path": "computer_skills.internet.years"
+  },
+  {
+   "page": 2,
+   "rect": [
+    37.0,
+    296.97,
+    48.2,
+    304.69
+   ],
+   "type": "choice",
+   "label": "Computer Skills: Spreadsheet",
+   "path": "computer_skills.spreadsheet.software",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 2,
+   "rect": [
+    102.78,
+    296.97,
+    246.13,
+    304.69
+   ],
+   "type": "text",
+   "label": "Computer Skills: Spreadsheet: (software)",
+   "path": "computer_skills.spreadsheet.software"
+  },
+  {
+   "page": 2,
+   "rect": [
+    276.2,
+    296.97,
+    309.5,
+    304.69
+   ],
+   "type": "text",
+   "label": "Computer Skills: Spreadsheet Years:",
+   "path": "computer_skills.spreadsheet.years"
+  },
+  {
+   "page": 2,
+   "rect": [
+    313.65,
+    296.97,
+    323.65,
+    304.69
+   ],
+   "type": "choice",
+   "label": "Computer Skills: Other (row 1)"
+  },
+  {
+   "page": 2,
+   "rect": [
+    353.05,
+    296.97,
+    507.78,
+    304.69
+   ],
+   "type": "text",
+   "label": "Computer Skills: Other: (software, row 1)",
+   "path": "computer_skills.other[].software"
+  },
+  {
+   "page": 2,
+   "rect": [
+    537.9,
+    296.97,
+    580.5,
+    304.69
+   ],
+   "type": "text",
+   "label": "Computer Skills: Other Years: (row 1)",
+   "path": "computer_skills.other[].years"
+  },
+  {
+   "page": 2,
+   "rect": [
+    37.0,
+    306.69,
+    48.2,
+    314.29
+   ],
+   "type": "choice",
+   "label": "Computer Skills: Presentation",
+   "path": "computer_skills.presentation.software",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 2,
+   "rect": [
+    102.29,
+    306.69,
+    246.13,
+    314.29
+   ],
+   "type": "text",
+   "label": "Computer Skills: Presentation: (software)",
+   "path": "computer_skills.presentation.software"
+  },
+  {
+   "page": 2,
+   "rect": [
+    276.2,
+    306.69,
+    309.5,
+    314.29
+   ],
+   "type": "text",
+   "label": "Computer Skills: Presentation Years:",
+   "path": "computer_skills.presentation.years"
+  },
+  {
+   "page": 2,
+   "rect": [
+    313.65,
+    306.69,
+    323.65,
+    314.29
+   ],
+   "type": "choice",
+   "label": "Computer Skills: Other (row 2)"
+  },
+  {
+   "page": 2,
+   "rect": [
+    353.05,
+    306.69,
+    507.78,
+    314.29
+   ],
+   "type": "text",
+   "label": "Computer Skills: Other: (software, row 2)",
+   "path": "computer_skills.other[].software"
+  },
+  {
+   "page": 2,
+   "rect": [
+    537.9,
+    306.69,
+    580.5,
+    314.29
+   ],
+   "type": "text",
+   "label": "Computer Skills: Other Years: (row 2)",
+   "path": "computer_skills.other[].years"
+  },
+  {
+   "page": 2,
+   "rect": [
+    37.0,
+    316.29,
+    48.2,
+    324.01
+   ],
+   "type": "choice",
+   "label": "Computer Skills: E-mail",
+   "path": "computer_skills.email.software",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 2,
+   "rect": [
+    80.01,
+    316.29,
+    246.13,
+    324.01
+   ],
+   "type": "text",
+   "label": "Computer Skills: E-mail: (software)",
+   "path": "computer_skills.email.software"
+  },
+  {
+   "page": 2,
+   "rect": [
+    276.2,
+    316.29,
+    309.5,
+    324.01
+   ],
+   "type": "text",
+   "label": "Computer Skills: E-mail Years:",
+   "path": "computer_skills.email.years"
+  },
+  {
+   "page": 2,
+   "rect": [
+    313.65,
+    316.29,
+    323.65,
+    324.01
+   ],
+   "type": "choice",
+   "label": "Computer Skills: Other (row 3)"
+  },
+  {
+   "page": 2,
+   "rect": [
+    353.05,
+    316.29,
+    507.78,
+    324.01
+   ],
+   "type": "text",
+   "label": "Computer Skills: Other: (software, row 3)",
+   "path": "computer_skills.other[].software"
+  },
+  {
+   "page": 2,
+   "rect": [
+    537.9,
+    316.29,
+    580.5,
+    324.01
+   ],
+   "type": "text",
+   "label": "Computer Skills: Other Years: (row 3)",
+   "path": "computer_skills.other[].years"
+  },
+  {
+   "page": 2,
+   "rect": [
+    37.0,
+    375.81,
+    321.37,
+    402.37
+   ],
+   "type": "text",
+   "label": "Educational Background row 1: School (include City & State)",
+   "path": "education[].school",
+   "also_paths": [
+    "education[].city",
+    "education[].state"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 2,
+   "rect": [
+    323.37,
+    375.81,
+    372.15,
+    402.37
+   ],
+   "type": "text",
+   "label": "Educational Background row 1: Years Completed",
+   "path": "education[].years_completed"
+  },
+  {
+   "page": 2,
+   "rect": [
+    374.15,
+    375.81,
+    384.15,
+    379.87
+   ],
+   "type": "choice",
+   "label": "Educational Background row 1: Completed Diploma"
+  },
+  {
+   "page": 2,
+   "rect": [
+    430.07,
+    375.81,
+    440.79,
+    379.87
+   ],
+   "type": "choice",
+   "label": "Educational Background row 1: Completed GED"
+  },
+  {
+   "page": 2,
+   "rect": [
+    374.15,
+    381.87,
+    384.15,
+    387.37
+   ],
+   "type": "choice",
+   "label": "Educational Background row 1: Completed Degree"
+  },
+  {
+   "page": 2,
+   "rect": [
+    408.78,
+    381.37,
+    483.42,
+    387.87
+   ],
+   "type": "text",
+   "label": "Educational Background row 1: Completed Degree:",
+   "path": "education[].degree"
+  },
+  {
+   "page": 2,
+   "rect": [
+    374.15,
+    389.37,
+    384.15,
+    394.69
+   ],
+   "type": "choice",
+   "label": "Educational Background row 1: Completed Certification"
+  },
+  {
+   "page": 2,
+   "rect": [
+    418.95,
+    388.87,
+    483.42,
+    395.19
+   ],
+   "type": "text",
+   "label": "Educational Background row 1: Completed Certification:",
+   "path": "education[].certification"
+  },
+  {
+   "page": 2,
+   "rect": [
+    374.15,
+    396.69,
+    384.15,
+    402.37
+   ],
+   "type": "choice",
+   "label": "Educational Background row 1: Completed Other"
+  },
+  {
+   "page": 2,
+   "rect": [
+    405.05,
+    396.19,
+    483.42,
+    402.87
+   ],
+   "type": "text",
+   "label": "Educational Background row 1: Completed Other:"
+  },
+  {
+   "page": 2,
+   "rect": [
+    485.42,
+    375.81,
+    526.62,
+    402.37
+   ],
+   "type": "text",
+   "label": "Educational Background row 1: GPA/Class Rank",
+   "path": "education[].gpa"
+  },
+  {
+   "page": 2,
+   "rect": [
+    528.62,
+    375.81,
+    580.5,
+    402.37
+   ],
+   "type": "text",
+   "label": "Educational Background row 1: Major/Minor",
+   "path": "education[].major",
+   "also_paths": [
+    "education[].minor"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 2,
+   "rect": [
+    37.0,
+    404.37,
+    321.37,
+    431.42
+   ],
+   "type": "text",
+   "label": "Educational Background row 2: School (include City & State)",
+   "path": "education[].school",
+   "also_paths": [
+    "education[].city",
+    "education[].state"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 2,
+   "rect": [
+    323.37,
+    404.37,
+    372.15,
+    431.42
+   ],
+   "type": "text",
+   "label": "Educational Background row 2: Years Completed",
+   "path": "education[].years_completed"
+  },
+  {
+   "page": 2,
+   "rect": [
+    374.15,
+    404.37,
+    384.15,
+    409.21
+   ],
+   "type": "choice",
+   "label": "Educational Background row 2: Completed Diploma"
+  },
+  {
+   "page": 2,
+   "rect": [
+    430.07,
+    404.37,
+    440.79,
+    409.21
+   ],
+   "type": "choice",
+   "label": "Educational Background row 2: Completed GED"
+  },
+  {
+   "page": 2,
+   "rect": [
+    374.15,
+    411.21,
+    384.15,
+    416.41
+   ],
+   "type": "choice",
+   "label": "Educational Background row 2: Completed Degree"
+  },
+  {
+   "page": 2,
+   "rect": [
+    408.78,
+    410.71,
+    483.42,
+    416.91
+   ],
+   "type": "text",
+   "label": "Educational Background row 2: Completed Degree:",
+   "path": "education[].degree"
+  },
+  {
+   "page": 2,
+   "rect": [
+    374.15,
+    418.41,
+    384.15,
+    423.73
+   ],
+   "type": "choice",
+   "label": "Educational Background row 2: Completed Certification"
+  },
+  {
+   "page": 2,
+   "rect": [
+    418.95,
+    417.91,
+    483.42,
+    424.23
+   ],
+   "type": "text",
+   "label": "Educational Background row 2: Completed Certification:",
+   "path": "education[].certification"
+  },
+  {
+   "page": 2,
+   "rect": [
+    374.15,
+    425.73,
+    384.15,
+    431.42
+   ],
+   "type": "choice",
+   "label": "Educational Background row 2: Completed Other"
+  },
+  {
+   "page": 2,
+   "rect": [
+    405.05,
+    425.23,
+    483.42,
+    431.92
+   ],
+   "type": "text",
+   "label": "Educational Background row 2: Completed Other:"
+  },
+  {
+   "page": 2,
+   "rect": [
+    485.42,
+    404.37,
+    526.62,
+    431.42
+   ],
+   "type": "text",
+   "label": "Educational Background row 2: GPA/Class Rank",
+   "path": "education[].gpa"
+  },
+  {
+   "page": 2,
+   "rect": [
+    528.62,
+    404.37,
+    580.5,
+    431.42
+   ],
+   "type": "text",
+   "label": "Educational Background row 2: Major/Minor",
+   "path": "education[].major",
+   "also_paths": [
+    "education[].minor"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 2,
+   "rect": [
+    37.0,
+    433.42,
+    321.37,
+    460.59
+   ],
+   "type": "text",
+   "label": "Educational Background row 3: School (include City & State)",
+   "path": "education[].school",
+   "also_paths": [
+    "education[].city",
+    "education[].state"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 2,
+   "rect": [
+    323.37,
+    433.42,
+    372.15,
+    460.59
+   ],
+   "type": "text",
+   "label": "Educational Background row 3: Years Completed",
+   "path": "education[].years_completed"
+  },
+  {
+   "page": 2,
+   "rect": [
+    374.15,
+    433.42,
+    384.15,
+    438.27
+   ],
+   "type": "choice",
+   "label": "Educational Background row 3: Completed Diploma"
+  },
+  {
+   "page": 2,
+   "rect": [
+    430.07,
+    433.42,
+    440.79,
+    438.27
+   ],
+   "type": "choice",
+   "label": "Educational Background row 3: Completed GED"
+  },
+  {
+   "page": 2,
+   "rect": [
+    374.15,
+    440.27,
+    384.15,
+    445.47
+   ],
+   "type": "choice",
+   "label": "Educational Background row 3: Completed Degree"
+  },
+  {
+   "page": 2,
+   "rect": [
+    408.78,
+    439.77,
+    483.42,
+    445.97
+   ],
+   "type": "text",
+   "label": "Educational Background row 3: Completed Degree:",
+   "path": "education[].degree"
+  },
+  {
+   "page": 2,
+   "rect": [
+    374.15,
+    447.47,
+    384.15,
+    452.79
+   ],
+   "type": "choice",
+   "label": "Educational Background row 3: Completed Certification"
+  },
+  {
+   "page": 2,
+   "rect": [
+    418.95,
+    446.97,
+    483.42,
+    453.29
+   ],
+   "type": "text",
+   "label": "Educational Background row 3: Completed Certification:",
+   "path": "education[].certification"
+  },
+  {
+   "page": 2,
+   "rect": [
+    374.15,
+    454.79,
+    384.15,
+    460.59
+   ],
+   "type": "choice",
+   "label": "Educational Background row 3: Completed Other"
+  },
+  {
+   "page": 2,
+   "rect": [
+    405.05,
+    454.29,
+    483.42,
+    461.09
+   ],
+   "type": "text",
+   "label": "Educational Background row 3: Completed Other:"
+  },
+  {
+   "page": 2,
+   "rect": [
+    485.42,
+    433.42,
+    526.62,
+    460.59
+   ],
+   "type": "text",
+   "label": "Educational Background row 3: GPA/Class Rank",
+   "path": "education[].gpa"
+  },
+  {
+   "page": 2,
+   "rect": [
+    528.62,
+    433.42,
+    580.5,
+    460.59
+   ],
+   "type": "text",
+   "label": "Educational Background row 3: Major/Minor",
+   "path": "education[].major",
+   "also_paths": [
+    "education[].minor"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 2,
+   "rect": [
+    37.0,
+    539.27,
+    246.25,
+    566.07
+   ],
+   "type": "text",
+   "label": "References row 1: Name",
+   "path": "references[].name"
+  },
+  {
+   "page": 2,
+   "rect": [
+    248.25,
+    539.27,
+    342.63,
+    566.07
+   ],
+   "type": "text",
+   "label": "References row 1: Title",
+   "path": "references[].title"
+  },
+  {
+   "page": 2,
+   "rect": [
+    344.63,
+    539.27,
+    429.39,
+    566.07
+   ],
+   "type": "text",
+   "label": "References row 1: Relationship to You",
+   "path": "references[].relationship"
+  },
+  {
+   "page": 2,
+   "rect": [
+    525.86,
+    539.27,
+    580.5,
+    566.07
+   ],
+   "type": "text",
+   "label": "References row 1: Number of Years Known",
+   "path": "references[].years_known"
+  },
+  {
+   "page": 2,
+   "rect": [
+    438.97,
+    539.27,
+    460.23,
+    566.07
+   ],
+   "type": "text",
+   "label": "References row 1: Telephone (area code)",
+   "path": "references[].phone",
+   "transforms": [
+    "slice"
+   ]
+  },
+  {
+   "page": 2,
+   "rect": [
+    463.91,
+    539.27,
+    523.86,
+    566.07
+   ],
+   "type": "text",
+   "label": "References row 1: Telephone",
+   "path": "references[].phone",
+   "transforms": [
+    "slice"
+   ]
+  },
+  {
+   "page": 2,
+   "rect": [
+    37.0,
+    568.07,
+    246.25,
+    594.15
+   ],
+   "type": "text",
+   "label": "References row 2: Name",
+   "path": "references[].name"
+  },
+  {
+   "page": 2,
+   "rect": [
+    248.25,
+    568.07,
+    342.63,
+    594.15
+   ],
+   "type": "text",
+   "label": "References row 2: Title",
+   "path": "references[].title"
+  },
+  {
+   "page": 2,
+   "rect": [
+    344.63,
+    568.07,
+    429.39,
+    594.15
+   ],
+   "type": "text",
+   "label": "References row 2: Relationship to You",
+   "path": "references[].relationship"
+  },
+  {
+   "page": 2,
+   "rect": [
+    525.86,
+    568.07,
+    580.5,
+    594.15
+   ],
+   "type": "text",
+   "label": "References row 2: Number of Years Known",
+   "path": "references[].years_known"
+  },
+  {
+   "page": 2,
+   "rect": [
+    438.97,
+    568.07,
+    460.23,
+    594.15
+   ],
+   "type": "text",
+   "label": "References row 2: Telephone (area code)",
+   "path": "references[].phone",
+   "transforms": [
+    "slice"
+   ]
+  },
+  {
+   "page": 2,
+   "rect": [
+    463.91,
+    568.07,
+    523.86,
+    594.15
+   ],
+   "type": "text",
+   "label": "References row 2: Telephone",
+   "path": "references[].phone",
+   "transforms": [
+    "slice"
+   ]
+  },
+  {
+   "page": 2,
+   "rect": [
+    37.0,
+    596.15,
+    246.25,
+    622.26
+   ],
+   "type": "text",
+   "label": "References row 3: Name",
+   "path": "references[].name"
+  },
+  {
+   "page": 2,
+   "rect": [
+    248.25,
+    596.15,
+    342.63,
+    622.26
+   ],
+   "type": "text",
+   "label": "References row 3: Title",
+   "path": "references[].title"
+  },
+  {
+   "page": 2,
+   "rect": [
+    344.63,
+    596.15,
+    429.39,
+    622.26
+   ],
+   "type": "text",
+   "label": "References row 3: Relationship to You",
+   "path": "references[].relationship"
+  },
+  {
+   "page": 2,
+   "rect": [
+    525.86,
+    596.15,
+    580.5,
+    622.26
+   ],
+   "type": "text",
+   "label": "References row 3: Number of Years Known",
+   "path": "references[].years_known"
+  },
+  {
+   "page": 2,
+   "rect": [
+    438.97,
+    596.15,
+    460.25,
+    622.26
+   ],
+   "type": "text",
+   "label": "References row 3: Telephone (area code)",
+   "path": "references[].phone",
+   "transforms": [
+    "slice"
+   ]
+  },
+  {
+   "page": 2,
+   "rect": [
+    463.93,
+    596.15,
+    523.86,
+    622.26
+   ],
+   "type": "text",
+   "label": "References row 3: Telephone",
+   "path": "references[].phone",
+   "transforms": [
+    "slice"
+   ]
+  },
+  {
+   "page": 2,
+   "rect": [
+    37.0,
+    672.74,
+    309.73,
+    689.7
+   ],
+   "type": "text",
+   "label": "Related Information row 1: Organization",
+   "path": "organizations[].name"
+  },
+  {
+   "page": 2,
+   "rect": [
+    311.73,
+    672.74,
+    580.5,
+    689.7
+   ],
+   "type": "text",
+   "label": "Related Information row 1: Offices Held",
+   "path": "organizations[].offices_held"
+  },
+  {
+   "page": 2,
+   "rect": [
+    37.0,
+    691.7,
+    309.73,
+    712.62
+   ],
+   "type": "text",
+   "label": "Related Information row 2: Organization",
+   "path": "organizations[].name"
+  },
+  {
+   "page": 2,
+   "rect": [
+    311.73,
+    691.7,
+    580.5,
+    712.62
+   ],
+   "type": "text",
+   "label": "Related Information row 2: Offices Held",
+   "path": "organizations[].offices_held"
+  },
+  {
+   "page": 2,
+   "rect": [
+    37.0,
+    714.62,
+    309.73,
+    734.7
+   ],
+   "type": "text",
+   "label": "Related Information row 3: Organization",
+   "path": "organizations[].name"
+  },
+  {
+   "page": 2,
+   "rect": [
+    311.73,
+    714.62,
+    580.5,
+    734.7
+   ],
+   "type": "text",
+   "label": "Related Information row 3: Offices Held",
+   "path": "organizations[].offices_held"
+  },
+  {
+   "page": 2,
+   "rect": [
+    37.0,
+    736.7,
+    309.73,
+    757.26
+   ],
+   "type": "text",
+   "label": "Related Information row 4: Organization",
+   "path": "organizations[].name"
+  },
+  {
+   "page": 2,
+   "rect": [
+    311.73,
+    736.7,
+    580.5,
+    757.26
+   ],
+   "type": "text",
+   "label": "Related Information row 4: Offices Held",
+   "path": "organizations[].offices_held"
+  },
+  {
+   "page": 3,
+   "rect": [
+    36.0,
+    62.12,
+    581.5,
+    76.12
+   ],
+   "type": "text",
+   "label": "List special accomplishments, publications, awards, etc.",
+   "path": "accomplishments"
+  },
+  {
+   "page": 3,
+   "rect": [
+    36.0,
+    84.58,
+    581.5,
+    98.58
+   ],
+   "type": "text",
+   "label": "List special accomplishments, publications, awards, etc. (line 2)"
+  },
+  {
+   "page": 3,
+   "rect": [
+    37.0,
+    109.62,
+    48.32,
+    118.9
+   ],
+   "type": "choice",
+   "label": "have you ever written instructions or directions to be followed by employees or customers? Yes",
+   "path": "wrote_instructions",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 3,
+   "rect": [
+    89.58,
+    109.62,
+    100.9,
+    119.38
+   ],
+   "type": "choice",
+   "label": "have you ever written instructions or directions to be followed by employees or customers? No",
+   "path": "wrote_instructions",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 3,
+   "rect": [
+    146.1,
+    109.62,
+    157.42,
+    119.38
+   ],
+   "type": "choice",
+   "label": "have you ever written instructions or directions to be followed by employees or customers? Not Applicable",
+   "path": "wrote_instructions",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 3,
+   "rect": [
+    129.9,
+    125.86,
+    581.5,
+    139.86
+   ],
+   "type": "text",
+   "label": "If yes, please explain: (written instructions)",
+   "path": "wrote_instructions_explanation"
+  },
+  {
+   "page": 3,
+   "rect": [
+    36.0,
+    148.78,
+    581.5,
+    162.78
+   ],
+   "type": "text",
+   "label": "If yes, please explain: (written instructions) (line 2)"
+  },
+  {
+   "page": 3,
+   "rect": [
+    36.0,
+    179.62,
+    581.5,
+    193.62
+   ],
+   "type": "text",
+   "label": "Is there any other job-related information you want us to know about you?",
+   "path": "additional_information"
+  },
+  {
+   "page": 3,
+   "rect": [
+    36.0,
+    202.06,
+    581.5,
+    216.06
+   ],
+   "type": "text",
+   "label": "Is there any other job-related information you want us to know about you? (line 2)"
+  },
+  {
+   "page": 3,
+   "rect": [
+    122.5,
+    564.47,
+    444.39,
+    603.03
+   ],
+   "type": "signature",
+   "label": "Signature of Applicant:"
+  },
+  {
+   "page": 3,
+   "rect": [
+    470.4,
+    564.47,
+    509.42,
+    603.03
+   ],
+   "type": "text",
+   "label": "Date: MM",
+   "path": "signed_on",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 3,
+   "rect": [
+    512.65,
+    564.47,
+    553.91,
+    603.03
+   ],
+   "type": "text",
+   "label": "Date: DD",
+   "path": "signed_on",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  {
+   "page": 3,
+   "rect": [
+    557.14,
+    564.47,
+    580.5,
+    603.03
+   ],
+   "type": "text",
+   "label": "Date: YY",
+   "path": "signed_on",
+   "transforms": [
+    "date_part"
+   ]
+  }
+ ],
+ "notes": "All 4 pages. Excluded: header/section underlines and the equal-access notice. Table and form cells are their interior inset 1pt; underlined blanks follow the underline convention; date blanks are one box per printed MM/DD/YY group; phones split at the printed parentheses; SSN is 3 groups. 'am'/'pm' next to the call-time blanks are option words (one choice box each). Multi-line answers are one box per printed line; only the first line carries the path. The four employer blocks on page 1 map to employment_history[] columns (one block per item). Pathless by design: the 10 'name the source' blanks in Referral Source (which one applies depends on the checked category), best-time-to-call hour/minute/am/pm, and checkboxes inside repeated structures (employer-block Hourly/Salary and May-we-contact boxes, education Completed boxes, computer-skills 'Other' rows), since a checkbox cannot be a table column."
+}
