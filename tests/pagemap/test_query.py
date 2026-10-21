@@ -201,3 +201,12 @@ def test_grid_needs_boxes_on_one_page():
     q = _grid_map(_cells([(50.0, 200.0)], top=100.0, pitch=20.0, height=16.0, rows=2))
     with pytest.raises(ValueError):
         q.grid([])
+
+
+def test_grid_rows_and_columns_ignore_one_oversized_box():
+    cols = [(50.0, 200.0), (205.0, 300.0)]
+    cells = _cells(cols, top=400.0, pitch=24.0, height=24.0, rows=3)
+    cells[1] = (205.0, 392.0, 330.0, 424.0)  # one detection taller and wider than its cell
+    g = _grid_map(cells).grid([f"c0_{i}" for i in range(6)])
+    assert g["row_top"] == pytest.approx(400.0, abs=1) and g["row_height"] == pytest.approx(24.0, abs=0.5)
+    assert g["columns"][1] == pytest.approx([205.0, 300.0], abs=1)

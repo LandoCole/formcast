@@ -580,7 +580,8 @@ class FormMapQuery:
         row's top), ``row_height`` (the median distance between row tops, or the
         row's height for one row) and ``max_rows``; ``rect`` (spanning all rows
         at that pitch); ``rows`` ([top, bottom] per row) and ``columns`` ([x0, x1]
-        per column); ``regular`` (false when the row pitch varies by more than
+        per column), all medians over the boxes so one stray detection does not
+        shift them; ``regular`` (false when the row pitch varies by more than
         15%: rows of different heights, or separate blocks); and ``cells``, one
         ``{row, col, id}`` per input box (id None for a bare rect).
         """
@@ -616,13 +617,25 @@ class FormMapQuery:
         col_of = {i: n for n, k in enumerate(order) for i in cols[k]}
         row_of = {i: n for n, row in enumerate(rows) for i in row}
 
-        bands = [[min(boxes[i][1][1] for i in row), max(boxes[i][1][3] for i in row)] for row in rows]
+        # Medians, so one oversized or shifted detection does not move a row or column.
+        med = statistics.median
+        bands = [[med(boxes[i][1][1] for i in row), med(boxes[i][1][3] for i in row)] for row in rows]
         tops = [b[0] for b in bands]
         pitches = [b - a for a, b in zip(tops, tops[1:])]
-        pitch = statistics.median(pitches) if pitches else bands[0][1] - bands[0][0]
+        # Pitch: median over same-column box pairs of (top difference / row distance), so
+        # neither one stray box nor alternating jitter biases it (falls back to row medians).
+        pairs = [
+            (boxes[j][1][1] - boxes[i][1][1]) / (row_of[j] - row_of[i])
+            for i in range(len(boxes))
+            for j in range(len(boxes))
+            if col_of[i] == col_of[j] and row_of[j] > row_of[i]
+        ]
+        pitch = med(pairs or pitches) if (pairs or pitches) else bands[0][1] - bands[0][0]
         regular = all(abs(d - pitch) <= max(1.5, 0.15 * pitch) for d in pitches)
-        columns = [spans[k] for k in order]
-        row_top = tops[0]
+        columns = [
+            [med(boxes[i][1][0] for i in cols[k]), med(boxes[i][1][2] for i in cols[k])] for k in order
+        ]
+        row_top = med(boxes[i][1][1] - row_of[i] * pitch for i in range(len(boxes))) if pairs else tops[0]
         bottom = max(row_top + pitch * len(rows), bands[-1][1])
         return {
             "page": boxes[0][0],
