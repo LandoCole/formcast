@@ -46,10 +46,11 @@
    "Baseline: bare-detector numbers from the baseline run on the same images: FFDNet-L (default for digital pages) for as_published digital/fillable forms, FFDetr (default for scanned pages) for fake_scan and scanned forms. On fillable as_published forms the baseline detects on the widget-stripped page.",
    "Mapping is over GT fields with a schema path. Transform credit uses equivalence groups {slice, split, char_at}, {date_part, date_format}, {equals, contains}, and a when equals true also credits bool_to_check; a template's join and when count as ops. joint = path and transforms right; exact = the matched field's source paths equal GT path + also_paths.",
    "Totals are micro-averaged over forms (sums of counts). Sessions that ended in an error (infrastructure or harness) are listed in the per-form table but excluded from the totals' detection and mapping figures; their templates are partial or untouched seeds.",
-   "The agent's form map carries the neutral source name 'form.pdf', not the file name."
+   "The agent's form map carries the neutral source name 'form.pdf', not the file name.",
+   "fill (fill_acc): the template is filled (formcast fill, real form fields) into the variant's PDF with K distinctive probe records (eval/probe.py), and every GT box with a path is checked for what its widget shows: a text or table-cell box once per record (the exact value; by provenance when GT has transforms), a choice box once across all records (right state in every record). fill_acc = correct units / units. It catches data landing in the wrong box, e.g. a table built as one segment per column, which path/joint score as right. A choice box whose expected state is the same in every probe record can't tell an always-on (or never-on) box from a right one; the json counts them as fill.static_choice."
   ],
   "finished_at": "2026-10-21T09:09:37+00:00",
-  "rescored": "2026-10-21 at commit 6b01f29-dirty: the saved templates were scored again with the stacked-lines rule for multi-line fields; model output is unchanged."
+  "rescored": "2026-10-21 at commit 33e4f50-dirty: the saved templates were scored again with the stacked-lines rule for multi-line fields and the fill-correctness metric (fill); model output is unchanged."
  },
  "rows": [
   {
@@ -167,7 +168,27 @@
     2,
     3
    ],
-   "log_path": "eval/results/logs/2026-10-21_check3b/anthropic_eval/grandview_app_as_published.json"
+   "log_path": "eval/results/logs/2026-10-21_check3b/anthropic_eval/grandview_app_as_published.json",
+   "fill": {
+    "units": 2011,
+    "correct": 804,
+    "fill_acc": 0.3998,
+    "text": {
+     "units": 620,
+     "correct": 430
+    },
+    "choice": {
+     "units": 51,
+     "correct": 44
+    },
+    "cell": {
+     "units": 1340,
+     "correct": 330
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": false,
+    "fill_errors": []
+   }
   },
   {
    "form": "grandview_app",
@@ -284,7 +305,27 @@
     2,
     3
    ],
-   "log_path": "eval/results/logs/2026-10-21_check3b/anthropic_eval/grandview_app_fake_scan.json"
+   "log_path": "eval/results/logs/2026-10-21_check3b/anthropic_eval/grandview_app_fake_scan.json",
+   "fill": {
+    "units": 2011,
+    "correct": 708,
+    "fill_acc": 0.3521,
+    "text": {
+     "units": 620,
+     "correct": 180
+    },
+    "choice": {
+     "units": 51,
+     "correct": 38
+    },
+    "cell": {
+     "units": 1340,
+     "correct": 490
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": false,
+    "fill_errors": []
+   }
   },
   {
    "form": "cms1500",
@@ -395,7 +436,27 @@
    "scored_pages": [
     0
    ],
-   "log_path": "eval/results/logs/2026-10-21_check3b/anthropic_eval/cms1500_as_published.json"
+   "log_path": "eval/results/logs/2026-10-21_check3b/anthropic_eval/cms1500_as_published.json",
+   "fill": {
+    "units": 1415,
+    "correct": 109,
+    "fill_acc": 0.077,
+    "text": {
+     "units": 504,
+     "correct": 98
+    },
+    "choice": {
+     "units": 29,
+     "correct": 11
+    },
+    "cell": {
+     "units": 882,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
   },
   {
    "form": "cms1500",
@@ -506,7 +567,27 @@
    "scored_pages": [
     0
    ],
-   "log_path": "eval/results/logs/2026-10-21_check3b/anthropic_eval/cms1500_fake_scan.json"
+   "log_path": "eval/results/logs/2026-10-21_check3b/anthropic_eval/cms1500_fake_scan.json",
+   "fill": {
+    "units": 1415,
+    "correct": 30,
+    "fill_acc": 0.0212,
+    "text": {
+     "units": 504,
+     "correct": 21
+    },
+    "choice": {
+     "units": 29,
+     "correct": 9
+    },
+    "cell": {
+     "units": 882,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
   },
   {
    "form": "f8949",
@@ -615,7 +696,27 @@
     0,
     1
    ],
-   "log_path": "eval/results/logs/2026-10-21_check3b/anthropic_eval/f8949_as_published.json"
+   "log_path": "eval/results/logs/2026-10-21_check3b/anthropic_eval/f8949_as_published.json",
+   "fill": {
+    "units": 960,
+    "correct": 960,
+    "fill_acc": 1.0,
+    "text": {
+     "units": 24,
+     "correct": 24
+    },
+    "choice": {
+     "units": 12,
+     "correct": 12
+    },
+    "cell": {
+     "units": 924,
+     "correct": 924
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": true,
+    "fill_errors": []
+   }
   },
   {
    "form": "f8949",
@@ -724,7 +825,27 @@
     0,
     1
    ],
-   "log_path": "eval/results/logs/2026-10-21_check3b/anthropic_eval/f8949_fake_scan.json"
+   "log_path": "eval/results/logs/2026-10-21_check3b/anthropic_eval/f8949_fake_scan.json",
+   "fill": {
+    "units": 960,
+    "correct": 864,
+    "fill_acc": 0.9,
+    "text": {
+     "units": 24,
+     "correct": 18
+    },
+    "choice": {
+     "units": 12,
+     "correct": 6
+    },
+    "cell": {
+     "units": 924,
+     "correct": 840
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": false,
+    "fill_errors": []
+   }
   },
   {
    "form": "i9",
@@ -839,7 +960,27 @@
     2,
     3
    ],
-   "log_path": "eval/results/logs/2026-10-21_check3b/anthropic_eval/i9_as_published.json"
+   "log_path": "eval/results/logs/2026-10-21_check3b/anthropic_eval/i9_as_published.json",
+   "fill": {
+    "units": 441,
+    "correct": 413,
+    "fill_acc": 0.9365,
+    "text": {
+     "units": 156,
+     "correct": 156
+    },
+    "choice": {
+     "units": 5,
+     "correct": 5
+    },
+    "cell": {
+     "units": 280,
+     "correct": 252
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": true,
+    "fill_errors": []
+   }
   },
   {
    "form": "i9",
@@ -954,7 +1095,27 @@
     2,
     3
    ],
-   "log_path": "eval/results/logs/2026-10-21_check3b/anthropic_eval/i9_fake_scan.json"
+   "log_path": "eval/results/logs/2026-10-21_check3b/anthropic_eval/i9_fake_scan.json",
+   "fill": {
+    "units": 441,
+    "correct": 184,
+    "fill_acc": 0.4172,
+    "text": {
+     "units": 156,
+     "correct": 76
+    },
+    "choice": {
+     "units": 5,
+     "correct": 4
+    },
+    "cell": {
+     "units": 280,
+     "correct": 104
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": false,
+    "fill_errors": []
+   }
   }
  ],
  "totals": {
@@ -1020,6 +1181,32 @@
     "transform_acc": 0.3448,
     "joint_acc": 0.4604,
     "exact_path_set_acc": 0.5092
+   },
+   "fill": {
+    "forms": 8,
+    "units": 9654,
+    "correct": 4072,
+    "fill_acc": 0.4218,
+    "text": {
+     "units": 2608,
+     "correct": 1003,
+     "acc": 0.3846
+    },
+    "choice": {
+     "units": 194,
+     "correct": 129,
+     "acc": 0.6649
+    },
+    "cell": {
+     "units": 6852,
+     "correct": 2940,
+     "acc": 0.4291
+    },
+    "rows_dropped": {
+     "checked": 6,
+     "ok": 2
+    },
+    "static_choice": 0
    },
    "steps": 196,
    "input_tokens": 5281168,
@@ -1089,6 +1276,32 @@
     "joint_acc": 0.5699,
     "exact_path_set_acc": 0.5884
    },
+   "fill": {
+    "forms": 4,
+    "units": 4827,
+    "correct": 2286,
+    "fill_acc": 0.4736,
+    "text": {
+     "units": 1304,
+     "correct": 708,
+     "acc": 0.5429
+    },
+    "choice": {
+     "units": 97,
+     "correct": 72,
+     "acc": 0.7423
+    },
+    "cell": {
+     "units": 3426,
+     "correct": 1506,
+     "acc": 0.4396
+    },
+    "rows_dropped": {
+     "checked": 3,
+     "ok": 2
+    },
+    "static_choice": 0
+   },
    "steps": 89,
    "input_tokens": 2556135,
    "output_tokens": 247864,
@@ -1156,6 +1369,32 @@
     "transform_acc": 0.206,
     "joint_acc": 0.3509,
     "exact_path_set_acc": 0.4301
+   },
+   "fill": {
+    "forms": 4,
+    "units": 4827,
+    "correct": 1786,
+    "fill_acc": 0.37,
+    "text": {
+     "units": 1304,
+     "correct": 295,
+     "acc": 0.2262
+    },
+    "choice": {
+     "units": 97,
+     "correct": 57,
+     "acc": 0.5876
+    },
+    "cell": {
+     "units": 3426,
+     "correct": 1434,
+     "acc": 0.4186
+    },
+    "rows_dropped": {
+     "checked": 3,
+     "ok": 0
+    },
+    "static_choice": 0
    },
    "steps": 107,
    "input_tokens": 2725033,

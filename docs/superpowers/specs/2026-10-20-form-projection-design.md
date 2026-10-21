@@ -415,6 +415,7 @@ Recall and precision at IoU .3. FFDetr's boxes are looser, so its recall at IoU 
 
 **Read this first.**
 - **The held-out evaluation is incomplete.** The Anthropic account hit its API usage limit during the one held-out Haiku run (HTTP 400, "You will regain access on 2026-11-01"). Of 9 held-out sessions, one finished (`ics211`, as published). Three were cut off mid-session (both `ds11` variants, `ics211` fake scan). Five never made a call. One retry hit the same limit. There is no Luna held-out run either (OpenAI credits were already exhausted). No code or prompt changed after the dev rounds. The held-out agent numbers are one session, which says nothing about generalization.
+- **Plan 2 added a fill-correctness metric, `fill_acc`.** The saved templates were re-scored with it (no model calls); see "Fill correctness (Plan 2)" below. On dev Haiku round3-gen scores fill_acc 0.63 overall (0.98 fillable, 0.61 digital, 0.52 scanned) against path 0.70.
 - **The right floor for the agent is the seeded template, not the bare detector.** Since commit 7078332 a new template starts with one field per widget and per detector candidate. The agent edits that seed. So "agent recall vs bare detector" overstates what the agent adds. Every detection table below has a "seeded, no agent steps" row: the untouched seed scored without calling a model (`eval/agent_eval.py --seed-only`). Against that floor, **the agent's edits lower recall@.5 in every group on dev** (see failure category 1). What the agent adds is the schema mapping, which the seed does not have (path 0).
 
 **How to read the tables.**
@@ -508,10 +509,73 @@ The bar: with both reference models, on the held-out set, (a) recall@.5 of at le
 
 There is no valid dev/held-out gap to report. One completed held-out session (`ics211`, fillable) is consistent with dev (path 1.00 against 1.00, joint 0.94 against 0.95), but a fillable form seeded from its own widgets is the easiest case, and one session is not an estimate. Detector and seed difficulty are comparable across splits (above), which suggests the held-out forms are not unusually hard or easy, but that is not evidence about the agent. The dev set was used for tuning across four full Haiku rounds, so dev numbers are optimistic by an unknown amount. A reviewer subagent read the prompts and helpers against `forms/gt` before the run (allowed by the brief); its changes only neutralized form-specific wording (`.superpowers/sdd/2026-10-20-formcast-agent-layer/task-15-genreview.md`).
 
+#### Fill correctness (Plan 2)
+
+*fill_acc* answers a question path and joint don't: when the template is used, does the record's data show up in the right box? `fill()` writes K distinctive probe records (`eval/probe.py`; 2 to 33 records per form, 226 fills over the 24 round3-gen sessions) into the variant's PDF, and every GT box that has a schema path is checked for what its widget then shows. A text box is checked once per record, a table cell once per record and row, a choice box once across all records (right state in every record). fill_acc is correct units over all units, so it also counts GT boxes the template doesn't cover (those score wrong) and weighs table cells by how many records fill them. **That makes it a different weighting from path:** path counts each GT box once, fill_acc counts a 10-row table column ten times per record. Compare the two within a row, not as a like-for-like difference. No model was called: every figure below re-scores the saved templates (`--rescore`), and the results md/json files gained a `fill` column and `fill` totals in place. Nothing else in them changed (checked by diffing every row's other fields against the committed files).
+
+Sanity check: the untouched seed scores fill_acc 0.00 (dev: 24 sessions, 16,098 units; held-out: 9 sessions, 10,848 units), as it must, since the seed has no schema paths. Rows are in `agent_seed_{dev,heldout}_2026-10-21_seed-fill.{json,md}`; the earlier `..._seed` files predate the metric and are unchanged.
+
+fill_acc by group, next to path and joint, over the same sessions (completed sessions only):
+
+| group | sessions | fill: text | fill: choice | fill: cell | **fill_acc** | path | joint |
+|---|---|---|---|---|---|---|---|
+| Haiku round3-gen, fillable | 7 | 0.97 | 1.00 | 0.98 | **0.98** | 1.00 | 0.95 |
+| Haiku round3-gen, digital | 5 | 0.70 | 0.90 | 0.48 | **0.61** | 0.71 | 0.66 |
+| Haiku round3-gen, scanned | 12 | 0.62 | 0.63 | 0.38 | **0.52** | 0.56 | 0.50 |
+| **Haiku round3-gen, all** | 24 | 0.71 | 0.78 | 0.52 | **0.63** | 0.70 | 0.64 |
+| Luna round 1, fillable | 7 | 0.98 | 0.86 | 0.72 | **0.87** | 0.79 | 0.73 |
+| Luna round 1, digital | 5 | 0.71 | 0.87 | 0.26 | **0.52** | 0.59 | 0.51 |
+| Luna round 1, scanned | 12 | 0.75 | 0.78 | 0.28 | **0.55** | 0.56 | 0.48 |
+| **Luna round 1, all** | 24 | 0.78 | 0.83 | 0.36 | **0.60** | 0.62 | 0.54 |
+| Luna round 1, the 14 sessions of round 2 | 14 | 0.54 | 0.82 | 0.47 | **0.50** | 0.55 | 0.48 |
+| Luna round 2 (same 14) | 14 | 0.59 | 0.72 | 0.58 | **0.59** | 0.68 | 0.66 |
+| Haiku held-out, `ics211` as published only | 1 | 1.00 | 1.00 | 1.00 | **1.00** | 1.00 | 0.94 |
+| Seed, dev (no agent) | 24 | 0 | 0 | 0 | **0.00** | 0 | 0 |
+| Seed, held-out (all 9 session inputs) | 9 | 0 | 0 | 0 | **0.00** | 0 | 0 |
+
+Haiku's fill_acc progression on the dev set, all sessions: round 1 0.47, round 2 0.54, round 3 0.63, round3-gen 0.63 (path 0.52, 0.61, 0.66, 0.70). The held-out run still has one completed session, so there is no held-out fill figure that says anything about generalization; the `ics211` result (720 of 720 units, 680 of them table cells) matches its dev-level behavior on a fillable form seeded from its own widgets, the easy case.
+
+**What fill_acc says that path does not.**
+- *Fillable forms: path is a fair predictor.* fill_acc 0.98 against path 1.00 and joint 0.95. The agent's mapping on fillable forms works end to end.
+- *Digital and scanned: fill_acc is below path on Haiku, about equal on Luna's scans.* The all-sessions Haiku figure is 0.63 against path 0.70, and table cells carry the gap (cell 0.52, text 0.71).
+- *Table-heavy forms.* Haiku round3-gen, path and joint against fill_acc (cell = fill_acc over table-cell units only):
+
+| form, variant | path | joint | fill_acc | cell |
+|---|---|---|---|---|
+| `f8949` as published | 1.00 | 1.00 | 1.00 | 1.00 |
+| `f8949` fake scan | 0.88 | 0.88 | 0.91 | 0.91 |
+| `i9` as published | 1.00 | 0.98 | 0.93 | 0.90 |
+| `i9` fake scan | 0.69 | 0.53 | 0.64 | 0.63 |
+| `grandview_app` as published | 0.74 | 0.66 | 0.51 | 0.54 |
+| `grandview_app` fake scan | 0.38 | 0.32 | 0.24 | 0.17 |
+| `cms1500` as published | 0.44 | 0.39 | 0.40 | 0.39 |
+| `cms1500` fake scan | 0.06 | 0.05 | 0.02 | 0.00 |
+| `ics211` as published (held-out) | 1.00 | 0.94 | 1.00 | 1.00 |
+
+  The gap is small on `f8949`, `cms1500` and `ics211`, 0.05 on `i9` as published, and large only on `grandview_app` (0.23 as published). Across the 10 of 24 sessions with a table, path is 0.62 and fill_acc 0.49. Where the gap is large, the failing units are mostly not the loophole. A diagnostic re-run (offline, one-off script, not committed) splits each failed unit into "no written widget matched the GT box" and "a widget matched but shows the wrong text". `grandview_app` as published fails mostly the first way: employment-history phone, start date and end date (half of their units), several education columns, `applicant.ssn` and `available_from`; and the second way on `starting_title`, `supervisor_name`, `school` and `major` (every unit). `cms1500` fails on service-line dates, supplemental info, NPI and qualifier (no widget matched) and on `charges`, `units` and `emergency_indicator` (wrong text). `i9` as published fails on `list_a_documents[].title`, half of `preparers[].last_name` and `first_name`, `reverifications[].document_title` and `employee.foreign_passport_number` (wrong text); the block-style caveat below (B3/B4) is a candidate cause for the table ones, and that was not isolated.
+
+**The table-per-column loophole, measured.** The caveat said a table built as one segment per column scores as correct on path but flows rows wrongly at fill time. The shape is a segment with one column and more than one row. Across all 207 archived templates (539 table fields) it occurs in exactly one session: Haiku round 1, `i9` as published (22 such segments). That session scored path 0.50, joint 0.44 and fill_acc 0.43; its table-cell units were almost all wrong (28 of 280), which the other boxes' scores hid in the form total. In round3-gen the single-column tables are all block-style (one row per segment, one segment per record), which fills right. **Result: one session in 207 had the shape, so the loophole did not inflate the archive's mapping scores to a measurable degree.** No template from round 2 on contains it. The larger path-to-fill_acc gaps above come from boxes with no matching widget and from wrong text, not from this shape. fill_acc remains the metric that would catch the shape if a later agent change reintroduced it.
+
+**Fill errors and warnings** (round3-gen, 226 fills):
+- `fill_errors` (a `fill()` call that raised): none in any results file. Sessions that scored badly did so by writing little or the wrong values, not by crashing.
+- Top report warning codes, summed over the 226 fills (counts are warnings, not distinct boxes): `unmapped_data` 2,471 (record data with no mapped field; `csudh_health` fake scan 660, `cms1500` fake scan 490, `grandview_app` fake scan 405, `cms1500` as published 273); `shrunk` 1,824 (text fitted below its font size; `csudh_health` fake scan, `f8949` fake scan, `cms1500`, `columbus_medhist`); `font_substituted` 1,516 (info; the IRS forms' own fonts drawn in Helvetica); `adopted` 1,300 (info; existing widgets reused); `list_joined` 897 (`columbus_medhist`); `missing` 585 (probe slots with no value); `overflow` 584 (text that doesn't fit at the minimum size; `cms1500` as published 464); `rows_dropped` 379 (probe rows beyond a table's rows; `grandview_app`, `menomonie_app`); `fingerprint_mismatch` 226 (expected: the eval fills with `check_fingerprint=False` because fillable forms' templates were built on widget-stripped pages); `transform_error` 29; `not_an_option` 20; `not_writable` 10; `shared_field_conflict` 8; `truncated` 7.
+- `unmapped_data` is the code to watch: it is how a record's data fails to reach a form (fill reports it rather than dropping the value silently).
+- `rows_dropped_ok` (probe rows beyond the GT table's length must be reported as dropped, by exactly that excess): 5 of 8 checks pass on round3-gen. `f8949` fake scan and both `grandview_app` variants fail: no mapped table on the path, or the template's table capacity differs from the GT row count so the dropped count is not the excess.
+
+**Caveats specific to fill_acc** (details in the rulings file, `docs/superpowers/plans/2026-10-21-formcast-fill-rulings.md`):
+- *Plain numeric boxes accept any number formatting* (Ruling R). `f8949`'s money columns carry no number format in GT while templates add one; scoring exact text there made fill_acc read 0.58 for a correct template. It can no longer see a wrong number format on a box whose GT has no `number_format`.
+- *Provenance is loose by design* (Ruling S). A box whose GT has transforms is right if its text derives from its own value; the check that the text isn't another path's value applies only to a fragment (a substring) of the own value, because roughly 50 date cells per record share a 71-year pool and a right year often recurs in another date. A wrong slice is still caught; a coincidence that fully matches is not.
+- *Block-style tables use per-column row ordinals* (B3/B4). GT for a block-style table (`i9` preparers and reverifications) numbers rows per column. The `i9` `reverifications[]` entry has one sparse, misaligned GT box, which the scorer counts wrong whatever the template does. This costs `i9` a few cells at most.
+- *Free-text choice values* (Ruling P). 25 boxes (`columbus_medhist` conditions, `grandview_app` software lists) are checkboxes whose value is the label text; the probe takes those texts as the path's options, so a right box is on in one record and off in the next. Choice units where the expected state never changes would not discriminate; the count is `static_choice` and it is 0 everywhere.
+- *The `#xx` on-state writer limitation.* A checkbox or radio on-state with a character outside `[A-Za-z0-9_.-]` is not written correctly by the PDF writer. No widget in the corpus has one, so fill_acc doesn't see it.
+- *Duplicate overlapping widgets are invisible to fill_acc.* Two template fields over one box, or a duplicate widget, would score as one right box if either shows the value.
+- *Fingerprints.* The eval fills with `check_fingerprint=False` (every fill reports `fingerprint_mismatch`). The fillable forms' saved templates were built on widget-stripped pages, so their fingerprints differ from the original PDF. The flat `wadoc_auth` also differs between its saved template and its PDF; the cause was not investigated. The fingerprint check itself is not exercised by this eval (Ruling M).
+- *Dev numbers are optimistic* in the same way the detection numbers are (four rounds tuned against dev).
+
 #### Known scoring caveats
 
 - **Multi-line rule.** A plain text field counts as multi-line if it has `style.multiline` or is at least 1.8 times the page's median GT text-box height. It then also covers unmatched GT text boxes at least 70% inside it, provided at least two such boxes are stacked in one column inside it (horizontal overlap of 50% or more). The field counts once for precision and gets path credit through the GT line box that carries the path. The first version credited any single tall box at any IoU (for example six extra matches at IoU .36–.47 on one fake scan); that is fixed and every result file here was re-scored from the saved templates. Effect on Haiku round3-gen: recall@.5 0.56 → 0.55, as-published path 0.84 → 0.83. The rule can still be gamed by a very large multi-line field over a stacked column; none was seen.
-- **Table-per-column loophole.** Cells are scored by rectangle and column path only. A table with one segment per column scores as correct but flows rows wrongly at fill time. Only a fill-correctness metric (§11) catches it. Path and joint on table-heavy forms may be optimistic.
+- **Table-per-column loophole.** Cells are scored by rectangle and column path only, so a table with one segment per column (one column, several rows) would score as correct on path while flowing rows wrongly at fill time. Measured with fill_acc (see "Fill correctness (Plan 2)"): the shape appears in one of the 207 archived templates (Haiku round 1, `i9` as published) and in none from round 2 on, so path and joint were not inflated by it in the final runs. Path and joint on table-heavy forms are still optimistic by the gap shown in the per-form table there (up to 0.23 on `grandview_app`), for other reasons: boxes with no matching widget and wrong text.
 - **Fillable false positives.** On fillable forms as published, GT is the widgets. Boxes the agent adds on real blanks that have no widget (for example printed checkbox groups) count as false positives, so fillable precision understates the agent.
 - **GT conventions the agent cannot infer:** one box versus two for from/to dates; whether office-use blanks are included (widgets include them, one flat form excludes them); 12 pt widget cells inside 24 pt table rows.
 - **Fake scans.** The seeded degradation shifts boxes by about 4 pt, so small checkboxes fail IoU .5. The seed and the bare detector see the same images.
@@ -552,7 +616,7 @@ Both providers are out of budget (OpenAI credits; Anthropic usage cap until 2026
 .venv/bin/python eval/agent_eval.py --split dev --model-env OPENAI_EVAL --variant both --tag round3-gen --stamp <date>
 ```
 
-No-model commands that regenerate this section's seed rows and re-score saved runs:
+No-model commands that regenerate this section's seed rows and re-score saved runs (a `--seed-only` or `--rescore` run now also computes `fill`; the seed rows with it are the `seed-fill` tag):
 
 ```
 .venv/bin/python eval/agent_eval.py --split dev --seed-only --variant both --tag seed --stamp <date>

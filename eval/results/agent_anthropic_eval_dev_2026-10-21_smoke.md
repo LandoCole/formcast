@@ -13,19 +13,20 @@ Notes:
 - Mapping is over GT fields with a schema path. Transform credit uses equivalence groups {slice, split, char_at}, {date_part, date_format}, {equals, contains}, and a when equals true also credits bool_to_check; a template's join and when count as ops. joint = path and transforms right; exact = the matched field's source paths equal GT path + also_paths.
 - Totals are micro-averaged over forms (sums of counts). Sessions that ended in an error (infrastructure or harness) are listed in the per-form table but excluded from the totals' detection and mapping figures; their templates are partial or untouched seeds.
 - The agent's form map carries the neutral source name 'form.pdf', not the file name.
+- fill (fill_acc): the template is filled (formcast fill, real form fields) into the variant's PDF with K distinctive probe records (eval/probe.py), and every GT box with a path is checked for what its widget shows: a text or table-cell box once per record (the exact value; by provenance when GT has transforms), a choice box once across all records (right state in every record). fill_acc = correct units / units. It catches data landing in the wrong box, e.g. a table built as one segment per column, which path/joint score as right. A choice box whose expected state is the same in every probe record can't tell an always-on (or never-on) box from a right one; the json counts them as fill.static_choice.
 
 ## Per form
 
-| form | kind | variant | GT | boxes | recall@.3 (.5) | precision@.3 | type acc | baseline det | baseline recall@.3 (.5) | baseline precision@.3 | path | transform | joint | exact | mapped GT | steps | tokens in / out | wall s | stop | unplaceable |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| coleman_pir | fillable | as_published | 22 | 25 | 1.00 (1.00) | 0.88 | 1.00 | FFDNet-L | 1.00 (1.00) | 0.88 | 1.00 | 0.50 | 0.89 | 1.00 | 9 | 5 | 49,274 / 5,029 | 29 | finish | 3 |
-| wadoc_auth | flat | as_published | 27 | 19 | 0.93 (0.93) | 1.00 | 1.00 | FFDNet-L | 1.00 (1.00) | 1.00 | 0.88 | 0.25 | 0.71 | 0.82 | 17 | 5 | 54,540 / 5,697 | 29 | finish | 4 |
+| form | kind | variant | GT | boxes | recall@.3 (.5) | precision@.3 | type acc | baseline det | baseline recall@.3 (.5) | baseline precision@.3 | path | transform | joint | fill | exact | mapped GT | steps | tokens in / out | wall s | stop | unplaceable |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| coleman_pir | fillable | as_published | 22 | 25 | 1.00 (1.00) | 0.88 | 1.00 | FFDNet-L | 1.00 (1.00) | 0.88 | 1.00 | 0.50 | 0.89 | 1.00 | 1.00 | 9 | 5 | 49,274 / 5,029 | 29 | finish | 3 |
+| wadoc_auth | flat | as_published | 27 | 19 | 0.93 (0.93) | 1.00 | 1.00 | FFDNet-L | 1.00 (1.00) | 1.00 | 0.88 | 0.25 | 0.71 | 0.82 | 0.82 | 17 | 5 | 54,540 / 5,697 | 29 | finish | 4 |
 
 ## Totals (micro-averaged)
 
-| variant | forms (failed) | finished | GT | boxes | recall@.3 (.5) | precision@.3 | type acc | baseline recall@.3 (.5) | baseline precision@.3 | path | transform | joint | exact | steps | tokens in / out | wall s |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| all | 2 (0) | 2 | 49 | 44 | 0.96 (0.96) | 0.93 | 1.00 | 1.00 (1.00) | 0.94 | 0.92 | 0.33 | 0.77 | 0.88 | 10 | 103,814 / 10,726 | 58 |
-| as_published | 2 (0) | 2 | 49 | 44 | 0.96 (0.96) | 0.93 | 1.00 | 1.00 (1.00) | 0.94 | 0.92 | 0.33 | 0.77 | 0.88 | 10 | 103,814 / 10,726 | 58 |
+| variant | forms (failed) | finished | GT | boxes | recall@.3 (.5) | precision@.3 | type acc | baseline recall@.3 (.5) | baseline precision@.3 | path | transform | joint | fill | exact | steps | tokens in / out | wall s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| all | 2 (0) | 2 | 49 | 44 | 0.96 (0.96) | 0.93 | 1.00 | 1.00 (1.00) | 0.94 | 0.92 | 0.33 | 0.77 | 0.90 | 0.88 | 10 | 103,814 / 10,726 | 58 |
+| as_published | 2 (0) | 2 | 49 | 44 | 0.96 (0.96) | 0.93 | 1.00 | 1.00 (1.00) | 0.94 | 0.92 | 0.33 | 0.77 | 0.90 | 0.88 | 10 | 103,814 / 10,726 | 58 |
 
-Re-scored: 2026-10-21 at commit 6b01f29-dirty: the saved templates were scored again with the stacked-lines rule for multi-line fields; model output is unchanged.
+Re-scored: 2026-10-21 at commit 33e4f50-dirty: the saved templates were scored again with the stacked-lines rule for multi-line fields and the fill-correctness metric (fill); model output is unchanged.

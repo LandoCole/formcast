@@ -1,0 +1,3357 @@
+{
+ "meta": {
+  "model_env": "SEED",
+  "model": "seed-only (no model; untouched seeded template)",
+  "api_format": "none",
+  "split": "dev",
+  "variant": "both",
+  "forms": [
+   "wadoc_auth",
+   "coleman_pir",
+   "ndguard",
+   "i9",
+   "f8949",
+   "cms1500",
+   "menomonie_app",
+   "columbus_medhist",
+   "grandview_app",
+   "csudh_health",
+   "fw9",
+   "fw4"
+  ],
+  "stamp": "2026-10-21",
+  "tag": "seed-fill",
+  "run": "2026-10-21_seed-fill",
+  "commit": "33e4f50-dirty",
+  "budget": {},
+  "baseline_file": "baseline_detection_2026-10-21.json",
+  "jobs": 3,
+  "argv": [
+   "--seed-only",
+   "--split",
+   "dev",
+   "--variant",
+   "both",
+   "--tag",
+   "seed-fill"
+  ],
+  "notes": [
+   "Detection is scored on the manifest's scored pages that have at least one GT field (the baseline's pages); tables count one box per cell.",
+   "Multi-line answer areas are representation-neutral: a plain template text field with style.multiline or at least 1.8x the page's median GT text-box height also covers every unmatched GT text box at least 70% inside it (recall), counts once for precision, and gets path credit through the GT line box that carries the path. It only does so when at least two such GT boxes are stacked in one column inside it (horizontal overlap of 50% or more); a single loose box is scored by the normal IoU threshold.",
+   "Fillable forms as published: the template starts with one field per PDF widget (the real use case is mapping existing fields), and GT is the widgets, so agent-added boxes on blanks without a widget count as false positives.",
+   "fake_scan: an image-only PDF of the baseline's seeded fake-scan renders (widgets stripped), so the agent faces the scanned-page path (deskew, FFDetr, OCR); on fillable forms it is a detection + mapping test.",
+   "Baseline: bare-detector numbers from the baseline run on the same images: FFDNet-L (default for digital pages) for as_published digital/fillable forms, FFDetr (default for scanned pages) for fake_scan and scanned forms. On fillable as_published forms the baseline detects on the widget-stripped page.",
+   "Mapping is over GT fields with a schema path. Transform credit uses equivalence groups {slice, split, char_at}, {date_part, date_format}, {equals, contains}, and a when equals true also credits bool_to_check; a template's join and when count as ops. joint = path and transforms right; exact = the matched field's source paths equal GT path + also_paths.",
+   "Totals are micro-averaged over forms (sums of counts). Sessions that ended in an error (infrastructure or harness) are listed in the per-form table but excluded from the totals' detection and mapping figures; their templates are partial or untouched seeds.",
+   "The agent's form map carries the neutral source name 'form.pdf', not the file name.",
+   "fill (fill_acc): the template is filled (formcast fill, real form fields) into the variant's PDF with K distinctive probe records (eval/probe.py), and every GT box with a path is checked for what its widget shows: a text or table-cell box once per record (the exact value; by provenance when GT has transforms), a choice box once across all records (right state in every record). fill_acc = correct units / units. It catches data landing in the wrong box, e.g. a table built as one segment per column, which path/joint score as right. A choice box whose expected state is the same in every probe record can't tell an always-on (or never-on) box from a right one; the json counts them as fill.static_choice."
+  ],
+  "finished_at": "2026-10-21T21:41:47+00:00"
+ },
+ "rows": [
+  {
+   "form": "wadoc_auth",
+   "split": "dev",
+   "kind": "flat",
+   "variant": "as_published",
+   "model_env": "SEED",
+   "model": "seed-only",
+   "detection": {
+    "iou0.3": {
+     "gt": 27,
+     "pred": 27,
+     "matched": 27,
+     "pred_matched": 27,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_ok": 25,
+     "type_acc": 0.9259,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 27,
+     "pred": 27,
+     "matched": 27,
+     "pred_matched": 27,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_ok": 25,
+     "type_acc": 0.9259,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 0
+     }
+    }
+   },
+   "mapping": {
+    "n_path": 17,
+    "n_transform": 4,
+    "matched": 17,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 1.0,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "baseline": {
+    "detector": "FFDNet-L",
+    "pages": [
+     0
+    ],
+    "iou0.3": {
+     "gt": 27,
+     "pred": 27,
+     "matched": 27,
+     "pred_matched": 27,
+     "type_ok": 25,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_acc": 0.9259
+    },
+    "iou0.5": {
+     "gt": 27,
+     "pred": 27,
+     "matched": 27,
+     "pred_matched": 27,
+     "type_ok": 25,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_acc": 0.9259
+    }
+   },
+   "stop_reason": "seed_only",
+   "finished": false,
+   "error": null,
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 0.0,
+   "unplaceable": 0,
+   "formmap_s": 13.3,
+   "page_kinds": [
+    "digital"
+   ],
+   "text_sources": [
+    "pdf"
+   ],
+   "candidates": 27,
+   "fields": 27,
+   "fill": {
+    "units": 34,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 34,
+     "correct": 0
+    },
+    "choice": {
+     "units": 0,
+     "correct": 0
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   },
+   "scored_pages": [
+    0
+   ]
+  },
+  {
+   "form": "wadoc_auth",
+   "split": "dev",
+   "kind": "flat",
+   "variant": "fake_scan",
+   "model_env": "SEED",
+   "model": "seed-only",
+   "detection": {
+    "iou0.3": {
+     "gt": 27,
+     "pred": 26,
+     "matched": 26,
+     "pred_matched": 26,
+     "recall": 0.963,
+     "precision": 1.0,
+     "type_ok": 24,
+     "type_acc": 0.9231,
+     "missed_by_type": {
+      "text": 1,
+      "choice": 0,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 27,
+     "pred": 26,
+     "matched": 22,
+     "pred_matched": 22,
+     "recall": 0.8148,
+     "precision": 0.8462,
+     "type_ok": 20,
+     "type_acc": 0.9091,
+     "missed_by_type": {
+      "text": 5,
+      "choice": 0,
+      "signature": 0
+     }
+    }
+   },
+   "mapping": {
+    "n_path": 17,
+    "n_transform": 4,
+    "matched": 17,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 1.0,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "baseline": {
+    "detector": "FFDetr",
+    "pages": [
+     0
+    ],
+    "iou0.3": {
+     "gt": 27,
+     "pred": 26,
+     "matched": 26,
+     "pred_matched": 26,
+     "type_ok": 24,
+     "recall": 0.963,
+     "precision": 1.0,
+     "type_acc": 0.9231
+    },
+    "iou0.5": {
+     "gt": 27,
+     "pred": 26,
+     "matched": 12,
+     "pred_matched": 12,
+     "type_ok": 10,
+     "recall": 0.4444,
+     "precision": 0.4615,
+     "type_acc": 0.8333
+    }
+   },
+   "stop_reason": "seed_only",
+   "finished": false,
+   "error": null,
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 0.0,
+   "unplaceable": 0,
+   "formmap_s": 15.2,
+   "page_kinds": [
+    "scanned"
+   ],
+   "text_sources": [
+    "ocr"
+   ],
+   "candidates": 26,
+   "fields": 26,
+   "fill": {
+    "units": 34,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 34,
+     "correct": 0
+    },
+    "choice": {
+     "units": 0,
+     "correct": 0
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   },
+   "scored_pages": [
+    0
+   ]
+  },
+  {
+   "form": "coleman_pir",
+   "split": "dev",
+   "kind": "fillable",
+   "variant": "as_published",
+   "model_env": "SEED",
+   "model": "seed-only",
+   "detection": {
+    "iou0.3": {
+     "gt": 22,
+     "pred": 22,
+     "matched": 22,
+     "pred_matched": 22,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_ok": 22,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 22,
+     "pred": 22,
+     "matched": 22,
+     "pred_matched": 22,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_ok": 22,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 0
+     }
+    }
+   },
+   "mapping": {
+    "n_path": 9,
+    "n_transform": 2,
+    "matched": 9,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 1.0,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "baseline": {
+    "detector": "FFDNet-L",
+    "pages": [
+     0
+    ],
+    "iou0.3": {
+     "gt": 22,
+     "pred": 25,
+     "matched": 22,
+     "pred_matched": 22,
+     "type_ok": 20,
+     "recall": 1.0,
+     "precision": 0.88,
+     "type_acc": 0.9091
+    },
+    "iou0.5": {
+     "gt": 22,
+     "pred": 25,
+     "matched": 22,
+     "pred_matched": 22,
+     "type_ok": 20,
+     "recall": 1.0,
+     "precision": 0.88,
+     "type_acc": 0.9091
+    }
+   },
+   "stop_reason": "seed_only",
+   "finished": false,
+   "error": null,
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 0.0,
+   "unplaceable": 0,
+   "formmap_s": 0.0,
+   "page_kinds": [
+    "fillable"
+   ],
+   "text_sources": [
+    "pdf"
+   ],
+   "candidates": 0,
+   "fields": 22,
+   "fill": {
+    "units": 27,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 27,
+     "correct": 0
+    },
+    "choice": {
+     "units": 0,
+     "correct": 0
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   },
+   "scored_pages": [
+    0
+   ]
+  },
+  {
+   "form": "coleman_pir",
+   "split": "dev",
+   "kind": "fillable",
+   "variant": "fake_scan",
+   "model_env": "SEED",
+   "model": "seed-only",
+   "detection": {
+    "iou0.3": {
+     "gt": 22,
+     "pred": 25,
+     "matched": 22,
+     "pred_matched": 22,
+     "recall": 1.0,
+     "precision": 0.88,
+     "type_ok": 20,
+     "type_acc": 0.9091,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 22,
+     "pred": 25,
+     "matched": 22,
+     "pred_matched": 22,
+     "recall": 1.0,
+     "precision": 0.88,
+     "type_ok": 20,
+     "type_acc": 0.9091,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 0
+     }
+    }
+   },
+   "mapping": {
+    "n_path": 9,
+    "n_transform": 2,
+    "matched": 9,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 1.0,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "baseline": {
+    "detector": "FFDetr",
+    "pages": [
+     0
+    ],
+    "iou0.3": {
+     "gt": 22,
+     "pred": 25,
+     "matched": 22,
+     "pred_matched": 22,
+     "type_ok": 20,
+     "recall": 1.0,
+     "precision": 0.88,
+     "type_acc": 0.9091
+    },
+    "iou0.5": {
+     "gt": 22,
+     "pred": 25,
+     "matched": 22,
+     "pred_matched": 22,
+     "type_ok": 20,
+     "recall": 1.0,
+     "precision": 0.88,
+     "type_acc": 0.9091
+    }
+   },
+   "stop_reason": "seed_only",
+   "finished": false,
+   "error": null,
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 0.0,
+   "unplaceable": 0,
+   "formmap_s": 15.1,
+   "page_kinds": [
+    "scanned"
+   ],
+   "text_sources": [
+    "ocr"
+   ],
+   "candidates": 25,
+   "fields": 25,
+   "fill": {
+    "units": 27,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 27,
+     "correct": 0
+    },
+    "choice": {
+     "units": 0,
+     "correct": 0
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   },
+   "scored_pages": [
+    0
+   ]
+  },
+  {
+   "form": "ndguard",
+   "split": "dev",
+   "kind": "flat",
+   "variant": "as_published",
+   "model_env": "SEED",
+   "model": "seed-only",
+   "detection": {
+    "iou0.3": {
+     "gt": 33,
+     "pred": 32,
+     "matched": 22,
+     "pred_matched": 22,
+     "recall": 0.6667,
+     "precision": 0.6875,
+     "type_ok": 17,
+     "type_acc": 0.7727,
+     "missed_by_type": {
+      "text": 7,
+      "choice": 3,
+      "signature": 1
+     }
+    },
+    "iou0.5": {
+     "gt": 33,
+     "pred": 32,
+     "matched": 21,
+     "pred_matched": 21,
+     "recall": 0.6364,
+     "precision": 0.6562,
+     "type_ok": 16,
+     "type_acc": 0.7619,
+     "missed_by_type": {
+      "text": 8,
+      "choice": 3,
+      "signature": 1
+     }
+    }
+   },
+   "mapping": {
+    "n_path": 29,
+    "n_transform": 16,
+    "matched": 20,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 0.6897,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "baseline": {
+    "detector": "FFDNet-L",
+    "pages": [
+     0
+    ],
+    "iou0.3": {
+     "gt": 33,
+     "pred": 32,
+     "matched": 22,
+     "pred_matched": 22,
+     "type_ok": 17,
+     "recall": 0.6667,
+     "precision": 0.6875,
+     "type_acc": 0.7727
+    },
+    "iou0.5": {
+     "gt": 33,
+     "pred": 32,
+     "matched": 21,
+     "pred_matched": 21,
+     "type_ok": 16,
+     "recall": 0.6364,
+     "precision": 0.6562,
+     "type_acc": 0.7619
+    }
+   },
+   "stop_reason": "seed_only",
+   "finished": false,
+   "error": null,
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 0.0,
+   "unplaceable": 0,
+   "formmap_s": 2.4,
+   "page_kinds": [
+    "digital"
+   ],
+   "text_sources": [
+    "pdf"
+   ],
+   "candidates": 32,
+   "fields": 32,
+   "fill": {
+    "units": 113,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 105,
+     "correct": 0
+    },
+    "choice": {
+     "units": 8,
+     "correct": 0
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   },
+   "scored_pages": [
+    0
+   ]
+  },
+  {
+   "form": "ndguard",
+   "split": "dev",
+   "kind": "flat",
+   "variant": "fake_scan",
+   "model_env": "SEED",
+   "model": "seed-only",
+   "detection": {
+    "iou0.3": {
+     "gt": 33,
+     "pred": 34,
+     "matched": 25,
+     "pred_matched": 25,
+     "recall": 0.7576,
+     "precision": 0.7353,
+     "type_ok": 19,
+     "type_acc": 0.76,
+     "missed_by_type": {
+      "text": 5,
+      "choice": 3,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 33,
+     "pred": 34,
+     "matched": 21,
+     "pred_matched": 21,
+     "recall": 0.6364,
+     "precision": 0.6176,
+     "type_ok": 16,
+     "type_acc": 0.7619,
+     "missed_by_type": {
+      "text": 8,
+      "choice": 3,
+      "signature": 1
+     }
+    }
+   },
+   "mapping": {
+    "n_path": 29,
+    "n_transform": 16,
+    "matched": 22,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 0.7586,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "baseline": {
+    "detector": "FFDetr",
+    "pages": [
+     0
+    ],
+    "iou0.3": {
+     "gt": 33,
+     "pred": 34,
+     "matched": 25,
+     "pred_matched": 25,
+     "type_ok": 19,
+     "recall": 0.7576,
+     "precision": 0.7353,
+     "type_acc": 0.76
+    },
+    "iou0.5": {
+     "gt": 33,
+     "pred": 34,
+     "matched": 21,
+     "pred_matched": 21,
+     "type_ok": 16,
+     "recall": 0.6364,
+     "precision": 0.6176,
+     "type_acc": 0.7619
+    }
+   },
+   "stop_reason": "seed_only",
+   "finished": false,
+   "error": null,
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 0.0,
+   "unplaceable": 0,
+   "formmap_s": 4.3,
+   "page_kinds": [
+    "scanned"
+   ],
+   "text_sources": [
+    "ocr"
+   ],
+   "candidates": 34,
+   "fields": 34,
+   "fill": {
+    "units": 113,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 105,
+     "correct": 0
+    },
+    "choice": {
+     "units": 8,
+     "correct": 0
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   },
+   "scored_pages": [
+    0
+   ]
+  },
+  {
+   "form": "i9",
+   "split": "dev",
+   "kind": "fillable",
+   "variant": "as_published",
+   "model_env": "SEED",
+   "model": "seed-only",
+   "detection": {
+    "iou0.3": {
+     "gt": 130,
+     "pred": 130,
+     "matched": 130,
+     "pred_matched": 130,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_ok": 121,
+     "type_acc": 0.9308,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 130,
+     "pred": 130,
+     "matched": 130,
+     "pred_matched": 130,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_ok": 121,
+     "type_acc": 0.9308,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 0
+     }
+    }
+   },
+   "mapping": {
+    "n_path": 114,
+    "n_transform": 42,
+    "matched": 44,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 0.386,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "baseline": {
+    "detector": "FFDNet-L",
+    "pages": [
+     0,
+     2,
+     3
+    ],
+    "iou0.3": {
+     "gt": 130,
+     "pred": 129,
+     "matched": 124,
+     "pred_matched": 124,
+     "type_ok": 115,
+     "recall": 0.9538,
+     "precision": 0.9612,
+     "type_acc": 0.9274
+    },
+    "iou0.5": {
+     "gt": 130,
+     "pred": 129,
+     "matched": 123,
+     "pred_matched": 123,
+     "type_ok": 114,
+     "recall": 0.9462,
+     "precision": 0.9535,
+     "type_acc": 0.9268
+    }
+   },
+   "stop_reason": "seed_only",
+   "finished": false,
+   "error": null,
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 0.0,
+   "unplaceable": 0,
+   "formmap_s": 2.9,
+   "page_kinds": [
+    "fillable",
+    "digital",
+    "fillable",
+    "fillable"
+   ],
+   "text_sources": [
+    "pdf",
+    "pdf",
+    "pdf",
+    "pdf"
+   ],
+   "candidates": 0,
+   "fields": 130,
+   "fill": {
+    "units": 441,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 156,
+     "correct": 0
+    },
+    "choice": {
+     "units": 5,
+     "correct": 0
+    },
+    "cell": {
+     "units": 280,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": false,
+    "fill_errors": []
+   },
+   "scored_pages": [
+    0,
+    2,
+    3
+   ]
+  },
+  {
+   "form": "i9",
+   "split": "dev",
+   "kind": "fillable",
+   "variant": "fake_scan",
+   "model_env": "SEED",
+   "model": "seed-only",
+   "detection": {
+    "iou0.3": {
+     "gt": 130,
+     "pred": 129,
+     "matched": 123,
+     "pred_matched": 123,
+     "recall": 0.9462,
+     "precision": 0.9535,
+     "type_ok": 114,
+     "type_acc": 0.9268,
+     "missed_by_type": {
+      "text": 2,
+      "choice": 5,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 130,
+     "pred": 129,
+     "matched": 119,
+     "pred_matched": 119,
+     "recall": 0.9154,
+     "precision": 0.9225,
+     "type_ok": 110,
+     "type_acc": 0.9244,
+     "missed_by_type": {
+      "text": 5,
+      "choice": 6,
+      "signature": 0
+     }
+    }
+   },
+   "mapping": {
+    "n_path": 114,
+    "n_transform": 42,
+    "matched": 40,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 0.3509,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "baseline": {
+    "detector": "FFDetr",
+    "pages": [
+     0,
+     2,
+     3
+    ],
+    "iou0.3": {
+     "gt": 130,
+     "pred": 130,
+     "matched": 122,
+     "pred_matched": 122,
+     "type_ok": 113,
+     "recall": 0.9385,
+     "precision": 0.9385,
+     "type_acc": 0.9262
+    },
+    "iou0.5": {
+     "gt": 130,
+     "pred": 130,
+     "matched": 119,
+     "pred_matched": 119,
+     "type_ok": 110,
+     "recall": 0.9154,
+     "precision": 0.9154,
+     "type_acc": 0.9244
+    }
+   },
+   "stop_reason": "seed_only",
+   "finished": false,
+   "error": null,
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 0.0,
+   "unplaceable": 0,
+   "formmap_s": 25.9,
+   "page_kinds": [
+    "scanned",
+    "scanned",
+    "scanned",
+    "scanned"
+   ],
+   "text_sources": [
+    "ocr",
+    "ocr",
+    "ocr",
+    "ocr"
+   ],
+   "candidates": 132,
+   "fields": 132,
+   "fill": {
+    "units": 441,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 156,
+     "correct": 0
+    },
+    "choice": {
+     "units": 5,
+     "correct": 0
+    },
+    "cell": {
+     "units": 280,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": false,
+    "fill_errors": []
+   },
+   "scored_pages": [
+    0,
+    2,
+    3
+   ]
+  },
+  {
+   "form": "f8949",
+   "split": "dev",
+   "kind": "fillable",
+   "variant": "as_published",
+   "model_env": "SEED",
+   "model": "seed-only",
+   "detection": {
+    "iou0.3": {
+     "gt": 202,
+     "pred": 202,
+     "matched": 202,
+     "pred_matched": 202,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_ok": 202,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 202,
+     "pred": 202,
+     "matched": 202,
+     "pred_matched": 202,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_ok": 202,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 0
+     }
+    }
+   },
+   "mapping": {
+    "n_path": 170,
+    "n_transform": 58,
+    "matched": 16,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 0.0941,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "baseline": {
+    "detector": "FFDNet-L",
+    "pages": [
+     0,
+     1
+    ],
+    "iou0.3": {
+     "gt": 202,
+     "pred": 200,
+     "matched": 200,
+     "pred_matched": 200,
+     "type_ok": 200,
+     "recall": 0.9901,
+     "precision": 1.0,
+     "type_acc": 1.0
+    },
+    "iou0.5": {
+     "gt": 202,
+     "pred": 200,
+     "matched": 198,
+     "pred_matched": 198,
+     "type_ok": 198,
+     "recall": 0.9802,
+     "precision": 0.99,
+     "type_acc": 1.0
+    }
+   },
+   "stop_reason": "seed_only",
+   "finished": false,
+   "error": null,
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 0.0,
+   "unplaceable": 0,
+   "formmap_s": 0.4,
+   "page_kinds": [
+    "fillable",
+    "fillable"
+   ],
+   "text_sources": [
+    "pdf",
+    "pdf"
+   ],
+   "candidates": 0,
+   "fields": 202,
+   "fill": {
+    "units": 960,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 24,
+     "correct": 0
+    },
+    "choice": {
+     "units": 12,
+     "correct": 0
+    },
+    "cell": {
+     "units": 924,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": false,
+    "fill_errors": []
+   },
+   "scored_pages": [
+    0,
+    1
+   ]
+  },
+  {
+   "form": "f8949",
+   "split": "dev",
+   "kind": "fillable",
+   "variant": "fake_scan",
+   "model_env": "SEED",
+   "model": "seed-only",
+   "detection": {
+    "iou0.3": {
+     "gt": 202,
+     "pred": 206,
+     "matched": 174,
+     "pred_matched": 174,
+     "recall": 0.8614,
+     "precision": 0.8447,
+     "type_ok": 174,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 21,
+      "choice": 7,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 202,
+     "pred": 206,
+     "matched": 84,
+     "pred_matched": 84,
+     "recall": 0.4158,
+     "precision": 0.4078,
+     "type_ok": 84,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 111,
+      "choice": 7,
+      "signature": 0
+     }
+    }
+   },
+   "mapping": {
+    "n_path": 170,
+    "n_transform": 58,
+    "matched": 9,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 0.0529,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "baseline": {
+    "detector": "FFDetr",
+    "pages": [
+     0,
+     1
+    ],
+    "iou0.3": {
+     "gt": 202,
+     "pred": 203,
+     "matched": 168,
+     "pred_matched": 168,
+     "type_ok": 168,
+     "recall": 0.8317,
+     "precision": 0.8276,
+     "type_acc": 1.0
+    },
+    "iou0.5": {
+     "gt": 202,
+     "pred": 203,
+     "matched": 88,
+     "pred_matched": 88,
+     "type_ok": 88,
+     "recall": 0.4356,
+     "precision": 0.4335,
+     "type_acc": 1.0
+    }
+   },
+   "stop_reason": "seed_only",
+   "finished": false,
+   "error": null,
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 0.0,
+   "unplaceable": 0,
+   "formmap_s": 12.7,
+   "page_kinds": [
+    "scanned",
+    "scanned"
+   ],
+   "text_sources": [
+    "ocr",
+    "ocr"
+   ],
+   "candidates": 206,
+   "fields": 206,
+   "fill": {
+    "units": 960,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 24,
+     "correct": 0
+    },
+    "choice": {
+     "units": 12,
+     "correct": 0
+    },
+    "cell": {
+     "units": 924,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": false,
+    "fill_errors": []
+   },
+   "scored_pages": [
+    0,
+    1
+   ]
+  },
+  {
+   "form": "cms1500",
+   "split": "dev",
+   "kind": "flat",
+   "variant": "as_published",
+   "model_env": "SEED",
+   "model": "seed-only",
+   "detection": {
+    "iou0.3": {
+     "gt": 254,
+     "pred": 147,
+     "matched": 131,
+     "pred_matched": 131,
+     "recall": 0.5157,
+     "precision": 0.8912,
+     "type_ok": 122,
+     "type_acc": 0.9313,
+     "missed_by_type": {
+      "text": 119,
+      "choice": 3,
+      "signature": 1
+     }
+    },
+    "iou0.5": {
+     "gt": 254,
+     "pred": 147,
+     "matched": 126,
+     "pred_matched": 126,
+     "recall": 0.4961,
+     "precision": 0.8571,
+     "type_ok": 117,
+     "type_acc": 0.9286,
+     "missed_by_type": {
+      "text": 124,
+      "choice": 3,
+      "signature": 1
+     }
+    }
+   },
+   "mapping": {
+    "n_path": 227,
+    "n_transform": 118,
+    "matched": 66,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 0.2907,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "baseline": {
+    "detector": "FFDNet-L",
+    "pages": [
+     0
+    ],
+    "iou0.3": {
+     "gt": 254,
+     "pred": 157,
+     "matched": 131,
+     "pred_matched": 131,
+     "type_ok": 120,
+     "recall": 0.5157,
+     "precision": 0.8344,
+     "type_acc": 0.916
+    },
+    "iou0.5": {
+     "gt": 254,
+     "pred": 157,
+     "matched": 126,
+     "pred_matched": 126,
+     "type_ok": 115,
+     "recall": 0.4961,
+     "precision": 0.8025,
+     "type_acc": 0.9127
+    }
+   },
+   "stop_reason": "seed_only",
+   "finished": false,
+   "error": null,
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 0.0,
+   "unplaceable": 0,
+   "formmap_s": 29.7,
+   "page_kinds": [
+    "digital",
+    "digital",
+    "digital",
+    "digital"
+   ],
+   "text_sources": [
+    "ocr",
+    "pdf",
+    "ocr",
+    "ocr"
+   ],
+   "candidates": 147,
+   "fields": 147,
+   "fill": {
+    "units": 1415,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 504,
+     "correct": 0
+    },
+    "choice": {
+     "units": 29,
+     "correct": 0
+    },
+    "cell": {
+     "units": 882,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   },
+   "scored_pages": [
+    0
+   ]
+  },
+  {
+   "form": "cms1500",
+   "split": "dev",
+   "kind": "flat",
+   "variant": "fake_scan",
+   "model_env": "SEED",
+   "model": "seed-only",
+   "detection": {
+    "iou0.3": {
+     "gt": 254,
+     "pred": 28,
+     "matched": 14,
+     "pred_matched": 14,
+     "recall": 0.0551,
+     "precision": 0.5,
+     "type_ok": 14,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 218,
+      "choice": 19,
+      "signature": 3
+     }
+    },
+    "iou0.5": {
+     "gt": 254,
+     "pred": 28,
+     "matched": 7,
+     "pred_matched": 7,
+     "recall": 0.0276,
+     "precision": 0.25,
+     "type_ok": 7,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 219,
+      "choice": 25,
+      "signature": 3
+     }
+    }
+   },
+   "mapping": {
+    "n_path": 227,
+    "n_transform": 118,
+    "matched": 14,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 0.0617,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "baseline": {
+    "detector": "FFDetr",
+    "pages": [
+     0
+    ],
+    "iou0.3": {
+     "gt": 254,
+     "pred": 18,
+     "matched": 11,
+     "pred_matched": 11,
+     "type_ok": 11,
+     "recall": 0.0433,
+     "precision": 0.6111,
+     "type_acc": 1.0
+    },
+    "iou0.5": {
+     "gt": 254,
+     "pred": 18,
+     "matched": 3,
+     "pred_matched": 3,
+     "type_ok": 3,
+     "recall": 0.0118,
+     "precision": 0.1667,
+     "type_acc": 1.0
+    }
+   },
+   "stop_reason": "seed_only",
+   "finished": false,
+   "error": null,
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 0.0,
+   "unplaceable": 0,
+   "formmap_s": 27.1,
+   "page_kinds": [
+    "scanned",
+    "scanned",
+    "scanned",
+    "scanned"
+   ],
+   "text_sources": [
+    "ocr",
+    "ocr",
+    "ocr",
+    "ocr"
+   ],
+   "candidates": 33,
+   "fields": 33,
+   "fill": {
+    "units": 1415,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 504,
+     "correct": 0
+    },
+    "choice": {
+     "units": 29,
+     "correct": 0
+    },
+    "cell": {
+     "units": 882,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   },
+   "scored_pages": [
+    0
+   ]
+  },
+  {
+   "form": "menomonie_app",
+   "split": "dev",
+   "kind": "fillable",
+   "variant": "as_published",
+   "model_env": "SEED",
+   "model": "seed-only",
+   "detection": {
+    "iou0.3": {
+     "gt": 56,
+     "pred": 56,
+     "matched": 56,
+     "pred_matched": 56,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_ok": 56,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 56,
+     "pred": 56,
+     "matched": 56,
+     "pred_matched": 56,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_ok": 56,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 0
+     }
+    }
+   },
+   "mapping": {
+    "n_path": 50,
+    "n_transform": 17,
+    "matched": 32,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 0.64,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "baseline": {
+    "detector": "FFDNet-L",
+    "pages": [
+     0,
+     1,
+     2
+    ],
+    "iou0.3": {
+     "gt": 56,
+     "pred": 56,
+     "matched": 56,
+     "pred_matched": 56,
+     "type_ok": 55,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_acc": 0.9821
+    },
+    "iou0.5": {
+     "gt": 56,
+     "pred": 56,
+     "matched": 56,
+     "pred_matched": 56,
+     "type_ok": 55,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_acc": 0.9821
+    }
+   },
+   "stop_reason": "seed_only",
+   "finished": false,
+   "error": null,
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 0.0,
+   "unplaceable": 0,
+   "formmap_s": 0.1,
+   "page_kinds": [
+    "fillable",
+    "fillable",
+    "fillable"
+   ],
+   "text_sources": [
+    "pdf",
+    "pdf",
+    "pdf"
+   ],
+   "candidates": 0,
+   "fields": 56,
+   "fill": {
+    "units": 158,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 72,
+     "correct": 0
+    },
+    "choice": {
+     "units": 14,
+     "correct": 0
+    },
+    "cell": {
+     "units": 72,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": false,
+    "fill_errors": []
+   },
+   "scored_pages": [
+    0,
+    1,
+    2
+   ]
+  },
+  {
+   "form": "menomonie_app",
+   "split": "dev",
+   "kind": "fillable",
+   "variant": "fake_scan",
+   "model_env": "SEED",
+   "model": "seed-only",
+   "detection": {
+    "iou0.3": {
+     "gt": 56,
+     "pred": 56,
+     "matched": 55,
+     "pred_matched": 55,
+     "recall": 0.9821,
+     "precision": 0.9821,
+     "type_ok": 54,
+     "type_acc": 0.9818,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 1,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 56,
+     "pred": 56,
+     "matched": 50,
+     "pred_matched": 50,
+     "recall": 0.8929,
+     "precision": 0.8929,
+     "type_ok": 49,
+     "type_acc": 0.98,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 6,
+      "signature": 0
+     }
+    }
+   },
+   "mapping": {
+    "n_path": 50,
+    "n_transform": 17,
+    "matched": 31,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 0.62,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "baseline": {
+    "detector": "FFDetr",
+    "pages": [
+     0,
+     1,
+     2
+    ],
+    "iou0.3": {
+     "gt": 56,
+     "pred": 56,
+     "matched": 55,
+     "pred_matched": 55,
+     "type_ok": 54,
+     "recall": 0.9821,
+     "precision": 0.9821,
+     "type_acc": 0.9818
+    },
+    "iou0.5": {
+     "gt": 56,
+     "pred": 56,
+     "matched": 51,
+     "pred_matched": 51,
+     "type_ok": 50,
+     "recall": 0.9107,
+     "precision": 0.9107,
+     "type_acc": 0.9804
+    }
+   },
+   "stop_reason": "seed_only",
+   "finished": false,
+   "error": null,
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 0.0,
+   "unplaceable": 0,
+   "formmap_s": 10.6,
+   "page_kinds": [
+    "scanned",
+    "scanned",
+    "scanned"
+   ],
+   "text_sources": [
+    "ocr",
+    "ocr",
+    "ocr"
+   ],
+   "candidates": 56,
+   "fields": 56,
+   "fill": {
+    "units": 158,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 72,
+     "correct": 0
+    },
+    "choice": {
+     "units": 14,
+     "correct": 0
+    },
+    "cell": {
+     "units": 72,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": false,
+    "fill_errors": []
+   },
+   "scored_pages": [
+    0,
+    1,
+    2
+   ]
+  },
+  {
+   "form": "columbus_medhist",
+   "split": "dev",
+   "kind": "fillable",
+   "variant": "as_published",
+   "model_env": "SEED",
+   "model": "seed-only",
+   "detection": {
+    "iou0.3": {
+     "gt": 160,
+     "pred": 160,
+     "matched": 160,
+     "pred_matched": 160,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_ok": 160,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 160,
+     "pred": 160,
+     "matched": 160,
+     "pred_matched": 160,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_ok": 160,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 0
+     }
+    }
+   },
+   "mapping": {
+    "n_path": 142,
+    "n_transform": 129,
+    "matched": 142,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 1.0,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "baseline": {
+    "detector": "FFDNet-L",
+    "pages": [
+     0,
+     1
+    ],
+    "iou0.3": {
+     "gt": 160,
+     "pred": 160,
+     "matched": 159,
+     "pred_matched": 159,
+     "type_ok": 159,
+     "recall": 0.9938,
+     "precision": 0.9938,
+     "type_acc": 1.0
+    },
+    "iou0.5": {
+     "gt": 160,
+     "pred": 160,
+     "matched": 47,
+     "pred_matched": 47,
+     "type_ok": 47,
+     "recall": 0.2938,
+     "precision": 0.2938,
+     "type_acc": 1.0
+    }
+   },
+   "stop_reason": "seed_only",
+   "finished": false,
+   "error": null,
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 0.0,
+   "unplaceable": 0,
+   "formmap_s": 0.4,
+   "page_kinds": [
+    "fillable",
+    "fillable"
+   ],
+   "text_sources": [
+    "pdf",
+    "pdf"
+   ],
+   "candidates": 0,
+   "fields": 160,
+   "fill": {
+    "units": 1290,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 1189,
+     "correct": 0
+    },
+    "choice": {
+     "units": 101,
+     "correct": 0
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   },
+   "scored_pages": [
+    0,
+    1
+   ]
+  },
+  {
+   "form": "columbus_medhist",
+   "split": "dev",
+   "kind": "fillable",
+   "variant": "fake_scan",
+   "model_env": "SEED",
+   "model": "seed-only",
+   "detection": {
+    "iou0.3": {
+     "gt": 160,
+     "pred": 159,
+     "matched": 154,
+     "pred_matched": 154,
+     "recall": 0.9625,
+     "precision": 0.9686,
+     "type_ok": 154,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 1,
+      "choice": 5,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 160,
+     "pred": 159,
+     "matched": 78,
+     "pred_matched": 78,
+     "recall": 0.4875,
+     "precision": 0.4906,
+     "type_ok": 78,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 1,
+      "choice": 81,
+      "signature": 0
+     }
+    }
+   },
+   "mapping": {
+    "n_path": 142,
+    "n_transform": 129,
+    "matched": 137,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 0.9648,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "baseline": {
+    "detector": "FFDetr",
+    "pages": [
+     0,
+     1
+    ],
+    "iou0.3": {
+     "gt": 160,
+     "pred": 160,
+     "matched": 155,
+     "pred_matched": 155,
+     "type_ok": 155,
+     "recall": 0.9688,
+     "precision": 0.9688,
+     "type_acc": 1.0
+    },
+    "iou0.5": {
+     "gt": 160,
+     "pred": 160,
+     "matched": 79,
+     "pred_matched": 79,
+     "type_ok": 79,
+     "recall": 0.4938,
+     "precision": 0.4938,
+     "type_acc": 1.0
+    }
+   },
+   "stop_reason": "seed_only",
+   "finished": false,
+   "error": null,
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 0.0,
+   "unplaceable": 0,
+   "formmap_s": 8.3,
+   "page_kinds": [
+    "scanned",
+    "scanned"
+   ],
+   "text_sources": [
+    "ocr",
+    "ocr"
+   ],
+   "candidates": 159,
+   "fields": 159,
+   "fill": {
+    "units": 1290,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 1189,
+     "correct": 0
+    },
+    "choice": {
+     "units": 101,
+     "correct": 0
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   },
+   "scored_pages": [
+    0,
+    1
+   ]
+  },
+  {
+   "form": "grandview_app",
+   "split": "dev",
+   "kind": "flat",
+   "variant": "as_published",
+   "model_env": "SEED",
+   "model": "seed-only",
+   "detection": {
+    "iou0.3": {
+     "gt": 323,
+     "pred": 249,
+     "matched": 246,
+     "pred_matched": 246,
+     "recall": 0.7616,
+     "precision": 0.988,
+     "type_ok": 232,
+     "type_acc": 0.9431,
+     "missed_by_type": {
+      "text": 52,
+      "choice": 24,
+      "signature": 1
+     }
+    },
+    "iou0.5": {
+     "gt": 323,
+     "pred": 249,
+     "matched": 238,
+     "pred_matched": 238,
+     "recall": 0.7368,
+     "precision": 0.9558,
+     "type_ok": 224,
+     "type_acc": 0.9412,
+     "missed_by_type": {
+      "text": 59,
+      "choice": 25,
+      "signature": 1
+     }
+    }
+   },
+   "mapping": {
+    "n_path": 247,
+    "n_transform": 117,
+    "matched": 93,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 0.3765,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "baseline": {
+    "detector": "FFDNet-L",
+    "pages": [
+     0,
+     1,
+     2,
+     3
+    ],
+    "iou0.3": {
+     "gt": 323,
+     "pred": 260,
+     "matched": 246,
+     "pred_matched": 246,
+     "type_ok": 229,
+     "recall": 0.7616,
+     "precision": 0.9462,
+     "type_acc": 0.9309
+    },
+    "iou0.5": {
+     "gt": 323,
+     "pred": 260,
+     "matched": 238,
+     "pred_matched": 238,
+     "type_ok": 221,
+     "recall": 0.7368,
+     "precision": 0.9154,
+     "type_acc": 0.9286
+    }
+   },
+   "stop_reason": "seed_only",
+   "finished": false,
+   "error": null,
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 0.0,
+   "unplaceable": 0,
+   "formmap_s": 9.8,
+   "page_kinds": [
+    "digital",
+    "digital",
+    "digital",
+    "digital"
+   ],
+   "text_sources": [
+    "pdf",
+    "pdf",
+    "pdf",
+    "pdf"
+   ],
+   "candidates": 249,
+   "fields": 249,
+   "fill": {
+    "units": 2011,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 620,
+     "correct": 0
+    },
+    "choice": {
+     "units": 51,
+     "correct": 0
+    },
+    "cell": {
+     "units": 1340,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": false,
+    "fill_errors": []
+   },
+   "scored_pages": [
+    0,
+    1,
+    2,
+    3
+   ]
+  },
+  {
+   "form": "grandview_app",
+   "split": "dev",
+   "kind": "flat",
+   "variant": "fake_scan",
+   "model_env": "SEED",
+   "model": "seed-only",
+   "detection": {
+    "iou0.3": {
+     "gt": 323,
+     "pred": 213,
+     "matched": 198,
+     "pred_matched": 198,
+     "recall": 0.613,
+     "precision": 0.9296,
+     "type_ok": 197,
+     "type_acc": 0.9949,
+     "missed_by_type": {
+      "text": 83,
+      "choice": 41,
+      "signature": 1
+     }
+    },
+    "iou0.5": {
+     "gt": 323,
+     "pred": 213,
+     "matched": 156,
+     "pred_matched": 156,
+     "recall": 0.483,
+     "precision": 0.7324,
+     "type_ok": 155,
+     "type_acc": 0.9936,
+     "missed_by_type": {
+      "text": 104,
+      "choice": 62,
+      "signature": 1
+     }
+    }
+   },
+   "mapping": {
+    "n_path": 247,
+    "n_transform": 117,
+    "matched": 78,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 0.3158,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "baseline": {
+    "detector": "FFDetr",
+    "pages": [
+     0,
+     1,
+     2,
+     3
+    ],
+    "iou0.3": {
+     "gt": 323,
+     "pred": 209,
+     "matched": 192,
+     "pred_matched": 192,
+     "type_ok": 192,
+     "recall": 0.5944,
+     "precision": 0.9187,
+     "type_acc": 1.0
+    },
+    "iou0.5": {
+     "gt": 323,
+     "pred": 209,
+     "matched": 157,
+     "pred_matched": 157,
+     "type_ok": 157,
+     "recall": 0.4861,
+     "precision": 0.7512,
+     "type_acc": 1.0
+    }
+   },
+   "stop_reason": "seed_only",
+   "finished": false,
+   "error": null,
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 0.0,
+   "unplaceable": 0,
+   "formmap_s": 20.4,
+   "page_kinds": [
+    "scanned",
+    "scanned",
+    "scanned",
+    "scanned"
+   ],
+   "text_sources": [
+    "ocr",
+    "ocr",
+    "ocr",
+    "ocr"
+   ],
+   "candidates": 213,
+   "fields": 213,
+   "fill": {
+    "units": 2011,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 620,
+     "correct": 0
+    },
+    "choice": {
+     "units": 51,
+     "correct": 0
+    },
+    "cell": {
+     "units": 1340,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": false,
+    "fill_errors": []
+   },
+   "scored_pages": [
+    0,
+    1,
+    2,
+    3
+   ]
+  },
+  {
+   "form": "csudh_health",
+   "split": "dev",
+   "kind": "flat",
+   "variant": "as_published",
+   "model_env": "SEED",
+   "model": "seed-only",
+   "detection": {
+    "iou0.3": {
+     "gt": 175,
+     "pred": 173,
+     "matched": 171,
+     "pred_matched": 171,
+     "recall": 0.9771,
+     "precision": 0.9884,
+     "type_ok": 169,
+     "type_acc": 0.9883,
+     "missed_by_type": {
+      "text": 1,
+      "choice": 3,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 175,
+     "pred": 173,
+     "matched": 171,
+     "pred_matched": 171,
+     "recall": 0.9771,
+     "precision": 0.9884,
+     "type_ok": 169,
+     "type_acc": 0.9883,
+     "missed_by_type": {
+      "text": 1,
+      "choice": 3,
+      "signature": 0
+     }
+    }
+   },
+   "mapping": {
+    "n_path": 155,
+    "n_transform": 141,
+    "matched": 151,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 0.9742,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "baseline": {
+    "detector": "FFDNet-L",
+    "pages": [
+     0,
+     1
+    ],
+    "iou0.3": {
+     "gt": 175,
+     "pred": 173,
+     "matched": 171,
+     "pred_matched": 171,
+     "type_ok": 169,
+     "recall": 0.9771,
+     "precision": 0.9884,
+     "type_acc": 0.9883
+    },
+    "iou0.5": {
+     "gt": 175,
+     "pred": 173,
+     "matched": 171,
+     "pred_matched": 171,
+     "type_ok": 169,
+     "recall": 0.9771,
+     "precision": 0.9884,
+     "type_acc": 0.9883
+    }
+   },
+   "stop_reason": "seed_only",
+   "finished": false,
+   "error": null,
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 0.0,
+   "unplaceable": 0,
+   "formmap_s": 5.4,
+   "page_kinds": [
+    "digital",
+    "digital"
+   ],
+   "text_sources": [
+    "pdf",
+    "pdf"
+   ],
+   "candidates": 173,
+   "fields": 173,
+   "fill": {
+    "units": 1467,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 1353,
+     "correct": 0
+    },
+    "choice": {
+     "units": 114,
+     "correct": 0
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   },
+   "scored_pages": [
+    0,
+    1
+   ]
+  },
+  {
+   "form": "csudh_health",
+   "split": "dev",
+   "kind": "flat",
+   "variant": "fake_scan",
+   "model_env": "SEED",
+   "model": "seed-only",
+   "detection": {
+    "iou0.3": {
+     "gt": 175,
+     "pred": 134,
+     "matched": 112,
+     "pred_matched": 112,
+     "recall": 0.64,
+     "precision": 0.8358,
+     "type_ok": 110,
+     "type_acc": 0.9821,
+     "missed_by_type": {
+      "text": 16,
+      "choice": 47,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 175,
+     "pred": 134,
+     "matched": 55,
+     "pred_matched": 55,
+     "recall": 0.3143,
+     "precision": 0.4104,
+     "type_ok": 53,
+     "type_acc": 0.9636,
+     "missed_by_type": {
+      "text": 20,
+      "choice": 100,
+      "signature": 0
+     }
+    }
+   },
+   "mapping": {
+    "n_path": 155,
+    "n_transform": 141,
+    "matched": 98,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 0.6323,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "baseline": {
+    "detector": "FFDetr",
+    "pages": [
+     0,
+     1
+    ],
+    "iou0.3": {
+     "gt": 175,
+     "pred": 132,
+     "matched": 117,
+     "pred_matched": 117,
+     "type_ok": 115,
+     "recall": 0.6686,
+     "precision": 0.8864,
+     "type_acc": 0.9829
+    },
+    "iou0.5": {
+     "gt": 175,
+     "pred": 132,
+     "matched": 55,
+     "pred_matched": 55,
+     "type_ok": 53,
+     "recall": 0.3143,
+     "precision": 0.4167,
+     "type_acc": 0.9636
+    }
+   },
+   "stop_reason": "seed_only",
+   "finished": false,
+   "error": null,
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 0.0,
+   "unplaceable": 0,
+   "formmap_s": 9.9,
+   "page_kinds": [
+    "scanned",
+    "scanned"
+   ],
+   "text_sources": [
+    "ocr",
+    "ocr"
+   ],
+   "candidates": 134,
+   "fields": 134,
+   "fill": {
+    "units": 1467,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 1353,
+     "correct": 0
+    },
+    "choice": {
+     "units": 114,
+     "correct": 0
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   },
+   "scored_pages": [
+    0,
+    1
+   ]
+  },
+  {
+   "form": "fw9",
+   "split": "dev",
+   "kind": "fillable",
+   "variant": "as_published",
+   "model_env": "SEED",
+   "model": "seed-only",
+   "detection": {
+    "iou0.3": {
+     "gt": 23,
+     "pred": 23,
+     "matched": 23,
+     "pred_matched": 23,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_ok": 23,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 23,
+     "pred": 23,
+     "matched": 23,
+     "pred_matched": 23,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_ok": 23,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 0
+     }
+    }
+   },
+   "mapping": {
+    "n_path": 20,
+    "n_transform": 15,
+    "matched": 20,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 1.0,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "baseline": {
+    "detector": "FFDNet-L",
+    "pages": [
+     0
+    ],
+    "iou0.3": {
+     "gt": 23,
+     "pred": 23,
+     "matched": 23,
+     "pred_matched": 23,
+     "type_ok": 23,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_acc": 1.0
+    },
+    "iou0.5": {
+     "gt": 23,
+     "pred": 23,
+     "matched": 23,
+     "pred_matched": 23,
+     "type_ok": 23,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_acc": 1.0
+    }
+   },
+   "stop_reason": "seed_only",
+   "finished": false,
+   "error": null,
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 0.0,
+   "unplaceable": 0,
+   "formmap_s": 10.5,
+   "page_kinds": [
+    "fillable",
+    "digital",
+    "digital",
+    "digital",
+    "digital",
+    "digital"
+   ],
+   "text_sources": [
+    "pdf",
+    "pdf",
+    "pdf",
+    "pdf",
+    "pdf",
+    "pdf"
+   ],
+   "candidates": 0,
+   "fields": 23,
+   "fill": {
+    "units": 92,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 84,
+     "correct": 0
+    },
+    "choice": {
+     "units": 8,
+     "correct": 0
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   },
+   "scored_pages": [
+    0
+   ]
+  },
+  {
+   "form": "fw9",
+   "split": "dev",
+   "kind": "fillable",
+   "variant": "fake_scan",
+   "model_env": "SEED",
+   "model": "seed-only",
+   "detection": {
+    "iou0.3": {
+     "gt": 23,
+     "pred": 28,
+     "matched": 14,
+     "pred_matched": 14,
+     "recall": 0.6087,
+     "precision": 0.5,
+     "type_ok": 14,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 2,
+      "choice": 7,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 23,
+     "pred": 28,
+     "matched": 11,
+     "pred_matched": 11,
+     "recall": 0.4783,
+     "precision": 0.3929,
+     "type_ok": 11,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 4,
+      "choice": 8,
+      "signature": 0
+     }
+    }
+   },
+   "mapping": {
+    "n_path": 20,
+    "n_transform": 15,
+    "matched": 13,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 0.65,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "baseline": {
+    "detector": "FFDetr",
+    "pages": [
+     0
+    ],
+    "iou0.3": {
+     "gt": 23,
+     "pred": 27,
+     "matched": 13,
+     "pred_matched": 13,
+     "type_ok": 13,
+     "recall": 0.5652,
+     "precision": 0.4815,
+     "type_acc": 1.0
+    },
+    "iou0.5": {
+     "gt": 23,
+     "pred": 27,
+     "matched": 11,
+     "pred_matched": 11,
+     "type_ok": 11,
+     "recall": 0.4783,
+     "precision": 0.4074,
+     "type_acc": 1.0
+    }
+   },
+   "stop_reason": "seed_only",
+   "finished": false,
+   "error": null,
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 0.0,
+   "unplaceable": 0,
+   "formmap_s": 42.1,
+   "page_kinds": [
+    "scanned",
+    "scanned",
+    "scanned",
+    "scanned",
+    "scanned",
+    "scanned"
+   ],
+   "text_sources": [
+    "ocr",
+    "ocr",
+    "ocr",
+    "ocr",
+    "ocr",
+    "ocr"
+   ],
+   "candidates": 45,
+   "fields": 45,
+   "fill": {
+    "units": 92,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 84,
+     "correct": 0
+    },
+    "choice": {
+     "units": 8,
+     "correct": 0
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   },
+   "scored_pages": [
+    0
+   ]
+  },
+  {
+   "form": "fw4",
+   "split": "dev",
+   "kind": "fillable",
+   "variant": "as_published",
+   "model_env": "SEED",
+   "model": "seed-only",
+   "detection": {
+    "iou0.3": {
+     "gt": 48,
+     "pred": 48,
+     "matched": 48,
+     "pred_matched": 48,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_ok": 48,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 48,
+     "pred": 48,
+     "matched": 48,
+     "pred_matched": 48,
+     "recall": 1.0,
+     "precision": 1.0,
+     "type_ok": 48,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 0,
+      "choice": 0,
+      "signature": 0
+     }
+    }
+   },
+   "mapping": {
+    "n_path": 17,
+    "n_transform": 9,
+    "matched": 17,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 1.0,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "baseline": {
+    "detector": "FFDNet-L",
+    "pages": [
+     0,
+     2,
+     3
+    ],
+    "iou0.3": {
+     "gt": 48,
+     "pred": 49,
+     "matched": 48,
+     "pred_matched": 48,
+     "type_ok": 48,
+     "recall": 1.0,
+     "precision": 0.9796,
+     "type_acc": 1.0
+    },
+    "iou0.5": {
+     "gt": 48,
+     "pred": 49,
+     "matched": 48,
+     "pred_matched": 48,
+     "type_ok": 48,
+     "recall": 1.0,
+     "precision": 0.9796,
+     "type_acc": 1.0
+    }
+   },
+   "stop_reason": "seed_only",
+   "finished": false,
+   "error": null,
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 0.0,
+   "unplaceable": 0,
+   "formmap_s": 4.4,
+   "page_kinds": [
+    "fillable",
+    "digital",
+    "fillable",
+    "fillable",
+    "digital"
+   ],
+   "text_sources": [
+    "pdf",
+    "pdf",
+    "pdf",
+    "pdf",
+    "pdf"
+   ],
+   "candidates": 0,
+   "fields": 48,
+   "fill": {
+    "units": 41,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 36,
+     "correct": 0
+    },
+    "choice": {
+     "units": 5,
+     "correct": 0
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   },
+   "scored_pages": [
+    0,
+    2,
+    3
+   ]
+  },
+  {
+   "form": "fw4",
+   "split": "dev",
+   "kind": "fillable",
+   "variant": "fake_scan",
+   "model_env": "SEED",
+   "model": "seed-only",
+   "detection": {
+    "iou0.3": {
+     "gt": 48,
+     "pred": 44,
+     "matched": 42,
+     "pred_matched": 42,
+     "recall": 0.875,
+     "precision": 0.9545,
+     "type_ok": 42,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 5,
+      "choice": 1,
+      "signature": 0
+     }
+    },
+    "iou0.5": {
+     "gt": 48,
+     "pred": 44,
+     "matched": 39,
+     "pred_matched": 39,
+     "recall": 0.8125,
+     "precision": 0.8864,
+     "type_ok": 39,
+     "type_acc": 1.0,
+     "missed_by_type": {
+      "text": 8,
+      "choice": 1,
+      "signature": 0
+     }
+    }
+   },
+   "mapping": {
+    "n_path": 17,
+    "n_transform": 9,
+    "matched": 16,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "matched_rate": 0.9412,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "baseline": {
+    "detector": "FFDetr",
+    "pages": [
+     0,
+     2,
+     3
+    ],
+    "iou0.3": {
+     "gt": 48,
+     "pred": 44,
+     "matched": 42,
+     "pred_matched": 42,
+     "type_ok": 42,
+     "recall": 0.875,
+     "precision": 0.9545,
+     "type_acc": 1.0
+    },
+    "iou0.5": {
+     "gt": 48,
+     "pred": 44,
+     "matched": 39,
+     "pred_matched": 39,
+     "type_ok": 39,
+     "recall": 0.8125,
+     "precision": 0.8864,
+     "type_acc": 1.0
+    }
+   },
+   "stop_reason": "seed_only",
+   "finished": false,
+   "error": null,
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 0.0,
+   "unplaceable": 0,
+   "formmap_s": 29.5,
+   "page_kinds": [
+    "scanned",
+    "scanned",
+    "scanned",
+    "scanned",
+    "scanned"
+   ],
+   "text_sources": [
+    "ocr",
+    "ocr",
+    "ocr",
+    "ocr",
+    "ocr"
+   ],
+   "candidates": 44,
+   "fields": 44,
+   "fill": {
+    "units": 41,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 36,
+     "correct": 0
+    },
+    "choice": {
+     "units": 5,
+     "correct": 0
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   },
+   "scored_pages": [
+    0,
+    2,
+    3
+   ]
+  }
+ ],
+ "totals": {
+  "all": {
+   "forms": 24,
+   "failed": 0,
+   "errored": [],
+   "finished": 0,
+   "detection": {
+    "iou0.3": {
+     "gt": 2906,
+     "pred": 2351,
+     "matched": 2197,
+     "pred_matched": 2197,
+     "type_ok": 2133,
+     "recall": 0.756,
+     "precision": 0.9345,
+     "type_acc": 0.9709
+    },
+    "iou0.5": {
+     "gt": 2906,
+     "pred": 2351,
+     "matched": 1888,
+     "pred_matched": 1888,
+     "type_ok": 1825,
+     "recall": 0.6497,
+     "precision": 0.8031,
+     "type_acc": 0.9666
+    }
+   },
+   "baseline": {
+    "forms": 24,
+    "iou0.3": {
+     "gt": 2906,
+     "pred": 2355,
+     "matched": 2177,
+     "pred_matched": 2177,
+     "type_ok": 2106,
+     "recall": 0.7491,
+     "precision": 0.9244,
+     "type_acc": 0.9674
+    },
+    "iou0.5": {
+     "gt": 2906,
+     "pred": 2355,
+     "matched": 1757,
+     "pred_matched": 1757,
+     "type_ok": 1687,
+     "recall": 0.6046,
+     "precision": 0.7461,
+     "type_acc": 0.9602
+    }
+   },
+   "mapping": {
+    "n_path": 2394,
+    "n_transform": 1336,
+    "matched": 1111,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "fill": {
+    "forms": 24,
+    "units": 16098,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 8408,
+     "correct": 0,
+     "acc": 0.0
+    },
+    "choice": {
+     "units": 694,
+     "correct": 0,
+     "acc": 0.0
+    },
+    "cell": {
+     "units": 6996,
+     "correct": 0,
+     "acc": 0.0
+    },
+    "rows_dropped": {
+     "checked": 8,
+     "ok": 0
+    },
+    "static_choice": 0
+   },
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 0.0
+  },
+  "as_published": {
+   "forms": 12,
+   "failed": 0,
+   "errored": [],
+   "finished": 0,
+   "detection": {
+    "iou0.3": {
+     "gt": 1453,
+     "pred": 1269,
+     "matched": 1238,
+     "pred_matched": 1238,
+     "type_ok": 1197,
+     "recall": 0.852,
+     "precision": 0.9756,
+     "type_acc": 0.9669
+    },
+    "iou0.5": {
+     "gt": 1453,
+     "pred": 1269,
+     "matched": 1224,
+     "pred_matched": 1224,
+     "type_ok": 1183,
+     "recall": 0.8424,
+     "precision": 0.9645,
+     "type_acc": 0.9665
+    }
+   },
+   "baseline": {
+    "forms": 12,
+    "iou0.3": {
+     "gt": 1453,
+     "pred": 1291,
+     "matched": 1229,
+     "pred_matched": 1229,
+     "type_ok": 1180,
+     "recall": 0.8458,
+     "precision": 0.952,
+     "type_acc": 0.9601
+    },
+    "iou0.5": {
+     "gt": 1453,
+     "pred": 1291,
+     "matched": 1100,
+     "pred_matched": 1100,
+     "type_ok": 1051,
+     "recall": 0.7571,
+     "precision": 0.8521,
+     "type_acc": 0.9555
+    }
+   },
+   "mapping": {
+    "n_path": 1197,
+    "n_transform": 668,
+    "matched": 627,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "fill": {
+    "forms": 12,
+    "units": 8049,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 4204,
+     "correct": 0,
+     "acc": 0.0
+    },
+    "choice": {
+     "units": 347,
+     "correct": 0,
+     "acc": 0.0
+    },
+    "cell": {
+     "units": 3498,
+     "correct": 0,
+     "acc": 0.0
+    },
+    "rows_dropped": {
+     "checked": 4,
+     "ok": 0
+    },
+    "static_choice": 0
+   },
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 0.0
+  },
+  "fake_scan": {
+   "forms": 12,
+   "failed": 0,
+   "errored": [],
+   "finished": 0,
+   "detection": {
+    "iou0.3": {
+     "gt": 1453,
+     "pred": 1082,
+     "matched": 959,
+     "pred_matched": 959,
+     "type_ok": 936,
+     "recall": 0.66,
+     "precision": 0.8863,
+     "type_acc": 0.976
+    },
+    "iou0.5": {
+     "gt": 1453,
+     "pred": 1082,
+     "matched": 664,
+     "pred_matched": 664,
+     "type_ok": 642,
+     "recall": 0.457,
+     "precision": 0.6137,
+     "type_acc": 0.9669
+    }
+   },
+   "baseline": {
+    "forms": 12,
+    "iou0.3": {
+     "gt": 1453,
+     "pred": 1064,
+     "matched": 948,
+     "pred_matched": 948,
+     "type_ok": 926,
+     "recall": 0.6524,
+     "precision": 0.891,
+     "type_acc": 0.9768
+    },
+    "iou0.5": {
+     "gt": 1453,
+     "pred": 1064,
+     "matched": 657,
+     "pred_matched": 657,
+     "type_ok": 636,
+     "recall": 0.4522,
+     "precision": 0.6175,
+     "type_acc": 0.968
+    }
+   },
+   "mapping": {
+    "n_path": 1197,
+    "n_transform": 668,
+    "matched": 484,
+    "path_ok": 0,
+    "transform_ok": 0,
+    "joint_ok": 0,
+    "exact_ok": 0,
+    "path_acc": 0.0,
+    "transform_acc": 0.0,
+    "joint_acc": 0.0,
+    "exact_path_set_acc": 0.0
+   },
+   "fill": {
+    "forms": 12,
+    "units": 8049,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 4204,
+     "correct": 0,
+     "acc": 0.0
+    },
+    "choice": {
+     "units": 347,
+     "correct": 0,
+     "acc": 0.0
+    },
+    "cell": {
+     "units": 3498,
+     "correct": 0,
+     "acc": 0.0
+    },
+    "rows_dropped": {
+     "checked": 4,
+     "ok": 0
+    },
+    "static_choice": 0
+   },
+   "steps": 0,
+   "input_tokens": 0,
+   "output_tokens": 0,
+   "wall_s": 0.0
+  }
+ }
+}

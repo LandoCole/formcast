@@ -43,10 +43,11 @@
    "Baseline: bare-detector numbers from the baseline run on the same images: FFDNet-L (default for digital pages) for as_published digital/fillable forms, FFDetr (default for scanned pages) for fake_scan and scanned forms. On fillable as_published forms the baseline detects on the widget-stripped page.",
    "Mapping is over GT fields with a schema path. Transform credit uses equivalence groups {slice, split, char_at}, {date_part, date_format}, {equals, contains}, and a when equals true also credits bool_to_check; a template's join and when count as ops. joint = path and transforms right; exact = the matched field's source paths equal GT path + also_paths.",
    "Totals are micro-averaged over forms (sums of counts). Sessions that ended in an error (infrastructure or harness) are listed in the per-form table but excluded from the totals' detection and mapping figures; their templates are partial or untouched seeds.",
-   "The agent's form map carries the neutral source name 'form.pdf', not the file name."
+   "The agent's form map carries the neutral source name 'form.pdf', not the file name.",
+   "fill (fill_acc): the template is filled (formcast fill, real form fields) into the variant's PDF with K distinctive probe records (eval/probe.py), and every GT box with a path is checked for what its widget shows: a text or table-cell box once per record (the exact value; by provenance when GT has transforms), a choice box once across all records (right state in every record). fill_acc = correct units / units. It catches data landing in the wrong box, e.g. a table built as one segment per column, which path/joint score as right. A choice box whose expected state is the same in every probe record can't tell an always-on (or never-on) box from a right one; the json counts them as fill.static_choice."
   ],
   "finished_at": "2026-10-21T10:32:54+00:00",
-  "rescored": "2026-10-21 at commit 6b01f29-dirty: the saved templates were scored again with the stacked-lines rule for multi-line fields; model output is unchanged."
+  "rescored": "2026-10-21 at commit 33e4f50-dirty: the saved templates were scored again with the stacked-lines rule for multi-line fields and the fill-correctness metric (fill); model output is unchanged."
  },
  "rows": [
   {
@@ -164,7 +165,27 @@
     2,
     3
    ],
-   "log_path": "eval/results/logs/2026-10-21_heldout-retry1/anthropic_eval/pacific_app_as_published.json"
+   "log_path": "eval/results/logs/2026-10-21_heldout-retry1/anthropic_eval/pacific_app_as_published.json",
+   "fill": {
+    "units": 260,
+    "correct": 0,
+    "fill_acc": 0.0,
+    "text": {
+     "units": 76,
+     "correct": 0
+    },
+    "choice": {
+     "units": 12,
+     "correct": 0
+    },
+    "cell": {
+     "units": 172,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": false,
+    "fill_errors": []
+   }
   }
  ],
  "totals": {
@@ -211,6 +232,7 @@
     "joint_acc": 0.0,
     "exact_path_set_acc": 0.0
    },
+   "fill": null,
    "steps": 0,
    "input_tokens": 0,
    "output_tokens": 0,
@@ -259,6 +281,7 @@
     "joint_acc": 0.0,
     "exact_path_set_acc": 0.0
    },
+   "fill": null,
    "steps": 0,
    "input_tokens": 0,
    "output_tokens": 0,
