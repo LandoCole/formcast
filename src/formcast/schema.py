@@ -217,14 +217,40 @@ def _infer_type(schema: dict) -> str | None:
     return None
 
 
-def _normalize(node: Any, root: dict, stack: tuple[str, ...]) -> tuple[dict, tuple[str, ...]]:
+Stack = tuple[str, ...]
+
+
+class _Origin:
+    """Where a normalized schema's children came from.
+
+    ``props[name]`` / ``items`` hold the ``$ref`` stack to use when expanding that
+    child: the refs followed to reach the branch that supplied it. This keeps a ref
+    reused by a *sibling* branch from looking recursive, while any cycle (even one
+    reached only through ``allOf``/``anyOf``/``oneOf``) still hits the stack.
+    """
+
+    __slots__ = ("items", "props")
+
+    def __init__(self) -> None:
+        self.props: dict[str, Stack] = {}
+        self.items: Stack | None = None
+
+    def absorb(self, other: _Origin, sub: dict) -> None:
+        """Later sources win, mirroring :func:`_merge`."""
+        self.props.update(other.props)
+        if "items" in sub:
+            self.items = other.items
+
+
+def _normalize(node: Any, root: dict, stack: Stack) -> tuple[dict, _Origin]:
     """Resolve ``$ref``/``allOf``/``anyOf``/``oneOf`` and nullable type lists.
 
-    Returns a plain schema dict (with a single ``type`` when one is knowable)
-    and the ref stack to use for its children.
+    Returns a plain schema dict (with a single ``type`` when one is knowable) and
+    the :class:`_Origin` of its children. Sibling branches each start from ``stack``.
     """
+    origin = _Origin()
     if not isinstance(node, dict):
-        return {}, stack
+        return {}, origin
     result: dict = {}
     ref = node.get("$ref")
     if isinstance(ref, str):
@@ -235,27 +261,28 @@ def _normalize(node: Any, root: dict, stack: tuple[str, ...]) -> tuple[dict, tup
             shallow["type"] = _infer_type(target) or "object"
             result = shallow
         else:
-            stack = stack + (ref,)
-            result, stack = _normalize(target, root, stack)
-    # Sibling branches each start from this node's own ref chain; their stacks are
-    # discarded so a ref reused by a sibling or child is not mistaken for recursion.
+            result, origin = _normalize(target, root, stack + (ref,))
     for part in node.get("allOf") or []:
-        sub, _ = _normalize(part, root, stack)
+        sub, sub_origin = _normalize(part, root, stack)
         result = _merge(result, sub)
+        origin.absorb(sub_origin, sub)
     union = node.get("anyOf") or node.get("oneOf")
     if isinstance(union, list) and union:
-        branches = []
-        for b in union:
-            sub, _ = _normalize(b, root, stack)
-            branches.append(sub)
-        non_null = [b for b in branches if _single_type(b) != "null"]
-        result = _merge(result, non_null[0] if non_null else {"type": "string"})
+        branches = [_normalize(b, root, stack) for b in union]
+        non_null = [br for br in branches if _single_type(br[0]) != "null"]
+        sub, sub_origin = non_null[0] if non_null else ({"type": "string"}, _Origin())
+        result = _merge(result, sub)
+        origin.absorb(sub_origin, sub)
     own = {k: v for k, v in node.items() if k not in ("$ref", "allOf", "anyOf", "oneOf")}
     result = _merge(result, own)
+    if isinstance(own.get("properties"), dict):
+        origin.props.update({name: stack for name in own["properties"]})
+    if "items" in own:
+        origin.items = stack
     t = _infer_type(result)
     if t is not None:
         result = {**result, "type": t}
-    return result, stack
+    return result, origin
 
 
 def _enum_values(schema: dict) -> list[str] | None:
@@ -278,19 +305,20 @@ def _path_type(schema: dict) -> PathType:
 
 def flatten_schema(schema: dict) -> list[SchemaPath]:
     """Flatten ``schema`` into field paths, parents before children, in schema order."""
-    root, stack = _normalize(schema, schema, ())
+    root, root_origin = _normalize(schema, schema, ())
     if _path_type(root) != "object":
         raise FormcastError("schema root must be an object schema")
     out: list[SchemaPath] = []
 
-    def children(props: Any, segs: list[str], stack: tuple[str, ...], in_table: str | None) -> None:
+    def children(node: dict, origin: _Origin, segs: list[str], in_table: str | None) -> None:
+        props = node.get("properties")
         if not isinstance(props, dict):
             return
         for name, sub in props.items():
-            node, child_stack = _normalize(sub, schema, stack)
-            visit(segs + [name], node, child_stack, in_table)
+            child, child_origin = _normalize(sub, schema, origin.props.get(name, ()))
+            visit(segs + [name], child, child_origin, in_table)
 
-    def visit(segs: list[str], node: dict, stack: tuple[str, ...], in_table: str | None) -> None:
+    def visit(segs: list[str], node: dict, origin: _Origin, in_table: str | None) -> None:
         path = format_path(segs)
         ptype = _path_type(node)
         entry = SchemaPath(
@@ -302,19 +330,19 @@ def flatten_schema(schema: dict) -> list[SchemaPath]:
         )
         out.append(entry)
         if ptype == "object":
-            children(node.get("properties"), segs, stack, in_table)
+            children(node, origin, segs, in_table)
         elif ptype == "array":
-            items, item_stack = _normalize(node.get("items"), schema, stack)
+            items, items_origin = _normalize(node.get("items"), schema, origin.items or ())
             item_type = _path_type(items) if node.get("items") is not None else None
             entry.item_type = item_type
             if item_type == "enum":
                 entry.enum = _enum_values(items)
             if item_type == "object":
-                children(items.get("properties"), segs + [ARRAY_ITEM], item_stack, path)
+                children(items, items_origin, segs + [ARRAY_ITEM], path)
             elif item_type == "array":
-                visit(segs + [ARRAY_ITEM], items, item_stack, in_table)
+                visit(segs + [ARRAY_ITEM], items, items_origin, in_table)
 
-    children(root.get("properties"), [], stack, None)
+    children(root, root_origin, [], None)
     return out
 
 

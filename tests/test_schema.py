@@ -409,3 +409,33 @@ def test_ref_reused_by_sibling_branch_is_not_recursion(combo):
 def test_validate_data_bad_schema_raises_formcast_error(bad):
     with pytest.raises(FormcastError):
         validate_data(bad, {"a": 1})
+
+
+@pytest.mark.parametrize(
+    "wrap",
+    [
+        lambda r: {"allOf": [r]},
+        lambda r: {"oneOf": [r, {"type": "null"}]},
+        lambda r: {"anyOf": [{"type": "null"}, r]},
+    ],
+    ids=["allOf", "oneOf-nullable", "anyOf-nullable"],
+)
+def test_cycle_reached_only_through_union_branches_terminates(wrap):
+    ref = {"$ref": "#/$defs/B"}
+    schema = {
+        "type": "object",
+        "$defs": {"B": {"type": "object", "properties": {"x": wrap(ref)}}},
+        "properties": {"p": wrap(ref)},
+    }
+    assert [p.path for p in flatten_schema(schema)] == ["p", "p.x"]
+
+
+def test_cycle_through_array_items_union_terminates():
+    ref = {"$ref": "#/$defs/B"}
+    schema = {
+        "type": "object",
+        "$defs": {"B": {"type": "object", "properties": {"kids": {"type": "array", "items": {"allOf": [ref]}}}}},
+        "properties": {"p": {"oneOf": [ref, {"type": "null"}]}},
+    }
+    paths = [p.path for p in flatten_schema(schema)]
+    assert paths[:2] == ["p", "p.kids"]
