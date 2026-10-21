@@ -18,6 +18,9 @@ MAX_LISTED = 40
 MAX_STDOUT = 12000
 MAX_OP_CHARS = 160
 MAX_LABEL = 50
+# Rejection reasons after the first FULL_REASONS are cut to this many characters.
+FULL_REASONS = 3
+MAX_REPEAT_REASON = 220
 
 
 def _short_op(op: dict) -> str:
@@ -27,6 +30,14 @@ def _short_op(op: dict) -> str:
     if rest:
         text += " " + json.dumps(rest, separators=(",", ":"))
     return text if len(text) <= MAX_OP_CHARS else text[: MAX_OP_CHARS - 3] + "..."
+
+
+def _cut(reason: str, full: bool) -> str:
+    """The first few rejection reasons in full, later ones (often the same advice) shortened."""
+    limit = None if full else MAX_REPEAT_REASON
+    if limit is None or len(reason) <= limit:
+        return reason
+    return reason[: limit - 3] + "..."
 
 
 def _capped(items: list[str], what: str) -> list[str]:
@@ -53,11 +64,14 @@ def step_report(
     template: Template,
     form_map: FormMap,
     budget: tuple[int, int] | None = None,
+    max_stdout: int = MAX_STDOUT,
+    stdout_note: str = "output truncated",
 ) -> str:
     """Plain-text report of one step plus the template's current coverage.
 
     ``budget`` is (steps used, step limit); when given, the report says how many
     steps are left so the model can pace its work instead of stopping early.
+    Printed output beyond ``max_stdout`` characters is cut with ``stdout_note``.
     """
     ex = record.exec
     out: list[str] = [f"STEP {record.n} REPORT"]
@@ -66,8 +80,8 @@ def step_report(
         out[0] += f" (budget: step {used} of {limit}, {max(0, limit - used)} left)"
 
     stdout = ex.stdout if ex is not None else ""
-    if len(stdout) > MAX_STDOUT:
-        stdout = stdout[:MAX_STDOUT] + f"\n... [output truncated: {len(stdout) - MAX_STDOUT} more characters]"
+    if len(stdout) > max_stdout:
+        stdout = stdout[:max_stdout] + f"\n... [{stdout_note}: {len(stdout) - max_stdout} more characters]"
     elif ex is not None and ex.truncated and "truncated" not in stdout[-200:]:
         stdout += "\n... [output truncated]"
     out.append("stdout:" + ("\n" + stdout.rstrip("\n") if stdout.strip() else " (none)"))
@@ -79,7 +93,13 @@ def step_report(
     if record.rejected:
         out.append(f"REJECTED ops ({len(record.rejected)}), fix and retry:")
         out.extend(
-            _capped([f"{_short_op(r['op'])}\n    reason: {r['reason']}" for r in record.rejected], "rejected")
+            _capped(
+                [
+                    f"{_short_op(r['op'])}\n    reason: {_cut(r['reason'], i < FULL_REASONS)}"
+                    for i, r in enumerate(record.rejected)
+                ],
+                "rejected",
+            )
         )
     if record.warnings:
         out.append(f"warnings ({len(record.warnings)}):")

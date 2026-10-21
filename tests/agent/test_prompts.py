@@ -205,3 +205,12 @@ def test_step_report_states_the_budget_left_when_given():
     assert "budget" not in plain
     report = step_report(record, cov, template=_template(), form_map=_form_map(), budget=(7, 40))
     assert "budget: step 7 of 40, 33 left" in report
+
+
+def test_step_report_shortens_long_reasons_after_the_first_few():
+    long = "x" * 400
+    rejected = [{"op": {"op": "set_label", "id": f"f{i}", "label": "a"}, "reason": f"r{i} " + long} for i in range(5)]
+    record = StepRecord(n=1, code="", exec=ExecResult(stdout="", truncated=False), applied=[], rejected=rejected,
+                        warnings=[], usage=Usage())  # fmt: skip
+    report = step_report(record, Coverage(), template=_template(), form_map=_form_map())
+    assert report.count(long) == 3 and "r4 " in report

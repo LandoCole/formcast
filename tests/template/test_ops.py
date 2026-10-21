@@ -424,3 +424,26 @@ def test_a_table_warns_about_plain_fields_its_cells_cover():
     assert len(covering) == 1
     assert "'f1'" in covering[0] and "'f2'" in covering[0] and "'f3'" not in covering[0]
     assert "remove_field" in covering[0]
+
+
+def test_an_op_on_a_removed_field_says_it_was_removed():
+    t, _ = _add(_template())
+    t, _ = _add(t)
+    t, _ = apply(t, {"op": "remove_field", "id": "f1"}, author="agent", context=CTX)
+    with pytest.raises(OpError) as exc:
+        apply(t, {"op": "set_label", "id": "f1", "label": "x"}, author="agent", context=CTX)
+    assert "f1" in exc.value.reason and "already removed" in exc.value.reason
+
+
+def test_an_unknown_field_id_suggests_close_ids():
+    t, _ = _add(_template(), id="c0_12")
+    with pytest.raises(OpError) as exc:
+        apply(t, {"op": "set_label", "id": "c0_21", "label": "x"}, author="agent", context=CTX)
+    assert "unknown field id 'c0_21'" in exc.value.reason and "c0_12" in exc.value.reason
+
+
+def test_mapping_a_table_column_onto_a_plain_field_explains_the_table_to_build():
+    t, _ = _add(_template(), rect=[72, 320, 300, 338])
+    _rejects(t, {"op": "set_source", "id": "f1", "source": {"paths": ["medications[].drug"]}},
+             "column of table 'medications'", "add_table(source_path='medications'",
+             "{'key': 'drug', 'x': [72, 300]}", "row_top 320", "row_height 18", "one segment per record")

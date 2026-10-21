@@ -197,9 +197,15 @@ class _Run:
         for f in self.t.fields:
             if f.id == fid:
                 return f
+        if any(h.op.get("op") == "remove_field" and h.op.get("id") == fid for h in self.t.history):
+            self.fail(f"unknown field id {fid!r}: it was already removed by an earlier remove_field "
+                      "(add_field makes a new one if the blank is needed)")
         ids = [f.id for f in self.t.fields]
-        listed = ", ".join(ids[:30]) + (", ..." if len(ids) > 30 else "") if ids else "none"
-        self.fail(f"unknown field id {fid!r}; existing field ids: {listed}")
+        if not ids:
+            self.fail(f"unknown field id {fid!r}; the template has no fields yet")
+        close = difflib.get_close_matches(str(fid), ids, n=5, cutoff=0.6)
+        hint = f"; similar ids: {', '.join(close)}" if close else ""
+        self.fail(f"unknown field id {fid!r}{hint}; the template has {len(ids)} field(s), listed in tpl")
 
     def table(self, fid: str) -> Field:
         f = self.field(fid)
@@ -323,8 +329,23 @@ class _Run:
                 self.fail(f"field {f.id!r}: schema path {sp.path!r} is a list of rows; map it with "
                           f"add_table(source_path={sp.path!r}, segments=[...]) instead")
             if sp.in_table:
-                self.fail(f"field {f.id!r}: schema path {sp.path!r} is a column of table {sp.in_table!r}; map it as a "
-                          f"column key in add_table/set_table_columns for {sp.in_table!r}")
+                self.fail(self.column_on_plain_field(f, sp))
+
+    def column_on_plain_field(self, f: Field, sp: SchemaPath) -> str:
+        """Why a table column path can't go on a plain field, and the table that would hold it."""
+        table = sp.in_table
+        key = sp.path[len(table) + 2:].removeprefix(".") if sp.path.startswith(table + "[]") else sp.path
+        reason = (f"field {f.id!r}: schema path {sp.path!r} is a column of table {table!r}; "
+                  f"map it as a column key in add_table/set_table_columns for {table!r}")
+        if f.rect is None:
+            return reason
+        x0, y0, x1, y1 = (round(v, 1) for v in f.rect)
+        return (f"{reason}. For a cell at this field's rect: add_table(source_path={table!r}, segments=[{{"
+                f"'page': {f.page}, 'rect': <the table area>, 'row_top': {y0:g}, 'row_height': {y1 - y0:g}, "
+                f"'max_rows': <rows>, 'columns': [{{'key': {key!r}, 'x': [{x0:g}, {x1:g}]}}, ...]}}]), i.e. "
+                f"row_top {y0:g}, row_height {y1 - y0:g}; then remove the plain fields the cells replace. "
+                "Records printed as repeated blocks of lines: one table per block line, one segment per "
+                "record (max_rows=1).")
 
     def check_table_source(self, f: Field, resolved: list[SchemaPath]) -> None:
         if len(resolved) != 1:
