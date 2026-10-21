@@ -10,11 +10,13 @@ with ``page.rotation_matrix`` / ``page.derotation_matrix``.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 import pymupdf
 
-from formcast.geometry import Rect, area, intersect, norm_to_points
+from formcast.errors import FormcastError
+from formcast.geometry import Rect, norm_to_points
 from formcast.pagemap.model import PageMap, Rule, TextLine, Widget, Word
 
 # Drawn segments count as rules when this thin and at least this long.
@@ -24,6 +26,7 @@ RULE_MIN_LENGTH = 20.0
 UNDERSCORE_MIN_RUN = 3
 # needs_ocr thresholds.
 IMAGE_DOMINANT_FRACTION = 0.8
+IMAGE_GRID = 4.0  # points per cell when measuring the union of image areas
 MIN_TEXT_COVERAGE = 0.35
 # text_layer_coverage rendering.
 COVERAGE_DPI = 50
@@ -56,6 +59,29 @@ class _Char:
     baseline: float
     size: float
     bold: bool
+
+
+def open_pdf(pdf: str | Path | bytes) -> pymupdf.Document:
+    """Open a PDF from a path or bytes; the caller closes it.
+
+    Raises:
+        FormcastError: "encrypted PDF" when a password is needed, "cannot open
+            PDF" when the input is missing, not a PDF, or has no pages.
+    """
+    try:
+        if isinstance(pdf, (bytes, bytearray, memoryview)):
+            doc = pymupdf.open(stream=bytes(pdf), filetype="pdf")
+        else:
+            doc = pymupdf.open(Path(pdf), filetype="pdf")
+    except Exception as exc:  # pymupdf raises several types for unreadable input
+        raise FormcastError("cannot open PDF") from exc
+    if doc.needs_pass:
+        doc.close()
+        raise FormcastError("encrypted PDF")
+    if not doc.is_pdf or doc.page_count == 0:
+        doc.close()
+        raise FormcastError("cannot open PDF")
+    return doc
 
 
 def page_size(page: pymupdf.Page) -> tuple[float, float]:
@@ -115,23 +141,37 @@ def text_layer_coverage(page: pymupdf.Page, rules: list[Rule]) -> float:
 
 
 def needs_ocr(page: pymupdf.Page) -> bool:
-    """True when one image covers most of the page or the text layer covers little ink."""
+    """True when images cover most of the page or the text layer covers little ink."""
     words, _, underscore_rules = _extract_text(page)
     drawings = page.get_drawings()
     rules = _extract_drawn_rules(page, drawings) + underscore_rules
     return _needs_ocr(page, words, rules, drawings)
 
 
+def image_coverage(page: pymupdf.Page) -> float:
+    """Fraction of the crop box covered by images (their union, so tiled scans count whole)."""
+    width, height = page_size(page)
+    cols, rows = max(1, round(width / IMAGE_GRID)), max(1, round(height / IMAGE_GRID))
+    grid = np.zeros((rows, cols), dtype=bool)
+    for info in page.get_image_info():
+        x0, y0, x1, y1 = info["bbox"]
+        c0, c1 = round(max(0.0, x0) / width * cols), round(min(width, x1) / width * cols)
+        r0, r1 = round(max(0.0, y0) / height * rows), round(min(height, y1) / height * rows)
+        if c1 > c0 and r1 > r0:
+            grid[r0:r1, c0:c1] = True
+    return float(grid.mean())
+
+
+def is_image_dominated(page: pymupdf.Page) -> bool:
+    """True when images cover most of the page, as on a scan."""
+    return image_coverage(page) > IMAGE_DOMINANT_FRACTION
+
+
 def _needs_ocr(
     page: pymupdf.Page, words: list[Word], rules: list[Rule], drawings: list[dict]
 ) -> bool:
-    width, height = page_size(page)
-    bounds = (0.0, 0.0, width, height)
-    page_area = width * height
-    for info in page.get_image_info():
-        inside = intersect(tuple(info["bbox"]), bounds)
-        if inside is not None and area(inside) > IMAGE_DOMINANT_FRACTION * page_area:
-            return True
+    if is_image_dominated(page):
+        return True
     return _coverage(page, words, rules, drawings) < MIN_TEXT_COVERAGE
 
 

@@ -67,6 +67,9 @@ class PageMap(BaseModel):
     rules: list[Rule]
     widgets: list[Widget]
     candidates: list[Candidate] = []
+    # Things the agent should know about how this page was read, e.g. that it
+    # needed OCR but Tesseract was missing.
+    notes: list[str] = []
 
 
 class FormMap(BaseModel):

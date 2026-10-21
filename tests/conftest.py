@@ -80,3 +80,26 @@ def image_only_pdf(tmp_path: Path) -> Path:
     page = doc.new_page(width=PAGE_W, height=PAGE_H)
     page.insert_image(page.rect, stream=png)
     return _save(doc, tmp_path / "image_only.pdf")
+
+
+# Address block added under the flat form (points, unrotated):
+#   "Address" 12pt baseline y=300 at x=72, line (130,302)-(500,302)
+#   small 7pt sub-labels "Street" at x=135 and "City" at x=330, baseline y=311
+#   "Phone #" 12pt baseline y=360 at x=72, line (130,362)-(300,362)
+ADDRESS_RULE = (130.0, 302.0, 500.0, 302.0)
+
+
+def _draw_address_block(page: pymupdf.Page) -> None:
+    page.insert_text((72, 300), "Address", fontsize=12)
+    page.draw_line((130, 302), (500, 302), width=0.75)
+    page.insert_text((135, 311), "Street", fontsize=7)
+    page.insert_text((330, 311), "City", fontsize=7)
+    page.insert_text((72, 360), "Phone #", fontsize=12)
+    page.draw_line((130, 362), (300, 362), width=0.75)
+
+
+@pytest.fixture
+def address_form_pdf(tmp_path: Path) -> Path:
+    doc = _new_flat_form()
+    _draw_address_block(doc[0])
+    return _save(doc, tmp_path / "address_form.pdf")
