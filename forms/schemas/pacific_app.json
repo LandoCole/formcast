@@ -1,0 +1,245 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://example.org/schemas/municipal-job-application.json",
+ "title": "Job application",
+ "description": "An applicant's employment application as stored in a small city's HR applicant-tracking system.",
+ "type": "object",
+ "properties": {
+  "applicant_id": {
+   "type": "string",
+   "description": "HR system identifier."
+  },
+  "application_date": {
+   "type": "string",
+   "format": "date"
+  },
+  "position_applied_for": {
+   "type": "string"
+  },
+  "applicant": {
+   "type": "object",
+   "properties": {
+    "first_name": {
+     "type": "string"
+    },
+    "middle_name": {
+     "type": "string"
+    },
+    "last_name": {
+     "type": "string"
+    },
+    "present_address": {
+     "type": "string",
+     "description": "Current address, one line."
+    },
+    "permanent_address": {
+     "type": "string",
+     "description": "Only when different from the present address."
+    },
+    "ssn": {
+     "type": "string",
+     "pattern": "^\\d{3}-?\\d{2}-?\\d{4}$"
+    },
+    "phone": {
+     "type": "string"
+    },
+    "email": {
+     "type": "string",
+     "format": "email"
+    }
+   },
+   "required": [
+    "first_name",
+    "last_name"
+   ]
+  },
+  "relatives_employed": {
+   "type": "string",
+   "description": "Relatives who work or have worked for the City, and where."
+  },
+  "referral_source": {
+   "type": "string",
+   "description": "How the applicant heard about the job."
+  },
+  "felony_conviction": {
+   "type": "boolean",
+   "description": "Ever convicted of a felony."
+  },
+  "felony_explanation": {
+   "type": "string"
+  },
+  "education": {
+   "type": "object",
+   "description": "Schooling by level.",
+   "properties": {
+    "high_school": {
+     "$ref": "#/$defs/school"
+    },
+    "college": {
+     "$ref": "#/$defs/school"
+    },
+    "technical_training": {
+     "$ref": "#/$defs/school"
+    }
+   }
+  },
+  "employment_history": {
+   "type": "array",
+   "description": "Most recent first; last five years.",
+   "items": {
+    "type": "object",
+    "properties": {
+     "employer": {
+      "type": "string"
+     },
+     "position": {
+      "type": "string"
+     },
+     "address": {
+      "type": "string"
+     },
+     "start_date": {
+      "type": "string",
+      "format": "date"
+     },
+     "end_date": {
+      "type": "string",
+      "description": "Empty if current.",
+      "format": "date"
+     },
+     "supervisor": {
+      "type": "string"
+     },
+     "phone": {
+      "type": "string"
+     },
+     "wage": {
+      "type": "string",
+      "description": "As stated, e.g. '$18/hr'."
+     },
+     "reason_for_leaving": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "employer"
+    ]
+   }
+  },
+  "do_not_contact": {
+   "type": "array",
+   "description": "Employers the applicant asked us not to contact.",
+   "items": {
+    "type": "object",
+    "properties": {
+     "employer": {
+      "type": "string"
+     },
+     "reason": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "references": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "properties": {
+     "name": {
+      "type": "string"
+     },
+     "address": {
+      "type": "string"
+     },
+     "phone": {
+      "type": "string"
+     },
+     "occupation": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "name"
+    ]
+   }
+  },
+  "availability": {
+   "type": "object",
+   "properties": {
+    "start_date": {
+     "type": "string",
+     "description": "Earliest start date.",
+     "format": "date"
+    },
+    "objects_to_overtime": {
+     "type": "boolean"
+    },
+    "overtime_without_notice": {
+     "type": "boolean"
+    },
+    "saturdays": {
+     "type": "boolean"
+    },
+    "sundays": {
+     "type": "boolean"
+    },
+    "can_travel": {
+     "type": "boolean"
+    }
+   }
+  },
+  "desired_pay": {
+   "type": "object",
+   "properties": {
+    "amount": {
+     "type": "number"
+    },
+    "period": {
+     "type": "string",
+     "enum": [
+      "hour",
+      "week",
+      "month",
+      "year"
+     ]
+    }
+   }
+  },
+  "signed_on": {
+   "type": "string",
+   "format": "date"
+  },
+  "e_verify_case_number": {
+   "type": "string",
+   "description": "Entered after hire."
+  }
+ },
+ "required": [
+  "application_date",
+  "applicant",
+  "position_applied_for",
+  "signed_on"
+ ],
+ "$defs": {
+  "school": {
+   "type": "object",
+   "properties": {
+    "school_name": {
+     "type": "string"
+    },
+    "location": {
+     "type": "string",
+     "description": "City and state."
+    },
+    "years_completed": {
+     "type": "integer"
+    },
+    "credential": {
+     "type": "string",
+     "description": "Degree or diploma earned, if any."
+    }
+   }
+  }
+ }
+}

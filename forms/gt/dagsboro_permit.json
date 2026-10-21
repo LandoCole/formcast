@@ -1,0 +1,1326 @@
+{
+ "form": "dagsboro_permit",
+ "fields": [
+  {
+   "page": 0,
+   "rect": [
+    201.2,
+    174.1,
+    562.3,
+    188.1
+   ],
+   "type": "text",
+   "label": "Property Owner - Name",
+   "path": "owner.name"
+  },
+  {
+   "page": 0,
+   "rect": [
+    201.2,
+    188.1,
+    562.3,
+    200.7
+   ],
+   "type": "text",
+   "label": "Property Owner - Mailing Address",
+   "path": "owner.mailing_address"
+  },
+  {
+   "page": 0,
+   "rect": [
+    201.2,
+    200.7,
+    562.7,
+    213.3
+   ],
+   "type": "text",
+   "label": "Property Owner - Physical Address",
+   "path": "owner.physical_address"
+  },
+  {
+   "page": 0,
+   "rect": [
+    201.6,
+    213.3,
+    562.7,
+    225.9
+   ],
+   "type": "text",
+   "label": "Property Owner - Phone #",
+   "path": "owner.phone"
+  },
+  {
+   "page": 0,
+   "rect": [
+    202.0,
+    225.9,
+    563.0,
+    238.5
+   ],
+   "type": "text",
+   "label": "Property Owner - Building Site Address",
+   "path": "site.address"
+  },
+  {
+   "page": 0,
+   "rect": [
+    202.0,
+    238.5,
+    563.4,
+    251.4
+   ],
+   "type": "text",
+   "label": "Property Owner - Subdivision / Lot #",
+   "path": "site.subdivision",
+   "also_paths": [
+    "site.lot_number"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    202.0,
+    251.4,
+    563.0,
+    263.7
+   ],
+   "type": "text",
+   "label": "Property Owner - Tax Map Parcel #",
+   "path": "site.tax_map_parcel"
+  },
+  {
+   "page": 0,
+   "rect": [
+    202.3,
+    263.7,
+    563.4,
+    276.3
+   ],
+   "type": "text",
+   "label": "Property Owner - Zoning District",
+   "path": "site.zoning_district"
+  },
+  {
+   "page": 0,
+   "rect": [
+    202.7,
+    300.1,
+    563.8,
+    314.1
+   ],
+   "type": "text",
+   "label": "Builder/Contractor - Name",
+   "path": "contractor.name"
+  },
+  {
+   "page": 0,
+   "rect": [
+    202.7,
+    314.1,
+    564.1,
+    327.0
+   ],
+   "type": "text",
+   "label": "Builder/Contractor - Mailing Address",
+   "path": "contractor.mailing_address"
+  },
+  {
+   "page": 0,
+   "rect": [
+    202.7,
+    327.0,
+    564.1,
+    339.3
+   ],
+   "type": "text",
+   "label": "Builder/Contractor - Phone Number",
+   "path": "contractor.phone"
+  },
+  {
+   "page": 0,
+   "rect": [
+    203.0,
+    339.3,
+    564.1,
+    351.9
+   ],
+   "type": "text",
+   "label": "Builder/Contractor - Town Business License #",
+   "path": "contractor.town_business_license"
+  },
+  {
+   "page": 0,
+   "rect": [
+    203.0,
+    351.9,
+    564.1,
+    364.5
+   ],
+   "type": "text",
+   "label": "Builder/Contractor - State Business License #",
+   "path": "contractor.state_business_license"
+  },
+  {
+   "page": 0,
+   "rect": [
+    43.6,
+    392.45,
+    53.6,
+    402.45
+   ],
+   "type": "choice",
+   "label": "Type of Improvement: New Building",
+   "path": "improvement_types",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    43.2,
+    404.3,
+    53.2,
+    414.3
+   ],
+   "type": "choice",
+   "label": "Type of Improvement: Addition",
+   "path": "improvement_types",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    43.1,
+    416.7,
+    53.1,
+    426.7
+   ],
+   "type": "choice",
+   "label": "Type of Improvement: Alteration",
+   "path": "improvement_types",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    43.9,
+    430.2,
+    53.9,
+    440.2
+   ],
+   "type": "choice",
+   "label": "Type of Improvement: Repair",
+   "path": "improvement_types",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    44.0,
+    442.8,
+    54.0,
+    452.8
+   ],
+   "type": "choice",
+   "label": "Type of Improvement: Replacement",
+   "path": "improvement_types",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    44.1,
+    454.5,
+    54.1,
+    464.5
+   ],
+   "type": "choice",
+   "label": "Type of Improvement: Demolition",
+   "path": "improvement_types",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    44.1,
+    467.8,
+    54.1,
+    477.8
+   ],
+   "type": "choice",
+   "label": "Type of Improvement: Moving (Relocation)",
+   "path": "improvement_types",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    43.8,
+    480.45,
+    53.8,
+    490.45
+   ],
+   "type": "choice",
+   "label": "Type of Improvement: Garage / Carport",
+   "path": "improvement_types",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    43.8,
+    492.25,
+    53.8,
+    502.25
+   ],
+   "type": "choice",
+   "label": "Type of Improvement: Shed",
+   "path": "improvement_types",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    44.4,
+    505.0,
+    54.4,
+    515.0
+   ],
+   "type": "choice",
+   "label": "Type of Improvement: Deck",
+   "path": "improvement_types",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    44.3,
+    517.7,
+    54.3,
+    527.7
+   ],
+   "type": "choice",
+   "label": "Type of Improvement: Pool",
+   "path": "improvement_types",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    44.3,
+    530.3,
+    54.3,
+    540.3
+   ],
+   "type": "choice",
+   "label": "Type of Improvement: Fence",
+   "path": "improvement_types",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    44.2,
+    542.65,
+    54.2,
+    552.65
+   ],
+   "type": "choice",
+   "label": "Type of Improvement: Other",
+   "path": "improvement_types",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    203.4,
+    388.6,
+    564.8,
+    402.6
+   ],
+   "type": "text",
+   "label": "Description (Be Specific) line 1",
+   "path": "project_description"
+  },
+  {
+   "page": 0,
+   "rect": [
+    203.4,
+    402.6,
+    564.8,
+    415.2
+   ],
+   "type": "text",
+   "label": "Description (Be Specific) line 2"
+  },
+  {
+   "page": 0,
+   "rect": [
+    203.8,
+    415.2,
+    564.8,
+    427.8
+   ],
+   "type": "text",
+   "label": "Description (Be Specific) line 3"
+  },
+  {
+   "page": 0,
+   "rect": [
+    203.8,
+    427.8,
+    564.8,
+    440.4
+   ],
+   "type": "text",
+   "label": "Description (Be Specific) line 4"
+  },
+  {
+   "page": 0,
+   "rect": [
+    203.4,
+    440.4,
+    564.8,
+    453.0
+   ],
+   "type": "text",
+   "label": "Description (Be Specific) line 5"
+  },
+  {
+   "page": 0,
+   "rect": [
+    203.8,
+    453.0,
+    564.8,
+    465.6
+   ],
+   "type": "text",
+   "label": "Description (Be Specific) line 6"
+  },
+  {
+   "page": 0,
+   "rect": [
+    203.8,
+    465.6,
+    565.2,
+    478.2
+   ],
+   "type": "text",
+   "label": "Description (Be Specific) line 7"
+  },
+  {
+   "page": 0,
+   "rect": [
+    203.8,
+    478.2,
+    565.2,
+    490.5
+   ],
+   "type": "text",
+   "label": "Description (Be Specific) line 8"
+  },
+  {
+   "page": 0,
+   "rect": [
+    203.8,
+    490.5,
+    565.2,
+    503.4
+   ],
+   "type": "text",
+   "label": "Description (Be Specific) line 9"
+  },
+  {
+   "page": 0,
+   "rect": [
+    203.8,
+    503.4,
+    565.2,
+    516.4
+   ],
+   "type": "text",
+   "label": "Description (Be Specific) line 10"
+  },
+  {
+   "page": 0,
+   "rect": [
+    204.1,
+    516.4,
+    565.6,
+    528.6
+   ],
+   "type": "text",
+   "label": "Description (Be Specific) line 11"
+  },
+  {
+   "page": 0,
+   "rect": [
+    204.1,
+    528.6,
+    565.6,
+    541.2
+   ],
+   "type": "text",
+   "label": "Description (Be Specific) line 12"
+  },
+  {
+   "page": 0,
+   "rect": [
+    204.1,
+    541.2,
+    565.6,
+    553.8
+   ],
+   "type": "text",
+   "label": "Description (Be Specific) line 13"
+  },
+  {
+   "page": 0,
+   "rect": [
+    44.7,
+    580.55,
+    54.7,
+    590.55
+   ],
+   "type": "choice",
+   "label": "Electrical: Install",
+   "path": "trade_work.electrical",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    44.1,
+    593.3,
+    54.1,
+    603.3
+   ],
+   "type": "choice",
+   "label": "Electrical: Alter",
+   "path": "trade_work.electrical",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    44.9,
+    606.85,
+    54.9,
+    616.85
+   ],
+   "type": "choice",
+   "label": "Electrical: Repair",
+   "path": "trade_work.electrical",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    44.7,
+    618.7,
+    54.7,
+    628.7
+   ],
+   "type": "choice",
+   "label": "Electrical: Remove",
+   "path": "trade_work.electrical",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    44.6,
+    631.15,
+    54.6,
+    641.15
+   ],
+   "type": "choice",
+   "label": "Electrical: Convert",
+   "path": "trade_work.electrical",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    45.1,
+    644.5,
+    55.1,
+    654.5
+   ],
+   "type": "choice",
+   "label": "Electrical: Replace",
+   "path": "trade_work.electrical",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    194.9,
+    580.5,
+    204.9,
+    590.5
+   ],
+   "type": "choice",
+   "label": "Gas: Install",
+   "path": "trade_work.gas",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    194.3,
+    593.1,
+    204.3,
+    603.1
+   ],
+   "type": "choice",
+   "label": "Gas: Alter",
+   "path": "trade_work.gas",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    195.1,
+    606.05,
+    205.1,
+    616.05
+   ],
+   "type": "choice",
+   "label": "Gas: Repair",
+   "path": "trade_work.gas",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    195.0,
+    617.55,
+    205.0,
+    627.55
+   ],
+   "type": "choice",
+   "label": "Gas: Remove",
+   "path": "trade_work.gas",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    194.6,
+    630.95,
+    204.6,
+    640.95
+   ],
+   "type": "choice",
+   "label": "Gas: Convert",
+   "path": "trade_work.gas",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    195.4,
+    643.7,
+    205.4,
+    653.7
+   ],
+   "type": "choice",
+   "label": "Gas: Replace",
+   "path": "trade_work.gas",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    313.3,
+    578.95,
+    323.3,
+    588.95
+   ],
+   "type": "choice",
+   "label": "Mechanical: Install",
+   "path": "trade_work.mechanical",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    312.6,
+    591.6,
+    322.6,
+    601.6
+   ],
+   "type": "choice",
+   "label": "Mechanical: Alter",
+   "path": "trade_work.mechanical",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    313.4,
+    605.2,
+    323.4,
+    615.2
+   ],
+   "type": "choice",
+   "label": "Mechanical: Repair",
+   "path": "trade_work.mechanical",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    313.5,
+    616.8,
+    323.5,
+    626.8
+   ],
+   "type": "choice",
+   "label": "Mechanical: Remove",
+   "path": "trade_work.mechanical",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    313.1,
+    629.45,
+    323.1,
+    639.45
+   ],
+   "type": "choice",
+   "label": "Mechanical: Convert",
+   "path": "trade_work.mechanical",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    313.7,
+    642.9,
+    323.7,
+    652.9
+   ],
+   "type": "choice",
+   "label": "Mechanical: Replace",
+   "path": "trade_work.mechanical",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    418.9,
+    578.2,
+    428.9,
+    588.2
+   ],
+   "type": "choice",
+   "label": "Plumbing System: Install",
+   "path": "trade_work.plumbing",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    418.2,
+    590.8,
+    428.2,
+    600.8
+   ],
+   "type": "choice",
+   "label": "Plumbing System: Alter",
+   "path": "trade_work.plumbing",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    419.0,
+    604.5,
+    429.0,
+    614.5
+   ],
+   "type": "choice",
+   "label": "Plumbing System: Repair",
+   "path": "trade_work.plumbing",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    419.1,
+    616.1,
+    429.1,
+    626.1
+   ],
+   "type": "choice",
+   "label": "Plumbing System: Remove",
+   "path": "trade_work.plumbing",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    418.7,
+    628.8,
+    428.7,
+    638.8
+   ],
+   "type": "choice",
+   "label": "Plumbing System: Convert",
+   "path": "trade_work.plumbing",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    419.3,
+    642.1,
+    429.3,
+    652.1
+   ],
+   "type": "choice",
+   "label": "Plumbing System: Replace",
+   "path": "trade_work.plumbing",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    128.9,
+    665.1,
+    497.2,
+    679.1
+   ],
+   "type": "text",
+   "label": "Trade work Description line 1",
+   "path": "trade_work.description"
+  },
+  {
+   "page": 0,
+   "rect": [
+    56.5,
+    679.1,
+    492.8,
+    692.4
+   ],
+   "type": "text",
+   "label": "Trade work Description line 2"
+  },
+  {
+   "page": 1,
+   "rect": [
+    231.1,
+    166.8,
+    307.4,
+    180.8
+   ],
+   "type": "text",
+   "label": "Lot Dimensions - Width",
+   "path": "site.lot_width_ft"
+  },
+  {
+   "page": 1,
+   "rect": [
+    334.4,
+    166.8,
+    410.8,
+    180.8
+   ],
+   "type": "text",
+   "label": "Lot Dimensions - Depth",
+   "path": "site.lot_depth_ft"
+  },
+  {
+   "page": 1,
+   "rect": [
+    437.8,
+    166.5,
+    508.7,
+    180.5
+   ],
+   "type": "text",
+   "label": "Lot Dimensions - SQFT",
+   "path": "site.lot_area_sqft"
+  },
+  {
+   "page": 1,
+   "rect": [
+    226.8,
+    181.2,
+    363.2,
+    193.8
+   ],
+   "type": "text",
+   "label": "New Building Setbacks - Front",
+   "path": "setbacks.front_ft"
+  },
+  {
+   "page": 1,
+   "rect": [
+    226.1,
+    193.8,
+    362.2,
+    206.4
+   ],
+   "type": "text",
+   "label": "New Building Setbacks - Back",
+   "path": "setbacks.back_ft"
+  },
+  {
+   "page": 1,
+   "rect": [
+    250.2,
+    206.4,
+    364.0,
+    219.0
+   ],
+   "type": "text",
+   "label": "New Building Setbacks - Right Side",
+   "path": "setbacks.right_ft"
+  },
+  {
+   "page": 1,
+   "rect": [
+    243.4,
+    219.0,
+    362.5,
+    231.6
+   ],
+   "type": "text",
+   "label": "New Building Setbacks - Left Side",
+   "path": "setbacks.left_ft"
+  },
+  {
+   "page": 1,
+   "rect": [
+    54.2,
+    260.2,
+    64.3,
+    269.8
+   ],
+   "type": "choice",
+   "label": "Principal Type Frame: Masonry",
+   "path": "frame_type",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    109.2,
+    258.5,
+    119.8,
+    270.7
+   ],
+   "type": "choice",
+   "label": "Principal Type Frame: Wood",
+   "path": "frame_type",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    151.2,
+    258.5,
+    163.4,
+    270.7
+   ],
+   "type": "choice",
+   "label": "Principal Type Frame: Structural Steel",
+   "path": "frame_type",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    238.8,
+    258.5,
+    248.6,
+    270.7
+   ],
+   "type": "choice",
+   "label": "Principal Type Frame: Reinforced Concrete",
+   "path": "frame_type",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    347.0,
+    258.5,
+    358.6,
+    270.7
+   ],
+   "type": "choice",
+   "label": "Principal Type Frame: Other",
+   "path": "frame_type",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    387.0,
+    255.0,
+    494.6,
+    269.0
+   ],
+   "type": "text",
+   "label": "Principal Type Frame: Other (specify)",
+   "path": "frame_type_other"
+  },
+  {
+   "page": 1,
+   "rect": [
+    53.6,
+    294.6,
+    93.6,
+    307.9
+   ],
+   "type": "text",
+   "label": "Dimensions: # of Stories",
+   "path": "stories"
+  },
+  {
+   "page": 1,
+   "rect": [
+    155.9,
+    293.5,
+    195.5,
+    307.5
+   ],
+   "type": "text",
+   "label": "Dimensions: # of Bedrooms",
+   "path": "bedrooms"
+  },
+  {
+   "page": 1,
+   "rect": [
+    272.2,
+    293.3,
+    312.1,
+    307.3
+   ],
+   "type": "text",
+   "label": "Dimensions: # of Bathrooms",
+   "path": "bathrooms"
+  },
+  {
+   "page": 1,
+   "rect": [
+    195.1,
+    358.3,
+    316.8,
+    370.9
+   ],
+   "type": "text",
+   "label": "New Residential Construction: Total Square Footage",
+   "path": "new_construction.total_square_footage"
+  },
+  {
+   "page": 1,
+   "rect": [
+    172.1,
+    370.9,
+    313.9,
+    383.5
+   ],
+   "type": "text",
+   "label": "New Residential Construction: Total Project Cost",
+   "path": "new_construction.total_project_cost"
+  },
+  {
+   "page": 1,
+   "rect": [
+    328.0,
+    398.4,
+    424.2,
+    419.1
+   ],
+   "type": "text",
+   "label": "Permit Fee amount $"
+  },
+  {
+   "page": 1,
+   "rect": [
+    361.4,
+    422.4,
+    402.8,
+    432.1
+   ],
+   "type": "text",
+   "label": "Water Meter - Meter Size",
+   "path": "water_meter_size"
+  },
+  {
+   "page": 1,
+   "rect": [
+    327.5,
+    432.1,
+    424.2,
+    440.7
+   ],
+   "type": "text",
+   "label": "Water Meter amount $"
+  },
+  {
+   "page": 1,
+   "rect": [
+    361.4,
+    444.0,
+    402.8,
+    454.0
+   ],
+   "type": "text",
+   "label": "Fire Suppression System - Meter Size",
+   "path": "fire_suppression_meter_size"
+  },
+  {
+   "page": 1,
+   "rect": [
+    326.5,
+    454.0,
+    400.0,
+    465.2
+   ],
+   "type": "text",
+   "label": "Fire Suppression System amount $"
+  },
+  {
+   "page": 1,
+   "rect": [
+    362.2,
+    468.1,
+    398.9,
+    478.0
+   ],
+   "type": "text",
+   "label": "Water Impact Fee - # of EDU's"
+  },
+  {
+   "page": 1,
+   "rect": [
+    326.5,
+    477.8,
+    400.0,
+    488.9
+   ],
+   "type": "text",
+   "label": "Water Impact Fee amount $"
+  },
+  {
+   "page": 1,
+   "rect": [
+    322.1,
+    493.0,
+    424.2,
+    514.4
+   ],
+   "type": "text",
+   "label": "New Service Connection amount"
+  },
+  {
+   "page": 1,
+   "rect": [
+    362.2,
+    517.4,
+    399.2,
+    527.6
+   ],
+   "type": "text",
+   "label": "Capital Improvement Impact Fee - # of EDU's"
+  },
+  {
+   "page": 1,
+   "rect": [
+    326.9,
+    527.5,
+    400.0,
+    539.0
+   ],
+   "type": "text",
+   "label": "Capital Improvement Impact Fee amount $"
+  },
+  {
+   "page": 1,
+   "rect": [
+    327.5,
+    543.1,
+    424.2,
+    564.5
+   ],
+   "type": "text",
+   "label": "Fire Dept. Impact Fee amount $"
+  },
+  {
+   "page": 1,
+   "rect": [
+    327.5,
+    568.3,
+    424.2,
+    589.7
+   ],
+   "type": "text",
+   "label": "Amb Service Impact Fee amount $"
+  },
+  {
+   "page": 1,
+   "rect": [
+    326.2,
+    593.0,
+    413.3,
+    606.3
+   ],
+   "type": "text",
+   "label": "Total Due (new residential) $"
+  },
+  {
+   "page": 1,
+   "rect": [
+    181.4,
+    664.7,
+    298.1,
+    678.7
+   ],
+   "type": "text",
+   "label": "All Others: Total Cost of Improvements",
+   "path": "total_cost_of_improvements"
+  },
+  {
+   "page": 1,
+   "rect": [
+    364.0,
+    664.2,
+    495.7,
+    678.2
+   ],
+   "type": "text",
+   "label": "All Others: Total Cost of Improvements X 1.25% = $"
+  },
+  {
+   "page": 1,
+   "rect": [
+    196.9,
+    689.8,
+    328.7,
+    703.8
+   ],
+   "type": "text",
+   "label": "All Others: Total Due"
+  },
+  {
+   "page": 2,
+   "rect": [
+    150.8,
+    219.3,
+    383.4,
+    233.3
+   ],
+   "type": "signature",
+   "label": "Signature of Applicant"
+  },
+  {
+   "page": 2,
+   "rect": [
+    403.2,
+    216.1,
+    499.7,
+    230.1
+   ],
+   "type": "text",
+   "label": "Date (applicant signature)",
+   "path": "applicant_signed_on",
+   "transforms": [
+    "date_format"
+   ]
+  }
+ ],
+ "notes": "Real scan; coordinates from Tesseract words (build_form_map ocr='always') and rules found in the rendered image (scratch pixel analysis). Page 0: owner/builder information lines, Type of Improvement and Electrical/Gas/Mechanical/Plumbing option lists (no printed boxes: one ~10x10pt choice box left of each option), the 13 'Description (Be Specific)' lines treated as one multi-line answer (path on line 1), and the 2-line trade-work DESCRIPTION. Page 1: lot dimensions, setbacks, Principal Type Frame '[ ]' boxes (rect = bracket pair) + Other line, stories/bedrooms/bathrooms, and the fee schedule. Fee-schedule amount/EDU blanks are GT boxes but pathless (fees are computed by the Town); meter sizes are mapped. Page 2 is the back of the application: requirements text plus the applicant's Signature and Date (in GT). Excluded (Town staff only): the PERMIT # box on page 0, and on page 2 the Building Inspector / [ ] Approved / [ ] Denied Reason / Date Issued / Permit # / Certificate of Occupancy Issue Date block. All three pages are part of the form, so no scored_pages."
+}

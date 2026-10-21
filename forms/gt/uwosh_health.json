@@ -1,0 +1,4492 @@
+{
+ "form": "uwosh_health",
+ "fields": [
+  {
+   "page": 0,
+   "rect": [
+    116.5,
+    47.3,
+    309.87,
+    59.3
+   ],
+   "type": "text",
+   "label": "Legal Last Name",
+   "path": "student.last_name"
+  },
+  {
+   "page": 0,
+   "rect": [
+    117.8,
+    59.6,
+    309.87,
+    72.0
+   ],
+   "type": "text",
+   "label": "Legal First Name",
+   "path": "student.first_name"
+  },
+  {
+   "page": 0,
+   "rect": [
+    391.6,
+    49.7,
+    397.1,
+    56.7
+   ],
+   "type": "choice",
+   "label": "Gender Identity: Man",
+   "path": "student.gender_identity",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    428.6,
+    49.7,
+    434.2,
+    56.7
+   ],
+   "type": "choice",
+   "label": "Gender Identity: Woman",
+   "path": "student.gender_identity",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    317.4,
+    62.5,
+    323.2,
+    69.5
+   ],
+   "type": "choice",
+   "label": "Gender Identity: Transgender",
+   "path": "student.gender_identity",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    391.6,
+    62.5,
+    397.1,
+    69.5
+   ],
+   "type": "choice",
+   "label": "Gender Identity: Genderqueer",
+   "path": "student.gender_identity",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    394.1,
+    75.8,
+    399.7,
+    82.8
+   ],
+   "type": "choice",
+   "label": "Sex assigned at birth: Male",
+   "path": "student.sex_assigned_at_birth",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    430.6,
+    75.8,
+    436.2,
+    82.8
+   ],
+   "type": "choice",
+   "label": "Sex assigned at birth: Female",
+   "path": "student.sex_assigned_at_birth",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    509.0,
+    46.82,
+    579.92,
+    84.84
+   ],
+   "type": "text",
+   "label": "ID#",
+   "path": "student.student_id"
+  },
+  {
+   "page": 0,
+   "rect": [
+    111.0,
+    86.32,
+    309.87,
+    98.16
+   ],
+   "type": "text",
+   "label": "Preferred Name",
+   "path": "student.preferred_name"
+  },
+  {
+   "page": 0,
+   "rect": [
+    385.8,
+    86.32,
+    579.92,
+    111.48
+   ],
+   "type": "text",
+   "label": "Email Address",
+   "path": "student.email"
+  },
+  {
+   "page": 0,
+   "rect": [
+    122.2,
+    99.64,
+    309.87,
+    111.48
+   ],
+   "type": "text",
+   "label": "Preferred Pronoun",
+   "path": "student.pronouns"
+  },
+  {
+   "page": 0,
+   "rect": [
+    218.8,
+    112.96,
+    309.87,
+    126.3
+   ],
+   "type": "text",
+   "label": "Local Address (include city, state & zip) line 1",
+   "path": "student.local_address"
+  },
+  {
+   "page": 0,
+   "rect": [
+    32.18,
+    126.6,
+    309.87,
+    147.0
+   ],
+   "type": "text",
+   "label": "Local Address (include city, state & zip) line 2"
+  },
+  {
+   "page": 0,
+   "rect": [
+    369.2,
+    112.96,
+    579.92,
+    129.24
+   ],
+   "type": "text",
+   "label": "Cell Phone",
+   "path": "student.cell_phone"
+  },
+  {
+   "page": 0,
+   "rect": [
+    402.7,
+    130.72,
+    579.92,
+    147.0
+   ],
+   "type": "text",
+   "label": "Cell Phone Carrier"
+  },
+  {
+   "page": 0,
+   "rect": [
+    83.5,
+    148.48,
+    309.87,
+    162.84
+   ],
+   "type": "text",
+   "label": "Birth Date",
+   "path": "student.date_of_birth",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    32.18,
+    177.64,
+    120.84,
+    189.48
+   ],
+   "type": "text",
+   "label": "Allergies row 1: Allergy",
+   "path": "allergies[].allergen"
+  },
+  {
+   "page": 0,
+   "rect": [
+    122.32,
+    177.64,
+    309.87,
+    189.48
+   ],
+   "type": "text",
+   "label": "Allergies row 1: What is reaction?",
+   "path": "allergies[].reaction"
+  },
+  {
+   "page": 0,
+   "rect": [
+    311.35,
+    177.64,
+    413.33,
+    189.48
+   ],
+   "type": "text",
+   "label": "Current Prescribed Medications row 1: Medication/Dosage",
+   "path": "medications[].medication"
+  },
+  {
+   "page": 0,
+   "rect": [
+    414.81,
+    177.64,
+    579.92,
+    189.48
+   ],
+   "type": "text",
+   "label": "Current Prescribed Medications row 1: Reason",
+   "path": "medications[].reason"
+  },
+  {
+   "page": 0,
+   "rect": [
+    32.18,
+    190.96,
+    120.84,
+    202.8
+   ],
+   "type": "text",
+   "label": "Allergies row 2: Allergy",
+   "path": "allergies[].allergen"
+  },
+  {
+   "page": 0,
+   "rect": [
+    122.32,
+    190.96,
+    309.87,
+    202.8
+   ],
+   "type": "text",
+   "label": "Allergies row 2: What is reaction?",
+   "path": "allergies[].reaction"
+  },
+  {
+   "page": 0,
+   "rect": [
+    311.35,
+    190.96,
+    413.33,
+    202.8
+   ],
+   "type": "text",
+   "label": "Current Prescribed Medications row 2: Medication/Dosage",
+   "path": "medications[].medication"
+  },
+  {
+   "page": 0,
+   "rect": [
+    414.81,
+    190.96,
+    579.92,
+    202.8
+   ],
+   "type": "text",
+   "label": "Current Prescribed Medications row 2: Reason",
+   "path": "medications[].reason"
+  },
+  {
+   "page": 0,
+   "rect": [
+    32.18,
+    204.28,
+    120.84,
+    216.24
+   ],
+   "type": "text",
+   "label": "Allergies row 3: Allergy",
+   "path": "allergies[].allergen"
+  },
+  {
+   "page": 0,
+   "rect": [
+    122.32,
+    204.28,
+    309.87,
+    216.24
+   ],
+   "type": "text",
+   "label": "Allergies row 3: What is reaction?",
+   "path": "allergies[].reaction"
+  },
+  {
+   "page": 0,
+   "rect": [
+    311.35,
+    204.28,
+    413.33,
+    216.24
+   ],
+   "type": "text",
+   "label": "Current Prescribed Medications row 3: Medication/Dosage",
+   "path": "medications[].medication"
+  },
+  {
+   "page": 0,
+   "rect": [
+    414.81,
+    204.28,
+    579.92,
+    216.24
+   ],
+   "type": "text",
+   "label": "Current Prescribed Medications row 3: Reason",
+   "path": "medications[].reason"
+  },
+  {
+   "page": 0,
+   "rect": [
+    32.18,
+    244.84,
+    84.84,
+    256.71
+   ],
+   "type": "text",
+   "label": "Hospitalizations/Surgery row 1: Year",
+   "path": "hospitalizations[].year"
+  },
+  {
+   "page": 0,
+   "rect": [
+    86.32,
+    244.84,
+    309.87,
+    256.71
+   ],
+   "type": "text",
+   "label": "Hospitalizations/Surgery row 1: Reason",
+   "path": "hospitalizations[].reason"
+  },
+  {
+   "page": 0,
+   "rect": [
+    311.35,
+    244.84,
+    579.92,
+    256.71
+   ],
+   "type": "text",
+   "label": "Herbal/Vitamins/Non-Prescribed Medications row 1: Medication and Dosage",
+   "path": "otc_medications[].medication"
+  },
+  {
+   "page": 0,
+   "rect": [
+    32.18,
+    258.19,
+    84.84,
+    270.03
+   ],
+   "type": "text",
+   "label": "Hospitalizations/Surgery row 2: Year",
+   "path": "hospitalizations[].year"
+  },
+  {
+   "page": 0,
+   "rect": [
+    86.32,
+    258.19,
+    309.87,
+    270.03
+   ],
+   "type": "text",
+   "label": "Hospitalizations/Surgery row 2: Reason",
+   "path": "hospitalizations[].reason"
+  },
+  {
+   "page": 0,
+   "rect": [
+    311.35,
+    258.19,
+    579.92,
+    270.03
+   ],
+   "type": "text",
+   "label": "Herbal/Vitamins/Non-Prescribed Medications row 2: Medication and Dosage",
+   "path": "otc_medications[].medication"
+  },
+  {
+   "page": 0,
+   "rect": [
+    69.1,
+    286.1,
+    250.1,
+    298.9
+   ],
+   "type": "text",
+   "label": "Emergency contact: Name",
+   "path": "emergency_contact.name"
+  },
+  {
+   "page": 0,
+   "rect": [
+    314.8,
+    286.1,
+    579.92,
+    298.9
+   ],
+   "type": "text",
+   "label": "Emergency contact: Relationship",
+   "path": "emergency_contact.relationship"
+  },
+  {
+   "page": 0,
+   "rect": [
+    101.4,
+    299.3,
+    250.1,
+    312.03
+   ],
+   "type": "text",
+   "label": "Emergency contact: Home Phone",
+   "path": "emergency_contact.home_phone"
+  },
+  {
+   "page": 0,
+   "rect": [
+    314.8,
+    299.3,
+    430.9,
+    312.03
+   ],
+   "type": "text",
+   "label": "Emergency contact: Work Phone"
+  },
+  {
+   "page": 0,
+   "rect": [
+    488.5,
+    299.3,
+    579.92,
+    312.03
+   ],
+   "type": "text",
+   "label": "Emergency contact: Cell Phone",
+   "path": "emergency_contact.cell_phone"
+  },
+  {
+   "page": 0,
+   "rect": [
+    163.24,
+    329.59,
+    174.36,
+    342.27
+   ],
+   "type": "choice",
+   "label": "Smoking: Do you smoke cigarettes?: Y",
+   "path": "tobacco.smokes_cigarettes",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    176.8,
+    329.59,
+    190.8,
+    342.27
+   ],
+   "type": "choice",
+   "label": "Smoking: Do you smoke cigarettes?: N",
+   "path": "tobacco.smokes_cigarettes",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    163.24,
+    344.71,
+    174.36,
+    355.71
+   ],
+   "type": "choice",
+   "label": "Smoking: Use smokeless tobacco?: Y",
+   "path": "tobacco.uses_smokeless",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    176.8,
+    344.71,
+    190.8,
+    355.71
+   ],
+   "type": "choice",
+   "label": "Smoking: Use smokeless tobacco?: N",
+   "path": "tobacco.uses_smokeless",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    163.24,
+    358.15,
+    190.8,
+    369.03
+   ],
+   "type": "text",
+   "label": "Smoking: If yes, how many/day?",
+   "path": "tobacco.per_day"
+  },
+  {
+   "page": 0,
+   "rect": [
+    163.24,
+    371.47,
+    190.8,
+    385.59
+   ],
+   "type": "text",
+   "label": "Smoking: # of Quit Attempts"
+  },
+  {
+   "page": 0,
+   "rect": [
+    163.24,
+    388.03,
+    174.36,
+    400.71
+   ],
+   "type": "choice",
+   "label": "Smoking: Do you want to quit?: Y"
+  },
+  {
+   "page": 0,
+   "rect": [
+    176.8,
+    388.03,
+    190.8,
+    400.71
+   ],
+   "type": "choice",
+   "label": "Smoking: Do you want to quit?: N"
+  },
+  {
+   "page": 0,
+   "rect": [
+    163.24,
+    403.15,
+    190.8,
+    414.15
+   ],
+   "type": "text",
+   "label": "Smoking: # of years you've smoked",
+   "path": "tobacco.years_smoked"
+  },
+  {
+   "page": 0,
+   "rect": [
+    347.85,
+    329.59,
+    363.41,
+    342.27
+   ],
+   "type": "choice",
+   "label": "Alcohol: Do you drink alcohol?: Y",
+   "path": "alcohol.drinks",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    365.85,
+    329.59,
+    376.01,
+    342.27
+   ],
+   "type": "choice",
+   "label": "Alcohol: Do you drink alcohol?: N",
+   "path": "alcohol.drinks",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    347.85,
+    344.71,
+    363.41,
+    355.71
+   ],
+   "type": "choice",
+   "label": "Alcohol: Have you felt a need to cut down?: Y",
+   "path": "alcohol.felt_need_to_cut_down",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    365.85,
+    344.71,
+    376.01,
+    355.71
+   ],
+   "type": "choice",
+   "label": "Alcohol: Have you felt a need to cut down?: N",
+   "path": "alcohol.felt_need_to_cut_down",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    347.85,
+    358.15,
+    376.01,
+    369.03
+   ],
+   "type": "text",
+   "label": "Alcohol: If yes, how many drinks per week?",
+   "path": "alcohol.drinks_per_week"
+  },
+  {
+   "page": 0,
+   "rect": [
+    550.32,
+    329.59,
+    565.88,
+    342.27
+   ],
+   "type": "choice",
+   "label": "Street Drugs: Do you use street drugs?: Y",
+   "path": "drugs.uses_street_drugs",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    568.32,
+    329.59,
+    578.6,
+    342.27
+   ],
+   "type": "choice",
+   "label": "Street Drugs: Do you use street drugs?: N",
+   "path": "drugs.uses_street_drugs",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    449.1,
+    344.3,
+    578.6,
+    356.4
+   ],
+   "type": "text",
+   "label": "Street Drugs: If yes, what type?",
+   "path": "drugs.types"
+  },
+  {
+   "page": 0,
+   "rect": [
+    450.3,
+    356.9,
+    578.6,
+    369.03
+   ],
+   "type": "text",
+   "label": "Street Drugs: If yes, how often?",
+   "path": "drugs.frequency"
+  },
+  {
+   "page": 0,
+   "rect": [
+    347.85,
+    388.03,
+    363.41,
+    400.71
+   ],
+   "type": "choice",
+   "label": "Health - Other: Do you exercise regularly?: Y",
+   "path": "exercise.exercises_regularly",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    365.85,
+    388.03,
+    376.85,
+    400.71
+   ],
+   "type": "choice",
+   "label": "Health - Other: Do you exercise regularly?: N",
+   "path": "exercise.exercises_regularly",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    298.7,
+    402.6,
+    579.44,
+    414.15
+   ],
+   "type": "text",
+   "label": "Health - Other: If yes, how often and type?",
+   "path": "exercise.details"
+  },
+  {
+   "page": 0,
+   "rect": [
+    550.32,
+    388.03,
+    565.88,
+    400.71
+   ],
+   "type": "choice",
+   "label": "Health - Other: Do you use seat belts regularly?: Y",
+   "path": "wears_seat_belt",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    568.32,
+    388.03,
+    579.44,
+    400.71
+   ],
+   "type": "choice",
+   "label": "Health - Other: Do you use seat belts regularly?: N",
+   "path": "wears_seat_belt",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    270.79,
+    427.77,
+    287.31,
+    437.33
+   ],
+   "type": "choice",
+   "label": "Concerns: Family alcoholism or drug abuse?: Y"
+  },
+  {
+   "page": 0,
+   "rect": [
+    288.79,
+    427.77,
+    305.31,
+    437.33
+   ],
+   "type": "choice",
+   "label": "Concerns: Family alcoholism or drug abuse?: N"
+  },
+  {
+   "page": 0,
+   "rect": [
+    270.79,
+    438.81,
+    287.31,
+    448.37
+   ],
+   "type": "choice",
+   "label": "Concerns: Rape, sexual abuse or unwanted sexual activity?: Y"
+  },
+  {
+   "page": 0,
+   "rect": [
+    288.79,
+    438.81,
+    305.31,
+    448.37
+   ],
+   "type": "choice",
+   "label": "Concerns: Rape, sexual abuse or unwanted sexual activity?: N"
+  },
+  {
+   "page": 0,
+   "rect": [
+    549.84,
+    427.77,
+    566.36,
+    437.33
+   ],
+   "type": "choice",
+   "label": "Concerns: Your appearance, weight or nutrition?: Y"
+  },
+  {
+   "page": 0,
+   "rect": [
+    567.84,
+    427.77,
+    579.92,
+    437.33
+   ],
+   "type": "choice",
+   "label": "Concerns: Your appearance, weight or nutrition?: N"
+  },
+  {
+   "page": 0,
+   "rect": [
+    549.84,
+    438.81,
+    566.36,
+    448.37
+   ],
+   "type": "choice",
+   "label": "Concerns: Dating/Domestic violence or stalking?: Y"
+  },
+  {
+   "page": 0,
+   "rect": [
+    567.84,
+    438.81,
+    579.92,
+    448.37
+   ],
+   "type": "choice",
+   "label": "Concerns: Dating/Domestic violence or stalking?: N"
+  },
+  {
+   "page": 0,
+   "rect": [
+    343.03,
+    449.73,
+    382.17,
+    459.69
+   ],
+   "type": "choice",
+   "label": "Past month felt sad, lonely, down, depressed or hopeless: Frequently",
+   "path": "mood.depressed",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    397.03,
+    449.73,
+    420.95,
+    459.69
+   ],
+   "type": "choice",
+   "label": "Past month felt sad, lonely, down, depressed or hopeless: Rarely",
+   "path": "mood.depressed",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    437.47,
+    449.73,
+    459.3,
+    459.69
+   ],
+   "type": "choice",
+   "label": "Past month felt sad, lonely, down, depressed or hopeless: Never",
+   "path": "mood.depressed",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    343.03,
+    461.97,
+    382.17,
+    471.93
+   ],
+   "type": "choice",
+   "label": "Past month felt little interest or pleasure in doing things: Frequently",
+   "path": "mood.little_interest",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    397.03,
+    461.97,
+    420.95,
+    471.93
+   ],
+   "type": "choice",
+   "label": "Past month felt little interest or pleasure in doing things: Rarely",
+   "path": "mood.little_interest",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    437.47,
+    461.97,
+    459.3,
+    471.93
+   ],
+   "type": "choice",
+   "label": "Past month felt little interest or pleasure in doing things: Never",
+   "path": "mood.little_interest",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    185.32,
+    489.81,
+    224.31,
+    501.77
+   ],
+   "type": "choice",
+   "label": "Family history - Alcoholism: Mom",
+   "path": "family_history.alcoholism",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    225.79,
+    489.81,
+    255.87,
+    501.77
+   ],
+   "type": "choice",
+   "label": "Family history - Alcoholism: Dad",
+   "path": "family_history.alcoholism",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    257.35,
+    489.81,
+    300.39,
+    501.77
+   ],
+   "type": "choice",
+   "label": "Family history - Alcoholism: Sibling",
+   "path": "family_history.alcoholism",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    185.32,
+    503.25,
+    224.31,
+    515.21
+   ],
+   "type": "choice",
+   "label": "Family history - Drug abuse: Mom",
+   "path": "family_history.drug_abuse",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    225.79,
+    503.25,
+    255.87,
+    515.21
+   ],
+   "type": "choice",
+   "label": "Family history - Drug abuse: Dad",
+   "path": "family_history.drug_abuse",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    257.35,
+    503.25,
+    300.39,
+    515.21
+   ],
+   "type": "choice",
+   "label": "Family history - Drug abuse: Sibling",
+   "path": "family_history.drug_abuse",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    185.32,
+    516.69,
+    224.31,
+    527.93
+   ],
+   "type": "choice",
+   "label": "Family history - Blood or clotting disorder: Mom",
+   "path": "family_history.blood_clotting_disorder",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    225.79,
+    516.69,
+    255.87,
+    527.93
+   ],
+   "type": "choice",
+   "label": "Family history - Blood or clotting disorder: Dad",
+   "path": "family_history.blood_clotting_disorder",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    257.35,
+    516.69,
+    300.39,
+    527.93
+   ],
+   "type": "choice",
+   "label": "Family history - Blood or clotting disorder: Sibling",
+   "path": "family_history.blood_clotting_disorder",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    185.32,
+    529.41,
+    224.31,
+    542.33
+   ],
+   "type": "choice",
+   "label": "Family history - Depression/psychiatric illness: Mom",
+   "path": "family_history.depression_psychiatric_illness",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    225.79,
+    529.41,
+    255.87,
+    542.33
+   ],
+   "type": "choice",
+   "label": "Family history - Depression/psychiatric illness: Dad",
+   "path": "family_history.depression_psychiatric_illness",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    257.35,
+    529.41,
+    300.39,
+    542.33
+   ],
+   "type": "choice",
+   "label": "Family history - Depression/psychiatric illness: Sibling",
+   "path": "family_history.depression_psychiatric_illness",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    185.32,
+    543.81,
+    224.31,
+    555.05
+   ],
+   "type": "choice",
+   "label": "Family history - Diabetes: Mom",
+   "path": "family_history.diabetes",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    225.79,
+    543.81,
+    255.87,
+    555.05
+   ],
+   "type": "choice",
+   "label": "Family history - Diabetes: Dad",
+   "path": "family_history.diabetes",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    257.35,
+    543.81,
+    300.39,
+    555.05
+   ],
+   "type": "choice",
+   "label": "Family history - Diabetes: Sibling",
+   "path": "family_history.diabetes",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    185.32,
+    556.53,
+    224.31,
+    567.77
+   ],
+   "type": "choice",
+   "label": "Family history - Stroke: Mom",
+   "path": "family_history.stroke",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    225.79,
+    556.53,
+    255.87,
+    567.77
+   ],
+   "type": "choice",
+   "label": "Family history - Stroke: Dad",
+   "path": "family_history.stroke",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    257.35,
+    556.53,
+    300.39,
+    567.77
+   ],
+   "type": "choice",
+   "label": "Family history - Stroke: Sibling",
+   "path": "family_history.stroke",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    185.32,
+    569.25,
+    224.31,
+    581.21
+   ],
+   "type": "choice",
+   "label": "Family history - Heart disease: Mom",
+   "path": "family_history.heart_disease",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    225.79,
+    569.25,
+    255.87,
+    581.21
+   ],
+   "type": "choice",
+   "label": "Family history - Heart disease: Dad",
+   "path": "family_history.heart_disease",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    257.35,
+    569.25,
+    300.39,
+    581.21
+   ],
+   "type": "choice",
+   "label": "Family history - Heart disease: Sibling",
+   "path": "family_history.heart_disease",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    185.32,
+    582.69,
+    224.31,
+    596.93
+   ],
+   "type": "choice",
+   "label": "Family history - Thyroid Problems: Mom",
+   "path": "family_history.thyroid_problems",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    225.79,
+    582.69,
+    255.87,
+    596.93
+   ],
+   "type": "choice",
+   "label": "Family history - Thyroid Problems: Dad",
+   "path": "family_history.thyroid_problems",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    257.35,
+    582.69,
+    300.39,
+    596.93
+   ],
+   "type": "choice",
+   "label": "Family history - Thyroid Problems: Sibling",
+   "path": "family_history.thyroid_problems",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    477.84,
+    489.81,
+    507.92,
+    501.77
+   ],
+   "type": "choice",
+   "label": "Family history - High blood pressure: Mom",
+   "path": "family_history.high_blood_pressure",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    509.4,
+    489.81,
+    539.36,
+    501.77
+   ],
+   "type": "choice",
+   "label": "Family history - High blood pressure: Dad",
+   "path": "family_history.high_blood_pressure",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    540.84,
+    489.81,
+    579.92,
+    501.77
+   ],
+   "type": "choice",
+   "label": "Family history - High blood pressure: Sibling",
+   "path": "family_history.high_blood_pressure",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    477.84,
+    503.25,
+    507.92,
+    515.21
+   ],
+   "type": "choice",
+   "label": "Family history - High cholesterol: Mom",
+   "path": "family_history.high_cholesterol",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    509.4,
+    503.25,
+    539.36,
+    515.21
+   ],
+   "type": "choice",
+   "label": "Family history - High cholesterol: Dad",
+   "path": "family_history.high_cholesterol",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    540.84,
+    503.25,
+    579.92,
+    515.21
+   ],
+   "type": "choice",
+   "label": "Family history - High cholesterol: Sibling",
+   "path": "family_history.high_cholesterol",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    477.84,
+    516.69,
+    507.92,
+    542.33
+   ],
+   "type": "choice",
+   "label": "Family history - Cancer: Mom",
+   "path": "family_history.cancer",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    509.4,
+    516.69,
+    539.36,
+    542.33
+   ],
+   "type": "choice",
+   "label": "Family history - Cancer: Dad",
+   "path": "family_history.cancer",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    540.84,
+    516.69,
+    579.92,
+    542.33
+   ],
+   "type": "choice",
+   "label": "Family history - Cancer: Sibling",
+   "path": "family_history.cancer",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    477.84,
+    543.81,
+    507.92,
+    555.05
+   ],
+   "type": "choice",
+   "label": "Family history - Hereditary disease: Mom",
+   "path": "family_history.hereditary_disease",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    509.4,
+    543.81,
+    539.36,
+    555.05
+   ],
+   "type": "choice",
+   "label": "Family history - Hereditary disease: Dad",
+   "path": "family_history.hereditary_disease",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    540.84,
+    543.81,
+    579.92,
+    555.05
+   ],
+   "type": "choice",
+   "label": "Family history - Hereditary disease: Sibling",
+   "path": "family_history.hereditary_disease",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    477.84,
+    556.53,
+    507.92,
+    567.77
+   ],
+   "type": "choice",
+   "label": "Family history - Tuberculosis: Mom",
+   "path": "family_history.tuberculosis",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    509.4,
+    556.53,
+    539.36,
+    567.77
+   ],
+   "type": "choice",
+   "label": "Family history - Tuberculosis: Dad",
+   "path": "family_history.tuberculosis",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    540.84,
+    556.53,
+    579.92,
+    567.77
+   ],
+   "type": "choice",
+   "label": "Family history - Tuberculosis: Sibling",
+   "path": "family_history.tuberculosis",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    477.84,
+    569.25,
+    507.92,
+    581.21
+   ],
+   "type": "choice",
+   "label": "Family history - Sudden unexpected Death before age 50: Mom",
+   "path": "family_history.sudden_death_before_50",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    509.4,
+    569.25,
+    539.36,
+    581.21
+   ],
+   "type": "choice",
+   "label": "Family history - Sudden unexpected Death before age 50: Dad",
+   "path": "family_history.sudden_death_before_50",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    540.84,
+    569.25,
+    579.92,
+    581.21
+   ],
+   "type": "choice",
+   "label": "Family history - Sudden unexpected Death before age 50: Sibling",
+   "path": "family_history.sudden_death_before_50",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    477.84,
+    582.69,
+    507.92,
+    596.93
+   ],
+   "type": "choice",
+   "label": "Family history - Other serious illness: Mom",
+   "path": "family_history.other_serious_illness",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    509.4,
+    582.69,
+    539.36,
+    596.93
+   ],
+   "type": "choice",
+   "label": "Family history - Other serious illness: Dad",
+   "path": "family_history.other_serious_illness",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    540.84,
+    582.69,
+    579.92,
+    596.93
+   ],
+   "type": "choice",
+   "label": "Family history - Other serious illness: Sibling",
+   "path": "family_history.other_serious_illness",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    362.5,
+    516.69,
+    476.36,
+    542.33
+   ],
+   "type": "text",
+   "label": "Family history - Cancer/type (specify)",
+   "path": "family_history.cancer_types"
+  },
+  {
+   "page": 0,
+   "rect": [
+    410.3,
+    543.81,
+    476.36,
+    555.05
+   ],
+   "type": "text",
+   "label": "Family history - Hereditary disease/type (specify)",
+   "path": "family_history.hereditary_disease_types"
+  },
+  {
+   "page": 0,
+   "rect": [
+    418.4,
+    582.69,
+    476.36,
+    596.93
+   ],
+   "type": "text",
+   "label": "Family history - Other serious illness/type (specify)",
+   "path": "family_history.other_serious_illness_types"
+  },
+  {
+   "page": 0,
+   "rect": [
+    167.32,
+    650.16,
+    183.84,
+    660.92
+   ],
+   "type": "choice",
+   "label": "Personal history - Headaches- occasional: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    185.32,
+    650.16,
+    201.03,
+    660.92
+   ],
+   "type": "choice",
+   "label": "Personal history - Headaches- occasional: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    167.32,
+    662.4,
+    183.84,
+    673.28
+   ],
+   "type": "choice",
+   "label": "Personal history - Migraine: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    185.32,
+    662.4,
+    201.03,
+    673.28
+   ],
+   "type": "choice",
+   "label": "Personal history - Migraine: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    121.46,
+    674.75,
+    140.27,
+    685.77
+   ],
+   "type": "choice",
+   "label": "Migraine (circle): Rare"
+  },
+  {
+   "page": 0,
+   "rect": [
+    121.46,
+    686.5,
+    165.7,
+    697.53
+   ],
+   "type": "choice",
+   "label": "Migraine (circle): Occasional"
+  },
+  {
+   "page": 0,
+   "rect": [
+    121.46,
+    698.26,
+    156.85,
+    709.29
+   ],
+   "type": "choice",
+   "label": "Migraine (circle): Frequent"
+  },
+  {
+   "page": 0,
+   "rect": [
+    167.32,
+    711.48,
+    183.84,
+    722.24
+   ],
+   "type": "choice",
+   "label": "Personal history - Dizziness or fainting: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    185.32,
+    711.48,
+    201.03,
+    722.24
+   ],
+   "type": "choice",
+   "label": "Personal history - Dizziness or fainting: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    167.32,
+    723.72,
+    183.84,
+    734.48
+   ],
+   "type": "choice",
+   "label": "Personal history - Loss of consciousness: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    185.32,
+    723.72,
+    201.03,
+    734.48
+   ],
+   "type": "choice",
+   "label": "Personal history - Loss of consciousness: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    167.32,
+    735.96,
+    183.84,
+    746.72
+   ],
+   "type": "choice",
+   "label": "Personal history - Head injuries/concussion: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    185.32,
+    735.96,
+    201.03,
+    746.72
+   ],
+   "type": "choice",
+   "label": "Personal history - Head injuries/concussion: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    342.81,
+    650.16,
+    363.89,
+    660.92
+   ],
+   "type": "choice",
+   "label": "Personal history - Severe chest pain/pressure: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    365.37,
+    650.16,
+    385.49,
+    660.92
+   ],
+   "type": "choice",
+   "label": "Personal history - Severe chest pain/pressure: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    342.81,
+    662.4,
+    363.89,
+    673.28
+   ],
+   "type": "choice",
+   "label": "Personal history - Heart disease or murmur: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    365.37,
+    662.4,
+    385.49,
+    673.28
+   ],
+   "type": "choice",
+   "label": "Personal history - Heart disease or murmur: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    342.81,
+    674.76,
+    363.89,
+    685.52
+   ],
+   "type": "choice",
+   "label": "Personal history - Rapid or irregular pulse: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    365.37,
+    674.76,
+    385.49,
+    685.52
+   ],
+   "type": "choice",
+   "label": "Personal history - Rapid or irregular pulse: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    342.81,
+    687.0,
+    363.89,
+    697.76
+   ],
+   "type": "choice",
+   "label": "Personal history - Blood clots/vein problems: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    365.37,
+    687.0,
+    385.49,
+    697.76
+   ],
+   "type": "choice",
+   "label": "Personal history - Blood clots/vein problems: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    342.81,
+    711.48,
+    363.89,
+    722.24
+   ],
+   "type": "choice",
+   "label": "Personal history - Chronic cough > 1 month: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    365.37,
+    711.48,
+    385.49,
+    722.24
+   ],
+   "type": "choice",
+   "label": "Personal history - Chronic cough > 1 month: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    342.81,
+    723.72,
+    363.89,
+    734.48
+   ],
+   "type": "choice",
+   "label": "Personal history - Pneumonia: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    365.37,
+    723.72,
+    385.49,
+    734.48
+   ],
+   "type": "choice",
+   "label": "Personal history - Pneumonia: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    342.81,
+    735.96,
+    363.89,
+    746.72
+   ],
+   "type": "choice",
+   "label": "Personal history - Tuberculosis or + test: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    365.37,
+    735.96,
+    385.49,
+    746.72
+   ],
+   "type": "choice",
+   "label": "Personal history - Tuberculosis or + test: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    531.84,
+    650.16,
+    552.92,
+    660.92
+   ],
+   "type": "choice",
+   "label": "Personal history - Urinary/kidney Problem: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    554.4,
+    650.16,
+    579.92,
+    660.92
+   ],
+   "type": "choice",
+   "label": "Personal history - Urinary/kidney Problem: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    531.84,
+    662.4,
+    552.92,
+    673.28
+   ],
+   "type": "choice",
+   "label": "Personal history - Frequent Bladder Infection: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    554.4,
+    662.4,
+    579.92,
+    673.28
+   ],
+   "type": "choice",
+   "label": "Personal history - Frequent Bladder Infection: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    531.84,
+    687.0,
+    552.92,
+    697.76
+   ],
+   "type": "choice",
+   "label": "Personal history - Diabetes: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    554.4,
+    687.0,
+    579.92,
+    697.76
+   ],
+   "type": "choice",
+   "label": "Personal history - Diabetes: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    531.84,
+    699.24,
+    552.92,
+    710.0
+   ],
+   "type": "choice",
+   "label": "Personal history - Asthma: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    554.4,
+    699.24,
+    579.92,
+    710.0
+   ],
+   "type": "choice",
+   "label": "Personal history - Asthma: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    531.84,
+    711.48,
+    552.92,
+    722.24
+   ],
+   "type": "choice",
+   "label": "Personal history - High blood pressure: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    554.4,
+    711.48,
+    579.92,
+    722.24
+   ],
+   "type": "choice",
+   "label": "Personal history - High blood pressure: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    531.84,
+    723.72,
+    552.92,
+    734.48
+   ],
+   "type": "choice",
+   "label": "Personal history - Arthritis: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    554.4,
+    723.72,
+    579.92,
+    734.48
+   ],
+   "type": "choice",
+   "label": "Personal history - Arthritis: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    531.84,
+    735.96,
+    552.92,
+    746.72
+   ],
+   "type": "choice",
+   "label": "Personal history - Sickle cell disease: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    554.4,
+    735.96,
+    579.92,
+    746.72
+   ],
+   "type": "choice",
+   "label": "Personal history - Sickle cell disease: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    167.32,
+    59.06,
+    183.84,
+    69.82
+   ],
+   "type": "choice",
+   "label": "Personal history - Vision or eye problems: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    185.32,
+    59.06,
+    201.03,
+    69.82
+   ],
+   "type": "choice",
+   "label": "Personal history - Vision or eye problems: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    167.32,
+    71.3,
+    183.84,
+    82.08
+   ],
+   "type": "choice",
+   "label": "Personal history - Glasses/contact lenses: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    185.32,
+    71.3,
+    201.03,
+    82.08
+   ],
+   "type": "choice",
+   "label": "Personal history - Glasses/contact lenses: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    130.5,
+    83.56,
+    201.03,
+    94.32
+   ],
+   "type": "text",
+   "label": "Last eye exam (year)",
+   "path": "last_eye_exam_year"
+  },
+  {
+   "page": 1,
+   "rect": [
+    167.32,
+    110.44,
+    183.84,
+    123.6
+   ],
+   "type": "choice",
+   "label": "Personal history - Allergies or hay fever: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    185.32,
+    110.44,
+    201.03,
+    123.6
+   ],
+   "type": "choice",
+   "label": "Personal history - Allergies or hay fever: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    167.32,
+    125.08,
+    183.84,
+    135.84
+   ],
+   "type": "choice",
+   "label": "Personal history - Ear or hearing problems: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    185.32,
+    125.08,
+    201.03,
+    135.84
+   ],
+   "type": "choice",
+   "label": "Personal history - Ear or hearing problems: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    167.32,
+    137.32,
+    183.84,
+    148.08
+   ],
+   "type": "choice",
+   "label": "Personal history - Frequent sinusitis: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    185.32,
+    137.32,
+    201.03,
+    148.08
+   ],
+   "type": "choice",
+   "label": "Personal history - Frequent sinusitis: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    167.32,
+    149.56,
+    183.84,
+    160.32
+   ],
+   "type": "choice",
+   "label": "Personal history - Dental problems: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    185.32,
+    149.56,
+    201.03,
+    160.32
+   ],
+   "type": "choice",
+   "label": "Personal history - Dental problems: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    143.2,
+    161.8,
+    201.03,
+    172.56
+   ],
+   "type": "text",
+   "label": "Last dental exam (year)",
+   "path": "last_dental_exam_year"
+  },
+  {
+   "page": 1,
+   "rect": [
+    167.32,
+    186.28,
+    183.84,
+    197.04
+   ],
+   "type": "choice",
+   "label": "Personal history - Severe acne or skin disorder: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    185.32,
+    186.28,
+    201.03,
+    197.04
+   ],
+   "type": "choice",
+   "label": "Personal history - Severe acne or skin disorder: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    167.32,
+    198.52,
+    183.84,
+    209.28
+   ],
+   "type": "choice",
+   "label": "Personal history - New or changing moles: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    185.32,
+    198.52,
+    201.03,
+    209.28
+   ],
+   "type": "choice",
+   "label": "Personal history - New or changing moles: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    167.32,
+    223.0,
+    183.84,
+    233.64
+   ],
+   "type": "choice",
+   "label": "Personal history - Anemia: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    185.32,
+    223.0,
+    201.03,
+    233.64
+   ],
+   "type": "choice",
+   "label": "Personal history - Anemia: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    167.32,
+    235.12,
+    183.84,
+    245.88
+   ],
+   "type": "choice",
+   "label": "Personal history - Bleeding disorder: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    185.32,
+    235.12,
+    201.03,
+    245.88
+   ],
+   "type": "choice",
+   "label": "Personal history - Bleeding disorder: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    167.32,
+    247.36,
+    183.84,
+    270.15
+   ],
+   "type": "choice",
+   "label": "Personal history - Enlargement of glands or lymph nodes: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    185.32,
+    247.36,
+    201.03,
+    270.15
+   ],
+   "type": "choice",
+   "label": "Personal history - Enlargement of glands or lymph nodes: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    342.81,
+    46.82,
+    363.89,
+    57.58
+   ],
+   "type": "choice",
+   "label": "Personal history - Shortness of breath: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    365.37,
+    46.82,
+    385.49,
+    57.58
+   ],
+   "type": "choice",
+   "label": "Personal history - Shortness of breath: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    342.81,
+    71.3,
+    363.89,
+    94.32
+   ],
+   "type": "choice",
+   "label": "Personal history - Abdominal pain (severe/recurrent): Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    365.37,
+    71.3,
+    385.49,
+    94.32
+   ],
+   "type": "choice",
+   "label": "Personal history - Abdominal pain (severe/recurrent): Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    342.81,
+    95.8,
+    363.89,
+    108.96
+   ],
+   "type": "choice",
+   "label": "Personal history - Heartburn: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    365.37,
+    95.8,
+    385.49,
+    108.96
+   ],
+   "type": "choice",
+   "label": "Personal history - Heartburn: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    342.81,
+    110.44,
+    363.89,
+    123.6
+   ],
+   "type": "choice",
+   "label": "Personal history - Ulcer: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    365.37,
+    110.44,
+    385.49,
+    123.6
+   ],
+   "type": "choice",
+   "label": "Personal history - Ulcer: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    342.81,
+    125.08,
+    363.89,
+    135.84
+   ],
+   "type": "choice",
+   "label": "Personal history - Hepatitis: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    365.37,
+    125.08,
+    385.49,
+    135.84
+   ],
+   "type": "choice",
+   "label": "Personal history - Hepatitis: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    342.81,
+    137.32,
+    363.89,
+    160.32
+   ],
+   "type": "choice",
+   "label": "Personal history - Stomach/Bowel movement problems: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    365.37,
+    137.32,
+    385.49,
+    160.32
+   ],
+   "type": "choice",
+   "label": "Personal history - Stomach/Bowel movement problems: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    342.81,
+    161.8,
+    363.89,
+    172.56
+   ],
+   "type": "choice",
+   "label": "Personal history - Gallbladder disease: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    365.37,
+    161.8,
+    385.49,
+    172.56
+   ],
+   "type": "choice",
+   "label": "Personal history - Gallbladder disease: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    342.81,
+    174.04,
+    363.89,
+    184.8
+   ],
+   "type": "choice",
+   "label": "Personal history - Hernia: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    365.37,
+    174.04,
+    385.49,
+    184.8
+   ],
+   "type": "choice",
+   "label": "Personal history - Hernia: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    342.81,
+    198.52,
+    363.89,
+    221.52
+   ],
+   "type": "choice",
+   "label": "Personal history - Swollen or painful joints or extremities: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    365.37,
+    198.52,
+    385.49,
+    221.52
+   ],
+   "type": "choice",
+   "label": "Personal history - Swollen or painful joints or extremities: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    342.81,
+    223.0,
+    363.89,
+    245.88
+   ],
+   "type": "choice",
+   "label": "Personal history - Chronic or severe back problems: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    365.37,
+    223.0,
+    385.49,
+    245.88
+   ],
+   "type": "choice",
+   "label": "Personal history - Chronic or severe back problems: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    235.5,
+    247.36,
+    341.33,
+    270.15
+   ],
+   "type": "text",
+   "label": "Personal history - Other (middle column) (specify)",
+   "path": "other_conditions"
+  },
+  {
+   "page": 1,
+   "rect": [
+    342.81,
+    247.36,
+    363.89,
+    270.15
+   ],
+   "type": "choice",
+   "label": "Personal history - Other (middle column): Past"
+  },
+  {
+   "page": 1,
+   "rect": [
+    365.37,
+    247.36,
+    385.49,
+    270.15
+   ],
+   "type": "choice",
+   "label": "Personal history - Other (middle column): Present"
+  },
+  {
+   "page": 1,
+   "rect": [
+    531.84,
+    46.82,
+    552.92,
+    57.58
+   ],
+   "type": "choice",
+   "label": "Personal history - Seizures or Epilepsy: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    554.4,
+    46.82,
+    579.92,
+    57.58
+   ],
+   "type": "choice",
+   "label": "Personal history - Seizures or Epilepsy: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    531.84,
+    59.06,
+    552.92,
+    69.82
+   ],
+   "type": "choice",
+   "label": "Personal history - Thyroid Disease: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    554.4,
+    59.06,
+    579.92,
+    69.82
+   ],
+   "type": "choice",
+   "label": "Personal history - Thyroid Disease: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    531.84,
+    71.3,
+    552.92,
+    82.08
+   ],
+   "type": "choice",
+   "label": "Personal history - Elevated Cholesterol: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    554.4,
+    71.3,
+    579.92,
+    82.08
+   ],
+   "type": "choice",
+   "label": "Personal history - Elevated Cholesterol: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    531.84,
+    83.56,
+    552.92,
+    94.32
+   ],
+   "type": "choice",
+   "label": "Personal history - Obesity: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    554.4,
+    83.56,
+    579.92,
+    94.32
+   ],
+   "type": "choice",
+   "label": "Personal history - Obesity: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    531.84,
+    110.44,
+    552.92,
+    123.6
+   ],
+   "type": "choice",
+   "label": "Personal history - Anxiety: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    554.4,
+    110.44,
+    579.92,
+    123.6
+   ],
+   "type": "choice",
+   "label": "Personal history - Anxiety: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    531.84,
+    125.08,
+    552.92,
+    135.84
+   ],
+   "type": "choice",
+   "label": "Personal history - Depression: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    554.4,
+    125.08,
+    579.92,
+    135.84
+   ],
+   "type": "choice",
+   "label": "Personal history - Depression: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    531.84,
+    137.32,
+    552.92,
+    148.08
+   ],
+   "type": "choice",
+   "label": "Personal history - Bipolar: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    554.4,
+    137.32,
+    579.92,
+    148.08
+   ],
+   "type": "choice",
+   "label": "Personal history - Bipolar: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    531.84,
+    149.56,
+    552.92,
+    160.32
+   ],
+   "type": "choice",
+   "label": "Personal history - Other mental health concerns: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    554.4,
+    149.56,
+    579.92,
+    160.32
+   ],
+   "type": "choice",
+   "label": "Personal history - Other mental health concerns: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    531.84,
+    174.04,
+    552.92,
+    184.8
+   ],
+   "type": "choice",
+   "label": "Personal history - ADD/Learning disability: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    554.4,
+    174.04,
+    579.92,
+    184.8
+   ],
+   "type": "choice",
+   "label": "Personal history - ADD/Learning disability: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    531.84,
+    186.28,
+    552.92,
+    197.04
+   ],
+   "type": "choice",
+   "label": "Personal history - Cancer: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    554.4,
+    186.28,
+    579.92,
+    197.04
+   ],
+   "type": "choice",
+   "label": "Personal history - Cancer: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    531.84,
+    198.52,
+    552.92,
+    209.28
+   ],
+   "type": "choice",
+   "label": "Personal history - Eating Disorder: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    554.4,
+    198.52,
+    579.92,
+    209.28
+   ],
+   "type": "choice",
+   "label": "Personal history - Eating Disorder: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    531.84,
+    210.76,
+    552.92,
+    221.52
+   ],
+   "type": "choice",
+   "label": "Personal history - Unusual Fatigue > 1 month: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    554.4,
+    210.76,
+    579.92,
+    221.52
+   ],
+   "type": "choice",
+   "label": "Personal history - Unusual Fatigue > 1 month: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    531.84,
+    223.0,
+    552.92,
+    245.88
+   ],
+   "type": "choice",
+   "label": "Personal history - Recent gain or loss of weight > 10 pounds: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    554.4,
+    223.0,
+    579.92,
+    245.88
+   ],
+   "type": "choice",
+   "label": "Personal history - Recent gain or loss of weight > 10 pounds: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    420.0,
+    247.36,
+    530.36,
+    270.15
+   ],
+   "type": "text",
+   "label": "Personal history - Other (right column) (specify)"
+  },
+  {
+   "page": 1,
+   "rect": [
+    531.84,
+    247.36,
+    552.92,
+    270.15
+   ],
+   "type": "choice",
+   "label": "Personal history - Other (right column): Past"
+  },
+  {
+   "page": 1,
+   "rect": [
+    554.4,
+    247.36,
+    579.92,
+    270.15
+   ],
+   "type": "choice",
+   "label": "Personal history - Other (right column): Present"
+  },
+  {
+   "page": 1,
+   "rect": [
+    167.32,
+    283.75,
+    201.87,
+    306.27
+   ],
+   "type": "text",
+   "label": "Sexual Health: If sexually active how long have you been sexually active?",
+   "path": "sexual_health.duration_sexually_active"
+  },
+  {
+   "page": 1,
+   "rect": [
+    215.69,
+    283.86,
+    234.88,
+    294.88
+   ],
+   "type": "choice",
+   "label": "Sexual Health: activity (circle): Anal",
+   "path": "sexual_health.activity_types",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    260.09,
+    283.86,
+    277.83,
+    294.88
+   ],
+   "type": "choice",
+   "label": "Sexual Health: activity (circle): Oral",
+   "path": "sexual_health.activity_types",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    300.53,
+    283.86,
+    331.96,
+    294.88
+   ],
+   "type": "choice",
+   "label": "Sexual Health: activity (circle): Vaginal",
+   "path": "sexual_health.activity_types",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    475.4,
+    283.75,
+    579.92,
+    306.27
+   ],
+   "type": "text",
+   "label": "Sexual Health: Last sexual encounter",
+   "path": "sexual_health.last_encounter",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    167.32,
+    307.75,
+    201.87,
+    330.27
+   ],
+   "type": "text",
+   "label": "Sexual Health: Number of lifetime partners",
+   "path": "sexual_health.lifetime_partners"
+  },
+  {
+   "page": 1,
+   "rect": [
+    342.81,
+    307.75,
+    386.33,
+    330.27
+   ],
+   "type": "text",
+   "label": "Sexual Health: Number of months with current partner",
+   "path": "sexual_health.months_with_current_partner"
+  },
+  {
+   "page": 1,
+   "rect": [
+    405.07,
+    318.19,
+    423.56,
+    328.15
+   ],
+   "type": "choice",
+   "label": "Sexual Health: partners have been (circle): Male",
+   "path": "sexual_health.partner_gender",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    450.91,
+    318.19,
+    477.2,
+    328.15
+   ],
+   "type": "choice",
+   "label": "Sexual Health: partners have been (circle): Female",
+   "path": "sexual_health.partner_gender",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    500.02,
+    318.19,
+    517.57,
+    328.15
+   ],
+   "type": "choice",
+   "label": "Sexual Health: partners have been (circle): Both",
+   "path": "sexual_health.partner_gender",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    533.62,
+    318.19,
+    562.59,
+    328.15
+   ],
+   "type": "choice",
+   "label": "Sexual Health: partners have been (circle): Intersex",
+   "path": "sexual_health.partner_gender",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    167.32,
+    331.75,
+    183.84,
+    342.51
+   ],
+   "type": "choice",
+   "label": "Sexual Health: Have you ever had an STD?: Y",
+   "path": "sexual_health.had_std",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    185.32,
+    331.75,
+    201.87,
+    342.51
+   ],
+   "type": "choice",
+   "label": "Sexual Health: Have you ever had an STD?: N",
+   "path": "sexual_health.had_std",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    342.81,
+    331.75,
+    386.33,
+    342.51
+   ],
+   "type": "text",
+   "label": "Sexual Health: Last STD screen (m/d/y)",
+   "path": "sexual_health.last_std_screen",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    455.17,
+    331.74,
+    460.15,
+    342.76
+   ],
+   "type": "choice",
+   "label": "Sexual Health: HPV Vaccine (circle): 1"
+  },
+  {
+   "page": 1,
+   "rect": [
+    467.73,
+    331.74,
+    472.71,
+    342.76
+   ],
+   "type": "choice",
+   "label": "Sexual Health: HPV Vaccine (circle): 2"
+  },
+  {
+   "page": 1,
+   "rect": [
+    480.29,
+    331.74,
+    485.27,
+    342.76
+   ],
+   "type": "choice",
+   "label": "Sexual Health: HPV Vaccine (circle): 3"
+  },
+  {
+   "page": 1,
+   "rect": [
+    492.85,
+    331.74,
+    514.42,
+    342.76
+   ],
+   "type": "choice",
+   "label": "Sexual Health: HPV Vaccine (circle): None"
+  },
+  {
+   "page": 1,
+   "rect": [
+    152.42,
+    343.98,
+    195.73,
+    355.0
+   ],
+   "type": "choice",
+   "label": "Sexual Health: STDs (circle all that apply): Chlamydia",
+   "path": "sexual_health.stds",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    216.89,
+    343.98,
+    259.53,
+    355.0
+   ],
+   "type": "choice",
+   "label": "Sexual Health: STDs (circle all that apply): Gonorrhea",
+   "path": "sexual_health.stds",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    288.89,
+    343.98,
+    367.38,
+    355.0
+   ],
+   "type": "choice",
+   "label": "Sexual Health: STDs (circle all that apply): HPV/Genital Warts",
+   "path": "sexual_health.stds",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    396.91,
+    343.98,
+    457.02,
+    355.0
+   ],
+   "type": "choice",
+   "label": "Sexual Health: STDs (circle all that apply): Genital Herpes",
+   "path": "sexual_health.stds",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    468.94,
+    343.98,
+    486.68,
+    355.0
+   ],
+   "type": "choice",
+   "label": "Sexual Health: STDs (circle all that apply): HIV",
+   "path": "sexual_health.stds",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    504.94,
+    343.98,
+    530.38,
+    355.0
+   ],
+   "type": "choice",
+   "label": "Sexual Health: STDs (circle all that apply): Other",
+   "path": "sexual_health.stds",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    532.4,
+    343.99,
+    579.92,
+    354.75
+   ],
+   "type": "text",
+   "label": "Sexual Health: STDs Other (specify)",
+   "path": "sexual_health.std_other"
+  },
+  {
+   "page": 1,
+   "rect": [
+    288.89,
+    356.22,
+    302.82,
+    367.24
+   ],
+   "type": "choice",
+   "label": "Sexual Health: birth control method (circle): Pill",
+   "path": "sexual_health.birth_control_methods",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    324.89,
+    356.22,
+    344.15,
+    367.24
+   ],
+   "type": "choice",
+   "label": "Sexual Health: birth control method (circle): Ring",
+   "path": "sexual_health.birth_control_methods",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    360.91,
+    356.22,
+    382.56,
+    367.24
+   ],
+   "type": "choice",
+   "label": "Sexual Health: birth control method (circle): Depo",
+   "path": "sexual_health.birth_control_methods",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    396.91,
+    356.22,
+    423.81,
+    367.24
+   ],
+   "type": "choice",
+   "label": "Sexual Health: birth control method (circle): Plan B",
+   "path": "sexual_health.birth_control_methods",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    435.43,
+    356.22,
+    469.79,
+    367.24
+   ],
+   "type": "choice",
+   "label": "Sexual Health: birth control method (circle): Condom",
+   "path": "sexual_health.birth_control_methods",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    479.74,
+    356.22,
+    501.31,
+    367.24
+   ],
+   "type": "choice",
+   "label": "Sexual Health: birth control method (circle): None",
+   "path": "sexual_health.birth_control_methods",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    506.38,
+    356.22,
+    531.82,
+    367.24
+   ],
+   "type": "choice",
+   "label": "Sexual Health: birth control method (circle): Other",
+   "path": "sexual_health.birth_control_methods",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    533.8,
+    356.23,
+    579.92,
+    366.99
+   ],
+   "type": "text",
+   "label": "Sexual Health: birth control Other (specify)",
+   "path": "sexual_health.birth_control_other"
+  },
+  {
+   "page": 1,
+   "rect": [
+    378.81,
+    368.47,
+    404.33,
+    379.23
+   ],
+   "type": "choice",
+   "label": "Sexual Health: Aware emergency contraception is available?: Y",
+   "path": "sexual_health.aware_of_emergency_contraception",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    405.81,
+    368.47,
+    431.33,
+    379.23
+   ],
+   "type": "choice",
+   "label": "Sexual Health: Aware emergency contraception is available?: N",
+   "path": "sexual_health.aware_of_emergency_contraception",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    167.32,
+    392.95,
+    183.84,
+    409.59
+   ],
+   "type": "choice",
+   "label": "Women's Health: Do you have monthly periods?: Y",
+   "path": "womens_health.monthly_periods",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    185.32,
+    392.95,
+    201.87,
+    409.59
+   ],
+   "type": "choice",
+   "label": "Women's Health: Do you have monthly periods?: N",
+   "path": "womens_health.monthly_periods",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    315.79,
+    392.95,
+    353.57,
+    409.59
+   ],
+   "type": "text",
+   "label": "Women's Health: Last Period (m/d/y)",
+   "path": "womens_health.last_period",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    167.32,
+    411.07,
+    201.87,
+    433.61
+   ],
+   "type": "text",
+   "label": "Women's Health: Date of last pap m/d/y",
+   "path": "womens_health.last_pap",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    256.18,
+    411.06,
+    293.7,
+    422.08
+   ],
+   "type": "choice",
+   "label": "Women's Health: Pap was (circle one): abnormal",
+   "path": "womens_health.pap_result",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    308.77,
+    411.06,
+    336.81,
+    422.08
+   ],
+   "type": "choice",
+   "label": "Women's Health: Pap was (circle one): normal",
+   "path": "womens_health.pap_result",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    32.18,
+    446.6,
+    353.57,
+    457.61
+   ],
+   "type": "text",
+   "label": "Women's Health: Special procedures because of an abnormal pap - Explain",
+   "path": "womens_health.pap_follow_up"
+  },
+  {
+   "page": 1,
+   "rect": [
+    167.32,
+    459.09,
+    183.84,
+    469.85
+   ],
+   "type": "choice",
+   "label": "Women's Health: Have you ever been pregnant?: Y",
+   "path": "womens_health.ever_pregnant",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    185.32,
+    459.09,
+    201.87,
+    469.85
+   ],
+   "type": "choice",
+   "label": "Women's Health: Have you ever been pregnant?: N",
+   "path": "womens_health.ever_pregnant",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    315.79,
+    459.09,
+    353.57,
+    469.85
+   ],
+   "type": "text",
+   "label": "Women's Health: If yes, when? (m/d/y)",
+   "path": "womens_health.last_pregnancy",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    165.4,
+    471.33,
+    353.57,
+    483.0
+   ],
+   "type": "text",
+   "label": "Women's Health: Complications - explain line 1",
+   "path": "womens_health.pregnancy_complications"
+  },
+  {
+   "page": 1,
+   "rect": [
+    32.18,
+    483.0,
+    353.57,
+    496.25
+   ],
+   "type": "text",
+   "label": "Women's Health: Complications - explain line 2"
+  },
+  {
+   "page": 1,
+   "rect": [
+    104.32,
+    497.73,
+    129.84,
+    508.49
+   ],
+   "type": "text",
+   "label": "Women's Health: # of live births",
+   "path": "womens_health.live_births"
+  },
+  {
+   "page": 1,
+   "rect": [
+    216.67,
+    497.73,
+    242.43,
+    508.49
+   ],
+   "type": "text",
+   "label": "Women's Health: # of miscarriages",
+   "path": "womens_health.miscarriages"
+  },
+  {
+   "page": 1,
+   "rect": [
+    329.25,
+    497.73,
+    353.57,
+    508.49
+   ],
+   "type": "text",
+   "label": "Women's Health: # of terminations",
+   "path": "womens_health.terminations"
+  },
+  {
+   "page": 1,
+   "rect": [
+    518.4,
+    392.95,
+    543.92,
+    409.59
+   ],
+   "type": "choice",
+   "label": "Personal history - Breast lumps or discharge: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    545.4,
+    392.95,
+    579.92,
+    409.59
+   ],
+   "type": "choice",
+   "label": "Personal history - Breast lumps or discharge: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    518.4,
+    411.07,
+    543.92,
+    433.61
+   ],
+   "type": "choice",
+   "label": "Personal history - Vaginal infections or abnormal discharge: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    545.4,
+    411.07,
+    579.92,
+    433.61
+   ],
+   "type": "choice",
+   "label": "Personal history - Vaginal infections or abnormal discharge: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    518.4,
+    435.09,
+    543.92,
+    457.61
+   ],
+   "type": "choice",
+   "label": "Personal history - Pain or bleeding with intercourse or outercourse: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    545.4,
+    435.09,
+    579.92,
+    457.61
+   ],
+   "type": "choice",
+   "label": "Personal history - Pain or bleeding with intercourse or outercourse: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    518.4,
+    459.09,
+    543.92,
+    469.85
+   ],
+   "type": "choice",
+   "label": "Personal history - Ovarian cysts or endometriosis: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    545.4,
+    459.09,
+    579.92,
+    469.85
+   ],
+   "type": "choice",
+   "label": "Personal history - Ovarian cysts or endometriosis: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    518.4,
+    471.33,
+    543.92,
+    496.25
+   ],
+   "type": "choice",
+   "label": "Personal history - Education about breast self-examination (BSE): Past"
+  },
+  {
+   "page": 1,
+   "rect": [
+    545.4,
+    471.33,
+    579.92,
+    496.25
+   ],
+   "type": "choice",
+   "label": "Personal history - Education about breast self-examination (BSE): Present"
+  },
+  {
+   "page": 1,
+   "rect": [
+    239.35,
+    522.21,
+    269.31,
+    544.73
+   ],
+   "type": "choice",
+   "label": "Personal history - Penile discharge or change in urination: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    270.79,
+    522.21,
+    305.31,
+    544.73
+   ],
+   "type": "choice",
+   "label": "Personal history - Penile discharge or change in urination: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    239.35,
+    546.21,
+    269.31,
+    568.73
+   ],
+   "type": "choice",
+   "label": "Personal history - Prostate problems: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    270.79,
+    546.21,
+    305.31,
+    568.73
+   ],
+   "type": "choice",
+   "label": "Personal history - Prostate problems: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    518.4,
+    522.21,
+    543.92,
+    544.73
+   ],
+   "type": "choice",
+   "label": "Personal history - Undescended testicles, testicular problems or cancer: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    545.4,
+    522.21,
+    579.92,
+    544.73
+   ],
+   "type": "choice",
+   "label": "Personal history - Undescended testicles, testicular problems or cancer: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    518.4,
+    546.21,
+    543.92,
+    568.73
+   ],
+   "type": "choice",
+   "label": "Personal history - Regularly examine testicles for swelling or lumps: Past"
+  },
+  {
+   "page": 1,
+   "rect": [
+    545.4,
+    546.21,
+    579.92,
+    568.73
+   ],
+   "type": "choice",
+   "label": "Personal history - Regularly examine testicles for swelling or lumps: Present"
+  },
+  {
+   "page": 1,
+   "rect": [
+    239.35,
+    582.33,
+    269.31,
+    593.09
+   ],
+   "type": "choice",
+   "label": "Personal history - Hormone Therapy: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    270.79,
+    582.33,
+    305.31,
+    593.09
+   ],
+   "type": "choice",
+   "label": "Personal history - Hormone Therapy: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    239.35,
+    594.57,
+    269.31,
+    605.48
+   ],
+   "type": "choice",
+   "label": "Personal history - Female to Male Procedures: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    270.79,
+    594.57,
+    305.31,
+    605.48
+   ],
+   "type": "choice",
+   "label": "Personal history - Female to Male Procedures: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    518.4,
+    582.33,
+    543.92,
+    593.09
+   ],
+   "type": "choice",
+   "label": "Personal history - Male to Female Procedures: Past",
+   "path": "past_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    545.4,
+    582.33,
+    579.92,
+    593.09
+   ],
+   "type": "choice",
+   "label": "Personal history - Male to Female Procedures: Present",
+   "path": "current_conditions",
+   "transforms": [
+    "contains"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    132.3,
+    621.12,
+    426.89,
+    646.04
+   ],
+   "type": "signature",
+   "label": "Patient Signature"
+  },
+  {
+   "page": 1,
+   "rect": [
+    458.3,
+    621.12,
+    579.92,
+    646.04
+   ],
+   "type": "text",
+   "label": "Date (patient signature)",
+   "path": "signed_on",
+   "transforms": [
+    "date_format"
+   ]
+  }
+ ],
+ "notes": "Ruled grid form; boxes are ruled-cell interiors inset 0.5pt (from the PDF's thin filled-rect rules) or, where a label shares its cell, the cell from just after the label to the cell edge. Y/N, Past/Present and Mom/Dad/Sibling marking cells are choice boxes (the cells themselves; there are no printed squares). Gender Identity / Sex assigned at birth checkboxes are drawn as images (no text layer for those option words); their rects are the measured box glyphs. '(circle)' groups (Frequently/Rarely/Never, migraine Rare/Occasional/Frequent, Anal/Oral/Vaginal, partner sex, HPV vaccine doses, STDs, birth-control methods, pap abnormal/normal) are one choice box per option word (word bbox). 'Other:' options also get a text box for the write-in. Local Address and pregnancy Complications are unruled 2-line cells: line 1 (after the label) carries the path, line 2 is pathless. Excluded: 'Provider Signature/comments' and its Date (staff only). Pathless by choice (the schema does not keep them): Cell Phone Carrier, emergency-contact Work Phone, quit attempts / want to quit, the 'Any questions or concerns' Y/N flags, migraine frequency, HPV vaccine doses, the BSE-education and testicular self-exam Past/Present boxes, the two personal-history 'Other' rows' Past/Present boxes and the right-column Other write-in; signature has no path."
+}

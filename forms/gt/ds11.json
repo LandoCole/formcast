@@ -1,0 +1,348 @@
+{
+ "form": "ds11",
+ "fields": [],
+ "widget_paths": {
+  "Selection": {
+   "path": "documents_requested",
+   "transforms": [
+    "equals"
+   ]
+  },
+  "Regular or Large Book": {
+   "path": "book_size",
+   "transforms": [
+    "equals"
+   ]
+  },
+  "Applicant Last Name": {
+   "path": "applicant.last_name"
+  },
+  "Applicant First Name": {
+   "path": "applicant.first_name"
+  },
+  "Applicant Middle Name": {
+   "path": "applicant.middle_name"
+  },
+  "Applicant DOB M": {
+   "path": "applicant.date_of_birth",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  "Applicant DOB D": {
+   "path": "applicant.date_of_birth",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  "Applicant DOB Y": {
+   "path": "applicant.date_of_birth",
+   "transforms": [
+    "date_part"
+   ]
+  },
+  "Gender": {
+   "path": "applicant.sex",
+   "transforms": [
+    "equals"
+   ]
+  },
+  "Applicant Place of Birth": {
+   "path": "applicant.place_of_birth.city",
+   "also_paths": [
+    "applicant.place_of_birth.state_or_country"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  "Applicant SSN 1": {
+   "path": "applicant.ssn",
+   "transforms": [
+    "slice"
+   ]
+  },
+  "Applicant SSN 2": {
+   "path": "applicant.ssn",
+   "transforms": [
+    "slice"
+   ]
+  },
+  "Applicant SSN 3": {
+   "path": "applicant.ssn",
+   "transforms": [
+    "slice"
+   ]
+  },
+  "Alien Number": {
+   "path": "applicant.uscis_a_number"
+  },
+  "Applicant Email": {
+   "path": "applicant.email"
+  },
+  "Applicant Address Street": {
+   "path": "applicant.mailing_address.line1"
+  },
+  "Address Line 2": {
+   "path": "applicant.mailing_address.line2"
+  },
+  "Applicant Address City": {
+   "path": "applicant.mailing_address.city"
+  },
+  "Applicant Address State": {
+   "path": "applicant.mailing_address.state"
+  },
+  "Applicant Address Zip Code": {
+   "path": "applicant.mailing_address.postal_code"
+  },
+  "Applicant Address Country": {
+   "path": "applicant.mailing_address.country"
+  },
+  "Applicant Phone 1": {
+   "path": "applicant.phone",
+   "transforms": [
+    "slice"
+   ]
+  },
+  "Applicant Phone 2": {
+   "path": "applicant.phone",
+   "transforms": [
+    "slice"
+   ]
+  },
+  "Applicant Phone 3": {
+   "path": "applicant.phone",
+   "transforms": [
+    "slice"
+   ]
+  },
+  "Name of Applicant 2": {
+   "path": "applicant.last_name",
+   "also_paths": [
+    "applicant.first_name",
+    "applicant.middle_name"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  "Applicant DOB 2": {
+   "path": "applicant.date_of_birth",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "Parent 1 FM Name": {
+   "path": "parents[].given_names"
+  },
+  "Parent 1 Last Name": {
+   "path": "parents[].surname_at_birth"
+  },
+  "Parent 1 DOB": {
+   "path": "parents[].date_of_birth",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "Parent 1 Place of Birth": {
+   "path": "parents[].place_of_birth"
+  },
+  "Parent 2 FM Name": {
+   "path": "parents[].given_names"
+  },
+  "Parent 2 Last Name": {
+   "path": "parents[].surname_at_birth"
+  },
+  "Parent 2 DOB": {
+   "path": "parents[].date_of_birth",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "Parent 2 Place of Birth": {
+   "path": "parents[].place_of_birth"
+  },
+  "Ever Married": {
+   "path": "marital_history.ever_married"
+  },
+  "Full Name of Current Spouse or Most Recent Spouse (Last, first, Middle)": {
+   "path": "marital_history.spouse.last_name",
+   "also_paths": [
+    "marital_history.spouse.first_name",
+    "marital_history.spouse.middle_name"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  "Current Spouse Date of Birth": {
+   "path": "marital_history.spouse.date_of_birth",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "Current Spouse Place of Birth": {
+   "path": "marital_history.spouse.place_of_birth"
+  },
+  "Spouse US Citizen": {
+   "path": "marital_history.spouse.us_citizen"
+  },
+  "Date of Marriage (mm/dd/yyyy)": {
+   "path": "marital_history.marriage_date",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "Divorced": {
+   "path": "marital_history.widowed_or_divorced"
+  },
+  "Widow/Divorce Date (mm/dd/yyyy)": {
+   "path": "marital_history.widowed_or_divorced_on",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "Applicant Additional Contact Phone Numbers": {
+   "path": "applicant.additional_phone.number"
+  },
+  "Additional #": {
+   "path": "applicant.additional_phone.type",
+   "transforms": [
+    "equals"
+   ]
+  },
+  "Occupation": {
+   "path": "applicant.occupation"
+  },
+  "Employer or School": {
+   "path": "applicant.employer_or_school"
+  },
+  "Height": {
+   "path": "applicant.height"
+  },
+  "Hair Color": {
+   "path": "applicant.hair_color"
+  },
+  "Eye Color": {
+   "path": "applicant.eye_color"
+  },
+  "Travel Departure Date": {
+   "path": "travel_plans.departure_date",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "Travel Return Date": {
+   "path": "travel_plans.return_date",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  "Countries to be visited": {
+   "path": "travel_plans.countries",
+   "transforms": [
+    "join"
+   ]
+  },
+  "Permanent Address Street": {
+   "path": "applicant.permanent_address.street"
+  },
+  "Permanent Address Apartment/Unit": {
+   "path": "applicant.permanent_address.unit"
+  },
+  "Permanent Address City": {
+   "path": "applicant.permanent_address.city"
+  },
+  "Permanent Address State": {
+   "path": "applicant.permanent_address.state"
+  },
+  "Permanent Address Zip Code": {
+   "path": "applicant.permanent_address.postal_code"
+  },
+  "Emergency Contact Name": {
+   "path": "emergency_contact.name"
+  },
+  "Emergency Contact Address": {
+   "path": "emergency_contact.address.street"
+  },
+  "Emergency Contact Apartment/Unit": {
+   "path": "emergency_contact.address.unit"
+  },
+  "Emergency Contact City": {
+   "path": "emergency_contact.address.city"
+  },
+  "Emergency Contact State": {
+   "path": "emergency_contact.address.state"
+  },
+  "Emergency Contact Zip Code": {
+   "path": "emergency_contact.address.postal_code"
+  },
+  "Emergency Contact Phone": {
+   "path": "emergency_contact.phone"
+  },
+  "Relationship to Applicant": {
+   "path": "emergency_contact.relationship"
+  },
+  "Ever Applied or Issued": {
+   "path": "previous_passport.ever_applied_or_issued"
+  },
+  "Your name as printed on your most recent U.S. passport book and/or passport card": {
+   "path": "previous_passport.book.name_as_printed"
+  },
+  "Book Status Submitting": {
+   "path": "previous_passport.book.status",
+   "transforms": [
+    "equals"
+   ]
+  },
+  "Book Status Stolen": {
+   "path": "previous_passport.book.status",
+   "transforms": [
+    "equals"
+   ]
+  },
+  "Book Status Lost": {
+   "path": "previous_passport.book.status",
+   "transforms": [
+    "equals"
+   ]
+  },
+  "Book Status Possession": {
+   "path": "previous_passport.book.status",
+   "transforms": [
+    "equals"
+   ]
+  },
+  "Name as printed on your most recent passport card": {
+   "path": "previous_passport.card.name_as_printed"
+  },
+  "Card Status Submitting": {
+   "path": "previous_passport.card.status",
+   "transforms": [
+    "equals"
+   ]
+  },
+  "Card Status Stolen": {
+   "path": "previous_passport.card.status",
+   "transforms": [
+    "equals"
+   ]
+  },
+  "Card Status Lost": {
+   "path": "previous_passport.card.status",
+   "transforms": [
+    "equals"
+   ]
+  },
+  "Card Status Possession": {
+   "path": "previous_passport.card.status",
+   "transforms": [
+    "equals"
+   ]
+  },
+  "Circumstances of lost/stolen book/card": {
+   "path": "previous_passport.loss_or_theft_explanation"
+  }
+ },
+ "notes": "Widgets are only on pages 4-5 (the two application pages); pages 0-3 are instructions (no blanks, no widgets). Visible blanks with NO widgets that the applicant (or acceptance agent) fills: on page 4, the 'Identifying Documents' blocks (document type boxes, name, issue/exp. dates, ID no, state/country of issuance; completed at the acceptance facility), the applicant's legal signature line and two parent/guardian signature lines, and the staff/agent signature, date, agent/facility ID boxes, courier name, the 'For Issuing Office Only' line and the D/O/S/NFR, End. # and Exp. boxes at top right; on page 5 the 'For issuing office only' block, and the 'Other' write-in next to Additional # Other. None of these are GT (fillable GT = widgets). Same-name kid groups: 'Selection' (Book/Card/Both), 'Regular or Large Book', 'Gender' (M/F) and 'Additional #' (Home/Work/Cell/Other) are enum options, so equals for all kids; 'Ever Married', 'Spouse US Citizen', 'Divorced' and 'Ever Applied or Issued' are Yes/No kids under one name mapped to a boolean, so they have a path and no transforms (the op differs per kid). Parents map to parents[] (two blocks, one row each); their Sex and U.S. Citizen boxes are checkboxes inside repeated blocks, so pathless. 'List all other names you have used' A/B are list items (pathless)."
+}

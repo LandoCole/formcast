@@ -1,0 +1,617 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://example.org/schemas/student-health-history.json",
+ "title": "Student health history",
+ "description": "New-patient health history for a campus student health center, as stored in the clinic's EHR intake module.",
+ "type": "object",
+ "properties": {
+  "student": {
+   "type": "object",
+   "properties": {
+    "first_name": {
+     "type": "string"
+    },
+    "last_name": {
+     "type": "string"
+    },
+    "preferred_name": {
+     "type": "string"
+    },
+    "pronouns": {
+     "type": "string"
+    },
+    "gender_identity": {
+     "type": "array",
+     "uniqueItems": true,
+     "items": {
+      "type": "string",
+      "enum": [
+       "man",
+       "woman",
+       "transgender",
+       "genderqueer"
+      ]
+     },
+     "description": "Every identity the student selected."
+    },
+    "sex_assigned_at_birth": {
+     "type": "string",
+     "enum": [
+      "male",
+      "female"
+     ]
+    },
+    "student_id": {
+     "type": "string",
+     "description": "Campus ID number."
+    },
+    "email": {
+     "type": "string",
+     "format": "email"
+    },
+    "cell_phone": {
+     "type": "string"
+    },
+    "local_address": {
+     "type": "string",
+     "description": "Local (campus-area) address, one line including city, state and ZIP."
+    },
+    "date_of_birth": {
+     "type": "string",
+     "format": "date"
+    }
+   },
+   "required": [
+    "first_name",
+    "last_name",
+    "student_id",
+    "date_of_birth"
+   ]
+  },
+  "allergies": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "properties": {
+     "allergen": {
+      "type": "string"
+     },
+     "reaction": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "allergen"
+    ]
+   }
+  },
+  "medications": {
+   "type": "array",
+   "description": "Current prescriptions, including birth control.",
+   "items": {
+    "type": "object",
+    "properties": {
+     "medication": {
+      "type": "string",
+      "description": "Name and dosage as written, e.g. 'sertraline 50 mg daily'."
+     },
+     "reason": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "otc_medications": {
+   "type": "array",
+   "description": "Herbal, vitamin and non-prescription products.",
+   "items": {
+    "type": "object",
+    "properties": {
+     "medication": {
+      "type": "string",
+      "description": "Name and dosage, if known."
+     }
+    }
+   }
+  },
+  "hospitalizations": {
+   "type": "array",
+   "description": "Hospital stays and surgeries.",
+   "items": {
+    "type": "object",
+    "properties": {
+     "year": {
+      "type": "integer"
+     },
+     "reason": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "emergency_contact": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string"
+    },
+    "relationship": {
+     "type": "string"
+    },
+    "home_phone": {
+     "type": "string"
+    },
+    "cell_phone": {
+     "type": "string"
+    }
+   }
+  },
+  "tobacco": {
+   "type": "object",
+   "properties": {
+    "smokes_cigarettes": {
+     "type": "boolean"
+    },
+    "uses_smokeless": {
+     "type": "boolean"
+    },
+    "per_day": {
+     "type": "integer",
+     "minimum": 0,
+     "description": "Cigarettes per day."
+    },
+    "years_smoked": {
+     "type": "integer",
+     "minimum": 0
+    }
+   }
+  },
+  "alcohol": {
+   "type": "object",
+   "properties": {
+    "drinks": {
+     "type": "boolean"
+    },
+    "felt_need_to_cut_down": {
+     "type": "boolean"
+    },
+    "drinks_per_week": {
+     "type": "integer",
+     "minimum": 0
+    }
+   }
+  },
+  "drugs": {
+   "type": "object",
+   "properties": {
+    "uses_street_drugs": {
+     "type": "boolean"
+    },
+    "types": {
+     "type": "string"
+    },
+    "frequency": {
+     "type": "string"
+    }
+   }
+  },
+  "exercise": {
+   "type": "object",
+   "properties": {
+    "exercises_regularly": {
+     "type": "boolean"
+    },
+    "details": {
+     "type": "string",
+     "description": "How often and what type."
+    }
+   }
+  },
+  "wears_seat_belt": {
+   "type": "boolean"
+  },
+  "mood": {
+   "type": "object",
+   "description": "PHQ-2 screen, past month.",
+   "properties": {
+    "depressed": {
+     "type": "string",
+     "enum": [
+      "frequently",
+      "rarely",
+      "never"
+     ]
+    },
+    "little_interest": {
+     "type": "string",
+     "enum": [
+      "frequently",
+      "rarely",
+      "never"
+     ]
+    }
+   }
+  },
+  "family_history": {
+   "type": "object",
+   "description": "For each condition, the close relatives who have or had it.",
+   "properties": {
+    "alcoholism": {
+     "$ref": "#/$defs/relatives"
+    },
+    "drug_abuse": {
+     "$ref": "#/$defs/relatives"
+    },
+    "blood_clotting_disorder": {
+     "$ref": "#/$defs/relatives"
+    },
+    "depression_psychiatric_illness": {
+     "$ref": "#/$defs/relatives"
+    },
+    "diabetes": {
+     "$ref": "#/$defs/relatives"
+    },
+    "stroke": {
+     "$ref": "#/$defs/relatives"
+    },
+    "heart_disease": {
+     "$ref": "#/$defs/relatives"
+    },
+    "thyroid_problems": {
+     "$ref": "#/$defs/relatives"
+    },
+    "high_blood_pressure": {
+     "$ref": "#/$defs/relatives"
+    },
+    "high_cholesterol": {
+     "$ref": "#/$defs/relatives"
+    },
+    "cancer": {
+     "$ref": "#/$defs/relatives"
+    },
+    "hereditary_disease": {
+     "$ref": "#/$defs/relatives"
+    },
+    "tuberculosis": {
+     "$ref": "#/$defs/relatives"
+    },
+    "sudden_death_before_50": {
+     "$ref": "#/$defs/relatives"
+    },
+    "other_serious_illness": {
+     "$ref": "#/$defs/relatives"
+    },
+    "cancer_types": {
+     "type": "string"
+    },
+    "hereditary_disease_types": {
+     "type": "string"
+    },
+    "other_serious_illness_types": {
+     "type": "string"
+    }
+   }
+  },
+  "past_conditions": {
+   "type": "array",
+   "uniqueItems": true,
+   "items": {
+    "type": "string",
+    "enum": [
+     "headaches_occasional",
+     "migraine",
+     "dizziness_or_fainting",
+     "loss_of_consciousness",
+     "head_injury_or_concussion",
+     "severe_chest_pain",
+     "heart_disease_or_murmur",
+     "rapid_or_irregular_pulse",
+     "blood_clots_or_vein_problems",
+     "chronic_cough",
+     "pneumonia",
+     "tuberculosis",
+     "urinary_or_kidney_problem",
+     "frequent_bladder_infection",
+     "diabetes",
+     "asthma",
+     "high_blood_pressure",
+     "arthritis",
+     "sickle_cell_disease",
+     "vision_or_eye_problems",
+     "glasses_or_contacts",
+     "allergies_or_hay_fever",
+     "ear_or_hearing_problems",
+     "frequent_sinusitis",
+     "dental_problems",
+     "severe_acne_or_skin_disorder",
+     "new_or_changing_moles",
+     "anemia",
+     "bleeding_disorder",
+     "enlarged_glands_or_lymph_nodes",
+     "shortness_of_breath",
+     "abdominal_pain",
+     "heartburn",
+     "ulcer",
+     "hepatitis",
+     "stomach_or_bowel_problems",
+     "gallbladder_disease",
+     "hernia",
+     "swollen_or_painful_joints",
+     "chronic_back_problems",
+     "seizures_or_epilepsy",
+     "thyroid_disease",
+     "elevated_cholesterol",
+     "obesity",
+     "anxiety",
+     "depression",
+     "bipolar",
+     "other_mental_health_concerns",
+     "add_or_learning_disability",
+     "cancer",
+     "eating_disorder",
+     "unusual_fatigue",
+     "weight_change_over_10_lb",
+     "breast_lumps_or_discharge",
+     "vaginal_infections_or_discharge",
+     "pain_or_bleeding_with_intercourse",
+     "ovarian_cysts_or_endometriosis",
+     "penile_discharge_or_urination_change",
+     "prostate_problems",
+     "testicular_problems",
+     "hormone_therapy",
+     "female_to_male_procedures",
+     "male_to_female_procedures"
+    ]
+   },
+   "description": "Conditions the student has had in the past."
+  },
+  "current_conditions": {
+   "type": "array",
+   "uniqueItems": true,
+   "items": {
+    "type": "string",
+    "enum": [
+     "headaches_occasional",
+     "migraine",
+     "dizziness_or_fainting",
+     "loss_of_consciousness",
+     "head_injury_or_concussion",
+     "severe_chest_pain",
+     "heart_disease_or_murmur",
+     "rapid_or_irregular_pulse",
+     "blood_clots_or_vein_problems",
+     "chronic_cough",
+     "pneumonia",
+     "tuberculosis",
+     "urinary_or_kidney_problem",
+     "frequent_bladder_infection",
+     "diabetes",
+     "asthma",
+     "high_blood_pressure",
+     "arthritis",
+     "sickle_cell_disease",
+     "vision_or_eye_problems",
+     "glasses_or_contacts",
+     "allergies_or_hay_fever",
+     "ear_or_hearing_problems",
+     "frequent_sinusitis",
+     "dental_problems",
+     "severe_acne_or_skin_disorder",
+     "new_or_changing_moles",
+     "anemia",
+     "bleeding_disorder",
+     "enlarged_glands_or_lymph_nodes",
+     "shortness_of_breath",
+     "abdominal_pain",
+     "heartburn",
+     "ulcer",
+     "hepatitis",
+     "stomach_or_bowel_problems",
+     "gallbladder_disease",
+     "hernia",
+     "swollen_or_painful_joints",
+     "chronic_back_problems",
+     "seizures_or_epilepsy",
+     "thyroid_disease",
+     "elevated_cholesterol",
+     "obesity",
+     "anxiety",
+     "depression",
+     "bipolar",
+     "other_mental_health_concerns",
+     "add_or_learning_disability",
+     "cancer",
+     "eating_disorder",
+     "unusual_fatigue",
+     "weight_change_over_10_lb",
+     "breast_lumps_or_discharge",
+     "vaginal_infections_or_discharge",
+     "pain_or_bleeding_with_intercourse",
+     "ovarian_cysts_or_endometriosis",
+     "penile_discharge_or_urination_change",
+     "prostate_problems",
+     "testicular_problems",
+     "hormone_therapy",
+     "female_to_male_procedures",
+     "male_to_female_procedures"
+    ]
+   },
+   "description": "Conditions the student has now."
+  },
+  "other_conditions": {
+   "type": "string",
+   "description": "Other conditions, free text."
+  },
+  "last_eye_exam_year": {
+   "type": "integer"
+  },
+  "last_dental_exam_year": {
+   "type": "integer"
+  },
+  "sexual_health": {
+   "type": "object",
+   "properties": {
+    "duration_sexually_active": {
+     "type": "string",
+     "description": "How long sexually active, as stated."
+    },
+    "activity_types": {
+     "type": "array",
+     "uniqueItems": true,
+     "items": {
+      "type": "string",
+      "enum": [
+       "anal",
+       "oral",
+       "vaginal"
+      ]
+     }
+    },
+    "last_encounter": {
+     "type": "string",
+     "format": "date"
+    },
+    "lifetime_partners": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "months_with_current_partner": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "partner_gender": {
+     "type": "string",
+     "enum": [
+      "male",
+      "female",
+      "both",
+      "intersex"
+     ]
+    },
+    "had_std": {
+     "type": "boolean"
+    },
+    "last_std_screen": {
+     "type": "string",
+     "format": "date"
+    },
+    "stds": {
+     "type": "array",
+     "uniqueItems": true,
+     "items": {
+      "type": "string",
+      "enum": [
+       "chlamydia",
+       "gonorrhea",
+       "hpv_genital_warts",
+       "genital_herpes",
+       "hiv",
+       "other"
+      ]
+     }
+    },
+    "std_other": {
+     "type": "string"
+    },
+    "birth_control_methods": {
+     "type": "array",
+     "uniqueItems": true,
+     "items": {
+      "type": "string",
+      "enum": [
+       "pill",
+       "ring",
+       "depo",
+       "plan_b",
+       "condom",
+       "none",
+       "other"
+      ]
+     }
+    },
+    "birth_control_other": {
+     "type": "string"
+    },
+    "aware_of_emergency_contraception": {
+     "type": "boolean"
+    }
+   }
+  },
+  "womens_health": {
+   "type": "object",
+   "properties": {
+    "monthly_periods": {
+     "type": "boolean"
+    },
+    "last_period": {
+     "type": "string",
+     "format": "date"
+    },
+    "last_pap": {
+     "type": "string",
+     "format": "date"
+    },
+    "pap_result": {
+     "type": "string",
+     "enum": [
+      "abnormal",
+      "normal"
+     ]
+    },
+    "pap_follow_up": {
+     "type": "string",
+     "description": "Procedures after an abnormal pap."
+    },
+    "ever_pregnant": {
+     "type": "boolean"
+    },
+    "last_pregnancy": {
+     "type": "string",
+     "format": "date"
+    },
+    "pregnancy_complications": {
+     "type": "string"
+    },
+    "live_births": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "miscarriages": {
+     "type": "integer",
+     "minimum": 0
+    },
+    "terminations": {
+     "type": "integer",
+     "minimum": 0
+    }
+   }
+  },
+  "signed_on": {
+   "type": "string",
+   "format": "date"
+  },
+  "intake_completed_at": {
+   "type": "string",
+   "description": "Set by the EHR when the form is entered.",
+   "format": "date-time"
+  }
+ },
+ "required": [
+  "student",
+  "signed_on"
+ ],
+ "$defs": {
+  "relatives": {
+   "type": "array",
+   "uniqueItems": true,
+   "items": {
+    "type": "string",
+    "enum": [
+     "mother",
+     "father",
+     "sibling"
+    ]
+   }
+  }
+ }
+}

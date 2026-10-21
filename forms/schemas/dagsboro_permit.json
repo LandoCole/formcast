@@ -1,0 +1,278 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://example.org/schemas/residential-building-permit.json",
+ "title": "Residential building permit application",
+ "description": "A homeowner's or builder's application for a residential building permit, as kept by the permitting office's intake system.",
+ "type": "object",
+ "properties": {
+  "application_id": {
+   "type": "string",
+   "description": "Intake system reference number."
+  },
+  "submitted_on": {
+   "type": "string",
+   "format": "date"
+  },
+  "owner": {
+   "type": "object",
+   "description": "Property owner.",
+   "properties": {
+    "name": {
+     "type": "string"
+    },
+    "mailing_address": {
+     "type": "string",
+     "description": "Single-line mailing address."
+    },
+    "physical_address": {
+     "type": "string",
+     "description": "Owner's residence, if different from mailing address."
+    },
+    "phone": {
+     "type": "string"
+    },
+    "email": {
+     "type": "string",
+     "format": "email"
+    }
+   },
+   "required": [
+    "name"
+   ]
+  },
+  "site": {
+   "type": "object",
+   "description": "The building site.",
+   "properties": {
+    "address": {
+     "type": "string"
+    },
+    "subdivision": {
+     "type": "string"
+    },
+    "lot_number": {
+     "type": "string"
+    },
+    "tax_map_parcel": {
+     "type": "string",
+     "description": "County tax map parcel number."
+    },
+    "zoning_district": {
+     "type": "string"
+    },
+    "lot_width_ft": {
+     "type": "number"
+    },
+    "lot_depth_ft": {
+     "type": "number"
+    },
+    "lot_area_sqft": {
+     "type": "number"
+    }
+   },
+   "required": [
+    "address"
+   ]
+  },
+  "contractor": {
+   "type": "object",
+   "description": "Builder or general contractor; omit when the owner is acting as contractor.",
+   "properties": {
+    "name": {
+     "type": "string"
+    },
+    "mailing_address": {
+     "type": "string"
+    },
+    "phone": {
+     "type": "string"
+    },
+    "town_business_license": {
+     "type": "string",
+     "description": "Town business license number."
+    },
+    "state_business_license": {
+     "type": "string",
+     "description": "State business license number."
+    }
+   }
+  },
+  "improvement_types": {
+   "type": "array",
+   "description": "Kinds of work covered by the permit.",
+   "uniqueItems": true,
+   "items": {
+    "type": "string",
+    "enum": [
+     "new_building",
+     "addition",
+     "alteration",
+     "repair",
+     "replacement",
+     "demolition",
+     "moving",
+     "garage_carport",
+     "shed",
+     "deck",
+     "pool",
+     "fence",
+     "other"
+    ]
+   }
+  },
+  "project_description": {
+   "type": "string",
+   "description": "What will be built or changed."
+  },
+  "trade_work": {
+   "type": "object",
+   "description": "Work on building systems.",
+   "properties": {
+    "electrical": {
+     "type": "array",
+     "items": {
+      "type": "string",
+      "enum": [
+       "install",
+       "alter",
+       "repair",
+       "remove",
+       "convert",
+       "replace"
+      ]
+     },
+     "uniqueItems": true
+    },
+    "gas": {
+     "type": "array",
+     "items": {
+      "type": "string",
+      "enum": [
+       "install",
+       "alter",
+       "repair",
+       "remove",
+       "convert",
+       "replace"
+      ]
+     },
+     "uniqueItems": true
+    },
+    "mechanical": {
+     "type": "array",
+     "items": {
+      "type": "string",
+      "enum": [
+       "install",
+       "alter",
+       "repair",
+       "remove",
+       "convert",
+       "replace"
+      ]
+     },
+     "uniqueItems": true
+    },
+    "plumbing": {
+     "type": "array",
+     "items": {
+      "type": "string",
+      "enum": [
+       "install",
+       "alter",
+       "repair",
+       "remove",
+       "convert",
+       "replace"
+      ]
+     },
+     "uniqueItems": true
+    },
+    "description": {
+     "type": "string"
+    }
+   }
+  },
+  "setbacks": {
+   "type": "object",
+   "description": "New building setbacks from the lot lines, in feet.",
+   "properties": {
+    "front_ft": {
+     "type": "number"
+    },
+    "back_ft": {
+     "type": "number"
+    },
+    "right_ft": {
+     "type": "number"
+    },
+    "left_ft": {
+     "type": "number"
+    }
+   }
+  },
+  "frame_type": {
+   "type": "string",
+   "description": "Principal type of frame.",
+   "enum": [
+    "masonry",
+    "wood",
+    "structural_steel",
+    "reinforced_concrete",
+    "other"
+   ]
+  },
+  "frame_type_other": {
+   "type": "string",
+   "description": "Frame type when 'other'."
+  },
+  "stories": {
+   "type": "integer"
+  },
+  "bedrooms": {
+   "type": "integer"
+  },
+  "bathrooms": {
+   "type": "number",
+   "description": "Half baths count as 0.5."
+  },
+  "new_construction": {
+   "type": "object",
+   "description": "New residential construction only.",
+   "properties": {
+    "total_square_footage": {
+     "type": "number"
+    },
+    "total_project_cost": {
+     "type": "number",
+     "description": "In dollars."
+    }
+   }
+  },
+  "total_cost_of_improvements": {
+   "type": "number",
+   "description": "All other permits: cost of the work, in dollars."
+  },
+  "water_meter_size": {
+   "type": "string",
+   "description": "e.g. 5/8\"."
+  },
+  "fire_suppression_meter_size": {
+   "type": "string"
+  },
+  "estimated_start_date": {
+   "type": "string",
+   "format": "date"
+  },
+  "applicant_signed_on": {
+   "type": "string",
+   "format": "date"
+  }
+ },
+ "required": [
+  "owner",
+  "site",
+  "improvement_types",
+  "applicant_signed_on"
+ ]
+}

@@ -1,0 +1,1080 @@
+{
+ "form": "pacific_app",
+ "fields": [
+  {
+   "page": 0,
+   "rect": [
+    335.8,
+    212.6,
+    486.0,
+    226.6
+   ],
+   "type": "text",
+   "label": "Date",
+   "path": "application_date",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    90.0,
+    264.9,
+    226.5,
+    278.9
+   ],
+   "type": "text",
+   "label": "Name: Last",
+   "path": "applicant.last_name"
+  },
+  {
+   "page": 0,
+   "rect": [
+    226.5,
+    264.9,
+    386.5,
+    278.9
+   ],
+   "type": "text",
+   "label": "Name: First",
+   "path": "applicant.first_name"
+  },
+  {
+   "page": 0,
+   "rect": [
+    386.5,
+    264.9,
+    486.0,
+    278.9
+   ],
+   "type": "text",
+   "label": "Name: Middle",
+   "path": "applicant.middle_name"
+  },
+  {
+   "page": 0,
+   "rect": [
+    90.0,
+    303.8,
+    486.0,
+    317.8
+   ],
+   "type": "text",
+   "label": "Present Address",
+   "path": "applicant.present_address"
+  },
+  {
+   "page": 0,
+   "rect": [
+    90.0,
+    342.7,
+    486.0,
+    356.7
+   ],
+   "type": "text",
+   "label": "Permanent Address (if different than above)",
+   "path": "applicant.permanent_address"
+  },
+  {
+   "page": 0,
+   "rect": [
+    90.0,
+    381.6,
+    234.0,
+    395.6
+   ],
+   "type": "text",
+   "label": "Social Security Number",
+   "path": "applicant.ssn"
+  },
+  {
+   "page": 0,
+   "rect": [
+    306.0,
+    381.6,
+    486.0,
+    395.6
+   ],
+   "type": "text",
+   "label": "Telephone",
+   "path": "applicant.phone"
+  },
+  {
+   "page": 0,
+   "rect": [
+    203.5,
+    514.3,
+    486.0,
+    528.3
+   ],
+   "type": "text",
+   "label": "Position Applied For",
+   "path": "position_applied_for"
+  },
+  {
+   "page": 0,
+   "rect": [
+    90.0,
+    579.3,
+    486.0,
+    593.3
+   ],
+   "type": "text",
+   "label": "1. Information about your name or use of another name - Please specify"
+  },
+  {
+   "page": 0,
+   "rect": [
+    90.0,
+    644.1,
+    486.0,
+    658.1
+   ],
+   "type": "text",
+   "label": "2. Relatives presently or formerly employed by this company",
+   "path": "relatives_employed"
+  },
+  {
+   "page": 0,
+   "rect": [
+    249.1,
+    670.0,
+    486.0,
+    684.0
+   ],
+   "type": "text",
+   "label": "3. How were you referred to us?",
+   "path": "referral_source"
+  },
+  {
+   "page": 0,
+   "rect": [
+    342.0,
+    695.84,
+    360.61,
+    709.84
+   ],
+   "type": "choice",
+   "label": "4. Convicted of a felony? Yes",
+   "path": "felony_conviction",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 0,
+   "rect": [
+    414.0,
+    695.84,
+    432.62,
+    709.84
+   ],
+   "type": "choice",
+   "label": "4. Convicted of a felony? No",
+   "path": "felony_conviction",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    90.0,
+    54.9,
+    486.0,
+    68.9
+   ],
+   "type": "text",
+   "label": "4. If yes, please explain",
+   "path": "felony_explanation"
+  },
+  {
+   "page": 1,
+   "rect": [
+    162.7,
+    172.0,
+    486.0,
+    186.0
+   ],
+   "type": "text",
+   "label": "Educational History: Elem/Jr. High"
+  },
+  {
+   "page": 1,
+   "rect": [
+    156.2,
+    198.0,
+    486.0,
+    212.0
+   ],
+   "type": "text",
+   "label": "Educational History: High School",
+   "path": "education.high_school.school_name",
+   "also_paths": [
+    "education.high_school.location",
+    "education.high_school.years_completed",
+    "education.high_school.credential"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    133.9,
+    223.9,
+    486.0,
+    237.9
+   ],
+   "type": "text",
+   "label": "Educational History: College",
+   "path": "education.college.school_name",
+   "also_paths": [
+    "education.college.location",
+    "education.college.years_completed",
+    "education.college.credential"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    167.3,
+    249.8,
+    486.0,
+    263.8
+   ],
+   "type": "text",
+   "label": "Educational History: Tech. Training",
+   "path": "education.technical_training.school_name",
+   "also_paths": [
+    "education.technical_training.location",
+    "education.technical_training.years_completed",
+    "education.technical_training.credential"
+   ],
+   "transforms": [
+    "join"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    124.1,
+    275.7,
+    486.0,
+    289.7
+   ],
+   "type": "text",
+   "label": "Educational History: Other"
+  },
+  {
+   "page": 1,
+   "rect": [
+    108.0,
+    328.0,
+    306.0,
+    342.0
+   ],
+   "type": "text",
+   "label": "Employer 1: Company Name",
+   "path": "employment_history[].employer"
+  },
+  {
+   "page": 1,
+   "rect": [
+    358.3,
+    328.0,
+    486.0,
+    342.0
+   ],
+   "type": "text",
+   "label": "Employer 1: Position Held",
+   "path": "employment_history[].position"
+  },
+  {
+   "page": 1,
+   "rect": [
+    108.0,
+    366.9,
+    306.0,
+    380.9
+   ],
+   "type": "text",
+   "label": "Employer 1: Address",
+   "path": "employment_history[].address"
+  },
+  {
+   "page": 1,
+   "rect": [
+    411.8,
+    366.9,
+    453.3,
+    380.9
+   ],
+   "type": "text",
+   "label": "Employer 1: Dates Employed From",
+   "path": "employment_history[].start_date",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    453.3,
+    366.9,
+    486.0,
+    380.9
+   ],
+   "type": "text",
+   "label": "Employer 1: Dates Employed To",
+   "path": "employment_history[].end_date",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    108.0,
+    405.8,
+    306.0,
+    419.8
+   ],
+   "type": "text",
+   "label": "Employer 1: Manager / Supervisor",
+   "path": "employment_history[].supervisor"
+  },
+  {
+   "page": 1,
+   "rect": [
+    324.0,
+    405.8,
+    402.1,
+    419.8
+   ],
+   "type": "text",
+   "label": "Employer 1: Telephone",
+   "path": "employment_history[].phone"
+  },
+  {
+   "page": 1,
+   "rect": [
+    402.1,
+    405.8,
+    486.0,
+    419.8
+   ],
+   "type": "text",
+   "label": "Employer 1: Wage/Salary",
+   "path": "employment_history[].wage"
+  },
+  {
+   "page": 1,
+   "rect": [
+    108.0,
+    444.7,
+    486.0,
+    458.7
+   ],
+   "type": "text",
+   "label": "Employer 1: Reason For Leaving",
+   "path": "employment_history[].reason_for_leaving"
+  },
+  {
+   "page": 1,
+   "rect": [
+    108.0,
+    496.5,
+    306.0,
+    510.5
+   ],
+   "type": "text",
+   "label": "Employer 2: Company Name",
+   "path": "employment_history[].employer"
+  },
+  {
+   "page": 1,
+   "rect": [
+    358.3,
+    496.5,
+    486.0,
+    510.5
+   ],
+   "type": "text",
+   "label": "Employer 2: Position Held",
+   "path": "employment_history[].position"
+  },
+  {
+   "page": 1,
+   "rect": [
+    108.0,
+    535.4,
+    306.0,
+    549.4
+   ],
+   "type": "text",
+   "label": "Employer 2: Address",
+   "path": "employment_history[].address"
+  },
+  {
+   "page": 1,
+   "rect": [
+    411.8,
+    535.4,
+    453.3,
+    549.4
+   ],
+   "type": "text",
+   "label": "Employer 2: Dates Employed From",
+   "path": "employment_history[].start_date",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    453.3,
+    535.4,
+    486.0,
+    549.4
+   ],
+   "type": "text",
+   "label": "Employer 2: Dates Employed To",
+   "path": "employment_history[].end_date",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    108.0,
+    574.3,
+    306.0,
+    588.3
+   ],
+   "type": "text",
+   "label": "Employer 2: Manager / Supervisor",
+   "path": "employment_history[].supervisor"
+  },
+  {
+   "page": 1,
+   "rect": [
+    324.0,
+    574.3,
+    402.1,
+    588.3
+   ],
+   "type": "text",
+   "label": "Employer 2: Telephone",
+   "path": "employment_history[].phone"
+  },
+  {
+   "page": 1,
+   "rect": [
+    402.1,
+    574.3,
+    486.0,
+    588.3
+   ],
+   "type": "text",
+   "label": "Employer 2: Wage/Salary",
+   "path": "employment_history[].wage"
+  },
+  {
+   "page": 1,
+   "rect": [
+    108.0,
+    613.2,
+    486.0,
+    627.2
+   ],
+   "type": "text",
+   "label": "Employer 2: Reason For Leaving",
+   "path": "employment_history[].reason_for_leaving"
+  },
+  {
+   "page": 1,
+   "rect": [
+    108.0,
+    665.0,
+    306.0,
+    679.0
+   ],
+   "type": "text",
+   "label": "Employer 3: Company Name",
+   "path": "employment_history[].employer"
+  },
+  {
+   "page": 1,
+   "rect": [
+    358.3,
+    665.0,
+    486.0,
+    679.0
+   ],
+   "type": "text",
+   "label": "Employer 3: Position Held",
+   "path": "employment_history[].position"
+  },
+  {
+   "page": 1,
+   "rect": [
+    108.0,
+    703.9,
+    306.0,
+    717.9
+   ],
+   "type": "text",
+   "label": "Employer 3: Address",
+   "path": "employment_history[].address"
+  },
+  {
+   "page": 1,
+   "rect": [
+    411.8,
+    703.9,
+    453.3,
+    717.9
+   ],
+   "type": "text",
+   "label": "Employer 3: Dates Employed From",
+   "path": "employment_history[].start_date",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  {
+   "page": 1,
+   "rect": [
+    453.3,
+    703.9,
+    486.0,
+    717.9
+   ],
+   "type": "text",
+   "label": "Employer 3: Dates Employed To",
+   "path": "employment_history[].end_date",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  {
+   "page": 2,
+   "rect": [
+    108.0,
+    67.9,
+    306.0,
+    81.9
+   ],
+   "type": "text",
+   "label": "Employer 3: Manager / Supervisor",
+   "path": "employment_history[].supervisor"
+  },
+  {
+   "page": 2,
+   "rect": [
+    324.0,
+    67.9,
+    402.1,
+    81.9
+   ],
+   "type": "text",
+   "label": "Employer 3: Telephone",
+   "path": "employment_history[].phone"
+  },
+  {
+   "page": 2,
+   "rect": [
+    402.1,
+    67.9,
+    486.0,
+    81.9
+   ],
+   "type": "text",
+   "label": "Employer 3: Wage/Salary",
+   "path": "employment_history[].wage"
+  },
+  {
+   "page": 2,
+   "rect": [
+    108.0,
+    106.8,
+    486.0,
+    120.8
+   ],
+   "type": "text",
+   "label": "Employer 3: Reason For Leaving",
+   "path": "employment_history[].reason_for_leaving"
+  },
+  {
+   "page": 2,
+   "rect": [
+    90.0,
+    212.1,
+    283.0,
+    226.1
+   ],
+   "type": "text",
+   "label": "Do not contact 1: Employer's Name",
+   "path": "do_not_contact[].employer"
+  },
+  {
+   "page": 2,
+   "rect": [
+    306.0,
+    212.1,
+    490.1,
+    226.1
+   ],
+   "type": "text",
+   "label": "Do not contact 1: Reason",
+   "path": "do_not_contact[].reason"
+  },
+  {
+   "page": 2,
+   "rect": [
+    90.0,
+    251.0,
+    283.0,
+    265.0
+   ],
+   "type": "text",
+   "label": "Do not contact 2: Employer's Name",
+   "path": "do_not_contact[].employer"
+  },
+  {
+   "page": 2,
+   "rect": [
+    306.0,
+    251.0,
+    490.1,
+    265.0
+   ],
+   "type": "text",
+   "label": "Do not contact 2: Reason",
+   "path": "do_not_contact[].reason"
+  },
+  {
+   "page": 2,
+   "rect": [
+    108.0,
+    329.2,
+    324.0,
+    343.2
+   ],
+   "type": "text",
+   "label": "Reference 1: Name",
+   "path": "references[].name"
+  },
+  {
+   "page": 2,
+   "rect": [
+    342.0,
+    329.2,
+    450.0,
+    343.2
+   ],
+   "type": "text",
+   "label": "Reference 1: Years Known"
+  },
+  {
+   "page": 2,
+   "rect": [
+    108.0,
+    368.1,
+    324.0,
+    382.1
+   ],
+   "type": "text",
+   "label": "Reference 1: Address",
+   "path": "references[].address"
+  },
+  {
+   "page": 2,
+   "rect": [
+    342.0,
+    368.1,
+    450.0,
+    382.1
+   ],
+   "type": "text",
+   "label": "Reference 1: Telephone",
+   "path": "references[].phone"
+  },
+  {
+   "page": 2,
+   "rect": [
+    108.0,
+    407.0,
+    324.0,
+    421.0
+   ],
+   "type": "text",
+   "label": "Reference 1: Occupation",
+   "path": "references[].occupation"
+  },
+  {
+   "page": 2,
+   "rect": [
+    108.0,
+    445.9,
+    324.0,
+    459.9
+   ],
+   "type": "text",
+   "label": "Reference 2: Name",
+   "path": "references[].name"
+  },
+  {
+   "page": 2,
+   "rect": [
+    342.0,
+    445.9,
+    450.0,
+    459.9
+   ],
+   "type": "text",
+   "label": "Reference 2: Years Known"
+  },
+  {
+   "page": 2,
+   "rect": [
+    108.0,
+    484.8,
+    324.0,
+    498.8
+   ],
+   "type": "text",
+   "label": "Reference 2: Address",
+   "path": "references[].address"
+  },
+  {
+   "page": 2,
+   "rect": [
+    342.0,
+    484.8,
+    450.0,
+    498.8
+   ],
+   "type": "text",
+   "label": "Reference 2: Telephone",
+   "path": "references[].phone"
+  },
+  {
+   "page": 2,
+   "rect": [
+    108.0,
+    523.6,
+    324.0,
+    537.6
+   ],
+   "type": "text",
+   "label": "Reference 2: Occupation",
+   "path": "references[].occupation"
+  },
+  {
+   "page": 2,
+   "rect": [
+    108.0,
+    562.5,
+    324.0,
+    576.5
+   ],
+   "type": "text",
+   "label": "Reference 3: Name",
+   "path": "references[].name"
+  },
+  {
+   "page": 2,
+   "rect": [
+    342.0,
+    562.5,
+    450.0,
+    576.5
+   ],
+   "type": "text",
+   "label": "Reference 3: Years Known"
+  },
+  {
+   "page": 2,
+   "rect": [
+    108.0,
+    601.4,
+    324.0,
+    615.4
+   ],
+   "type": "text",
+   "label": "Reference 3: Address",
+   "path": "references[].address"
+  },
+  {
+   "page": 2,
+   "rect": [
+    342.0,
+    601.4,
+    450.0,
+    615.4
+   ],
+   "type": "text",
+   "label": "Reference 3: Telephone",
+   "path": "references[].phone"
+  },
+  {
+   "page": 2,
+   "rect": [
+    108.0,
+    640.3,
+    324.0,
+    654.3
+   ],
+   "type": "text",
+   "label": "Reference 3: Occupation",
+   "path": "references[].occupation"
+  },
+  {
+   "page": 3,
+   "rect": [
+    108.0,
+    72.0,
+    216.0,
+    86.0
+   ],
+   "type": "text",
+   "label": "Work Availability 1: When available to begin work",
+   "path": "availability.start_date",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  {
+   "page": 3,
+   "rect": [
+    360.01,
+    90.82,
+    376.65,
+    103.39
+   ],
+   "type": "choice",
+   "label": "Work Availability 2. Objection to working overtime? Yes",
+   "path": "availability.objects_to_overtime",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 3,
+   "rect": [
+    414.0,
+    90.82,
+    430.65,
+    103.39
+   ],
+   "type": "choice",
+   "label": "Work Availability 2. Objection to working overtime? No",
+   "path": "availability.objects_to_overtime",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 3,
+   "rect": [
+    378.0,
+    103.78,
+    394.65,
+    116.35
+   ],
+   "type": "choice",
+   "label": "Work Availability 3. Can work overtime without prior notice? Yes",
+   "path": "availability.overtime_without_notice",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 3,
+   "rect": [
+    450.0,
+    103.78,
+    466.65,
+    116.35
+   ],
+   "type": "choice",
+   "label": "Work Availability 3. Can work overtime without prior notice? No",
+   "path": "availability.overtime_without_notice",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 3,
+   "rect": [
+    360.01,
+    116.74,
+    376.65,
+    129.31
+   ],
+   "type": "choice",
+   "label": "Work Availability 4. Can work on Saturday? Yes",
+   "path": "availability.saturdays",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 3,
+   "rect": [
+    414.0,
+    116.74,
+    430.65,
+    129.31
+   ],
+   "type": "choice",
+   "label": "Work Availability 4. Can work on Saturday? No",
+   "path": "availability.saturdays",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 3,
+   "rect": [
+    360.01,
+    129.7,
+    376.65,
+    142.27
+   ],
+   "type": "choice",
+   "label": "Work Availability 5. Can work on Sunday? Yes",
+   "path": "availability.sundays",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 3,
+   "rect": [
+    414.0,
+    129.7,
+    430.65,
+    142.27
+   ],
+   "type": "choice",
+   "label": "Work Availability 5. Can work on Sunday? No",
+   "path": "availability.sundays",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 3,
+   "rect": [
+    360.01,
+    142.66,
+    376.65,
+    155.23
+   ],
+   "type": "choice",
+   "label": "Work Availability 6. Can travel if required? Yes",
+   "path": "availability.can_travel",
+   "transforms": [
+    "bool_to_check"
+   ]
+  },
+  {
+   "page": 3,
+   "rect": [
+    414.0,
+    142.66,
+    430.65,
+    155.23
+   ],
+   "type": "choice",
+   "label": "Work Availability 6. Can travel if required? No",
+   "path": "availability.can_travel",
+   "transforms": [
+    "equals"
+   ]
+  },
+  {
+   "page": 3,
+   "rect": [
+    108.0,
+    245.0,
+    162.0,
+    259.0
+   ],
+   "type": "text",
+   "label": "Salary/Hourly Rate required: $ amount",
+   "path": "desired_pay.amount"
+  },
+  {
+   "page": 3,
+   "rect": [
+    198.0,
+    245.0,
+    256.1,
+    259.0
+   ],
+   "type": "text",
+   "label": "Salary/Hourly Rate required: per",
+   "path": "desired_pay.period"
+  },
+  {
+   "page": 3,
+   "rect": [
+    90.0,
+    492.62,
+    339.4,
+    506.62
+   ],
+   "type": "signature",
+   "label": "Applicant Signature"
+  },
+  {
+   "page": 3,
+   "rect": [
+    378.0,
+    492.62,
+    521.37,
+    506.62
+   ],
+   "type": "text",
+   "label": "Date (applicant signature)",
+   "path": "signed_on",
+   "transforms": [
+    "date_format"
+   ]
+  },
+  {
+   "page": 3,
+   "rect": [
+    157.44,
+    557.42,
+    338.23,
+    571.42
+   ],
+   "type": "text",
+   "label": "Received by"
+  },
+  {
+   "page": 3,
+   "rect": [
+    402.49,
+    557.42,
+    514.66,
+    571.42
+   ],
+   "type": "text",
+   "label": "Date (received)"
+  }
+ ],
+ "notes": "Underline blanks from the PDF's thin filled-rect rules (rect y1 = rule top + 1, 14pt tall) and from underscore runs in the text layer. Name line split at its Last/First/Middle sub-labels; 'Dates Employed' split at From/To; the Telephone/Wage-Salary line split at its two sub-labels. Felony '___ Yes / ___ No' are underline-checkboxes (choice); availability '( ) Yes ( ) No' choice rects are the parenthesis pair. The felony 'If yes, please explain' line is at the top of page 1. Employer 3's block spans pages 1-2. Each education line asks for School Name/Location / Years Completed / Degree in one blank (join over 4 schema paths). 'Received by' and its Date (page 3) are not marked office-use, so they are GT boxes, but pathless. Pathless by choice (schema does not keep them): Elem/Jr. High and Other education lines, the 'use of another name' line, reference Years Known; signature has no path. No exclusions."
+}
