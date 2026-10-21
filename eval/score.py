@@ -43,7 +43,7 @@ import pymupdf  # noqa: E402
 
 from formcast.geometry import Rect, contained_fraction, horizontal_overlap, intersect, iou  # noqa: E402
 from formcast.pagemap.extract import open_pdf  # noqa: E402
-from formcast.template.model import Template  # noqa: E402
+from formcast.template.model import Template, linked_cells, table_cells  # noqa: E402
 
 GT_DIR = ROOT / "forms" / "gt"
 TYPES = ("text", "choice", "signature")
@@ -368,25 +368,24 @@ def _column_path(table_path: str, key: str) -> str:
 
 
 def _template_items(template: Template) -> list[_Item]:
+    """Plain fields and table cells (``table_cells``); a field linked as a cell counts once, as the cell."""
     items: list[_Item] = []
+    linked = linked_cells(template)
     for f in template.fields:
         if f.type == "table":
             table_path = f.source.paths[0] if f.source and f.source.paths else ""
-            for seg in f.segments:
-                for col in seg.columns:
-                    for row in range(seg.max_rows):
-                        top = seg.row_top + row * seg.row_height
-                        items.append(
-                            _Item(
-                                "text",
-                                seg.page,
-                                (col.x[0], top, col.x[1], top + seg.row_height),
-                                [_column_path(table_path, col.key)] if table_path else [],
-                                [t.op for t in col.transforms],
-                                is_cell=True,
-                            )
-                        )
-        else:
+            for cell in table_cells(template, f):
+                items.append(
+                    _Item(
+                        _DETECTION_TYPE[cell.field.type] if cell.field is not None else "text",
+                        cell.page,
+                        cell.rect,
+                        [_column_path(table_path, cell.column.key)] if table_path else [],
+                        [t.op for t in cell.column.transforms],
+                        is_cell=True,
+                    )
+                )
+        elif f.id not in linked:
             items.append(
                 _Item(
                     _DETECTION_TYPE[f.type],
@@ -455,8 +454,9 @@ def template_boxes(template: Template) -> list[Box]:
     """The template's fields as detection boxes (type, page, rect).
 
     text -> "text"; checkbox, radio_option, choice_mark -> "choice"; signature ->
-    "signature". A table contributes one "text" box per cell: each segment's
-    ``max_rows`` rows (from ``row_top``, ``row_height`` tall) by each column's x range.
+    "signature". A table contributes one box per cell (``table_cells``): each segment's
+    ``max_rows`` rows (from ``row_top``, ``row_height`` tall) by each column's x range, "text";
+    a cell linked to a field (``Column.fields``) is that field's box and type instead.
     """
     return [(i.type, i.page, i.rect) for i in _template_items(template)]
 

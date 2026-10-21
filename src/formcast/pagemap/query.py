@@ -606,6 +606,9 @@ class FormMapQuery:
         boxes so one stray detection does not shift them; ``regular`` (false
         when some gap between rows is not a whole multiple of the pitch);
         ``cells``, one ``{row, col, id}`` per box (id None for a bare rect);
+        ``column_fields``, per column the box id in each of the ``max_rows`` rows
+        (None where the row has none; the first box when a row has two), ready
+        to pass as a table column's ``fields`` so each cell keeps its box;
         and ``spanning``, one ``{row, id, rect}`` per box over several columns.
         """
         boxes = [self._resolve(ref, page) for ref in refs]
@@ -682,6 +685,11 @@ class FormMapQuery:
             pitch = med(pairs)
             row_top = med(boxes[i][1][1] - row_of[i] * pitch for i in range(len(boxes)))
         bottom = max(row_top + pitch * max_rows, bands[-1][1])
+        column_fields: list[list[str | None]] = [[None] * max_rows for _ in columns]
+        for i in sorted(col_of, key=lambda i: (row_of[i], boxes[i][1][0])):
+            row, col = row_of[i], col_of[i]
+            if column_fields[col][row] is None:
+                column_fields[col][row] = boxes[i][2]
         x0 = min([c[0] for c in columns] + [boxes[i][1][0] for i in wide])
         x1 = max([c[1] for c in columns] + [boxes[i][1][2] for i in wide])
         return {
@@ -698,6 +706,7 @@ class FormMapQuery:
                 {"row": row_of[i], "col": col_of[i], "id": boxes[i][2]}
                 for i in sorted(col_of, key=lambda i: (row_of[i], col_of[i]))
             ],
+            "column_fields": column_fields,
             "spanning": [
                 {"row": row_of[i], "id": boxes[i][2], "rect": _round(boxes[i][1])}
                 for i in sorted(wide, key=lambda i: (row_of[i], boxes[i][1][0]))

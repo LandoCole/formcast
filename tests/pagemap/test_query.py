@@ -231,3 +231,11 @@ def test_grid_reports_a_box_over_two_columns_instead_of_merging_them():
     assert g["columns"] == [pytest.approx([100.0, 195.0], abs=0.5), pytest.approx([205.0, 300.0], abs=0.5)]
     assert g["spanning"] == [{"row": 3, "id": "c0_6", "rect": [100.0, 160.0, 300.0, 176.0]}]
     assert len(g["cells"]) == 6 and g["max_rows"] == 4
+
+
+def test_grid_column_fields_list_each_columns_box_ids_by_row():
+    cols = [(50.0, 200.0), (205.0, 300.0)]
+    cells = [c for c in _cells(cols, top=100.0, pitch=20.0, height=16.0, rows=3) if c[1] < 120 or c[0] < 204]
+    g = _grid_map(cells).grid([f"c0_{i}" for i in range(len(cells))])  # row 1 and 2 lack the 2nd column
+    assert g["column_fields"] == [["c0_0", "c0_2", "c0_3"], ["c0_1", None, None]]
+    _serializes(g)

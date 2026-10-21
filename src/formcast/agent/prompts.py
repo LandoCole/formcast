@@ -78,9 +78,13 @@ signature, choice_mark (a mark drawn on or next to printed option text) and tabl
    detector candidate (id `c<page>_<n>`): each field has the id of its item in the form summary.
    Work on these fields first: map each real blank with set_source and fix its label; move,
    resize or set_type it when the geometry says so; remove_field the ones that are not blanks
-   (pre-printed content, decoration, duplicates). Reinterpret where needed: a short line printed
-   right before option text is a box to mark (a checkbox), not a text blank. Use add_field only
-   for blanks no field covers yet.
+   (pre-printed content, decoration, duplicates). A detected field's seeded label is only the
+   nearest text line and is often wrong: judge a box by what is at its rect. Removing a seeded
+   field is refused unless another field or table cell covers the same box, or, for a detected
+   box you checked is not a blank, remove_field(id, not_a_blank=True); widget fields stay. To fix
+   a box's geometry, move or resize it rather than replacing it. Reinterpret where needed: a
+   short line printed right before option text is a box to mark (a checkbox), not a text blank.
+   Use add_field only for blanks no field covers yet.
 2. Add the fields the detector missed, using text cues: prompts ending in ":", "#" or "?", lines
    followed by a rule or empty space, captions printed under a rule (signature and date lines),
    and option words with an empty box or blank beside them. Use rules and nearby boxes for the
@@ -94,16 +98,18 @@ signature, choice_mark (a mark drawn on or next to printed option text) and tabl
    box, use a choice_mark field over the option text.
 5. Build tables from repeated rows or grids of cells with add_table: rows from the repeated
    row geometry, columns from the cell edges or column headings; column keys are paths relative
-   to one row. fm.grid(ids) turns the candidate or widget fields a table replaces into its
+   to one row. fm.grid(ids) turns the candidate or widget fields a table holds into its
    row_top, row_height and column x ranges; its max_rows counts only the rows from the first to
    the last given box (check below for more rows), and it lists rows with no box and boxes
-   spanning several columns. A table that continues on another page gets another segment.
-   Records printed as repeated blocks (each record spans several lines, like stacked copies of
-   the same set of blanks): add one table per line of the block, all with the same source_path,
-   each with one segment per record block (max_rows=1, in record order), so row i of every
-   table lands in block i. When table cells replace existing widget or candidate fields, remove exactly the
-   fields the cells cover (the step report warns which ones), by id; never remove every field
-   in a region.
+   spanning several columns. When the cells are existing widget or candidate fields, link them
+   instead of removing them: give each column fields=[one field id per row, None where a row has
+   no box] (fm.grid(ids)['column_fields'] lists them per column), so each cell keeps its field's
+   exact box and widget; linked fields have no source of their own. Fields in a column with no
+   schema path stay outside the table, as unmapped fields. A table that continues on another
+   page gets another segment. Records printed as repeated blocks (each record spans several
+   lines, like stacked copies of the same set of blanks): add one table per line of the block,
+   all with the same source_path, each with one segment per record block (max_rows=1, in record
+   order), so row i of every table lands in block i. Never remove every field in a region.
 6. Split blanks that hold parts of one value (separate boxes for month, day and year, or one
    box per character) and use transforms to fill each part.
 7. Give every field a short label from its printed text. Keep every existing widget field and a

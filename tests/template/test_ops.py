@@ -5,7 +5,7 @@ import pytest
 from formcast.errors import OpError
 from formcast.pagemap.build import build_form_map
 from formcast.schema import flatten_schema
-from formcast.template.model import Field, FormInfo, Template, new_template
+from formcast.template.model import Field, FormInfo, Template, linked_cells, new_template, table_cells
 from formcast.template.ops import AddField, Move, OpContext, apply, diff, replay
 
 SCHEMA = {
@@ -495,8 +495,140 @@ def test_mapping_a_table_column_onto_a_plain_field_explains_the_table_to_build()
     t, _ = _add(_template(), rect=[72, 320, 300, 338])
     _rejects(t, {"op": "set_source", "id": "f1", "source": {"paths": ["medications[].drug"]}},
              "column of table 'medications'", "add_table(source_path='medications'",
-             "{'key': 'drug', 'x': [72, 300]}", "'row_top': 320", "fm.grid", "If the records are printed")
+             "{'key': 'drug', 'x': [72, 300], 'fields'", "'row_top': 320", "fm.grid", "column_fields",
+             "If the records are printed")
     with pytest.raises(OpError) as exc:
         apply(t, {"op": "set_source", "id": "f1", "source": {"paths": ["medications[].drug"]}},
               author="agent", context=CTX)
     assert "'row_height': 18" not in exc.value.reason  # a box's height is not the row pitch
+
+
+# ------------------------------------------------------------------ linked cells, seeded-field removals
+
+# A 3-row grid of seeded widget boxes: each 18pt row has a 9pt box in its lower half per column,
+# so a computed cell (the whole row) matches a box with IoU 0.5 only.
+GRID_COLS = {"drug": (72.0, 300.0), "dose": (300.0, 540.0)}
+
+
+def _seeded_grid(origin="widget"):
+    fields = []
+    for r in range(3):
+        top = 320 + 18 * r
+        for k, (x0, x1) in GRID_COLS.items():
+            fid = f"w0_{len(fields)}" if origin == "widget" else f"c0_{len(fields)}"
+            fields.append(
+                Field(id=fid, type="text", page=0, rect=(x0, top + 9, x1, top + 18), origin=origin,
+                      existing_widget=fid if origin == "widget" else None)
+            )
+    return _template(fields)
+
+
+def _linked_segment(t, rows=3):
+    ids = [f.id for f in t.fields if f.type != "table"]
+    columns = [
+        {"key": k, "x": list(x), "fields": ids[i::2][:rows]} for i, (k, x) in enumerate(GRID_COLS.items())
+    ]
+    return {**SEGMENT, "max_rows": 10, "columns": columns}
+
+
+def _add_linked(t, **seg):
+    op = {"op": "add_table", "source_path": "medications", "segments": [{**_linked_segment(t), **seg}]}
+    return apply(t, op, author="agent", context=CTX)
+
+
+def test_a_column_can_link_existing_fields_as_its_cells():
+    t, warnings = _add_linked(_seeded_grid())
+    table = _field(t, "f1")
+    cells = table_cells(t, table)
+    assert len(cells) == 10 * 2
+    first = [c for c in cells if c.row == 0]
+    assert [(c.column.key, c.field.id, c.rect) for c in first] == [
+        ("drug", "w0_0", (72.0, 329.0, 300.0, 338.0)),
+        ("dose", "w0_1", (300.0, 329.0, 540.0, 338.0)),
+    ]
+    # rows past the linked ids use the computed cell
+    row5 = [c for c in cells if c.row == 5]
+    assert all(c.field is None and c.rect[1] == 320 + 5 * 18 for c in row5)
+    assert linked_cells(t)["w0_3"] == ("f1", 0, 1, "dose")
+    assert len(t.fields) == 7 and _field(t, "w0_3").existing_widget == "w0_3"  # nothing removed
+    assert not any("covers" in w or "Link those" in w for w in warnings)
+
+
+@pytest.mark.parametrize(
+    "fields, needle",
+    [
+        (["w0_0", "nope"], "unknown field id 'nope'"),
+        (["w0_0", "w0_0"], "linked as a cell more than once"),
+        (["w0_0"] * 11, "has 10 rows"),
+    ],
+)
+def test_linked_cell_ids_are_validated(fields, needle):
+    t = _seeded_grid()
+    seg = {**SEGMENT, "columns": [{"key": "drug", "x": [72, 300], "fields": fields}]}
+    _rejects(t, {"op": "add_table", "source_path": "medications", "segments": [seg]}, needle)
+
+
+def test_a_linked_cell_must_sit_in_the_segment_and_have_no_source():
+    t, _ = _add(_seeded_grid(), rect=[100, 600, 200, 620])  # f1, below the segment rect
+    seg = {**SEGMENT, "columns": [{"key": "drug", "x": [72, 300], "fields": ["f1"]}]}
+    _rejects(t, {"op": "add_table", "source_path": "medications", "segments": [seg]}, "not inside the segment rect")
+    t, _ = apply(t, {"op": "set_source", "id": "w0_0", "source": {"paths": ["name"]}}, author="agent", context=CTX)
+    seg = {**SEGMENT, "columns": [{"key": "drug", "x": [72, 300], "fields": ["w0_0"]}]}
+    _rejects(t, {"op": "add_table", "source_path": "medications", "segments": [seg]},
+             "has its own source", "set_source('w0_0', None)")
+
+
+def test_a_linked_field_cannot_take_a_source_or_be_removed_until_unlinked():
+    t, _ = _add_linked(_seeded_grid())
+    _rejects(t, {"op": "set_source", "id": "w0_0", "source": {"paths": ["name"]}},
+             "cell of table 'f1' segment 0 column 'drug' row 0")
+    with pytest.raises(OpError, match="unlink it first"):
+        apply(t, {"op": "remove_field", "id": "w0_0"}, author="human", context=CTX)
+    cols = [{"key": "drug", "x": [72, 300], "fields": [None, "w0_2", "w0_4"]}]
+    t, _ = apply(t, {"op": "set_table_columns", "id": "f1", "segment": 0, "columns": cols}, author="human", context=CTX)
+    t, _ = apply(t, {"op": "remove_field", "id": "w0_0"}, author="human", context=CTX)
+    assert "w0_0" not in linked_cells(t) and "w0_1" not in linked_cells(t)
+
+
+def test_replay_reproduces_a_template_with_linked_cells():
+    base = _seeded_grid()
+    t, _ = _add_linked(base)
+    t, _ = apply(t, {"op": "move", "id": "w0_0", "dy": 1}, author="human", context=CTX)
+    assert replay(base, t.history, CTX).fields == t.fields
+
+
+def test_an_agent_cannot_remove_a_widget_field_that_nothing_replaces():
+    t = _seeded_grid()
+    _rejects(t, {"op": "remove_field", "id": "w0_0"}, "the form's own widget 'w0_0'", "link it as a cell")
+    _rejects(t, {"op": "remove_field", "id": "w0_0", "not_a_blank": True}, "the form's own widget")
+    t2, _ = apply(t, {"op": "remove_field", "id": "w0_0"}, author="human", context=CTX)  # people may
+    assert "w0_0" not in [f.id for f in t2.fields]
+
+
+def test_an_agent_removes_a_detected_box_only_when_replaced_or_judged_not_a_blank():
+    t = _seeded_grid(origin="detector")
+    _rejects(t, {"op": "remove_field", "id": "c0_0"}, "a detected box", "not_a_blank=True")
+    t2, _ = apply(t, {"op": "remove_field", "id": "c0_0", "not_a_blank": True}, author="agent", context=CTX)
+    assert "c0_0" not in [f.id for f in t2.fields]
+    # a duplicate on the same box (IoU >= 0.6) replaces it
+    t3, _ = _add(t, rect=[73, 329, 300, 338])
+    t3, _ = apply(t3, {"op": "remove_field", "id": "c0_0"}, author="agent", context=CTX)
+    assert "c0_0" not in [f.id for f in t3.fields]
+    # agent-made fields are not seeded evidence
+    t4, _ = _add(t, rect=[100, 600, 200, 620])
+    apply(t4, {"op": "remove_field", "id": "f1"}, author="agent", context=CTX)
+
+
+def test_a_coarse_table_cell_does_not_replace_a_seeded_box_but_a_matching_one_does():
+    t = _seeded_grid(origin="detector")
+    coarse = {**SEGMENT, "columns": [{"key": "drug", "x": [72, 300]}, {"key": "dose", "x": [300, 540]}]}
+    t1, warnings = apply(t, {"op": "add_table", "source_path": "medications", "segments": [coarse]},
+                         author="agent", context=CTX)
+    mismatch = [w for w in warnings if "Link those fields" in w]
+    assert len(mismatch) == 1 and "'c0_0'" in mismatch[0] and "column_fields" in mismatch[0]
+    _rejects(t1, {"op": "remove_field", "id": "c0_0"}, "closest box is 'f1', IoU 0.50", "move or resize it")
+    exact = {**coarse, "row_top": 329, "row_height": 9, "max_rows": 1}  # row 0's boxes exactly
+    t2, warnings = apply(t, {"op": "add_table", "source_path": "medications", "segments": [exact]},
+                         author="agent", context=CTX)
+    assert any("covers" in w for w in warnings)
+    apply(t2, {"op": "remove_field", "id": "c0_0"}, author="agent", context=CTX)  # its cell matches exactly

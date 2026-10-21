@@ -219,6 +219,8 @@ Edits are **data**, applied by one function:
   - the schema path exists and its type suits the field type
   - no serious overlap with other fields, which is a warning, not an error
   - transform chain is valid
+  - a table column may link existing plain fields as its cells (`Column.fields`, one id per row): the cell keeps that field's box and widget, and the field takes no source of its own (added 2026-10-21, see §14.3 addendum)
+  - an agent's `remove_field` on a seeded field (widget or detector origin) needs another field or table cell on the same box (IoU ≥ 0.6), or, for a detected box only, `not_a_blank=True`; human edits are not restricted (added 2026-10-21)
 - **Bookkeeping:** every applied op is appended to `history` with author and note. Undo or redo means replaying history. `diff(a, b)` between two template versions.
 - **Shared by humans and the agent:** a human UI moving a box calls `apply(template, Move(...), author="human")`. The agent's code calls the same ops.
 
@@ -571,3 +573,54 @@ No-model commands that regenerate this section's seed rows and re-score saved ru
 ```
 
 Whether a rerun of the cut-off sessions still counts as "the" one-time held-out run is the controller's call; it was cut off by the spending limit, not by any change to the code or prompts. Update this section with the results when they exist.
+
+#### Addendum (2026-10-21): agent edits no longer discard seeded boxes (failure category 1)
+
+**Status: implemented and unit-tested; not yet measured with a model.** Both providers were blocked when this was done (Anthropic: usage cap until 2026-11-01 00:00 UTC, HTTP 400; OpenAI: credits exhausted, HTTP 429), so no dev round was run. The numbers below are an offline replay of the saved Haiku round3-gen edit histories, not a measurement of the agent with the new prompt. The "done" bar (agent recall ≥ seed recall on dev, path and joint not regressing) is therefore projected, not shown.
+
+**Diagnosis (Haiku round3-gen, dev, IoU .5).** The seed matched 324 GT boxes that the agent's final templates no longer matched:
+- **222: seeded fields removed and replaced by coarser table cells.** A table cell always spans the whole row. On `f8949`, each 24 pt row has a 12 pt widget per column in its lower half, so every cell matches its widget with IoU 0.50 (recall@.3 stays 1.00, recall@.5 drops to 0.35). Similar on `cms1500` service lines and the `f8949` fake scan.
+- **92: seeded fields removed with nothing replacing them.** Three patterns: detector fields whose seeded label (the nearest text line) was body text, so the agent took real blanks for printed text; a rejected `add_table` (bad column key) followed in the same step by the removals of the cells it was to replace; and widget checkboxes removed on a fillable form.
+- **10: seeded fields moved or resized off their box.**
+
+Across all sessions the agent removed 511 detector boxes and 257 widget boxes that match GT (IoU .3), and 103 detector false positives. Many of the true-box removals were replaced by cells with the same geometry and lost nothing (`i9` as published: 74 widget removals, no recall change). An "is the box empty?" test does not separate good removals from bad ones: 85 of the 103 false-positive removals were empty boxes too. So removal of a detected box stays a judgment the agent makes, but it has to make it explicitly.
+
+**Changes (all generic: geometry and field origin only, no form names, labels or layouts).**
+- *Linked cells* (`template/model.py`). `Column.fields` links existing plain fields as a column's cells, one id per row (`None` or rows past the list use the computed cell). The linked field keeps its exact rect, type and `existing_widget`; the column supplies its value. `table_cells(template, table)` and `linked_cells(template)` expand a table for the scorer, the ops and later the fill. Ops validate links: the field exists, is plain, is on the segment's page with its center inside the segment rect, has no source of its own, and is linked once. A linked field refuses `set_source` and `remove_field` until it is unlinked.
+- *Removal guard* (`template/ops.py`). An agent's `remove_field` on a seeded field passes only when another field or table cell covers the same box with IoU ≥ 0.6 (a duplicate, or a cell that really replaces it). A detected box can also be removed with `not_a_blank=True`; a widget field cannot. The refusal names the closest box and its IoU, says that the seeded label may be wrong, and points to linking or to move/resize. Human edits are not restricted.
+- *Step-report flag.* When a table's cells hold seeded fields but no cell matches their box (IoU < 0.6), `add_table` and the other table ops warn. The warning names the fields and the IoU range and says to link them via `fm.grid(ids)['column_fields']`. A refused removal shows in the report like any rejected op, so a rejected table followed by removals now leaves the fields in place.
+- `fm.grid` returns `column_fields`: per column, the box id in each row (None where the row has no box).
+- *Prompt* (steps 1 and 5): link the fields a table holds instead of removing them; a seeded label is only the nearest text line; removing a seeded field needs a replacement or `not_a_blank=True`; to fix a box, move or resize it. The scorer (`eval/score.py`) counts a linked field once, as its cell, with the field's box and type. Coverage leaves linked fields out of "fields without a source".
+
+**Offline projection** (`eval/replay_histories.py`, results in `eval/results/replay_anthropic_eval_dev_2026-10-21_round3-gen.json`; no model calls). Each saved history is re-applied on the seed under the new ops:
+- *as run*: the saved template (reproduces the published round3-gen numbers).
+- *guard*: refused ops are dropped and never retried; the old histories carry no `not_a_blank`.
+- *guard + link*: then every computed cell that holds a kept, unmapped seeded field is linked to it.
+- *link instead*: also skips each removal of a seeded field that sits in an existing table's cell and links it. This is the new instruction, followed every time.
+
+| all 24 dev sessions | recall@.5 | recall@.3 | precision@.3 | path | joint | exact path set |
+|---|---|---|---|---|---|---|
+| seeded (no agent) | 0.65 | 0.76 | 0.93 | 0 | 0 | 0 |
+| Haiku round3-gen, as run | 0.55 | 0.74 | 0.91 | 0.70 | 0.64 | 0.68 |
+| guard | 0.65 | 0.78 | 0.80 | 0.69 | 0.64 | 0.68 |
+| guard + link | 0.65 | 0.78 | 0.89 | 0.69 | 0.64 | 0.68 |
+| link instead | 0.66 | 0.78 | 0.89 | 0.69 | 0.64 | 0.68 |
+
+By group (recall@.5, seed → as run → link instead): fillable 1.00 → 0.78 → 1.00, digital 0.72 → 0.63 → 0.75, scanned 0.46 → 0.41 → 0.46. Per session: `f8949` as published 1.00 → 0.35 → 1.00 (154 widgets linked), `cms1500` as published 0.50 → 0.21 → 0.51, `i9` fake scan 0.92 → 0.78 → 0.92, `f8949` fake scan 0.42 → 0.15 → 0.39.
+
+What the projection does not show:
+- **Precision.** 0.91 → 0.89, from boxes the agent judged not to be blanks; a replay cannot pass `not_a_blank`. A live agent that uses it should recover part of this.
+- **Path and joint.** −0.004 each (9 path and 10 joint of 2,394 path GT boxes). Where the agent had redrawn a blank as a new box and removed the seeded one, the kept unmapped seed box now wins the one-to-one match. The prompt now says to move or resize instead.
+- **`f8949` fake scan (0.39 against 0.42).** The detector's 20 pt boxes on 12 pt blanks sit just above IoU .5 (0.54–0.57), and the table cells that replace them just below (0.48–0.49). Raising the 0.6 cover threshold to catch this would be tuning to the scorer's threshold, so it was left.
+- **Agent behavior.** How the agent responds to refusals (retry, link, or `not_a_blank`), and what that costs in steps and tokens.
+
+**To measure it (dev only, at most two full Haiku rounds), once the Anthropic cap resets:**
+
+```
+.venv/bin/python eval/agent_eval.py --split dev --model-env ANTHROPIC_EVAL --variant both --tag recall-guard --stamp <date>
+.venv/bin/python eval/replay_histories.py eval/results/agent_anthropic_eval_dev_<date>_recall-guard.json --formmaps eval/results/logs/<date>_recall-guard/inputs
+```
+
+The seed floor is unchanged by this work (`new_template` is untouched; the replay re-scores the seed from the saved form maps at 0.65 / 0.76 / 0.93, as in `agent_seed_dev_2026-10-21_seed`). Compare the new run against that seed row and against round3-gen.
+
+**Freeze.** This changes agent behavior (ops validation, prompt, `fm.grid`). The held-out reruns listed above must run from tag `plan1-heldout-frozen` (for example from a worktree checked out at the tag), not from this code, and before this lands on the branch they are run from. The held-out split was not run or read for this work.

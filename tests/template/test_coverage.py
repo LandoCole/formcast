@@ -169,3 +169,25 @@ def test_a_candidate_mostly_inside_a_field_counts_as_covered():
     fm = _form_map(lines + [_cand("half_out", (50, 262, 500, 290))])
     tall = Field(id="f1", type="text", page=0, rect=(48, 198, 502, 272))
     assert coverage(_template(schema, [tall]), fm, []).unused_candidates == ["half_out"]
+
+
+def test_fields_linked_as_table_cells_are_not_listed_as_without_a_source():
+    schema = {"type": "object", "properties": {}}
+    cell = Field(id="w0_0", type="text", page=0, rect=(72, 330, 300, 338))
+    loose = Field(id="w0_1", type="text", page=0, rect=(72, 600, 300, 620))
+    table = Field(
+        id="f1",
+        type="table",
+        segments=[
+            {
+                "page": 0,
+                "rect": (72, 300, 540, 500),
+                "row_top": 320,
+                "row_height": 20,
+                "max_rows": 9,
+                "columns": [{"key": "a", "x": (72, 300), "fields": ["w0_0"]}],
+            }
+        ],
+    )
+    cov = coverage(_template(schema, [cell, loose, table]), _form_map(), [])
+    assert cov.unmapped_fields == ["w0_1", "f1"]
