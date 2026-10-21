@@ -11,7 +11,8 @@ transform applies to the list's only element, or is mapped over the elements whe
 there are several. A source value that is itself a list (e.g. a multi-select) is
 a single value, not something to map over.
 
-Missing data: every built-in passes ``None`` through unchanged except ``default``
+Missing data: every built-in passes ``None`` through unchanged (and the date and
+number ops also ``""``, which real records use for absent values) except ``default``
 (replaces ``None`` and ``""``), ``bool_to_check`` (``None`` -> ``False``) and
 ``equals`` / ``contains`` (``None`` -> ``False``).
 """
@@ -163,6 +164,16 @@ def _nullsafe(fn: Callable[..., Any]) -> Callable[..., Any]:
     return wrapper
 
 
+def _blanksafe(fn: Callable[..., Any]) -> Callable[..., Any]:
+    """Like _nullsafe, and also pass "" through unchanged (absent data in real records)."""
+
+    @functools.wraps(fn)
+    def wrapper(value: Any, **args: Any) -> Any:
+        return value if value is None or value == "" else fn(value, **args)
+
+    return wrapper
+
+
 def _text(value: Any) -> str:
     if isinstance(value, str):
         return value
@@ -267,13 +278,13 @@ def _strip(value: Any) -> str:
     return _text(value).strip()
 
 
-@_nullsafe
+@_blanksafe
 def _date_format(value: Any, format: str) -> str:
     """Format an ISO date (YYYY-MM-DD) with a strftime pattern, e.g. "%m/%d/%Y"."""
     return _to_date(value).strftime(format)
 
 
-@_nullsafe
+@_blanksafe
 def _date_part(value: Any, part: str, pad: int = 0) -> str:
     """Take month, day, year (4 digits) or year2 (2 digits) of an ISO date, zero-padded to `pad`."""
     d = _to_date(value)
@@ -282,7 +293,7 @@ def _date_part(value: Any, part: str, pad: int = 0) -> str:
     return str(number).zfill(width)
 
 
-@_nullsafe
+@_blanksafe
 def _number_format(value: Any, decimals: int = 2, thousands: str = ",", prefix: str = "") -> str:
     """Format a number with fixed `decimals` (rounded half up), a thousands separator and a prefix."""
     d = _to_decimal(value)

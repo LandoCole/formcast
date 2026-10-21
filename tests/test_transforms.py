@@ -252,13 +252,22 @@ def test_date_part_year2_always_two_digits():
     assert run(T("date_part", part="year2"), datetime.date(2005, 1, 1)) == "05"
 
 
-@pytest.mark.parametrize("bad", ["07/03/2024", "2024-3-7", "20240307", "2024-02-30", 20240307, "", ["2024-03-07"]])
+@pytest.mark.parametrize("bad", ["07/03/2024", "2024-3-7", "20240307", "2024-02-30", 20240307, " ", ["2024-03-07"]])
 def test_date_ops_reject_bad_values(bad):
     with pytest.raises(FormcastError) as ei:
         run(T("date_part", part="day"), bad)
     assert repr(bad) in str(ei.value)
     with pytest.raises(FormcastError):
         run(T("date_format", format="%Y"), bad)
+
+
+@pytest.mark.parametrize(
+    "op",
+    [T("date_format", format="%Y"), T("date_part", part="month", pad=2), T("number_format", decimals=2, prefix="$")],
+)
+def test_empty_string_passes_through_date_and_number_ops(op):
+    assert run(op, "") == ""
+    assert apply_chain([""], [op, T("default", value="N/A")]) == "N/A"
 
 
 @pytest.mark.parametrize(
@@ -281,7 +290,7 @@ def test_number_format(value, args, expected):
     assert run(T("number_format", **args), value) == expected
 
 
-@pytest.mark.parametrize("bad", ["abc", "", "1,234", "nan", "inf", "1_000", True, ["1"]])
+@pytest.mark.parametrize("bad", ["abc", " ", "1,234", "nan", "inf", "1_000", True, ["1"]])
 def test_number_format_rejects_bad_values(bad):
     with pytest.raises(FormcastError) as ei:
         run(T("number_format"), bad)
