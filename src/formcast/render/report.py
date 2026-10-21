@@ -48,6 +48,7 @@ WarningCode = Literal[
     "list_joined",
     "unknown_keys",
     "fingerprint_mismatch",
+    "not_shown",
 ]
 
 Binding = Literal["named", "adopted", "created", "none"]

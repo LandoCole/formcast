@@ -28,13 +28,14 @@ from formcast.schema import (
     parse_path,
     validate_data_located,
 )
-from formcast.template.model import Field, Template
+from formcast.template.model import Field, Source, Template
 from formcast.transforms import apply_chain, bool_to_check, to_text
 
 __all__ = [
     "CellTarget",
     "Resolved",
     "TableResolved",
+    "choice_on",
     "is_missing",
     "lookup",
     "resolve",
@@ -158,6 +159,18 @@ def _resolve_text(f: Field, data: dict) -> Resolved:
     return res
 
 
+def choice_on(src: Source, values: list[Any]) -> bool:
+    """Whether a choice box with source ``src`` is on for these source ``values``.
+
+    Runs the transforms, then ``when`` (or ``bool_to_check`` without one). Raises ``FormcastError``
+    when a transform rejects a value.
+    """
+    x = apply_chain(values, src.transforms)
+    if src.when is not None:
+        return bool(apply_chain([x], [src.when]))
+    return bool_to_check(x)
+
+
 def _resolve_choice(f: Field, data: dict) -> Resolved:
     assert f.source is not None
     src = f.source
@@ -169,11 +182,7 @@ def _resolve_choice(f: Field, data: dict) -> Resolved:
         res.warnings.append(FillWarning.make("missing", f"no value for {', '.join(src.paths)}", **where))
         return res
     try:
-        x = apply_chain(values, src.transforms)
-        if src.when is not None:
-            res.on = bool(apply_chain([x], [src.when]))
-        else:
-            res.on = bool_to_check(x)
+        res.on = choice_on(src, values)
     except FormcastError as e:
         res.on = False
         res.warnings.append(FillWarning.make("transform_error", str(e), **where))

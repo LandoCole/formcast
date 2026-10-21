@@ -623,3 +623,95 @@ def test_table_without_slots_is_a_gap(make_pdf):
     _, rep = fill(tpl, pdf, {"medications": [{"drug": "A"}]})
     assert {"t0", "t1"} <= set(rep.gaps)
     assert [t.cells for t in rep.tables] == [[], []]
+
+
+# ---------------------------------------------------------------- Ruling V: nothing visible -> not_shown
+
+
+def _not_shown(rep: FillReport) -> list[tuple[str | None, str]]:
+    return [(w.path, w.message) for w in rep.warnings if w.code == "not_shown"]
+
+
+def test_enum_value_with_no_box_is_not_shown(make_pdf):
+    pdf = make_pdf(text=TEXT)
+    mark = _choice("f_status_married", "status", (100, 160, 150, 174), type="choice_mark",
+                   when=Transform(op="equals", args={"value": "married"}))  # fmt: skip
+    _, rep = fill(_tpl(pdf, mark), pdf, {"status": "single"})
+    ((path, msg),) = _not_shown(rep)
+    assert path == "status" and "'single'" in msg
+    assert rep.warnings[0].severity == "warning" and rep.counts["not_shown"] == 1
+    assert [w.code for w in rep.paths["status"].warnings] == ["not_shown"]
+    _, rep = fill(_tpl(pdf, mark), pdf, {"status": "married"})
+    assert rep.warnings == []
+
+
+def test_multi_select_item_with_no_box_is_not_shown(make_pdf):
+    pdf = make_pdf(text=TEXT)
+    email = _choice("f_contact_email", "contact", (100, 190, 112, 202), when=_contains("email"))
+    _, rep = fill(_tpl(pdf, email), pdf, {"contact": ["email", "phone"]})
+    ((path, msg),) = _not_shown(rep)
+    assert path == "contact" and "'phone'" in msg and "'email'" not in msg
+
+
+def test_boolean_false_with_only_a_yes_box_is_shown(make_pdf):
+    pdf = make_pdf(text=TEXT)
+    tpl = _tpl(pdf, _choice("f_married", "married", (100, 130, 112, 142)))
+    _, rep = fill(tpl, pdf, {"married": False})
+    assert rep.warnings == []
+
+
+def test_box_that_cannot_turn_on_is_not_shown(make_pdf):
+    # C1 safety net: a form checkbox with no "on" appearance stays off; the True is reported
+    pdf = make_pdf(text=TEXT, widgets=[{"type": "checkbox", "name": "cb", "rect": (100, 130, 112, 142)}])
+    doc = pymupdf.open(stream=pdf)
+    (w,) = doc[0].widgets()
+    off = doc.xref_get_key(w.xref, "AP/N/Off")[1]
+    doc.xref_set_key(w.xref, "AP", f"<</N<</Off {off}>>>>")
+    pdf = doc.tobytes()
+    tpl = _tpl(pdf, _choice("f_married", "married", (100, 130, 112, 142), widget="cb"))
+    _, rep = fill(tpl, pdf, {"married": True})
+    assert rep.fields[0].value is False
+    ((path, msg),) = _not_shown(rep)
+    assert path == "married" and "True" in msg
+
+
+def test_escaped_on_state_box_is_shown(make_pdf):
+    pdf = make_pdf(text=TEXT, widgets=[
+        {"type": "checkbox", "name": "cb", "rect": (100, 130, 112, 142), "on_state": "Yes#205"},
+    ])  # fmt: skip
+    tpl = _tpl(pdf, _choice("f_married", "married", (100, 130, 112, 142), widget="cb"))
+    out, rep = fill(tpl, pdf, {"married": True})
+    assert rep.fields[0].value is True and rep.warnings == []
+    assert _kid_states(out, "cb") == ["Yes 5"]
+
+
+def test_cell_emptied_by_its_transform_is_not_shown(make_pdf):
+    pdf = make_pdf(text=TEXT)
+    meds = _meds()
+    meds.segments[0].columns[0].transforms = [Transform(op="slice", args={"start": 5})]
+    _, rep = fill(_tpl(pdf, meds), pdf, {"medications": [{"drug": "Aspirin", "dose": "1"}, {"drug": "B", "dose": "2"}]})
+    ((path, msg),) = _not_shown(rep)
+    assert path == "medications[].drug" and "row 1" in msg and "'B'" in msg
+    (cw,) = [w for c in rep.tables[0].cells for w in c.warnings if w.code == "not_shown"]
+    assert cw.field == "t_meds" and cw.page == 0
+
+
+def test_explained_values_are_not_also_not_shown(make_pdf):
+    pdf = make_pdf(text=TEXT)
+    tpl = _tpl(pdf, _meds(max_rows=1), _text("f_name", "name", widget="nope"))
+    _, rep = fill(tpl, pdf, {"medications": [{"drug": d, "dose": "1"} for d in "AB"], "name": "x",
+                             "notes": "unmapped"})  # fmt: skip
+    assert sorted(_codes(rep)) == ["rows_dropped", "unmapped_data", "widget_not_found"]
+
+
+def test_list_row_value_without_a_column_is_not_shown(make_pdf):
+    pdf = make_pdf(text=TEXT)
+    schema = {"type": "object", "properties": {"rows": {"type": "array", "items": {"type": "array",
+              "items": {"type": "string"}}}}}  # fmt: skip
+    seg = TableSegment(page=0, rect=(72, 300, 540, 340), row_top=300, row_height=20, max_rows=2,
+                       columns=[Column(key="0", x=(72, 300)), Column(key="1", x=(300, 540))])  # fmt: skip
+    tpl = _tpl(pdf, Field(id="t", type="table", segments=[seg], source=Source(paths=["rows"])))
+    tpl = tpl.model_copy(update={"schema_": schema})
+    _, rep = fill(tpl, pdf, {"rows": [["a", "b", "c"]]})
+    ((path, msg),) = _not_shown(rep)
+    assert path == "rows[]" and "'c'" in msg
