@@ -33,7 +33,9 @@ Outputs (``<run>`` is ``<stamp>`` or ``<stamp>_<tag>``):
 
 * ``eval/results/agent_<modelenv>_<split>_<run>.{json,md}``: per-form rows and
   micro-averaged split totals (committed);
-* ``eval/results/templates/<run>/<modelenv>/<form>_<variant>.json``;
+* ``eval/results/templates/<run>/<modelenv>/<form>_<variant>.json`` (git-ignored; the
+  committed runs' templates are archived in ``eval/results/templates.tar.gz``, extract
+  with ``tar -xzf eval/results/templates.tar.gz`` from the repo root; step logs are local-only);
 * ``eval/results/logs/<run>/...``: per-session step logs (model text, code,
   step reports as the model saw them), form maps and fake-scan inputs;
 * ``eval/results/overlays/agent/<run>/<modelenv>/<form>_<variant>_p<n>.png``:
@@ -92,6 +94,8 @@ from formcast.pagemap.ocr import render  # noqa: E402
 
 FORMS = ROOT / "forms"
 RESULTS = ROOT / "eval" / "results"
+# The saved templates are committed as one archive (the directory itself is git-ignored).
+TEMPLATES_ARCHIVE = RESULTS / "templates.tar.gz"
 ENV_PATH = ROOT / ".env"
 DPI = baseline_detection.DPI
 IOUS = (0.3, 0.5)
@@ -693,6 +697,14 @@ def rescore_main(args) -> None:
         path = ROOT / path
     data = json.loads(path.read_text())
     meta, rows = data["meta"], data["rows"]
+    missing = [r["template_path"] for r in rows if r.get("template_path") and not (ROOT / r["template_path"]).is_file()]
+    if missing and TEMPLATES_ARCHIVE.is_file():
+        archive = TEMPLATES_ARCHIVE.relative_to(ROOT) if TEMPLATES_ARCHIVE.is_relative_to(ROOT) else TEMPLATES_ARCHIVE
+        raise SystemExit(
+            f"{len(missing)} of {len(rows)} saved template(s) are missing (first: {missing[0]}); the committed "
+            f"templates are archived in {archive}: extract them from the repo root with `tar -xzf {archive}`, "
+            "then re-run --rescore (nothing was rewritten)"
+        )
     baseline_file, baseline_rows = _load_baseline_rows(args.baseline_stamp)
     manifest = {f["id"]: f for f in json.loads((FORMS / "manifest.json").read_text())["forms"]}
     done = 0

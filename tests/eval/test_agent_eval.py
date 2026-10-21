@@ -314,3 +314,21 @@ def test_parse_args_modes_that_need_no_model():
     for bad in (["--split", "dev"], ["--model-env", "A_EVAL"], ["--rescore", "x", "--seed-only"]):
         with pytest.raises(SystemExit):
             agent_eval.parse_args(bad)
+
+
+def test_rescore_with_missing_templates_says_to_extract_the_archive(tmp_path, monkeypatch):
+    monkeypatch.setattr(agent_eval, "ROOT", tmp_path)
+    monkeypatch.setattr(agent_eval, "TEMPLATES_ARCHIVE", tmp_path / "eval/results/templates.tar.gz")
+    results = tmp_path / "eval/results/agent_x_dev_run.json"
+    results.parent.mkdir(parents=True)
+    agent_eval.TEMPLATES_ARCHIVE.write_bytes(b"")
+    row = {"form": "f", "variant": "as_published", "template_path": "eval/results/templates/run/x/f_as_published.json"}
+    results.write_text(json.dumps({"meta": {}, "rows": [row]}))
+    before = results.read_text()
+    args = agent_eval.parse_args(["--rescore", str(results)])
+    with pytest.raises(SystemExit) as exc:
+        agent_eval.rescore_main(args)
+    msg = str(exc.value)
+    assert "1 of 1 saved template" in msg and "f_as_published.json" in msg
+    assert "tar -xzf eval/results/templates.tar.gz" in msg
+    assert results.read_text() == before  # nothing rewritten

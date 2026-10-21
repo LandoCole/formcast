@@ -435,6 +435,7 @@ Recall and precision at IoU .3. FFDetr's boxes are looser, so its recall at IoU 
 - All figures are micro-averaged over GT fields. Precision is at IoU .3.
 - *path* is the share of GT fields with a schema path whose matched template field has that path. *joint* is path and transforms both right. *exact path set* is the matched field's source paths equal to the GT path plus also-paths. These three are over fields with a schema path.
 - All numbers were re-scored with the final scorer (multi-line rule restricted, see the caveats), from the saved templates; no model was called.
+- Templates archived in `eval/results/templates.tar.gz` (extract from the repo root with `tar -xzf eval/results/templates.tar.gz`; `--rescore` reads them); step logs are local-only.
 
 #### Dev split (12 forms, 24 sessions per full round)
 
