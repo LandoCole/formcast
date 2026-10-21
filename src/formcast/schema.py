@@ -47,6 +47,7 @@ from formcast.errors import FormcastError
 __all__ = [
     "ARRAY_ITEM",
     "SchemaPath",
+    "data_location",
     "flatten_schema",
     "format_path",
     "is_array_item",
@@ -358,11 +359,15 @@ def resolve(schema_paths: list[SchemaPath], path: str) -> SchemaPath:
 # ------------------------------------------------------------------ validate
 
 
-def _data_location(parts: list[Any]) -> str:
+def data_location(parts: list[Any]) -> str:
+    """Path-syntax location for a ``jsonschema`` error path (names and integer indices)."""
     out = ""
     for p in parts:
         out += f"[{p}]" if isinstance(p, int) else _format_segment(str(p), first=not out)
     return out
+
+
+_data_location = data_location  # historical private name
 
 
 def validate_data_located(schema: dict, data: Any) -> list[tuple[str, str]]:

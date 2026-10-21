@@ -312,11 +312,14 @@ def _number_format(value: Any, decimals: int = 2, thousands: str = ",", prefix: 
     return ("-" if q < 0 else "") + prefix + out
 
 
-def _bool_to_check(value: Any) -> bool:
+def bool_to_check(value: Any) -> bool:
     """True to tick a checkbox for a truthy value; false, no, 0, empty and missing leave it unticked."""
     if isinstance(value, str):
         return value.strip().lower() not in _FALSE_WORDS
     return bool(value)
+
+
+_bool_to_check = bool_to_check  # historical private name
 
 
 def _equals(item: Any, /, *, value: Any) -> bool:

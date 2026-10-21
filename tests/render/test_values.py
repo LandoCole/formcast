@@ -265,3 +265,36 @@ def test_validate_data_located_matches_validate_data():
 
 def test_to_text_public():
     assert to_text(5) == "5" and to_text("a") == "a"
+
+
+def test_path_shaped_column_keys_resolve_and_count_as_covered():
+    schema = {"type": "object", "properties": {"visit": {"type": "object", "properties": {"meds": {
+        "type": "array", "items": {"type": "object", "properties": {
+            "drug": {"type": "string"},
+            "dose mg": {"type": "string"},
+            "sched": {"type": "object", "properties": {"time": {"type": "string"}}},
+        }}}}}}}  # fmt: skip
+    seg = TableSegment(page=0, rect=(0, 0, 400, 300), row_top=10, row_height=10, max_rows=5, columns=[
+        Column(key="drug", x=(0, 100)),
+        Column(key='["dose mg"]', x=(100, 200)),
+        Column(key="sched.time", x=(200, 300)),
+    ])  # fmt: skip
+    tpl = Template(template_id="t", schema=schema, form=FormInfo(fingerprint="f", page_count=1,
+                   page_sizes=[(612.0, 792.0)], kinds=["digital"]),
+                   fields=[Field(id="t", type="table", source=Source(paths=["visit.meds"]), segments=[seg])])  # fmt: skip
+    rows = [{"drug": "A", "dose mg": "5", "sched": {"time": "am"}}, {"drug": "B", "sched": "oops"}]
+    _, tables, rec = resolve(tpl, {"visit": {"meds": rows}})
+    t = tables["t"]
+    assert [(c.row, c.key, c.text) for c in t.cells] == [
+        (0, "drug", "A"), (0, '["dose mg"]', "5"), (0, "sched.time", "am"),
+        (1, "drug", "B"), (1, '["dose mg"]', None), (1, "sched.time", None)]  # fmt: skip
+    assert not any(w.code == "unmapped_data" for w in rec)
+
+
+def test_missing_message_distinguishes_transform_result_from_absent_value():
+    split = Transform(op="split", args={"sep": "-", "index": 3})  # "" for "Ada": present value, empty result
+    r = resolve(_tpl(_text("f_a", "name", transforms=[split])), {"name": "Ada"})[0]["f_a"]
+    assert r.has_value and r.text is None
+    assert [w.code for w in r.warnings] == ["missing"] and "transforms" in r.warnings[0].message
+    absent = resolve(tpl_name_only, {})[0]["f_name"]
+    assert [w.code for w in absent.warnings] == ["missing"] and absent.warnings[0].message.startswith("no value for")

@@ -21,7 +21,7 @@ from formcast.render.report import FillWarning
 from formcast.schema import (
     ARRAY_ITEM,
     SchemaPath,
-    _data_location,
+    data_location,
     flatten_schema,
     format_path,
     is_array_item,
@@ -29,8 +29,7 @@ from formcast.schema import (
     validate_data_located,
 )
 from formcast.template.model import Field, Template
-from formcast.transforms import Transform, apply_chain, to_text
-from formcast.transforms import _bool_to_check as bool_to_check
+from formcast.transforms import apply_chain, bool_to_check, to_text
 
 __all__ = [
     "CellTarget",
@@ -151,7 +150,8 @@ def _resolve_text(f: Field, data: dict) -> Resolved:
         res.warnings.append(FillWarning.make("transform_error", str(e), **where))
         return res
     if text is None:
-        res.warnings.append(FillWarning.make("missing", f"no value for {', '.join(src.paths)}", **where))
+        why = "the transforms left no value for" if res.has_value else "no value for"
+        res.warnings.append(FillWarning.make("missing", f"{why} {', '.join(src.paths)}", **where))
     elif joined:
         res.warnings.append(FillWarning.make("list_joined", f"list value joined with ', ' into {text!r}", **where))
     res.text = text
@@ -183,9 +183,22 @@ def _resolve_choice(f: Field, data: dict) -> Resolved:
 # --------------------------------------------------------------------- tables
 
 
+def _key_segments(key: str) -> list[str]:
+    """A column key is a row-relative schema path (``dose``, ``sched.time``, ``["dose mg"]``)."""
+    try:
+        return parse_path(key)
+    except ValueError:
+        return [key]
+
+
 def _cell_value(row: Any, key: str) -> Any:
     if isinstance(row, dict):
-        return row.get(key)
+        cur: Any = row
+        for seg in _key_segments(key):
+            if is_array_item(seg) or not isinstance(cur, dict):
+                return None
+            cur = cur.get(seg)
+        return cur
     try:
         return row[int(key)]
     except (ValueError, IndexError, TypeError):
@@ -314,7 +327,7 @@ def _covered(fields: list[Field], by_path: dict[str, SchemaPath]) -> tuple[set[s
         if p in by_path and by_path[p].item_type != "object":
             prefixes.append(segs)  # list-of-list / list-of-scalar rows: the whole subtree is the table's
         else:
-            prefixes.extend(segs + [ARRAY_ITEM, c.key] for seg in f.segments for c in seg.columns)
+            prefixes.extend(segs + [ARRAY_ITEM, *_key_segments(c.key)] for seg in f.segments for c in seg.columns)
     return exact, prefixes, tables
 
 
@@ -344,7 +357,7 @@ def _unknown_keys(data: Any, known: set[str], forbidding: set[str]) -> list[str]
 
     def walk(node: Any, segs: list[str], loc: list[Any]) -> None:
         if isinstance(node, dict):
-            skip = _data_location(loc) in forbidding
+            skip = data_location(loc) in forbidding
             for key, value in node.items():
                 child = segs + [str(key)]
                 if format_path(child) in known:
