@@ -339,13 +339,14 @@ class _Run:
                   f"map it as a column key in add_table/set_table_columns for {table!r}")
         if f.rect is None:
             return reason
-        x0, y0, x1, y1 = (round(v, 1) for v in f.rect)
+        x0, y0, x1, _ = (round(v, 1) for v in f.rect)
         return (f"{reason}. For a cell at this field's rect: add_table(source_path={table!r}, segments=[{{"
-                f"'page': {f.page}, 'rect': <the table area>, 'row_top': {y0:g}, 'row_height': {y1 - y0:g}, "
-                f"'max_rows': <rows>, 'columns': [{{'key': {key!r}, 'x': [{x0:g}, {x1:g}]}}, ...]}}]), i.e. "
-                f"row_top {y0:g}, row_height {y1 - y0:g}; then remove the plain fields the cells replace. "
-                "Records printed as repeated blocks of lines: one table per block line, one segment per "
-                "record (max_rows=1).")
+                f"'page': {f.page}, 'rect': <the table area>, 'row_top': {y0:g}, 'row_height': <distance "
+                "between consecutive row tops>, 'max_rows': <rows>, 'columns': "
+                f"[{{'key': {key!r}, 'x': [{x0:g}, {x1:g}]}}, ...]}}]); fm.grid([...the fields the table "
+                "replaces...]) gives row_top, row_height and the column x ranges. Then remove the plain "
+                "fields the cells replace. If the records are printed as repeated blocks of lines: one "
+                "table per block line, one segment per record (max_rows=1).")
 
     def check_table_source(self, f: Field, resolved: list[SchemaPath]) -> None:
         if len(resolved) != 1:

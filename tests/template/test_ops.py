@@ -446,4 +446,8 @@ def test_mapping_a_table_column_onto_a_plain_field_explains_the_table_to_build()
     t, _ = _add(_template(), rect=[72, 320, 300, 338])
     _rejects(t, {"op": "set_source", "id": "f1", "source": {"paths": ["medications[].drug"]}},
              "column of table 'medications'", "add_table(source_path='medications'",
-             "{'key': 'drug', 'x': [72, 300]}", "row_top 320", "row_height 18", "one segment per record")
+             "{'key': 'drug', 'x': [72, 300]}", "'row_top': 320", "fm.grid", "If the records are printed")
+    with pytest.raises(OpError) as exc:
+        apply(t, {"op": "set_source", "id": "f1", "source": {"paths": ["medications[].drug"]}},
+              author="agent", context=CTX)
+    assert "'row_height': 18" not in exc.value.reason  # a box's height is not the row pitch
