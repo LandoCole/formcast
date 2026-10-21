@@ -54,25 +54,29 @@
    "path": "employee.citizenship_status",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "us_citizen"
   },
   "CB_2": {
    "path": "employee.citizenship_status",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "noncitizen_national"
   },
   "CB_3": {
    "path": "employee.citizenship_status",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "lawful_permanent_resident"
   },
   "CB_4": {
    "path": "employee.citizenship_status",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "authorized_alien"
   },
   "3 A lawful permanent resident Enter USCIS or ANumber": {
    "path": "employee.alien_registration_number"
@@ -183,7 +187,8 @@
    "path": "employer_review.alternative_procedure_used",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   "FirstDayEmployed mmddyyyy": {
    "path": "employer_review.first_day_of_employment",

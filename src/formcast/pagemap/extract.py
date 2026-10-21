@@ -41,7 +41,8 @@ MIN_OPACITY = 0.01
 # Expand ligatures into their letters so text matching works on plain words.
 _TEXT_FLAGS = pymupdf.TEXTFLAGS_RAWDICT & ~pymupdf.TEXT_PRESERVE_LIGATURES
 
-_WIDGET_KINDS = {
+# PyMuPDF field_type -> pagemap widget kind (also used by the fill writer).
+WIDGET_KINDS = {
     pymupdf.PDF_WIDGET_TYPE_TEXT: "text",
     pymupdf.PDF_WIDGET_TYPE_CHECKBOX: "checkbox",
     pymupdf.PDF_WIDGET_TYPE_RADIOBUTTON: "radio",
@@ -384,17 +385,30 @@ def _extract_drawn_rules(page: pymupdf.Page, drawings: list[dict]) -> list[Rule]
     return rules
 
 
+def choice_pairs(w: pymupdf.Widget) -> list[tuple[str, str]]:
+    """``(export value, display text)`` of each option of a combo/list widget."""
+    out: list[tuple[str, str]] = []
+    for v in w.choice_values or []:
+        # Entries are either "text" or [export_value, display_text].
+        if isinstance(v, (list, tuple)):
+            out.append((str(v[0]), str(v[-1])))
+        else:
+            out.append((str(v), str(v)))
+    return out
+
+
+def choice_options(w: pymupdf.Widget) -> list[str]:
+    """Display texts of a combo/list widget's options."""
+    return [display for _, display in choice_pairs(w)]
+
+
 def _extract_widgets(page: pymupdf.Page) -> list[Widget]:
     widgets = []
     for w in page.widgets() or []:
-        kind = _WIDGET_KINDS.get(w.field_type)
+        kind = WIDGET_KINDS.get(w.field_type)
         if kind is None:
             continue
-        options: list[str] = []
-        if kind in ("combo", "list"):
-            for v in w.choice_values or []:
-                # Entries are either "text" or [export_value, display_text].
-                options.append(str(v[-1]) if isinstance(v, (list, tuple)) else str(v))
+        options = choice_options(w) if kind in ("combo", "list") else []
         r = w.rect
         widgets.append(
             Widget(

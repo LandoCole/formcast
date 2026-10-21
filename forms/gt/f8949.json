@@ -18,37 +18,43 @@
    "path": "short_term.reporting_category",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "1099b_basis_reported"
   },
   "topmostSubform[0].Page1[0].c1_1[1]": {
    "path": "short_term.reporting_category",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "1099b_basis_not_reported"
   },
   "topmostSubform[0].Page1[0].c1_1[2]": {
    "path": "short_term.reporting_category",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "not_on_1099b_or_1099da"
   },
   "topmostSubform[0].Page1[0].c1_1[3]": {
    "path": "short_term.reporting_category",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "1099da_basis_reported"
   },
   "topmostSubform[0].Page1[0].c1_1[4]": {
    "path": "short_term.reporting_category",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "1099da_basis_not_reported"
   },
   "topmostSubform[0].Page1[0].c1_1[5]": {
    "path": "short_term.reporting_category",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "digital_asset_not_on_1099"
   },
   "topmostSubform[0].Page1[0].Table_Line1_Part1[0].Row1[0].f1_03[0]": {
    "path": "short_term.transactions[].description"
@@ -363,37 +369,43 @@
    "path": "long_term.reporting_category",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "1099b_basis_reported"
   },
   "topmostSubform[0].Page2[0].c2_1[1]": {
    "path": "long_term.reporting_category",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "1099b_basis_not_reported"
   },
   "topmostSubform[0].Page2[0].c2_1[2]": {
    "path": "long_term.reporting_category",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "not_on_1099b_or_1099da"
   },
   "topmostSubform[0].Page2[0].c2_1[3]": {
    "path": "long_term.reporting_category",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "1099da_basis_reported"
   },
   "topmostSubform[0].Page2[0].c2_1[4]": {
    "path": "long_term.reporting_category",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "1099da_basis_not_reported"
   },
   "topmostSubform[0].Page2[0].c2_1[5]": {
    "path": "long_term.reporting_category",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "digital_asset_not_on_1099"
   },
   "topmostSubform[0].Page2[0].Table_Line1_Part2[0].Row1[0].f2_03[0]": {
    "path": "long_term.transactions[].description"

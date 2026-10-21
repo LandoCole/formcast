@@ -252,6 +252,64 @@ def test_load_gt_flat_reads_fields_and_none_when_missing(flat_form_pdf, tmp_path
     assert gt[1] == score.GTField(0, (72, 140, 82, 150), "choice")
 
 
+def test_load_gt_reads_value_from_fields_and_widget_paths(flat_form_pdf, fillable_form_pdf, tmp_path):
+    gt_dir = tmp_path / "gt"
+    _write_gt(
+        gt_dir,
+        "fl",
+        {
+            "form": "fl",
+            "fields": [
+                {"page": 0, "rect": [72, 140, 82, 150], "type": "choice", "path": "p.sex", "value": "female"},
+                {"page": 0, "rect": [72, 160, 82, 170], "type": "choice", "path": "p.ok", "value": False},
+                {"page": 0, "rect": [72, 180, 82, 190], "type": "choice", "path": "p.ok2"},
+            ],
+        },
+    )
+    gt = score.load_gt({"id": "fl", "kind": "flat"}, flat_form_pdf, gt_dir=gt_dir)
+    assert [g.value for g in gt] == ["female", False, None]
+    assert score.GTField(0, A, "text").value is None
+
+    _write_gt(
+        gt_dir,
+        "ff",
+        {"form": "ff", "widget_paths": {"agree": {"path": "p.agree", "value": True}}, "notes": ""},
+    )
+    ff = score.load_gt({"id": "ff", "kind": "fillable"}, fillable_form_pdf, gt_dir=gt_dir)
+    assert {g.label: g.value for g in ff} == {"applicant_name": None, "agree": True}
+
+
+def test_load_gt_widget_value_object_is_keyed_by_the_widgets_on_state(fillable_form_pdf, tmp_path):
+    # widgets that share a field name (a radio group) take their value from the on-state name
+    gt_dir = tmp_path / "gt"
+    _write_gt(
+        gt_dir,
+        "ff",
+        {"form": "ff", "widget_paths": {"agree": {"path": "p.agree", "value": {"Yes": "yes", "Other": "x"}}}},
+    )
+    ff = score.load_gt({"id": "ff", "kind": "fillable"}, fillable_form_pdf, gt_dir=gt_dir)
+    assert {g.label: g.value for g in ff}["agree"] == "yes"
+    _write_gt(gt_dir, "ff", {"form": "ff", "widget_paths": {"agree": {"path": "p.agree", "value": {"No": False}}}})
+    ff = score.load_gt({"id": "ff", "kind": "fillable"}, fillable_form_pdf, gt_dir=gt_dir)
+    assert {g.label: g.value for g in ff}["agree"] is None
+
+
+def test_gt_entries_keys_name_the_gt_file_entry(flat_form_pdf, fillable_form_pdf, tmp_path):
+    gt_dir = tmp_path / "gt"
+    _write_gt(
+        gt_dir,
+        "fl",
+        {"form": "fl", "fields": [{"page": 0, "rect": [0, 0, 5, 5], "type": "text"},
+                                  {"page": 1, "rect": [0, 0, 5, 5], "type": "text"},
+                                  {"page": 0, "rect": [72, 140, 82, 150], "type": "choice"}]},
+    )
+    # page 1 is not scored: the key keeps the index in the file
+    entries = score.gt_entries({"id": "fl", "kind": "flat", "scored_pages": [0]}, flat_form_pdf, gt_dir=gt_dir)
+    assert [(k, g.type) for k, g, _ in entries] == [("fields[0]", "text"), ("fields[2]", "choice")]
+    entries = score.gt_entries({"id": "ff", "kind": "fillable"}, fillable_form_pdf, gt_dir=tmp_path / "none")
+    assert [(k, st) for k, _, st in entries] == [("applicant_name", None), ("agree", "Yes")]
+
+
 def test_load_gt_rejects_an_unknown_type(flat_form_pdf, tmp_path):
     _write_gt(tmp_path, "fl", {"form": "fl", "fields": [{"page": 0, "rect": [0, 0, 5, 5], "type": "radio"}]})
     with pytest.raises(ValueError, match="fl.json"):

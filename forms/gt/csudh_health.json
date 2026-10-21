@@ -59,7 +59,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "insomnia"
   },
   {
    "page": 0,
@@ -74,7 +75,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "sinus_trouble"
   },
   {
    "page": 0,
@@ -89,7 +91,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "dizziness"
   },
   {
    "page": 0,
@@ -104,7 +107,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "ent_trouble"
   },
   {
    "page": 0,
@@ -119,7 +123,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "severe_headaches"
   },
   {
    "page": 0,
@@ -134,7 +139,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "stroke"
   },
   {
    "page": 0,
@@ -149,7 +155,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "seizure_disorder"
   },
   {
    "page": 0,
@@ -164,7 +171,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "thyroid_disease"
   },
   {
    "page": 0,
@@ -179,7 +187,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "neck_problems"
   },
   {
    "page": 0,
@@ -194,7 +203,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "blood_clots"
   },
   {
    "page": 0,
@@ -209,7 +219,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "chronic_cough"
   },
   {
    "page": 0,
@@ -224,7 +235,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "back_problems"
   },
   {
    "page": 0,
@@ -239,7 +251,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "breast_lump"
   },
   {
    "page": 0,
@@ -254,7 +267,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "nipple_discharge"
   },
   {
    "page": 0,
@@ -269,7 +283,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "heart_disease"
   },
   {
    "page": 0,
@@ -284,7 +299,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "high_blood_pressure"
   },
   {
    "page": 0,
@@ -299,7 +315,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "bronchitis_influenza"
   },
   {
    "page": 0,
@@ -314,7 +331,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "sickle_cell_disease"
   },
   {
    "page": 0,
@@ -329,7 +347,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "anemia"
   },
   {
    "page": 0,
@@ -344,7 +363,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "liver_disease"
   },
   {
    "page": 0,
@@ -359,7 +379,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "gall_bladder_disease"
   },
   {
    "page": 0,
@@ -374,7 +395,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "diabetes"
   },
   {
    "page": 0,
@@ -389,7 +411,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "weight_change"
   },
   {
    "page": 0,
@@ -404,7 +427,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "cancer"
   },
   {
    "page": 0,
@@ -419,7 +443,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "bladder_kidney_infections"
   },
   {
    "page": 0,
@@ -434,7 +459,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "pid"
   },
   {
    "page": 0,
@@ -449,7 +475,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "ectopic_pregnancy"
   },
   {
    "page": 0,
@@ -464,7 +491,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "vaginal_infections"
   },
   {
    "page": 0,
@@ -479,7 +507,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "recurrent_diarrhea"
   },
   {
    "page": 0,
@@ -494,7 +523,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "rectal_bleeding"
   },
   {
    "page": 0,
@@ -509,7 +539,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "other"
   },
   {
    "page": 0,
@@ -524,7 +555,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "hepatitis"
   },
   {
    "page": 0,
@@ -539,7 +571,8 @@
    "path": "personal_history",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "ovarian_tumors"
   },
   {
    "page": 0,
@@ -808,7 +841,8 @@
    "path": "emotional_health.self_esteem_issues",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -823,7 +857,8 @@
    "path": "emotional_health.self_esteem_issues",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -838,7 +873,8 @@
    "path": "emotional_health.anxiety",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -853,7 +889,8 @@
    "path": "emotional_health.anxiety",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -890,7 +927,8 @@
    "path": "emotional_health.interested_in_counseling",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -905,7 +943,8 @@
    "path": "emotional_health.interested_in_counseling",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -1000,7 +1039,8 @@
    "path": "health_promotion.exercises_regularly",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -1015,7 +1055,8 @@
    "path": "health_promotion.exercises_regularly",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -1030,7 +1071,8 @@
    "path": "health_promotion.cholesterol_checked",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -1045,7 +1087,8 @@
    "path": "health_promotion.cholesterol_checked",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -1060,7 +1103,8 @@
    "path": "health_promotion.nutrition_questions",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -1075,7 +1119,8 @@
    "path": "health_promotion.nutrition_questions",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -1090,7 +1135,8 @@
    "path": "health_promotion.genital_concerns",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -1105,7 +1151,8 @@
    "path": "health_promotion.genital_concerns",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -1120,7 +1167,8 @@
    "path": "health_promotion.monthly_breast_exams",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -1135,7 +1183,8 @@
    "path": "health_promotion.monthly_breast_exams",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -1150,7 +1199,8 @@
    "path": "health_promotion.had_mammogram",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -1165,7 +1215,8 @@
    "path": "health_promotion.had_mammogram",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -1180,7 +1231,8 @@
    "path": "health_promotion.monthly_testicular_exams",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -1195,7 +1247,8 @@
    "path": "health_promotion.monthly_testicular_exams",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -1285,7 +1338,8 @@
    "path": "sexual_history.ever_had_intercourse",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 1,
@@ -1300,7 +1354,8 @@
    "path": "sexual_history.ever_had_intercourse",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 1,
@@ -1327,7 +1382,8 @@
    "path": "sexual_history.pain_during_intercourse",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 1,
@@ -1342,7 +1398,8 @@
    "path": "sexual_history.pain_during_intercourse",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 1,
@@ -1357,7 +1414,8 @@
    "path": "sexual_history.unprotected_last_6_months",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 1,
@@ -1372,7 +1430,8 @@
    "path": "sexual_history.unprotected_last_6_months",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 1,
@@ -1387,7 +1446,8 @@
    "path": "sexual_history.had_std",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 1,
@@ -1402,7 +1462,8 @@
    "path": "sexual_history.had_std",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 1,
@@ -1417,7 +1478,8 @@
    "path": "sexual_history.stds",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "genital_warts"
   },
   {
    "page": 1,
@@ -1432,7 +1494,8 @@
    "path": "sexual_history.stds",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "herpes"
   },
   {
    "page": 1,
@@ -1447,7 +1510,8 @@
    "path": "sexual_history.stds",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "chlamydia"
   },
   {
    "page": 1,
@@ -1462,7 +1526,8 @@
    "path": "sexual_history.stds",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "other"
   },
   {
    "page": 1,
@@ -1477,7 +1542,8 @@
    "path": "sexual_history.stds",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "syphilis"
   },
   {
    "page": 1,
@@ -1492,7 +1558,8 @@
    "path": "sexual_history.stds",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "hiv_aids"
   },
   {
    "page": 1,
@@ -1507,7 +1574,8 @@
    "path": "sexual_history.stds",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "gonorrhea"
   },
   {
    "page": 1,
@@ -1533,7 +1601,8 @@
    "path": "sexual_history.concerns",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 1,
@@ -1548,7 +1617,8 @@
    "path": "sexual_history.concerns",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 1,
@@ -1563,7 +1633,8 @@
    "path": "female_health.pelvic_exam.had_exam",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 1,
@@ -1578,7 +1649,8 @@
    "path": "female_health.pelvic_exam.had_exam",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 1,
@@ -1620,7 +1692,8 @@
    "path": "female_health.pelvic_exam.result",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "normal"
   },
   {
    "page": 1,
@@ -1635,7 +1708,8 @@
    "path": "female_health.pelvic_exam.result",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "abnormal"
   },
   {
    "page": 1,
@@ -1719,7 +1793,8 @@
    "path": "female_health.menstrual.heavy_flow",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 1,
@@ -1734,7 +1809,8 @@
    "path": "female_health.menstrual.heavy_flow",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 1,
@@ -1749,7 +1825,8 @@
    "path": "female_health.menstrual.irregular",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 1,
@@ -1764,7 +1841,8 @@
    "path": "female_health.menstrual.irregular",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 1,
@@ -1791,7 +1869,8 @@
    "path": "female_health.troubled_by.bleeding_between_periods",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 1,
@@ -1806,7 +1885,8 @@
    "path": "female_health.troubled_by.bleeding_between_periods",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 1,
@@ -1821,7 +1901,8 @@
    "path": "female_health.troubled_by.depression_anxiety",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 1,
@@ -1836,7 +1917,8 @@
    "path": "female_health.troubled_by.depression_anxiety",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 1,
@@ -1851,7 +1933,8 @@
    "path": "female_health.troubled_by.mid_cycle_pains",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 1,
@@ -1866,7 +1949,8 @@
    "path": "female_health.troubled_by.mid_cycle_pains",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 1,
@@ -1881,7 +1965,8 @@
    "path": "female_health.troubled_by.breast_tenderness",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 1,
@@ -1896,7 +1981,8 @@
    "path": "female_health.troubled_by.breast_tenderness",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 1,
@@ -1911,7 +1997,8 @@
    "path": "female_health.troubled_by.vaginal_discharge",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 1,
@@ -1926,7 +2013,8 @@
    "path": "female_health.troubled_by.vaginal_discharge",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 1,
@@ -1941,7 +2029,8 @@
    "path": "female_health.troubled_by.weight_gain",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 1,
@@ -1956,7 +2045,8 @@
    "path": "female_health.troubled_by.weight_gain",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 1,
@@ -1971,7 +2061,8 @@
    "path": "female_health.troubled_by.burning_urination",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 1,
@@ -1986,7 +2077,8 @@
    "path": "female_health.troubled_by.burning_urination",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 1,
@@ -2001,7 +2093,8 @@
    "path": "female_health.troubled_by.ankle_swelling",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 1,
@@ -2016,7 +2109,8 @@
    "path": "female_health.troubled_by.ankle_swelling",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 1,
@@ -2031,7 +2125,8 @@
    "path": "female_health.troubled_by.severe_cramping",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 1,
@@ -2046,7 +2141,8 @@
    "path": "female_health.troubled_by.severe_cramping",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 1,
@@ -2061,7 +2157,8 @@
    "path": "female_health.troubled_by.headache",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 1,
@@ -2076,7 +2173,8 @@
    "path": "female_health.troubled_by.headache",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 1,
@@ -2091,7 +2189,8 @@
    "path": "female_health.pregnancy.ever_pregnant",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 1,
@@ -2106,7 +2205,8 @@
    "path": "female_health.pregnancy.ever_pregnant",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 1,
@@ -2202,7 +2302,8 @@
    "path": "female_health.contraception.methods_used",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "pill"
   },
   {
    "page": 1,
@@ -2217,7 +2318,8 @@
    "path": "female_health.contraception.methods_used",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "condoms"
   },
   {
    "page": 1,
@@ -2232,7 +2334,8 @@
    "path": "female_health.contraception.methods_used",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "diaphragm_cervical_cap"
   },
   {
    "page": 1,
@@ -2247,7 +2350,8 @@
    "path": "female_health.contraception.methods_used",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "iud"
   },
   {
    "page": 1,
@@ -2262,7 +2366,8 @@
    "path": "female_health.contraception.methods_used",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "withdrawal"
   },
   {
    "page": 1,
@@ -2277,7 +2382,8 @@
    "path": "female_health.contraception.methods_used",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "sponge"
   },
   {
    "page": 1,
@@ -2292,7 +2398,8 @@
    "path": "female_health.contraception.methods_used",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "rhythm"
   },
   {
    "page": 1,
@@ -2307,7 +2414,8 @@
    "path": "female_health.contraception.methods_used",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "norplant"
   },
   {
    "page": 1,
@@ -2322,7 +2430,8 @@
    "path": "female_health.contraception.methods_used",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "spermicidal"
   },
   {
    "page": 1,
@@ -2337,7 +2446,8 @@
    "path": "female_health.contraception.methods_used",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "other"
   },
   {
    "page": 1,
@@ -2375,7 +2485,8 @@
    "path": "female_health.contraception.satisfied",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 1,
@@ -2390,7 +2501,8 @@
    "path": "female_health.contraception.satisfied",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 1,
@@ -2417,7 +2529,8 @@
    "path": "female_health.contraception.had_problems",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 1,
@@ -2432,7 +2545,8 @@
    "path": "female_health.contraception.had_problems",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 1,

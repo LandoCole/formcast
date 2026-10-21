@@ -154,7 +154,8 @@
    "path": "service.component",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "active_duty"
   },
   {
    "page": 0,
@@ -169,7 +170,8 @@
    "path": "service.component",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "national_guard"
   },
   {
    "page": 0,
@@ -184,7 +186,8 @@
    "path": "service.component",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "reserve"
   },
   {
    "page": 0,
@@ -299,7 +302,8 @@
    "path": "documents_requested",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "dd214"
   },
   {
    "page": 0,
@@ -314,7 +318,8 @@
    "path": "documents_requested",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "ngb22"
   },
   {
    "page": 0,
@@ -329,7 +334,8 @@
    "path": "documents_requested",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "ngb23"
   },
   {
    "page": 0,
@@ -344,7 +350,8 @@
    "path": "documents_requested",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "medical"
   },
   {
    "page": 0,
@@ -359,7 +366,8 @@
    "path": "documents_requested",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "other"
   },
   {
    "page": 0,

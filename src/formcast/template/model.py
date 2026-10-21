@@ -7,7 +7,7 @@ and schema paths lives elsewhere; these models only check structural invariants.
 from __future__ import annotations
 
 import uuid
-from typing import Any, Literal, NamedTuple
+from typing import Annotated, Any, Literal, NamedTuple
 
 import pydantic
 from pydantic import BaseModel, ConfigDict
@@ -26,12 +26,30 @@ class Source(BaseModel):
     when: Transform | None = None
 
 
+# A font size in points: finite and positive (NaN/inf would poison fitting and fill).
+FontSize = Annotated[float, pydantic.Field(gt=0, allow_inf_nan=False)]
+
+
 class Style(BaseModel):
-    font_size: float | Literal["auto"] = "auto"
-    min_font_size: float = 6
+    font_size: FontSize | Literal["auto"] = "auto"
+    min_font_size: FontSize = 6
     align: Literal["left", "center", "right"] = "left"
     comb: int | None = None
     multiline: bool = False
+
+    @pydantic.model_validator(mode="after")
+    def _check_sizes(self) -> Style:
+        if self.font_size == "auto" or self.min_font_size <= self.font_size:
+            return self
+        if "min_font_size" in self.model_fields_set:
+            raise ValueError(
+                f"min_font_size ({self.min_font_size}) can't exceed font_size ({self.font_size}); "
+                "lower min_font_size too, or use font_size='auto'"
+            )
+        # An unset (default) minimum follows a smaller explicit size. Written to __dict__ so the
+        # field stays "unset" and set_style's exclude_unset merge doesn't treat it as a request.
+        self.__dict__["min_font_size"] = self.font_size
+        return self
 
 
 class Column(BaseModel):
@@ -166,6 +184,17 @@ _WIDGET_FIELD_TYPE = {
     "signature": "signature",
 }
 
+
+# Field types each kind of existing widget can back (fill writes the field's value into it).
+WIDGET_FIELD_TYPES: dict[str, frozenset[str]] = {
+    "text": frozenset({"text", "signature"}),
+    "combo": frozenset({"text"}),
+    "list": frozenset({"text"}),
+    "checkbox": frozenset({"checkbox", "radio_option"}),
+    "radio": frozenset({"radio_option", "checkbox"}),
+    "signature": frozenset({"signature"}),
+    "button": frozenset(),
+}
 
 _CANDIDATE_FIELD_TYPE = {"text": "text", "choice": "checkbox", "signature": "signature"}
 MAX_SEED_LABEL = 80

@@ -6,13 +6,22 @@
    "path": "documents_requested",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": {
+    "Book": "book",
+    "Card": "card",
+    "Both": "both"
+   }
   },
   "Regular or Large Book": {
    "path": "book_size",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": {
+    "Regular": "regular",
+    "Large": "large"
+   }
   },
   "Applicant Last Name": {
    "path": "applicant.last_name"
@@ -45,7 +54,11 @@
    "path": "applicant.sex",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": {
+    "M": "M",
+    "F": "F"
+   }
   },
   "Applicant Place of Birth": {
    "path": "applicant.place_of_birth.city",
@@ -163,7 +176,11 @@
    "path": "parents[].place_of_birth"
   },
   "Ever Married": {
-   "path": "marital_history.ever_married"
+   "path": "marital_history.ever_married",
+   "value": {
+    "Yes": true,
+    "No": false
+   }
   },
   "Full Name of Current Spouse or Most Recent Spouse (Last, first, Middle)": {
    "path": "marital_history.spouse.last_name",
@@ -185,7 +202,11 @@
    "path": "marital_history.spouse.place_of_birth"
   },
   "Spouse US Citizen": {
-   "path": "marital_history.spouse.us_citizen"
+   "path": "marital_history.spouse.us_citizen",
+   "value": {
+    "Yes": true,
+    "No": false
+   }
   },
   "Date of Marriage (mm/dd/yyyy)": {
    "path": "marital_history.marriage_date",
@@ -194,7 +215,11 @@
    ]
   },
   "Divorced": {
-   "path": "marital_history.widowed_or_divorced"
+   "path": "marital_history.widowed_or_divorced",
+   "value": {
+    "Yes": true,
+    "No": false
+   }
   },
   "Widow/Divorce Date (mm/dd/yyyy)": {
    "path": "marital_history.widowed_or_divorced_on",
@@ -209,7 +234,13 @@
    "path": "applicant.additional_phone.type",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": {
+    "Home": "Home",
+    "Work": "Work",
+    "Cell": "Cell",
+    "Other": "Other"
+   }
   },
   "Occupation": {
    "path": "applicant.occupation"
@@ -284,7 +315,11 @@
    "path": "emergency_contact.relationship"
   },
   "Ever Applied or Issued": {
-   "path": "previous_passport.ever_applied_or_issued"
+   "path": "previous_passport.ever_applied_or_issued",
+   "value": {
+    "Yes": true,
+    "No": false
+   }
   },
   "Your name as printed on your most recent U.S. passport book and/or passport card": {
    "path": "previous_passport.book.name_as_printed"
@@ -293,25 +328,29 @@
    "path": "previous_passport.book.status",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "submitting"
   },
   "Book Status Stolen": {
    "path": "previous_passport.book.status",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "stolen"
   },
   "Book Status Lost": {
    "path": "previous_passport.book.status",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "lost"
   },
   "Book Status Possession": {
    "path": "previous_passport.book.status",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "in_possession"
   },
   "Name as printed on your most recent passport card": {
    "path": "previous_passport.card.name_as_printed"
@@ -320,25 +359,29 @@
    "path": "previous_passport.card.status",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "submitting"
   },
   "Card Status Stolen": {
    "path": "previous_passport.card.status",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "stolen"
   },
   "Card Status Lost": {
    "path": "previous_passport.card.status",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "lost"
   },
   "Card Status Possession": {
    "path": "previous_passport.card.status",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "in_possession"
   },
   "Circumstances of lost/stolen book/card": {
    "path": "previous_passport.loss_or_theft_explanation"

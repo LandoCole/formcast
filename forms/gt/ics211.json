@@ -12,31 +12,36 @@
    "path": "check_in_locations",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "Base"
   },
   "Check-In Location - Staging Area": {
    "path": "check_in_locations",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "Staging Area"
   },
   "Check-In Location - ICP": {
    "path": "check_in_locations",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "ICP"
   },
   "Check-In Location - Helibase": {
    "path": "check_in_locations",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "Helibase"
   },
   "Check-In Location - Other": {
    "path": "check_in_locations",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "Other"
   },
   "Start Date": {
    "path": "start_date",

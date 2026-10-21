@@ -174,12 +174,16 @@ def _blanksafe(fn: Callable[..., Any]) -> Callable[..., Any]:
     return wrapper
 
 
-def _text(value: Any) -> str:
+def to_text(value: Any) -> str:
+    """Render a scalar as text; lists and dicts are an error (they need a transform first)."""
     if isinstance(value, str):
         return value
     if isinstance(value, (list, tuple, set, dict)):
         raise FormcastError(f"expected text but got {type(value).__name__}: {value!r}")
     return str(value)
+
+
+_text = to_text  # historical private name, kept so existing callers keep working
 
 
 _ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
@@ -308,11 +312,14 @@ def _number_format(value: Any, decimals: int = 2, thousands: str = ",", prefix: 
     return ("-" if q < 0 else "") + prefix + out
 
 
-def _bool_to_check(value: Any) -> bool:
+def bool_to_check(value: Any) -> bool:
     """True to tick a checkbox for a truthy value; false, no, 0, empty and missing leave it unticked."""
     if isinstance(value, str):
         return value.strip().lower() not in _FALSE_WORDS
     return bool(value)
+
+
+_bool_to_check = bool_to_check  # historical private name
 
 
 def _equals(item: Any, /, *, value: Any) -> bool:

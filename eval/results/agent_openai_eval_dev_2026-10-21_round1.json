@@ -52,10 +52,11 @@
    "Baseline: bare-detector numbers from the baseline run on the same images: FFDNet-L (default for digital pages) for as_published digital/fillable forms, FFDetr (default for scanned pages) for fake_scan and scanned forms. On fillable as_published forms the baseline detects on the widget-stripped page.",
    "Mapping is over GT fields with a schema path. Transform credit uses equivalence groups {slice, split, char_at}, {date_part, date_format}, {equals, contains}, and a when equals true also credits bool_to_check; a template's join and when count as ops. joint = path and transforms right; exact = the matched field's source paths equal GT path + also_paths.",
    "Totals are micro-averaged over forms (sums of counts). Sessions that ended in an error (infrastructure or harness) are listed in the per-form table but excluded from the totals' detection and mapping figures; their templates are partial or untouched seeds.",
-   "The agent's form map carries the neutral source name 'form.pdf', not the file name."
+   "The agent's form map carries the neutral source name 'form.pdf', not the file name.",
+   "fill (fill_acc): the template is filled (formcast fill, real form fields) into the variant's PDF with K distinctive probe records (eval/probe.py), and every GT box with a path is checked for what its widget shows: a text or table-cell box once per record (the exact value; by provenance when GT has transforms), a choice box once across all records (right state in every record). fill_acc = correct units / units. It catches data landing in the wrong box, e.g. a table built as one segment per column, which path/joint score as right. A choice box whose expected state is the same in every probe record can't tell an always-on (or never-on) box from a right one; the json counts them as fill.static_choice."
   ],
   "finished_at": "2026-10-21T07:03:58+00:00",
-  "rescored": "2026-10-21 at commit 6b01f29-dirty: the saved templates were scored again with the stacked-lines rule for multi-line fields; model output is unchanged."
+  "rescored": "2026-10-21 at commit 33e4f50-dirty: the saved templates were scored again with the stacked-lines rule for multi-line fields and the fill-correctness metric (fill); model output is unchanged."
  },
  "rows": [
   {
@@ -161,7 +162,27 @@
    "scored_pages": [
     0
    ],
-   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/wadoc_auth_as_published.json"
+   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/wadoc_auth_as_published.json",
+   "fill": {
+    "units": 34,
+    "correct": 32,
+    "fill_acc": 0.9412,
+    "text": {
+     "units": 34,
+     "correct": 32
+    },
+    "choice": {
+     "units": 0,
+     "correct": 0
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
   },
   {
    "form": "wadoc_auth",
@@ -266,7 +287,27 @@
    "scored_pages": [
     0
    ],
-   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/wadoc_auth_fake_scan.json"
+   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/wadoc_auth_fake_scan.json",
+   "fill": {
+    "units": 34,
+    "correct": 32,
+    "fill_acc": 0.9412,
+    "text": {
+     "units": 34,
+     "correct": 32
+    },
+    "choice": {
+     "units": 0,
+     "correct": 0
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
   },
   {
    "form": "coleman_pir",
@@ -371,7 +412,27 @@
    "scored_pages": [
     0
    ],
-   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/coleman_pir_as_published.json"
+   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/coleman_pir_as_published.json",
+   "fill": {
+    "units": 27,
+    "correct": 27,
+    "fill_acc": 1.0,
+    "text": {
+     "units": 27,
+     "correct": 27
+    },
+    "choice": {
+     "units": 0,
+     "correct": 0
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
   },
   {
    "form": "coleman_pir",
@@ -476,7 +537,27 @@
    "scored_pages": [
     0
    ],
-   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/coleman_pir_fake_scan.json"
+   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/coleman_pir_fake_scan.json",
+   "fill": {
+    "units": 27,
+    "correct": 24,
+    "fill_acc": 0.8889,
+    "text": {
+     "units": 27,
+     "correct": 24
+    },
+    "choice": {
+     "units": 0,
+     "correct": 0
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
   },
   {
    "form": "ndguard",
@@ -581,7 +662,27 @@
    "scored_pages": [
     0
    ],
-   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/ndguard_as_published.json"
+   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/ndguard_as_published.json",
+   "fill": {
+    "units": 113,
+    "correct": 98,
+    "fill_acc": 0.8673,
+    "text": {
+     "units": 105,
+     "correct": 90
+    },
+    "choice": {
+     "units": 8,
+     "correct": 8
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
   },
   {
    "form": "ndguard",
@@ -686,7 +787,27 @@
    "scored_pages": [
     0
    ],
-   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/ndguard_fake_scan.json"
+   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/ndguard_fake_scan.json",
+   "fill": {
+    "units": 113,
+    "correct": 88,
+    "fill_acc": 0.7788,
+    "text": {
+     "units": 105,
+     "correct": 80
+    },
+    "choice": {
+     "units": 8,
+     "correct": 8
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
   },
   {
    "form": "i9",
@@ -801,7 +922,27 @@
     2,
     3
    ],
-   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/i9_as_published.json"
+   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/i9_as_published.json",
+   "fill": {
+    "units": 441,
+    "correct": 161,
+    "fill_acc": 0.3651,
+    "text": {
+     "units": 156,
+     "correct": 156
+    },
+    "choice": {
+     "units": 5,
+     "correct": 5
+    },
+    "cell": {
+     "units": 280,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": false,
+    "fill_errors": []
+   }
   },
   {
    "form": "i9",
@@ -916,7 +1057,27 @@
     2,
     3
    ],
-   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/i9_fake_scan.json"
+   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/i9_fake_scan.json",
+   "fill": {
+    "units": 441,
+    "correct": 80,
+    "fill_acc": 0.1814,
+    "text": {
+     "units": 156,
+     "correct": 76
+    },
+    "choice": {
+     "units": 5,
+     "correct": 4
+    },
+    "cell": {
+     "units": 280,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": false,
+    "fill_errors": []
+   }
   },
   {
    "form": "f8949",
@@ -1025,7 +1186,27 @@
     0,
     1
    ],
-   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/f8949_as_published.json"
+   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/f8949_as_published.json",
+   "fill": {
+    "units": 960,
+    "correct": 960,
+    "fill_acc": 1.0,
+    "text": {
+     "units": 24,
+     "correct": 24
+    },
+    "choice": {
+     "units": 12,
+     "correct": 12
+    },
+    "cell": {
+     "units": 924,
+     "correct": 924
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": true,
+    "fill_errors": []
+   }
   },
   {
    "form": "f8949",
@@ -1134,7 +1315,27 @@
     0,
     1
    ],
-   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/f8949_fake_scan.json"
+   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/f8949_fake_scan.json",
+   "fill": {
+    "units": 960,
+    "correct": 862,
+    "fill_acc": 0.8979,
+    "text": {
+     "units": 24,
+     "correct": 12
+    },
+    "choice": {
+     "units": 12,
+     "correct": 10
+    },
+    "cell": {
+     "units": 924,
+     "correct": 840
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": false,
+    "fill_errors": []
+   }
   },
   {
    "form": "cms1500",
@@ -1245,7 +1446,27 @@
    "scored_pages": [
     0
    ],
-   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/cms1500_as_published.json"
+   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/cms1500_as_published.json",
+   "fill": {
+    "units": 1415,
+    "correct": 446,
+    "fill_acc": 0.3152,
+    "text": {
+     "units": 504,
+     "correct": 168
+    },
+    "choice": {
+     "units": 29,
+     "correct": 23
+    },
+    "cell": {
+     "units": 882,
+     "correct": 255
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
   },
   {
    "form": "cms1500",
@@ -1356,7 +1577,27 @@
    "scored_pages": [
     0
    ],
-   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/cms1500_fake_scan.json"
+   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/cms1500_fake_scan.json",
+   "fill": {
+    "units": 1415,
+    "correct": 169,
+    "fill_acc": 0.1194,
+    "text": {
+     "units": 504,
+     "correct": 133
+    },
+    "choice": {
+     "units": 29,
+     "correct": 15
+    },
+    "cell": {
+     "units": 882,
+     "correct": 21
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
   },
   {
    "form": "menomonie_app",
@@ -1469,7 +1710,27 @@
     1,
     2
    ],
-   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/menomonie_app_as_published.json"
+   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/menomonie_app_as_published.json",
+   "fill": {
+    "units": 158,
+    "correct": 82,
+    "fill_acc": 0.519,
+    "text": {
+     "units": 72,
+     "correct": 68
+    },
+    "choice": {
+     "units": 14,
+     "correct": 14
+    },
+    "cell": {
+     "units": 72,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": false,
+    "fill_errors": []
+   }
   },
   {
    "form": "menomonie_app",
@@ -1582,7 +1843,27 @@
     1,
     2
    ],
-   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/menomonie_app_fake_scan.json"
+   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/menomonie_app_fake_scan.json",
+   "fill": {
+    "units": 158,
+    "correct": 80,
+    "fill_acc": 0.5063,
+    "text": {
+     "units": 72,
+     "correct": 68
+    },
+    "choice": {
+     "units": 14,
+     "correct": 12
+    },
+    "cell": {
+     "units": 72,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": false,
+    "fill_errors": []
+   }
   },
   {
    "form": "columbus_medhist",
@@ -1691,7 +1972,27 @@
     0,
     1
    ],
-   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/columbus_medhist_as_published.json"
+   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/columbus_medhist_as_published.json",
+   "fill": {
+    "units": 1290,
+    "correct": 1241,
+    "fill_acc": 0.962,
+    "text": {
+     "units": 1189,
+     "correct": 1160
+    },
+    "choice": {
+     "units": 101,
+     "correct": 81
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
   },
   {
    "form": "columbus_medhist",
@@ -1800,7 +2101,27 @@
     0,
     1
    ],
-   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/columbus_medhist_fake_scan.json"
+   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/columbus_medhist_fake_scan.json",
+   "fill": {
+    "units": 1290,
+    "correct": 1285,
+    "fill_acc": 0.9961,
+    "text": {
+     "units": 1189,
+     "correct": 1189
+    },
+    "choice": {
+     "units": 101,
+     "correct": 96
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
   },
   {
    "form": "grandview_app",
@@ -1917,7 +2238,27 @@
     2,
     3
    ],
-   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/grandview_app_as_published.json"
+   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/grandview_app_as_published.json",
+   "fill": {
+    "units": 2011,
+    "correct": 718,
+    "fill_acc": 0.357,
+    "text": {
+     "units": 620,
+     "correct": 347
+    },
+    "choice": {
+     "units": 51,
+     "correct": 41
+    },
+    "cell": {
+     "units": 1340,
+     "correct": 330
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": false,
+    "fill_errors": []
+   }
   },
   {
    "form": "grandview_app",
@@ -2034,7 +2375,27 @@
     2,
     3
    ],
-   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/grandview_app_fake_scan.json"
+   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/grandview_app_fake_scan.json",
+   "fill": {
+    "units": 2011,
+    "correct": 492,
+    "fill_acc": 0.2447,
+    "text": {
+     "units": 620,
+     "correct": 325
+    },
+    "choice": {
+     "units": 51,
+     "correct": 37
+    },
+    "cell": {
+     "units": 1340,
+     "correct": 130
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": false,
+    "fill_errors": []
+   }
   },
   {
    "form": "csudh_health",
@@ -2143,7 +2504,27 @@
     0,
     1
    ],
-   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/csudh_health_as_published.json"
+   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/csudh_health_as_published.json",
+   "fill": {
+    "units": 1467,
+    "correct": 1325,
+    "fill_acc": 0.9032,
+    "text": {
+     "units": 1353,
+     "correct": 1221
+    },
+    "choice": {
+     "units": 114,
+     "correct": 104
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
   },
   {
    "form": "csudh_health",
@@ -2252,7 +2633,27 @@
     0,
     1
    ],
-   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/csudh_health_fake_scan.json"
+   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/csudh_health_fake_scan.json",
+   "fill": {
+    "units": 1467,
+    "correct": 1206,
+    "fill_acc": 0.8221,
+    "text": {
+     "units": 1353,
+     "correct": 1122
+    },
+    "choice": {
+     "units": 114,
+     "correct": 84
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
   },
   {
    "form": "fw9",
@@ -2367,7 +2768,27 @@
    "scored_pages": [
     0
    ],
-   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/fw9_as_published.json"
+   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/fw9_as_published.json",
+   "fill": {
+    "units": 92,
+    "correct": 92,
+    "fill_acc": 1.0,
+    "text": {
+     "units": 84,
+     "correct": 84
+    },
+    "choice": {
+     "units": 8,
+     "correct": 8
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
   },
   {
    "form": "fw9",
@@ -2482,7 +2903,27 @@
    "scored_pages": [
     0
    ],
-   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/fw9_fake_scan.json"
+   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/fw9_fake_scan.json",
+   "fill": {
+    "units": 92,
+    "correct": 50,
+    "fill_acc": 0.5435,
+    "text": {
+     "units": 84,
+     "correct": 49
+    },
+    "choice": {
+     "units": 8,
+     "correct": 1
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
   },
   {
    "form": "fw4",
@@ -2599,7 +3040,27 @@
     2,
     3
    ],
-   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/fw4_as_published.json"
+   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/fw4_as_published.json",
+   "fill": {
+    "units": 41,
+    "correct": 41,
+    "fill_acc": 1.0,
+    "text": {
+     "units": 36,
+     "correct": 36
+    },
+    "choice": {
+     "units": 5,
+     "correct": 5
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
   },
   {
    "form": "fw4",
@@ -2716,7 +3177,27 @@
     2,
     3
    ],
-   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/fw4_fake_scan.json"
+   "log_path": "eval/results/logs/2026-10-21_round1/openai_eval/fw4_fake_scan.json",
+   "fill": {
+    "units": 41,
+    "correct": 32,
+    "fill_acc": 0.7805,
+    "text": {
+     "units": 36,
+     "correct": 27
+    },
+    "choice": {
+     "units": 5,
+     "correct": 5
+    },
+    "cell": {
+     "units": 0,
+     "correct": 0
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   }
   }
  ],
  "totals": {
@@ -2782,6 +3263,32 @@
     "transform_acc": 0.5457,
     "joint_acc": 0.5439,
     "exact_path_set_acc": 0.609
+   },
+   "fill": {
+    "forms": 24,
+    "units": 16098,
+    "correct": 9623,
+    "fill_acc": 0.5978,
+    "text": {
+     "units": 8408,
+     "correct": 6550,
+     "acc": 0.779
+    },
+    "choice": {
+     "units": 694,
+     "correct": 573,
+     "acc": 0.8256
+    },
+    "cell": {
+     "units": 6996,
+     "correct": 2500,
+     "acc": 0.3573
+    },
+    "rows_dropped": {
+     "checked": 8,
+     "ok": 1
+    },
+    "static_choice": 0
    },
    "steps": 371,
    "input_tokens": 7124360,
@@ -2851,6 +3358,32 @@
     "joint_acc": 0.6065,
     "exact_path_set_acc": 0.67
    },
+   "fill": {
+    "forms": 12,
+    "units": 8049,
+    "correct": 5223,
+    "fill_acc": 0.6489,
+    "text": {
+     "units": 4204,
+     "correct": 3413,
+     "acc": 0.8118
+    },
+    "choice": {
+     "units": 347,
+     "correct": 301,
+     "acc": 0.8674
+    },
+    "cell": {
+     "units": 3498,
+     "correct": 1509,
+     "acc": 0.4314
+    },
+    "rows_dropped": {
+     "checked": 4,
+     "ok": 1
+    },
+    "static_choice": 0
+   },
    "steps": 150,
    "input_tokens": 3079487,
    "output_tokens": 95517,
@@ -2918,6 +3451,32 @@
     "transform_acc": 0.4925,
     "joint_acc": 0.4812,
     "exact_path_set_acc": 0.548
+   },
+   "fill": {
+    "forms": 12,
+    "units": 8049,
+    "correct": 4400,
+    "fill_acc": 0.5467,
+    "text": {
+     "units": 4204,
+     "correct": 3137,
+     "acc": 0.7462
+    },
+    "choice": {
+     "units": 347,
+     "correct": 272,
+     "acc": 0.7839
+    },
+    "cell": {
+     "units": 3498,
+     "correct": 991,
+     "acc": 0.2833
+    },
+    "rows_dropped": {
+     "checked": 4,
+     "ok": 0
+    },
+    "static_choice": 0
    },
    "steps": 221,
    "input_tokens": 4044873,

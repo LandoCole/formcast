@@ -8,6 +8,8 @@ and scores the final template:
   detector's numbers for the same form and variant;
 * mapping: ``score.score_mapping`` (path, transform with equivalence groups,
   joint path+transform, exact path set);
+* fill: ``fill_score.score_fill`` (``fill_acc``): the template filled with the form's probe
+  records (``probe.probe_records``) into the variant's PDF, each GT box checked for what landed in it;
 * steps, tokens, wall time, stop reason and the unplaceable count.
 
 Inputs:
@@ -87,6 +89,8 @@ import pymupdf  # noqa: E402
 from PIL import Image, ImageDraw  # noqa: E402
 
 import baseline_detection  # noqa: E402
+import fill_score  # noqa: E402
+import probe  # noqa: E402
 import score  # noqa: E402
 from formcast.llm import LLMConfig, LLMResponse, Message, ToolSpec, make_provider  # noqa: E402
 from formcast.pagemap.extract import open_pdf  # noqa: E402
@@ -134,6 +138,13 @@ NOTES = [
     "harness) are listed in the per-form table but excluded from the totals' detection and mapping figures; "
     "their templates are partial or untouched seeds.",
     f"The agent's form map carries the neutral source name {ANON_SOURCE_NAME!r}, not the file name.",
+    "fill (fill_acc): the template is filled (formcast fill, real form fields) into the variant's PDF with K "
+    "distinctive probe records (eval/probe.py), and every GT box with a path is checked for what its widget shows: "
+    "a text or table-cell box once per record (the exact value; by provenance when GT has transforms), a choice "
+    "box once across all records (right state in every record). fill_acc = correct units / units. It catches "
+    "data landing in the wrong box, e.g. a table built as one segment per column, which path/joint score as right. "
+    "A choice box whose expected state is the same in every probe record can't tell an always-on (or never-on) box "
+    "from a right one; the json counts them as fill.static_choice.",
 ]
 
 
@@ -300,12 +311,30 @@ def _mapping_totals(parts: list[dict]) -> dict:
     }
 
 
+def _fill_totals(parts: list[dict]) -> dict | None:
+    """Micro-averaged fill figures over rows' ``fill`` dicts (None when no row has one)."""
+    if not parts:
+        return None
+    r = score._ratio
+    out: dict = {"forms": len(parts), "units": sum(p["units"] for p in parts),
+                 "correct": sum(p["correct"] for p in parts)}  # fmt: skip
+    out["fill_acc"] = round(r(out["correct"], out["units"]), 4)
+    for kind in ("text", "choice", "cell"):
+        u, c = sum(p[kind]["units"] for p in parts), sum(p[kind]["correct"] for p in parts)
+        out[kind] = {"units": u, "correct": c, "acc": round(r(c, u), 4)}
+    checked = [p["rows_dropped_ok"] for p in parts if p["rows_dropped_ok"] is not None]
+    out["rows_dropped"] = {"checked": len(checked), "ok": sum(checked)}
+    out["static_choice"] = sum(p.get("static_choice", 0) for p in parts)
+    return out
+
+
 def totals(rows: list[dict]) -> dict:
     """Micro-averaged totals per variant and over all rows ("all").
 
     Rows without scores (a harness error or no GT) and rows whose session ended
     in an error (``error`` set: cut off by the provider, partial template) count as
-    ``failed`` and are left out of the detection, baseline and mapping figures;
+    ``failed`` and are left out of the detection, baseline, mapping and fill figures (``fill``
+    sums the scored rows that have a fill score: None when none do);
     ``errored`` lists them as "form/variant". ``baseline`` sums the scored rows that have baseline numbers (None when none do).
     """
     groups = {"all": rows}
@@ -327,6 +356,7 @@ def totals(rows: list[dict]) -> dict:
                 if based else None
             ),
             "mapping": _mapping_totals([r["mapping"] for r in ok]),
+            "fill": _fill_totals([r["fill"] for r in ok if r.get("fill")]),
             "steps": sum(r.get("steps", 0) for r in rs),
             "input_tokens": sum(r.get("input_tokens", 0) for r in rs),
             "output_tokens": sum(r.get("output_tokens", 0) for r in rs),
@@ -422,14 +452,41 @@ def prepare(form: dict, variant: str, run_dir: str) -> dict:
     }
 
 
-def score_row(row: dict, t, form: dict):
-    """Fill ``row``'s detection, mapping and scored pages from template ``t``; returns the GT (None without any)."""
+_FAKE_SCANS: dict[str, bytes] = {}  # form id -> fake-scan PDF, made once per process
+
+
+def variant_pdf(form: dict, variant: str) -> Path | bytes:
+    """The PDF a variant's template was built on: the original, or its (regenerated, deterministic) fake scan."""
+    original = FORMS / form["split"] / f"{form['id']}.pdf"
+    if variant != "fake_scan":
+        return original
+    if form["id"] not in _FAKE_SCANS:
+        _FAKE_SCANS[form["id"]] = fake_scan_pdf(form["id"], original)
+    return _FAKE_SCANS[form["id"]]
+
+
+def fill_scores(gt: list[score.GTField], t, form: dict, pdf: str | Path | bytes) -> dict:
+    """``fill_score.score_fill`` of template ``t`` filled into ``pdf`` with the form's probe records."""
+    schema = json.loads((FORMS / "schemas" / f"{form['id']}.json").read_text())
+    records = probe.probe_records(schema, gt, overrides=probe.load_overrides(form["id"]), seed=form["id"],
+                                  form_id=form["id"])  # fmt: skip
+    out = fill_score.score_fill(gt, t, pdf, records)
+    return {**out, "fill_acc": round(out["fill_acc"], 4)}
+
+
+def score_row(row: dict, t, form: dict, pdf: str | Path | bytes | None = None):
+    """Fill ``row``'s detection, mapping, fill and scored pages from template ``t``; returns the GT (None without any).
+
+    ``pdf`` is the variant's input PDF (default: ``variant_pdf`` of ``row["variant"]``); GT always
+    comes from the original.
+    """
     gt = score.load_gt(form, FORMS / form["split"] / f"{form['id']}.pdf")
     if gt:
         row["detection"] = detection_scores(gt, t)
         row["mapping"] = {
             k: (round(v, 4) if isinstance(v, float) else v) for k, v in score.score_mapping(gt, t).items()
         }
+        row["fill"] = fill_scores(gt, t, form, variant_pdf(form, row["variant"]) if pdf is None else pdf)
         row["scored_pages"] = sorted({g.page for g in gt})
     return gt
 
@@ -510,8 +567,17 @@ def run_one(job: dict) -> dict:
         template_path = Path(job["templates_dir"]) / tag_dir / f"{stem}.json"
         _write(template_path, t.to_json(), redactor)
         row["template_path"] = str(template_path.relative_to(ROOT))
+        # the session's log is written before scoring, so a scorer failure can't lose it
+        _write_json(log_path, {
+            "form": form["id"], "variant": variant, "model_env": prefix, "model": cfg.model,
+            "stop_reason": result.stop_reason, "error": result.error, "summary": result.summary,
+            "unplaceable": result.unplaceable,
+            "usage": {"input_tokens": result.usage.input_tokens, "output_tokens": result.usage.output_tokens},
+            "first_user_message": recorder.first_user_message, "steps": _step_log(result, recorder),
+        }, redactor)  # fmt: skip
+        row["log_path"] = str(log_path.relative_to(ROOT))
 
-        gt = score_row(row, t, form)
+        gt = score_row(row, t, form, prep["pdf_path"])
 
         overlay_dir = Path(job["overlays_dir"]) / tag_dir
         overlay_dir.mkdir(parents=True, exist_ok=True)
@@ -522,15 +588,6 @@ def run_one(job: dict) -> dict:
                 (overlay_dir / f"{stem}_p{pno}.png").write_bytes(_draw_gt(png, doc[pno], page_gt))
         finally:
             doc.close()
-
-        _write_json(log_path, {
-            "form": form["id"], "variant": variant, "model_env": prefix, "model": cfg.model,
-            "stop_reason": result.stop_reason, "error": result.error, "summary": result.summary,
-            "unplaceable": result.unplaceable,
-            "usage": {"input_tokens": result.usage.input_tokens, "output_tokens": result.usage.output_tokens},
-            "first_user_message": recorder.first_user_message, "steps": _step_log(result, recorder),
-        }, redactor)  # fmt: skip
-        row["log_path"] = str(log_path.relative_to(ROOT))
     except Exception as e:  # noqa: BLE001 - one broken session must not end the run
         row["error"] = redactor.scrub(f"harness: {type(e).__name__}: {e}")
         _write(log_path.with_suffix(".error.txt"), traceback.format_exc(), redactor)
@@ -563,15 +620,15 @@ def render_markdown(meta: dict, rows: list[dict], tot: dict) -> str:
         *[f"- {n}" for n in NOTES],
         "", "## Per form", "",
         "| form | kind | variant | GT | boxes | recall@.3 (.5) | precision@.3 | type acc | baseline det | "
-        "baseline recall@.3 (.5) | baseline precision@.3 | path | transform | joint | exact | mapped GT | "
+        "baseline recall@.3 (.5) | baseline precision@.3 | path | transform | joint | fill | exact | mapped GT | "
         "steps | tokens in / out | wall s | stop | unplaceable |",
-        "|" + "---|" * 21,
+        "|" + "---|" * 22,
     ]  # fmt: skip
     for r in rows:
         if r.get("detection") is None:
             err = (r.get("error") or "no ground truth").replace("|", "/").replace("\n", " ")[:120]
             lines.append(f"| {r['form']} | {r['kind']} | {r['variant']} | – | – | – | – | – | – | – | – | – | – | – "
-                         f"| – | – | {r.get('steps', '–')} | – | – | {r.get('stop_reason', 'error')} | {err} |")
+                         f"| – | – | – | {r.get('steps', '–')} | – | – | {r.get('stop_reason', 'error')} | {err} |")
             continue
         d, m, b = r["detection"], r["mapping"], r.get("baseline")
         rec, prec, tacc = _det_cell(d)
@@ -581,15 +638,15 @@ def render_markdown(meta: dict, rows: list[dict], tot: dict) -> str:
             f"| {r['form']} | {r['kind']} | {r['variant']} | {d['iou0.3']['gt']} | {d['iou0.3']['pred']} | {rec} | "
             f"{prec} | {tacc} | {b['detector'] if b else '–'} | {brec} | {bprec} | {_pct(m['path_acc'])} | "
             f"{_pct(m['transform_acc']) if m['n_transform'] else '–'} | {_pct(m['joint_acc'])} | "
-            f"{_pct(m['exact_path_set_acc'])} | {m['n_path']} | {r['steps']} | "
+            f"{_pct((r.get('fill') or {}).get('fill_acc'))} | {_pct(m['exact_path_set_acc'])} | {m['n_path']} | {r['steps']} | "
             f"{r['input_tokens']:,} / {r['output_tokens']:,} | {r['wall_s']:.0f} | {stop} | {r['unplaceable']} |"
         )
     lines += [
         "", "## Totals (micro-averaged)", "",
         "| variant | forms (failed) | finished | GT | boxes | recall@.3 (.5) | precision@.3 | type acc | "
-        "baseline recall@.3 (.5) | baseline precision@.3 | path | transform | joint | exact | steps | "
+        "baseline recall@.3 (.5) | baseline precision@.3 | path | transform | joint | fill | exact | steps | "
         "tokens in / out | wall s |",
-        "|" + "---|" * 17,
+        "|" + "---|" * 18,
     ]  # fmt: skip
     for name, t in tot.items():
         d, m, b = t["detection"], t["mapping"], t["baseline"]
@@ -598,7 +655,8 @@ def render_markdown(meta: dict, rows: list[dict], tot: dict) -> str:
         lines.append(
             f"| {name} | {t['forms']} ({t['failed']}) | {t['finished']} | {d['iou0.3']['gt']} | {d['iou0.3']['pred']} | "
             f"{rec} | {prec} | {tacc} | {brec} | {bprec} | {_pct(m['path_acc'])} | {_pct(m['transform_acc'])} | "
-            f"{_pct(m['joint_acc'])} | {_pct(m['exact_path_set_acc'])} | {t['steps']} | "
+            f"{_pct(m['joint_acc'])} | {_pct((t.get('fill') or {}).get('fill_acc'))} | "
+            f"{_pct(m['exact_path_set_acc'])} | {t['steps']} | "
             f"{t['input_tokens']:,} / {t['output_tokens']:,} | {t['wall_s']:.0f} |"
         )
     errored = tot["all"].get("errored") if "all" in tot else None
@@ -716,14 +774,15 @@ def rescore_main(args) -> None:
         form = manifest[r["form"]]
         r["baseline"] = baseline_scores(baseline_rows, form["id"], r["variant"],
                                         baseline_detector(form["kind"], r["variant"]))
-        r["detection"] = r["mapping"] = None
+        r["detection"] = r["mapping"] = r["fill"] = None
         score_row(r, Template.from_json((ROOT / tp).read_text()), form)
         done += 1
     tot = totals(rows)
     meta.update({
         "notes": NOTES, "baseline_file": baseline_file.name,
         "rescored": f"{dt.date.today().isoformat()} at commit {_git_commit()}: the saved templates were scored again "
-                    "with the stacked-lines rule for multi-line fields; model output is unchanged.",
+                    "with the stacked-lines rule for multi-line fields and the fill-correctness metric (fill); "
+                    "model output is unchanged.",
     })  # fmt: skip
     _write_json(path, {"meta": meta, "rows": rows, "totals": tot}, Redactor([]))
     _write(path.with_suffix(".md"), render_markdown(meta, rows, tot), Redactor([]))
@@ -764,11 +823,11 @@ def seed_main(args) -> None:
         }  # fmt: skip
         t = new_template(schema, fm, candidates=True)
         row["fields"] = len(t.fields)
-        score_row(row, t, f)
+        score_row(row, t, f, prep["pdf_path"])
         rows.append(row)
         d, m = row["detection"]["iou0.3"], row["detection"]["iou0.5"]
-        print(f"  {f['id']} {v}: seeded recall@.5={m['recall']} recall@.3={d['recall']} precision@.3={d['precision']}",
-              flush=True)
+        print(f"  {f['id']} {v}: seeded recall@.5={m['recall']} recall@.3={d['recall']} precision@.3={d['precision']} "
+              f"fill={row['fill']['fill_acc']}", flush=True)
     tot = totals(rows)
     meta = {
         "model_env": "SEED", "model": "seed-only (no model; untouched seeded template)", "api_format": "none",
@@ -851,7 +910,8 @@ def main(argv=None) -> None:
             m = row.get("mapping") or {}
             print(f"  {row['model_env']} {row['form']} {row['variant']}: stop={row.get('stop_reason')} "
                   f"steps={row.get('steps')} recall@.3={d.get('recall')} precision@.3={d.get('precision')} "
-                  f"path={m.get('path_acc')} joint={m.get('joint_acc')} tokens={row.get('input_tokens')}/"
+                  f"path={m.get('path_acc')} joint={m.get('joint_acc')} fill={(row.get('fill') or {}).get('fill_acc')} "
+                  f"tokens={row.get('input_tokens')}/"
                   f"{row.get('output_tokens')} wall={row.get('wall_s')}s"
                   + (f" error={redactor.scrub(row['error'])}" if row.get("error") else ""), flush=True)
 

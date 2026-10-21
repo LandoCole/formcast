@@ -13,26 +13,27 @@ Notes:
 - Mapping is over GT fields with a schema path. Transform credit uses equivalence groups {slice, split, char_at}, {date_part, date_format}, {equals, contains}, and a when equals true also credits bool_to_check; a template's join and when count as ops. joint = path and transforms right; exact = the matched field's source paths equal GT path + also_paths.
 - Totals are micro-averaged over forms (sums of counts). Sessions that ended in an error (infrastructure or harness) are listed in the per-form table but excluded from the totals' detection and mapping figures; their templates are partial or untouched seeds.
 - The agent's form map carries the neutral source name 'form.pdf', not the file name.
+- fill (fill_acc): the template is filled (formcast fill, real form fields) into the variant's PDF with K distinctive probe records (eval/probe.py), and every GT box with a path is checked for what its widget shows: a text or table-cell box once per record (the exact value; by provenance when GT has transforms), a choice box once across all records (right state in every record). fill_acc = correct units / units. It catches data landing in the wrong box, e.g. a table built as one segment per column, which path/joint score as right. A choice box whose expected state is the same in every probe record can't tell an always-on (or never-on) box from a right one; the json counts them as fill.static_choice.
 
 ## Per form
 
-| form | kind | variant | GT | boxes | recall@.3 (.5) | precision@.3 | type acc | baseline det | baseline recall@.3 (.5) | baseline precision@.3 | path | transform | joint | exact | mapped GT | steps | tokens in / out | wall s | stop | unplaceable |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| grandview_app | flat | as_published | 323 | 243 | 0.71 (0.65) | 0.94 | 0.99 | FFDNet-L | 0.76 (0.74) | 0.95 | 0.65 | 0.40 | 0.57 | 0.60 | 247 | 39 | 1,147,695 / 93,688 | 481 | finish | 5 |
-| grandview_app | flat | fake_scan | 323 | 200 | 0.56 (0.44) | 0.91 | 0.99 | FFDetr | 0.59 (0.49) | 0.92 | 0.30 | 0.33 | 0.26 | 0.28 | 247 | 33 | 889,803 / 85,104 | 438 | finish | 5 |
-| i9 | fillable | as_published | 130 | 130 | 1.00 (1.00) | 1.00 | 0.93 | FFDNet-L | 0.95 (0.95) | 0.96 | 1.00 | 0.67 | 0.88 | 1.00 | 114 | 8 | 193,549 / 24,202 | 113 | finish | 2 |
-| i9 | fillable | fake_scan | 130 | 112 | 0.85 (0.82) | 0.98 | 0.93 | FFDetr | 0.94 (0.92) | 0.94 | 0.54 | 0.14 | 0.40 | 0.54 | 114 | 32 | 744,514 / 96,186 | 494 | finish | 14 |
-| cms1500 | flat | as_published | 254 | 135 | 0.49 (0.47) | 0.93 | 0.99 | FFDNet-L | 0.52 (0.50) | 0.83 | 0.17 | 0.25 | 0.16 | 0.17 | 227 | 35 | 1,050,654 / 76,729 | 405 | finish | 9 |
-| cms1500 | flat | fake_scan | 254 | 32 | 0.06 (0.02) | 0.50 | 0.88 | FFDetr | 0.04 (0.01) | 0.61 | 0.06 | 0.04 | 0.04 | 0.05 | 227 | 29 | 538,642 / 55,779 | 290 | finish | 0 |
-| wadoc_auth | flat | as_published | 27 | 19 | 0.96 (0.96) | 1.00 | 1.00 | FFDNet-L | 1.00 (1.00) | 1.00 | 0.94 | 1.00 | 0.94 | 0.88 | 17 | 6 | 74,552 / 5,946 | 32 | finish | 4 |
-| wadoc_auth | flat | fake_scan | 27 | 19 | 0.96 (0.81) | 1.00 | 1.00 | FFDetr | 0.96 (0.44) | 1.00 | 1.00 | 1.00 | 1.00 | 0.94 | 17 | 6 | 68,783 / 10,108 | 49 | finish | 4 |
+| form | kind | variant | GT | boxes | recall@.3 (.5) | precision@.3 | type acc | baseline det | baseline recall@.3 (.5) | baseline precision@.3 | path | transform | joint | fill | exact | mapped GT | steps | tokens in / out | wall s | stop | unplaceable |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| grandview_app | flat | as_published | 323 | 243 | 0.71 (0.65) | 0.94 | 0.99 | FFDNet-L | 0.76 (0.74) | 0.95 | 0.65 | 0.40 | 0.57 | 0.44 | 0.60 | 247 | 39 | 1,147,695 / 93,688 | 481 | finish | 5 |
+| grandview_app | flat | fake_scan | 323 | 200 | 0.56 (0.44) | 0.91 | 0.99 | FFDetr | 0.59 (0.49) | 0.92 | 0.30 | 0.33 | 0.26 | 0.14 | 0.28 | 247 | 33 | 889,803 / 85,104 | 438 | finish | 5 |
+| i9 | fillable | as_published | 130 | 130 | 1.00 (1.00) | 1.00 | 0.93 | FFDNet-L | 0.95 (0.95) | 0.96 | 1.00 | 0.67 | 0.88 | 0.94 | 1.00 | 114 | 8 | 193,549 / 24,202 | 113 | finish | 2 |
+| i9 | fillable | fake_scan | 130 | 112 | 0.85 (0.82) | 0.98 | 0.93 | FFDetr | 0.94 (0.92) | 0.94 | 0.54 | 0.14 | 0.40 | 0.46 | 0.54 | 114 | 32 | 744,514 / 96,186 | 494 | finish | 14 |
+| cms1500 | flat | as_published | 254 | 135 | 0.49 (0.47) | 0.93 | 0.99 | FFDNet-L | 0.52 (0.50) | 0.83 | 0.17 | 0.25 | 0.16 | 0.12 | 0.17 | 227 | 35 | 1,050,654 / 76,729 | 405 | finish | 9 |
+| cms1500 | flat | fake_scan | 254 | 32 | 0.06 (0.02) | 0.50 | 0.88 | FFDetr | 0.04 (0.01) | 0.61 | 0.06 | 0.04 | 0.04 | 0.03 | 0.05 | 227 | 29 | 538,642 / 55,779 | 290 | finish | 0 |
+| wadoc_auth | flat | as_published | 27 | 19 | 0.96 (0.96) | 1.00 | 1.00 | FFDNet-L | 1.00 (1.00) | 1.00 | 0.94 | 1.00 | 0.94 | 0.88 | 0.88 | 17 | 6 | 74,552 / 5,946 | 32 | finish | 4 |
+| wadoc_auth | flat | fake_scan | 27 | 19 | 0.96 (0.81) | 1.00 | 1.00 | FFDetr | 0.96 (0.44) | 1.00 | 1.00 | 1.00 | 1.00 | 0.94 | 0.94 | 17 | 6 | 68,783 / 10,108 | 49 | finish | 4 |
 
 ## Totals (micro-averaged)
 
-| variant | forms (failed) | finished | GT | boxes | recall@.3 (.5) | precision@.3 | type acc | baseline recall@.3 (.5) | baseline precision@.3 | path | transform | joint | exact | steps | tokens in / out | wall s |
-|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| all | 8 (0) | 8 | 1468 | 890 | 0.57 (0.52) | 0.93 | 0.97 | 0.60 (0.55) | 0.92 | 0.41 | 0.29 | 0.36 | 0.39 | 188 | 4,708,192 / 447,742 | 2301 |
-| as_published | 4 (0) | 4 | 734 | 527 | 0.69 (0.66) | 0.95 | 0.98 | 0.72 (0.70) | 0.92 | 0.55 | 0.38 | 0.48 | 0.52 | 88 | 2,466,450 / 200,565 | 1030 |
-| fake_scan | 4 (0) | 4 | 734 | 363 | 0.45 (0.38) | 0.90 | 0.97 | 0.48 (0.40) | 0.92 | 0.27 | 0.19 | 0.23 | 0.26 | 100 | 2,241,742 / 247,177 | 1271 |
+| variant | forms (failed) | finished | GT | boxes | recall@.3 (.5) | precision@.3 | type acc | baseline recall@.3 (.5) | baseline precision@.3 | path | transform | joint | fill | exact | steps | tokens in / out | wall s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| all | 8 (0) | 8 | 1468 | 890 | 0.57 (0.52) | 0.93 | 0.97 | 0.60 (0.55) | 0.92 | 0.41 | 0.29 | 0.36 | 0.26 | 0.39 | 188 | 4,708,192 / 447,742 | 2301 |
+| as_published | 4 (0) | 4 | 734 | 527 | 0.69 (0.66) | 0.95 | 0.98 | 0.72 (0.70) | 0.92 | 0.55 | 0.38 | 0.48 | 0.38 | 0.52 | 88 | 2,466,450 / 200,565 | 1030 |
+| fake_scan | 4 (0) | 4 | 734 | 363 | 0.45 (0.38) | 0.90 | 0.97 | 0.48 (0.40) | 0.92 | 0.27 | 0.19 | 0.23 | 0.15 | 0.26 | 100 | 2,241,742 / 247,177 | 1271 |
 
-Re-scored: 2026-10-21 at commit 6b01f29-dirty: the saved templates were scored again with the stacked-lines rule for multi-line fields; model output is unchanged.
+Re-scored: 2026-10-21 at commit 33e4f50: the saved templates were scored again with the stacked-lines rule for multi-line fields and the fill-correctness metric (fill); model output is unchanged.

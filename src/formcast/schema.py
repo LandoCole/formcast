@@ -47,12 +47,14 @@ from formcast.errors import FormcastError
 __all__ = [
     "ARRAY_ITEM",
     "SchemaPath",
+    "data_location",
     "flatten_schema",
     "format_path",
     "is_array_item",
     "parse_path",
     "resolve",
     "validate_data",
+    "validate_data_located",
 ]
 
 PathType = Literal["string", "integer", "number", "boolean", "date", "enum", "array", "object"]
@@ -357,19 +359,22 @@ def resolve(schema_paths: list[SchemaPath], path: str) -> SchemaPath:
 # ------------------------------------------------------------------ validate
 
 
-def _data_location(parts: list[Any]) -> str:
+def data_location(parts: list[Any]) -> str:
+    """Path-syntax location for a ``jsonschema`` error path (names and integer indices)."""
     out = ""
     for p in parts:
         out += f"[{p}]" if isinstance(p, int) else _format_segment(str(p), first=not out)
     return out
 
 
-def validate_data(schema: dict, data: Any) -> list[str]:
-    """Validate ``data`` against ``schema``; return error messages (empty when valid).
+_data_location = data_location  # historical private name
 
-    Each message is ``"<location>: <jsonschema message>"`` where the location uses
-    path syntax with concrete indices (``medications[0].dose``); errors at the
-    document root have no location prefix. ``format: date`` is checked. An invalid
+
+def validate_data_located(schema: dict, data: Any) -> list[tuple[str, str]]:
+    """Validate ``data`` against ``schema``; return ``(location, message)`` pairs, sorted.
+
+    The location uses path syntax with concrete indices (``medications[0].dose``) and is
+    ``""`` for an error at the document root. ``format: date`` is checked. An invalid
     schema or an unresolvable (dangling/remote) ``$ref`` raises ``FormcastError``.
     """
     cls = validator_for(schema)
@@ -383,4 +388,13 @@ def validate_data(schema: dict, data: Any) -> list[str]:
     except Unresolvable as e:  # dangling or remote $ref, only discovered while validating
         raise FormcastError(f"unresolvable $ref in JSON Schema: {e}") from e
     found.sort()
-    return [f"{loc}: {msg}" if loc else msg for loc, msg in found]
+    return found
+
+
+def validate_data(schema: dict, data: Any) -> list[str]:
+    """Validate ``data`` against ``schema``; return error messages (empty when valid).
+
+    Each message is ``"<location>: <jsonschema message>"`` (see
+    :func:`validate_data_located`); errors at the document root have no location prefix.
+    """
+    return [f"{loc}: {msg}" if loc else msg for loc, msg in validate_data_located(schema, data)]

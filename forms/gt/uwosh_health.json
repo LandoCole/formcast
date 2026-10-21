@@ -38,7 +38,8 @@
    "path": "student.gender_identity",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "man"
   },
   {
    "page": 0,
@@ -53,7 +54,8 @@
    "path": "student.gender_identity",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "woman"
   },
   {
    "page": 0,
@@ -68,7 +70,8 @@
    "path": "student.gender_identity",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "transgender"
   },
   {
    "page": 0,
@@ -83,7 +86,8 @@
    "path": "student.gender_identity",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "genderqueer"
   },
   {
    "page": 0,
@@ -98,7 +102,8 @@
    "path": "student.sex_assigned_at_birth",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "male"
   },
   {
    "page": 0,
@@ -113,7 +118,8 @@
    "path": "student.sex_assigned_at_birth",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "female"
   },
   {
    "page": 0,
@@ -512,7 +518,8 @@
    "path": "tobacco.smokes_cigarettes",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -527,7 +534,8 @@
    "path": "tobacco.smokes_cigarettes",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -542,7 +550,8 @@
    "path": "tobacco.uses_smokeless",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -557,7 +566,8 @@
    "path": "tobacco.uses_smokeless",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -629,7 +639,8 @@
    "path": "alcohol.drinks",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -644,7 +655,8 @@
    "path": "alcohol.drinks",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -659,7 +671,8 @@
    "path": "alcohol.felt_need_to_cut_down",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -674,7 +687,8 @@
    "path": "alcohol.felt_need_to_cut_down",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -701,7 +715,8 @@
    "path": "drugs.uses_street_drugs",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -716,7 +731,8 @@
    "path": "drugs.uses_street_drugs",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -755,7 +771,8 @@
    "path": "exercise.exercises_regularly",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -770,7 +787,8 @@
    "path": "exercise.exercises_regularly",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -797,7 +815,8 @@
    "path": "wears_seat_belt",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 0,
@@ -812,7 +831,8 @@
    "path": "wears_seat_belt",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 0,
@@ -915,7 +935,8 @@
    "path": "mood.depressed",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "frequently"
   },
   {
    "page": 0,
@@ -930,7 +951,8 @@
    "path": "mood.depressed",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "rarely"
   },
   {
    "page": 0,
@@ -945,7 +967,8 @@
    "path": "mood.depressed",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "never"
   },
   {
    "page": 0,
@@ -960,7 +983,8 @@
    "path": "mood.little_interest",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "frequently"
   },
   {
    "page": 0,
@@ -975,7 +999,8 @@
    "path": "mood.little_interest",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "rarely"
   },
   {
    "page": 0,
@@ -990,7 +1015,8 @@
    "path": "mood.little_interest",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "never"
   },
   {
    "page": 0,
@@ -1005,7 +1031,8 @@
    "path": "family_history.alcoholism",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "mother"
   },
   {
    "page": 0,
@@ -1020,7 +1047,8 @@
    "path": "family_history.alcoholism",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "father"
   },
   {
    "page": 0,
@@ -1035,7 +1063,8 @@
    "path": "family_history.alcoholism",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "sibling"
   },
   {
    "page": 0,
@@ -1050,7 +1079,8 @@
    "path": "family_history.drug_abuse",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "mother"
   },
   {
    "page": 0,
@@ -1065,7 +1095,8 @@
    "path": "family_history.drug_abuse",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "father"
   },
   {
    "page": 0,
@@ -1080,7 +1111,8 @@
    "path": "family_history.drug_abuse",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "sibling"
   },
   {
    "page": 0,
@@ -1095,7 +1127,8 @@
    "path": "family_history.blood_clotting_disorder",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "mother"
   },
   {
    "page": 0,
@@ -1110,7 +1143,8 @@
    "path": "family_history.blood_clotting_disorder",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "father"
   },
   {
    "page": 0,
@@ -1125,7 +1159,8 @@
    "path": "family_history.blood_clotting_disorder",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "sibling"
   },
   {
    "page": 0,
@@ -1140,7 +1175,8 @@
    "path": "family_history.depression_psychiatric_illness",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "mother"
   },
   {
    "page": 0,
@@ -1155,7 +1191,8 @@
    "path": "family_history.depression_psychiatric_illness",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "father"
   },
   {
    "page": 0,
@@ -1170,7 +1207,8 @@
    "path": "family_history.depression_psychiatric_illness",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "sibling"
   },
   {
    "page": 0,
@@ -1185,7 +1223,8 @@
    "path": "family_history.diabetes",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "mother"
   },
   {
    "page": 0,
@@ -1200,7 +1239,8 @@
    "path": "family_history.diabetes",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "father"
   },
   {
    "page": 0,
@@ -1215,7 +1255,8 @@
    "path": "family_history.diabetes",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "sibling"
   },
   {
    "page": 0,
@@ -1230,7 +1271,8 @@
    "path": "family_history.stroke",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "mother"
   },
   {
    "page": 0,
@@ -1245,7 +1287,8 @@
    "path": "family_history.stroke",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "father"
   },
   {
    "page": 0,
@@ -1260,7 +1303,8 @@
    "path": "family_history.stroke",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "sibling"
   },
   {
    "page": 0,
@@ -1275,7 +1319,8 @@
    "path": "family_history.heart_disease",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "mother"
   },
   {
    "page": 0,
@@ -1290,7 +1335,8 @@
    "path": "family_history.heart_disease",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "father"
   },
   {
    "page": 0,
@@ -1305,7 +1351,8 @@
    "path": "family_history.heart_disease",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "sibling"
   },
   {
    "page": 0,
@@ -1320,7 +1367,8 @@
    "path": "family_history.thyroid_problems",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "mother"
   },
   {
    "page": 0,
@@ -1335,7 +1383,8 @@
    "path": "family_history.thyroid_problems",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "father"
   },
   {
    "page": 0,
@@ -1350,7 +1399,8 @@
    "path": "family_history.thyroid_problems",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "sibling"
   },
   {
    "page": 0,
@@ -1365,7 +1415,8 @@
    "path": "family_history.high_blood_pressure",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "mother"
   },
   {
    "page": 0,
@@ -1380,7 +1431,8 @@
    "path": "family_history.high_blood_pressure",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "father"
   },
   {
    "page": 0,
@@ -1395,7 +1447,8 @@
    "path": "family_history.high_blood_pressure",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "sibling"
   },
   {
    "page": 0,
@@ -1410,7 +1463,8 @@
    "path": "family_history.high_cholesterol",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "mother"
   },
   {
    "page": 0,
@@ -1425,7 +1479,8 @@
    "path": "family_history.high_cholesterol",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "father"
   },
   {
    "page": 0,
@@ -1440,7 +1495,8 @@
    "path": "family_history.high_cholesterol",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "sibling"
   },
   {
    "page": 0,
@@ -1455,7 +1511,8 @@
    "path": "family_history.cancer",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "mother"
   },
   {
    "page": 0,
@@ -1470,7 +1527,8 @@
    "path": "family_history.cancer",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "father"
   },
   {
    "page": 0,
@@ -1485,7 +1543,8 @@
    "path": "family_history.cancer",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "sibling"
   },
   {
    "page": 0,
@@ -1500,7 +1559,8 @@
    "path": "family_history.hereditary_disease",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "mother"
   },
   {
    "page": 0,
@@ -1515,7 +1575,8 @@
    "path": "family_history.hereditary_disease",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "father"
   },
   {
    "page": 0,
@@ -1530,7 +1591,8 @@
    "path": "family_history.hereditary_disease",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "sibling"
   },
   {
    "page": 0,
@@ -1545,7 +1607,8 @@
    "path": "family_history.tuberculosis",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "mother"
   },
   {
    "page": 0,
@@ -1560,7 +1623,8 @@
    "path": "family_history.tuberculosis",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "father"
   },
   {
    "page": 0,
@@ -1575,7 +1639,8 @@
    "path": "family_history.tuberculosis",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "sibling"
   },
   {
    "page": 0,
@@ -1590,7 +1655,8 @@
    "path": "family_history.sudden_death_before_50",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "mother"
   },
   {
    "page": 0,
@@ -1605,7 +1671,8 @@
    "path": "family_history.sudden_death_before_50",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "father"
   },
   {
    "page": 0,
@@ -1620,7 +1687,8 @@
    "path": "family_history.sudden_death_before_50",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "sibling"
   },
   {
    "page": 0,
@@ -1635,7 +1703,8 @@
    "path": "family_history.other_serious_illness",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "mother"
   },
   {
    "page": 0,
@@ -1650,7 +1719,8 @@
    "path": "family_history.other_serious_illness",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "father"
   },
   {
    "page": 0,
@@ -1665,7 +1735,8 @@
    "path": "family_history.other_serious_illness",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "sibling"
   },
   {
    "page": 0,
@@ -1716,7 +1787,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "headaches_occasional"
   },
   {
    "page": 0,
@@ -1731,7 +1803,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "headaches_occasional"
   },
   {
    "page": 0,
@@ -1746,7 +1819,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "migraine"
   },
   {
    "page": 0,
@@ -1761,7 +1835,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "migraine"
   },
   {
    "page": 0,
@@ -1809,7 +1884,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "dizziness_or_fainting"
   },
   {
    "page": 0,
@@ -1824,7 +1900,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "dizziness_or_fainting"
   },
   {
    "page": 0,
@@ -1839,7 +1916,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "loss_of_consciousness"
   },
   {
    "page": 0,
@@ -1854,7 +1932,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "loss_of_consciousness"
   },
   {
    "page": 0,
@@ -1869,7 +1948,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "head_injury_or_concussion"
   },
   {
    "page": 0,
@@ -1884,7 +1964,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "head_injury_or_concussion"
   },
   {
    "page": 0,
@@ -1899,7 +1980,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "severe_chest_pain"
   },
   {
    "page": 0,
@@ -1914,7 +1996,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "severe_chest_pain"
   },
   {
    "page": 0,
@@ -1929,7 +2012,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "heart_disease_or_murmur"
   },
   {
    "page": 0,
@@ -1944,7 +2028,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "heart_disease_or_murmur"
   },
   {
    "page": 0,
@@ -1959,7 +2044,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "rapid_or_irregular_pulse"
   },
   {
    "page": 0,
@@ -1974,7 +2060,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "rapid_or_irregular_pulse"
   },
   {
    "page": 0,
@@ -1989,7 +2076,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "blood_clots_or_vein_problems"
   },
   {
    "page": 0,
@@ -2004,7 +2092,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "blood_clots_or_vein_problems"
   },
   {
    "page": 0,
@@ -2019,7 +2108,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "chronic_cough"
   },
   {
    "page": 0,
@@ -2034,7 +2124,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "chronic_cough"
   },
   {
    "page": 0,
@@ -2049,7 +2140,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "pneumonia"
   },
   {
    "page": 0,
@@ -2064,7 +2156,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "pneumonia"
   },
   {
    "page": 0,
@@ -2079,7 +2172,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "tuberculosis"
   },
   {
    "page": 0,
@@ -2094,7 +2188,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "tuberculosis"
   },
   {
    "page": 0,
@@ -2109,7 +2204,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "urinary_or_kidney_problem"
   },
   {
    "page": 0,
@@ -2124,7 +2220,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "urinary_or_kidney_problem"
   },
   {
    "page": 0,
@@ -2139,7 +2236,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "frequent_bladder_infection"
   },
   {
    "page": 0,
@@ -2154,7 +2252,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "frequent_bladder_infection"
   },
   {
    "page": 0,
@@ -2169,7 +2268,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "diabetes"
   },
   {
    "page": 0,
@@ -2184,7 +2284,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "diabetes"
   },
   {
    "page": 0,
@@ -2199,7 +2300,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "asthma"
   },
   {
    "page": 0,
@@ -2214,7 +2316,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "asthma"
   },
   {
    "page": 0,
@@ -2229,7 +2332,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "high_blood_pressure"
   },
   {
    "page": 0,
@@ -2244,7 +2348,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "high_blood_pressure"
   },
   {
    "page": 0,
@@ -2259,7 +2364,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "arthritis"
   },
   {
    "page": 0,
@@ -2274,7 +2380,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "arthritis"
   },
   {
    "page": 0,
@@ -2289,7 +2396,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "sickle_cell_disease"
   },
   {
    "page": 0,
@@ -2304,7 +2412,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "sickle_cell_disease"
   },
   {
    "page": 1,
@@ -2319,7 +2428,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "vision_or_eye_problems"
   },
   {
    "page": 1,
@@ -2334,7 +2444,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "vision_or_eye_problems"
   },
   {
    "page": 1,
@@ -2349,7 +2460,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "glasses_or_contacts"
   },
   {
    "page": 1,
@@ -2364,7 +2476,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "glasses_or_contacts"
   },
   {
    "page": 1,
@@ -2391,7 +2504,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "allergies_or_hay_fever"
   },
   {
    "page": 1,
@@ -2406,7 +2520,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "allergies_or_hay_fever"
   },
   {
    "page": 1,
@@ -2421,7 +2536,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "ear_or_hearing_problems"
   },
   {
    "page": 1,
@@ -2436,7 +2552,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "ear_or_hearing_problems"
   },
   {
    "page": 1,
@@ -2451,7 +2568,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "frequent_sinusitis"
   },
   {
    "page": 1,
@@ -2466,7 +2584,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "frequent_sinusitis"
   },
   {
    "page": 1,
@@ -2481,7 +2600,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "dental_problems"
   },
   {
    "page": 1,
@@ -2496,7 +2616,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "dental_problems"
   },
   {
    "page": 1,
@@ -2523,7 +2644,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "severe_acne_or_skin_disorder"
   },
   {
    "page": 1,
@@ -2538,7 +2660,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "severe_acne_or_skin_disorder"
   },
   {
    "page": 1,
@@ -2553,7 +2676,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "new_or_changing_moles"
   },
   {
    "page": 1,
@@ -2568,7 +2692,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "new_or_changing_moles"
   },
   {
    "page": 1,
@@ -2583,7 +2708,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "anemia"
   },
   {
    "page": 1,
@@ -2598,7 +2724,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "anemia"
   },
   {
    "page": 1,
@@ -2613,7 +2740,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "bleeding_disorder"
   },
   {
    "page": 1,
@@ -2628,7 +2756,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "bleeding_disorder"
   },
   {
    "page": 1,
@@ -2643,7 +2772,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "enlarged_glands_or_lymph_nodes"
   },
   {
    "page": 1,
@@ -2658,7 +2788,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "enlarged_glands_or_lymph_nodes"
   },
   {
    "page": 1,
@@ -2673,7 +2804,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "shortness_of_breath"
   },
   {
    "page": 1,
@@ -2688,7 +2820,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "shortness_of_breath"
   },
   {
    "page": 1,
@@ -2703,7 +2836,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "abdominal_pain"
   },
   {
    "page": 1,
@@ -2718,7 +2852,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "abdominal_pain"
   },
   {
    "page": 1,
@@ -2733,7 +2868,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "heartburn"
   },
   {
    "page": 1,
@@ -2748,7 +2884,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "heartburn"
   },
   {
    "page": 1,
@@ -2763,7 +2900,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "ulcer"
   },
   {
    "page": 1,
@@ -2778,7 +2916,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "ulcer"
   },
   {
    "page": 1,
@@ -2793,7 +2932,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "hepatitis"
   },
   {
    "page": 1,
@@ -2808,7 +2948,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "hepatitis"
   },
   {
    "page": 1,
@@ -2823,7 +2964,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "stomach_or_bowel_problems"
   },
   {
    "page": 1,
@@ -2838,7 +2980,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "stomach_or_bowel_problems"
   },
   {
    "page": 1,
@@ -2853,7 +2996,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "gallbladder_disease"
   },
   {
    "page": 1,
@@ -2868,7 +3012,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "gallbladder_disease"
   },
   {
    "page": 1,
@@ -2883,7 +3028,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "hernia"
   },
   {
    "page": 1,
@@ -2898,7 +3044,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "hernia"
   },
   {
    "page": 1,
@@ -2913,7 +3060,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "swollen_or_painful_joints"
   },
   {
    "page": 1,
@@ -2928,7 +3076,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "swollen_or_painful_joints"
   },
   {
    "page": 1,
@@ -2943,7 +3092,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "chronic_back_problems"
   },
   {
    "page": 1,
@@ -2958,7 +3108,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "chronic_back_problems"
   },
   {
    "page": 1,
@@ -3007,7 +3158,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "seizures_or_epilepsy"
   },
   {
    "page": 1,
@@ -3022,7 +3174,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "seizures_or_epilepsy"
   },
   {
    "page": 1,
@@ -3037,7 +3190,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "thyroid_disease"
   },
   {
    "page": 1,
@@ -3052,7 +3206,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "thyroid_disease"
   },
   {
    "page": 1,
@@ -3067,7 +3222,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "elevated_cholesterol"
   },
   {
    "page": 1,
@@ -3082,7 +3238,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "elevated_cholesterol"
   },
   {
    "page": 1,
@@ -3097,7 +3254,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "obesity"
   },
   {
    "page": 1,
@@ -3112,7 +3270,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "obesity"
   },
   {
    "page": 1,
@@ -3127,7 +3286,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "anxiety"
   },
   {
    "page": 1,
@@ -3142,7 +3302,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "anxiety"
   },
   {
    "page": 1,
@@ -3157,7 +3318,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "depression"
   },
   {
    "page": 1,
@@ -3172,7 +3334,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "depression"
   },
   {
    "page": 1,
@@ -3187,7 +3350,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "bipolar"
   },
   {
    "page": 1,
@@ -3202,7 +3366,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "bipolar"
   },
   {
    "page": 1,
@@ -3217,7 +3382,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "other_mental_health_concerns"
   },
   {
    "page": 1,
@@ -3232,7 +3398,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "other_mental_health_concerns"
   },
   {
    "page": 1,
@@ -3247,7 +3414,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "add_or_learning_disability"
   },
   {
    "page": 1,
@@ -3262,7 +3430,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "add_or_learning_disability"
   },
   {
    "page": 1,
@@ -3277,7 +3446,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "cancer"
   },
   {
    "page": 1,
@@ -3292,7 +3462,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "cancer"
   },
   {
    "page": 1,
@@ -3307,7 +3478,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "eating_disorder"
   },
   {
    "page": 1,
@@ -3322,7 +3494,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "eating_disorder"
   },
   {
    "page": 1,
@@ -3337,7 +3510,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "unusual_fatigue"
   },
   {
    "page": 1,
@@ -3352,7 +3526,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "unusual_fatigue"
   },
   {
    "page": 1,
@@ -3367,7 +3542,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "weight_change_over_10_lb"
   },
   {
    "page": 1,
@@ -3382,7 +3558,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "weight_change_over_10_lb"
   },
   {
    "page": 1,
@@ -3442,7 +3619,8 @@
    "path": "sexual_health.activity_types",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "anal"
   },
   {
    "page": 1,
@@ -3457,7 +3635,8 @@
    "path": "sexual_health.activity_types",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "oral"
   },
   {
    "page": 1,
@@ -3472,7 +3651,8 @@
    "path": "sexual_health.activity_types",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "vaginal"
   },
   {
    "page": 1,
@@ -3526,7 +3706,8 @@
    "path": "sexual_health.partner_gender",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "male"
   },
   {
    "page": 1,
@@ -3541,7 +3722,8 @@
    "path": "sexual_health.partner_gender",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "female"
   },
   {
    "page": 1,
@@ -3556,7 +3738,8 @@
    "path": "sexual_health.partner_gender",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "both"
   },
   {
    "page": 1,
@@ -3571,7 +3754,8 @@
    "path": "sexual_health.partner_gender",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "intersex"
   },
   {
    "page": 1,
@@ -3586,7 +3770,8 @@
    "path": "sexual_health.had_std",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 1,
@@ -3601,7 +3786,8 @@
    "path": "sexual_health.had_std",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 1,
@@ -3675,7 +3861,8 @@
    "path": "sexual_health.stds",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "chlamydia"
   },
   {
    "page": 1,
@@ -3690,7 +3877,8 @@
    "path": "sexual_health.stds",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "gonorrhea"
   },
   {
    "page": 1,
@@ -3705,7 +3893,8 @@
    "path": "sexual_health.stds",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "hpv_genital_warts"
   },
   {
    "page": 1,
@@ -3720,7 +3909,8 @@
    "path": "sexual_health.stds",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "genital_herpes"
   },
   {
    "page": 1,
@@ -3735,7 +3925,8 @@
    "path": "sexual_health.stds",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "hiv"
   },
   {
    "page": 1,
@@ -3750,7 +3941,8 @@
    "path": "sexual_health.stds",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "other"
   },
   {
    "page": 1,
@@ -3777,7 +3969,8 @@
    "path": "sexual_health.birth_control_methods",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "pill"
   },
   {
    "page": 1,
@@ -3792,7 +3985,8 @@
    "path": "sexual_health.birth_control_methods",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "ring"
   },
   {
    "page": 1,
@@ -3807,7 +4001,8 @@
    "path": "sexual_health.birth_control_methods",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "depo"
   },
   {
    "page": 1,
@@ -3822,7 +4017,8 @@
    "path": "sexual_health.birth_control_methods",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "plan_b"
   },
   {
    "page": 1,
@@ -3837,7 +4033,8 @@
    "path": "sexual_health.birth_control_methods",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "condom"
   },
   {
    "page": 1,
@@ -3852,7 +4049,8 @@
    "path": "sexual_health.birth_control_methods",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "none"
   },
   {
    "page": 1,
@@ -3867,7 +4065,8 @@
    "path": "sexual_health.birth_control_methods",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "other"
   },
   {
    "page": 1,
@@ -3894,7 +4093,8 @@
    "path": "sexual_health.aware_of_emergency_contraception",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 1,
@@ -3909,7 +4109,8 @@
    "path": "sexual_health.aware_of_emergency_contraception",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 1,
@@ -3924,7 +4125,8 @@
    "path": "womens_health.monthly_periods",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 1,
@@ -3939,7 +4141,8 @@
    "path": "womens_health.monthly_periods",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 1,
@@ -3984,7 +4187,8 @@
    "path": "womens_health.pap_result",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "abnormal"
   },
   {
    "page": 1,
@@ -3999,7 +4203,8 @@
    "path": "womens_health.pap_result",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "normal"
   },
   {
    "page": 1,
@@ -4026,7 +4231,8 @@
    "path": "womens_health.ever_pregnant",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   {
    "page": 1,
@@ -4041,7 +4247,8 @@
    "path": "womens_health.ever_pregnant",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": false
   },
   {
    "page": 1,
@@ -4130,7 +4337,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "breast_lumps_or_discharge"
   },
   {
    "page": 1,
@@ -4145,7 +4353,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "breast_lumps_or_discharge"
   },
   {
    "page": 1,
@@ -4160,7 +4369,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "vaginal_infections_or_discharge"
   },
   {
    "page": 1,
@@ -4175,7 +4385,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "vaginal_infections_or_discharge"
   },
   {
    "page": 1,
@@ -4190,7 +4401,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "pain_or_bleeding_with_intercourse"
   },
   {
    "page": 1,
@@ -4205,7 +4417,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "pain_or_bleeding_with_intercourse"
   },
   {
    "page": 1,
@@ -4220,7 +4433,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "ovarian_cysts_or_endometriosis"
   },
   {
    "page": 1,
@@ -4235,7 +4449,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "ovarian_cysts_or_endometriosis"
   },
   {
    "page": 1,
@@ -4272,7 +4487,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "penile_discharge_or_urination_change"
   },
   {
    "page": 1,
@@ -4287,7 +4503,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "penile_discharge_or_urination_change"
   },
   {
    "page": 1,
@@ -4302,7 +4519,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "prostate_problems"
   },
   {
    "page": 1,
@@ -4317,7 +4535,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "prostate_problems"
   },
   {
    "page": 1,
@@ -4332,7 +4551,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "testicular_problems"
   },
   {
    "page": 1,
@@ -4347,7 +4567,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "testicular_problems"
   },
   {
    "page": 1,
@@ -4384,7 +4605,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "hormone_therapy"
   },
   {
    "page": 1,
@@ -4399,7 +4621,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "hormone_therapy"
   },
   {
    "page": 1,
@@ -4414,7 +4637,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "female_to_male_procedures"
   },
   {
    "page": 1,
@@ -4429,7 +4653,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "female_to_male_procedures"
   },
   {
    "page": 1,
@@ -4444,7 +4669,8 @@
    "path": "past_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "male_to_female_procedures"
   },
   {
    "page": 1,
@@ -4459,7 +4685,8 @@
    "path": "current_conditions",
    "transforms": [
     "contains"
-   ]
+   ],
+   "value": "male_to_female_procedures"
   },
   {
    "page": 1,

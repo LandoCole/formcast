@@ -81,3 +81,15 @@ def test_preview_with_candidates(tmp_path):
 def test_preview_accepts_pdf_bytes(tmp_path):
     data = _two_page_pdf(tmp_path).read_bytes()
     assert len(preview(_template(), data, dpi=50)) == 2
+
+
+def test_preview_with_data_renders_the_filled_pdf(tmp_path):
+    pdf = _two_page_pdf(tmp_path)
+    plain = preview(_template(), pdf, dpi=72)
+    filled = preview(_template(), pdf, dpi=72, data={"name": "WWWWWWWWWWWW"})
+    assert len(filled) == 2
+    assert filled[0] != plain[0]
+    # the filled value is drawn inside the f1 box (120, 86, 300, 100)
+    a, b = _pixels(plain[0]), _pixels(filled[0])
+    diff = [(x, y) for x in range(125, 295, 2) for y in range(88, 99) if a.getpixel((x, y)) != b.getpixel((x, y))]
+    assert diff

@@ -1,5 +1,7 @@
 """The public API as the spec (section 8) shows it."""
 
+import importlib
+
 import pytest
 
 import formcast
@@ -73,3 +75,14 @@ def test_package_exports():
         assert name in formcast.__all__ and name in dir(formcast)
     assert ops is formcast.template.ops
     assert callable(coverage) and SessionBudget().max_steps > 0 and SessionResult.__name__ == "SessionResult"
+
+
+def test_fill_exports():
+    from formcast.render.fill import fill, to_smart_pdf
+    from formcast.render.report import FillReport
+
+    for name in ("fill", "to_smart_pdf", "FillReport"):
+        assert name in formcast.__all__ and name in dir(formcast)
+    assert formcast.fill is fill and formcast.to_smart_pdf is to_smart_pdf and formcast.FillReport is FillReport
+    render = importlib.import_module("formcast.render")
+    assert render.fill is fill and render.FillReport is FillReport

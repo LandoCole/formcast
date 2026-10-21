@@ -12,43 +12,50 @@
    "path": "tax_classification",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "individual_sole_proprietor"
   },
   "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[1]": {
    "path": "tax_classification",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "c_corporation"
   },
   "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[2]": {
    "path": "tax_classification",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "s_corporation"
   },
   "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[3]": {
    "path": "tax_classification",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "partnership"
   },
   "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[4]": {
    "path": "tax_classification",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "trust_estate"
   },
   "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[5]": {
    "path": "tax_classification",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "llc"
   },
   "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[6]": {
    "path": "tax_classification",
    "transforms": [
     "equals"
-   ]
+   ],
+   "value": "other"
   },
   "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].f1_03[0]": {
    "path": "llc_tax_classification",
@@ -64,7 +71,8 @@
    "path": "has_foreign_partners",
    "transforms": [
     "bool_to_check"
-   ]
+   ],
+   "value": true
   },
   "topmostSubform[0].Page1[0].f1_05[0]": {
    "path": "exempt_payee_code"
