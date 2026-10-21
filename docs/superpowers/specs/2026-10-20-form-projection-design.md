@@ -273,7 +273,7 @@ Context stays small. Earlier step outputs are summarized or dropped, and the cur
   - checks the PDF fingerprint (a mismatch is an error unless overridden)
   - runs transforms, then writes the text, check marks and table rows
   - `flatten` draws the content onto the page; `fields` fills form fields and keeps the result editable
-  - for fillable forms, it sets the existing widget values
+  - for fillable forms, it sets the existing widget values. An `existing_widget` name may be shared by several fields: PyMuPDF yields one widget per kid of a radio (or checkbox) group, all with the group's name, and the template has one `radio_option` (or `checkbox`) field per kid. Fill must pick the kid by the field's rect (and that kid's on-state), not by name alone.
 - **Text fitting:** auto-shrink to `min_font_size`. If the text still doesn't fit, it's truncated with a warning in the report, never silently.
 
 ### 7.9 Fill report

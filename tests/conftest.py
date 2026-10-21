@@ -58,6 +58,21 @@ def fillable_form_pdf(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
+def radio_form_pdf(tmp_path: Path) -> Path:
+    """Flat form plus a two-option radio group "sex": kids at (120,160,130,170) and (200,160,210,170)."""
+    doc = _new_flat_form()
+    page = doc[0]
+    page.insert_text((72, 170), "Sex:", fontsize=12)
+    for x in (120, 200):
+        kid = pymupdf.Widget()
+        kid.field_name = "sex"
+        kid.field_type = pymupdf.PDF_WIDGET_TYPE_RADIOBUTTON
+        kid.rect = pymupdf.Rect(x, 160, x + 10, 170)
+        page.add_widget(kid)
+    return _save(doc, tmp_path / "radio_form.pdf")
+
+
+@pytest.fixture
 def rotated_form_pdf(tmp_path: Path) -> Path:
     doc = _new_flat_form()
     doc[0].set_rotation(90)

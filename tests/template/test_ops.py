@@ -3,8 +3,9 @@ import math
 import pytest
 
 from formcast.errors import OpError
+from formcast.pagemap.build import build_form_map
 from formcast.schema import flatten_schema
-from formcast.template.model import Field, FormInfo, Template
+from formcast.template.model import Field, FormInfo, Template, new_template
 from formcast.template.ops import AddField, Move, OpContext, apply, diff, replay
 
 SCHEMA = {
@@ -393,6 +394,37 @@ def test_link_widget():
         apply(t, {"op": "link_widget", "id": "f2", "widget": "w1"}, author="agent", context=ctx)
     with pytest.raises(OpError, match="unknown widget 'w3'"):
         apply(t, {"op": "link_widget", "id": "f2", "widget": "w3"}, author="agent", context=ctx)
+
+
+def test_radio_kids_may_share_their_group_widget(radio_form_pdf):
+    fm = build_form_map(radio_form_pdf, detectors={})
+    t = new_template(SCHEMA, fm)
+    kids = [f for f in t.fields if f.type == "radio_option"]
+    assert [f.existing_widget for f in kids] == ["sex", "sex"]
+    ctx = OpContext(schema_paths=CTX.schema_paths, page_sizes=SIZES[:1],
+                    widget_names=[w.name for p in fm.pages for w in p.widgets])
+    t, _ = apply(t, {"op": "link_widget", "id": kids[1].id, "widget": None}, author="agent", context=ctx)
+    t, _ = apply(t, {"op": "link_widget", "id": kids[1].id, "widget": "sex"}, author="agent", context=ctx)
+    assert [_field(t, f.id).existing_widget for f in kids] == ["sex", "sex"]
+    t, _ = apply(t, {"op": "add_field", "type": "radio_option", "page": 0, "rect": [280, 160, 290, 170]},
+                 author="agent", context=ctx)
+    t, _ = apply(t, {"op": "link_widget", "id": t.fields[-1].id, "widget": "sex"}, author="agent", context=ctx)
+    for kind in ("text", "checkbox"):
+        t, _ = apply(t, {"op": "add_field", "type": kind, "page": 0, "rect": [300, 160, 310, 170]},
+                     author="agent", context=ctx)
+        with pytest.raises(OpError, match=f"already linked to field {kids[0].id!r}"):
+            apply(t, {"op": "link_widget", "id": t.fields[-1].id, "widget": "sex"}, author="agent", context=ctx)
+
+
+def test_checkbox_kids_may_share_a_widget_but_not_with_text():
+    ctx = OpContext(schema_paths=CTX.schema_paths, page_sizes=SIZES, widget_names=["box"])
+    t, _ = _add(_template(), type="checkbox", rect=[100, 100, 110, 110])
+    t, _ = _add(t, type="checkbox", rect=[120, 100, 130, 110])
+    t, _ = _add(t, rect=[140, 100, 200, 110])
+    for fid in ("f1", "f2"):
+        t, _ = apply(t, {"op": "link_widget", "id": fid, "widget": "box"}, author="agent", context=ctx)
+    with pytest.raises(OpError, match="already linked to field 'f1'"):
+        apply(t, {"op": "link_widget", "id": "f3", "widget": "box"}, author="agent", context=ctx)
 
 
 # ------------------------------------------------------------------ replay / diff

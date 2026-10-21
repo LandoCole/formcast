@@ -12,7 +12,9 @@ reasons name the field id, the offending value and what would be valid.
   rows and columns along; ``resize`` keeps them in place and checks they still fit.
 * ``set_style`` merges: only the style keys given in the op change.
 * ``set_source`` with ``source=None`` unmaps a field; ``link_widget`` with
-  ``widget=None`` unlinks it.
+  ``widget=None`` unlinks it. A widget name links to one field, except that
+  radio_option fields (or checkbox fields) may share one: the kids of a radio
+  or checkbox group carry their group's name.
 * A table field's ``source.paths`` is its one array path; column keys are paths
   relative to a row (``"dose"`` for ``medications[].dose``).
 * History records the op as given (only the keys that were set) plus any
@@ -62,6 +64,7 @@ __all__ = [  # op models are re-exported so ``from formcast.template.ops import 
 ]  # fmt: skip
 
 CHOICE_TYPES = ("checkbox", "radio_option", "choice_mark")
+_SHARED_WIDGET_TYPES = ("radio_option", "checkbox")  # field types whose widget kids share one name
 EDGE_TOLERANCE = 2.0  # how far (pt) a rect may stick out past the page edge
 MIN_SIZE = 2.0  # minimum rect width and height (pt)
 OVERLAP_WARN_IOU = 0.5
@@ -565,6 +568,12 @@ def _add_table_segment(run: _Run, op: AddTableSegment) -> Field:
     return f
 
 
+def _shared_widget_ok(f: Field, g: Field) -> bool:
+    """Whether ``f`` and ``g`` may link the same widget name: kids of one radio group (or of one
+    checkbox group) share their parent's name, one field per kid; fill picks the kid by rect/on-state."""
+    return f.type == g.type and f.type in _SHARED_WIDGET_TYPES
+
+
 def _link_widget(run: _Run, op: LinkWidget) -> Field:
     f = run.field(op.id)
     if op.widget is not None:
@@ -572,7 +581,7 @@ def _link_widget(run: _Run, op: LinkWidget) -> Field:
         if names is not None and op.widget not in names:
             run.fail(f"field {f.id!r}: unknown widget {op.widget!r}; widgets on this form: {names or 'none'}")
         for g in run.t.fields:
-            if g is not f and g.existing_widget == op.widget:
+            if g is not f and g.existing_widget == op.widget and not _shared_widget_ok(f, g):
                 run.fail(f"widget {op.widget!r} is already linked to field {g.id!r}; "
                          f"unlink it first with link_widget({g.id!r}, None)")
     f.existing_widget = op.widget
