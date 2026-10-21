@@ -143,7 +143,7 @@ A pydantic model `FillReport` (JSON via `.to_json()`, like `Template`). The exac
 - **`warnings`:** one flat list of everything, each `{code, severity, path?, field?, message}`, sorted by page and then position, so an app can show it as a checklist.
 
 Codes and severities (severity is `warning` unless marked info):
-`missing`, `invalid`, `transform_error`, `unmapped_data`, `shrunk` (info), `overflow`, `truncated`, `unencodable`, `rows_dropped`, `widget_not_found`, `type_mismatch`, `adopted` (info), `font_substituted` (info), `list_joined` (info), `unknown_keys` (info), `fingerprint_mismatch`.
+`missing`, `invalid`, `transform_error`, `unmapped_data`, `shrunk` (info), `overflow`, `truncated`, `unencodable`, `rows_dropped`, `widget_not_found`, `type_mismatch`, `not_writable` (the form's own signature field, which only a PDF viewer can sign), `not_an_option` (a combo/list value outside its options; still written), `shared_field_conflict` (two template fields writing different text to one shared PDF field), `adopted` (info), `font_substituted` (info), `list_joined` (info), `unknown_keys` (info), `fingerprint_mismatch`.
 
 - `missing` is recorded per field. The top-level list includes it only for mapped paths, once per path, not once per box, so a blank optional section doesn't produce a page of noise.
 - The report never contains values from other records and never logs data anywhere. It's returned to the caller only.
