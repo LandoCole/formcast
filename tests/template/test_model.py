@@ -216,9 +216,25 @@ def test_style_rejects_bad_font_size(bad):
 
 
 def test_style_rejects_min_above_size():
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValidationError, match="min_font_size"):
         Style(font_size=8, min_font_size=9)
+    with pytest.raises(ValidationError, match="min_font_size"):
+        Style(font_size=5, min_font_size=6)
     assert Style(font_size="auto", min_font_size=9).min_font_size == 9
+
+
+def test_style_lowers_unset_min_to_small_font_size():
+    s = Style(font_size=5)
+    assert s.min_font_size == 5
+    assert "min_font_size" not in s.model_fields_set
+    assert Style(font_size=8).min_font_size == 6
+
+
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), 0, -3])
+def test_style_rejects_bad_min_with_numeric_font_size(bad):
+    with pytest.raises(ValidationError) as exc:
+        Style(font_size=8, min_font_size=bad)
+    assert "min_font_size" in str(exc.value) and "can't exceed" not in str(exc.value)
 
 
 def test_template_with_nan_style_does_not_load():

@@ -39,11 +39,16 @@ class Style(BaseModel):
 
     @pydantic.model_validator(mode="after")
     def _check_sizes(self) -> Style:
-        if self.font_size != "auto" and self.min_font_size > self.font_size:
+        if self.font_size == "auto" or self.min_font_size <= self.font_size:
+            return self
+        if "min_font_size" in self.model_fields_set:
             raise ValueError(
                 f"min_font_size ({self.min_font_size}) can't exceed font_size ({self.font_size}); "
                 "lower min_font_size too, or use font_size='auto'"
             )
+        # An unset (default) minimum follows a smaller explicit size. Written to __dict__ so the
+        # field stays "unset" and set_style's exclude_unset merge doesn't treat it as a request.
+        self.__dict__["min_font_size"] = self.font_size
         return self
 
 

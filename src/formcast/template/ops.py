@@ -749,7 +749,12 @@ def _set_source(run: _Run, op: SetSource) -> Field:
 
 def _set_style(run: _Run, op: SetStyle) -> Field:
     f = run.field(op.id)
-    merged = {**f.style.model_dump(), **op.style.model_dump(exclude_unset=True)}
+    given = op.style.model_dump(exclude_unset=True)
+    merged = {**f.style.model_dump(), **given}
+    size = given.get("font_size")
+    if isinstance(size, (int, float)) and "min_font_size" not in given:
+        # A smaller size lowers the minimum with it, but never raises a deliberately lower one.
+        merged["min_font_size"] = min(f.style.min_font_size, size)
     try:
         f.style = Style.model_validate(merged)
     except ValidationError as e:

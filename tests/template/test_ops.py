@@ -445,6 +445,16 @@ def test_set_style_merge_that_breaks_min_above_size_rejected():
     assert _field(t, "f1").style.min_font_size == 5 and _field(t, "f1").style.font_size == 8
 
 
+def test_set_style_small_font_size_lowers_default_min_but_keeps_lower_min():
+    t, _ = _add(_template())
+    t1, _ = apply(t, {"op": "set_style", "id": "f1", "style": {"font_size": 5}}, author="agent", context=CTX)
+    assert _field(t1, "f1").style.font_size == 5 and _field(t1, "f1").style.min_font_size == 5
+    assert t1.history[-1].op["style"] == {"font_size": 5}
+    t2, _ = apply(t, {"op": "set_style", "id": "f1", "style": {"min_font_size": 4}}, author="agent", context=CTX)
+    t3, _ = apply(t2, {"op": "set_style", "id": "f1", "style": {"font_size": 5}}, author="agent", context=CTX)
+    assert _field(t3, "f1").style.font_size == 5 and _field(t3, "f1").style.min_font_size == 4
+
+
 def _linked(kind, widget):
     t, _ = _add(_template(), type=kind, rect=[100, 100, 110, 110])
     return apply(t, {"op": "link_widget", "id": "f1", "widget": widget}, author="agent", context=CTX)[0]
