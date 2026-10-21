@@ -76,40 +76,47 @@ signature, choice_mark (a mark drawn on or next to printed option text) and tabl
 # Working method
 1. The template starts with one unmapped field per existing widget (id `w<page>_<n>`) and per
    detector candidate (id `c<page>_<n>`): each field has the id of its item in the form summary.
-   Work on these fields first: map each real blank with set_source and fix its label; move,
-   resize or set_type it when the geometry says so; remove_field the ones that are not blanks
-   (pre-printed content, decoration, duplicates). Reinterpret where needed: a short line printed
-   right before option text is a box to mark (a checkbox), not a text blank. Use add_field only
-   for blanks no field covers yet.
-2. Add the fields the detector missed, using text cues: prompts ending in ":", "#" or "?", lines
-   followed by a rule or empty space, captions printed under a rule (signature and date lines),
-   and option words with an empty box or blank beside them. Use rules and nearby boxes for the
-   exact geometry. A text field spans the writable area: from just after its label to the end
-   of its rule or cell, with its bottom edge on the rule.
-3. When one long line or box has small sub-labels under (or inside) it, split it into one field
-   per sub-label, each spanning that sub-label's part of the line.
+   These boxes were placed by the form's own widgets and by a field detector trained on many
+   forms, which places boxes more accurately than you can from text and geometry: defer to that
+   placement. Your job is the mapping: give each seeded field on a real blank its source, label
+   and type (set_type; a short line printed right before option text is a box to mark, a
+   checkbox). Moving or resizing a seeded field is refused. A detected field's seeded label is
+   only the nearest text line and is often wrong: judge a box by what is at its rect, and when
+   several seeded boxes sit near one blank, map the one on the blank (a yes/no value goes in the
+   checkbox, not in the text box beside it). Leave a seeded field that is not a blank, or that no
+   schema path fits, unmapped (an unmapped field fills nothing); remove_field on a seeded field
+   is refused except for a duplicate on the same box or a box you split (step 3).
+2. Add a field only where the detector clearly missed a blank: no seeded box on or next to it,
+   and a text cue for it: a prompt ending in ":", "#" or "?", a line followed by a rule or empty
+   space, a caption printed under a rule (signature and date lines), or option words with an
+   empty box or blank beside them. Use rules and nearby boxes for the exact geometry. A text
+   field spans the writable area: from just after its label to the end of its rule or cell, with
+   its bottom edge on the rule.
+3. When one long seeded box has small sub-labels under (or inside) it, add one field per
+   sub-label, each spanning that sub-label's part of the box, then remove the long box.
 4. Mark choices: each option gets its own checkbox or radio_option field on its box, with a
    `when` condition on the schema path. For a yes/no boolean the "yes" box uses when equals true
    (or bool_to_check) and the "no" box when equals false. For "circle one" style options with no
    box, use a choice_mark field over the option text.
 5. Build tables from repeated rows or grids of cells with add_table: rows from the repeated
    row geometry, columns from the cell edges or column headings; column keys are paths relative
-   to one row. fm.grid(ids) turns the candidate or widget fields a table replaces into its
+   to one row. fm.grid(ids) turns the candidate or widget fields a table holds into its
    row_top, row_height and column x ranges; its max_rows counts only the rows from the first to
    the last given box (check below for more rows), and it lists rows with no box and boxes
-   spanning several columns. A table that continues on another page gets another segment.
-   Records printed as repeated blocks (each record spans several lines, like stacked copies of
-   the same set of blanks): add one table per line of the block, all with the same source_path,
-   each with one segment per record block (max_rows=1, in record order), so row i of every
-   table lands in block i. When table cells replace existing widget or candidate fields, remove exactly the
-   fields the cells cover (the step report warns which ones), by id; never remove every field
-   in a region.
+   spanning several columns. When the cells are existing widget or candidate fields, link them
+   instead of removing them: give each column fields=[one field id per row, None where a row has
+   no box] (fm.grid(ids)['column_fields'] lists them per column), so each cell keeps its field's
+   exact box and widget; linked fields have no source of their own. Fields in a column with no
+   schema path stay outside the table, as unmapped fields. A table that continues on another
+   page gets another segment. Records printed as repeated blocks (each record spans several
+   lines, like stacked copies of the same set of blanks): add one table per line of the block,
+   all with the same source_path, each with one segment per record block (max_rows=1, in record
+   order), so row i of every table lands in block i. Never remove every field in a region.
 6. Split blanks that hold parts of one value (separate boxes for month, day and year, or one
    box per character) and use transforms to fill each part.
 7. Give every field a short label from its printed text. Keep every existing widget field and a
    field for every blank a person is expected to fill, even when no schema path fits (leave its
-   source empty); remove only boxes that are not blanks (pre-printed content, decoration,
-   duplicates).
+   source empty); remove only duplicates and fields you added by mistake.
 8. Map every schema path you can, shaping values to what the box asks for:
    - schema dates are ISO (YYYY-MM-DD): a date box needs date_format with the format the form
      shows (a printed hint such as mm/dd/yyyy, else the usual convention of the form's
@@ -218,8 +225,8 @@ def starting_note(template: Template) -> str:
         kinds.append(f"{detected} for the detector candidates (ids c<page>_<n>)")
     return (
         f"STARTING TEMPLATE: {len(template.fields)} unmapped field(s), " + " and ".join(kinds) + ". "
-        "Each field has the id of its item in the form map below and sits on its rect. Map, fix or "
-        "remove them; `tpl` has the details."
+        "Each field has the id of its item in the form map below and sits on its rect. Map them "
+        "where they are (their placement is kept); `tpl` has the details."
     )
 
 

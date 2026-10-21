@@ -17,6 +17,18 @@ reasons name the field id, the offending value and what would be valid.
   or checkbox group carry their group's name.
 * A table field's ``source.paths`` is its one array path; column keys are paths
   relative to a row (``"dose"`` for ``medications[].dose``).
+* A table column's ``fields`` links existing plain fields as its cells (one id per
+  row): each must be on the segment's page with its center inside the segment rect,
+  have no source of its own, and be linked once. A linked field can't get a source
+  or be removed until it is unlinked.
+* Seeded fields (``origin`` widget or detector) carry the form's own or the
+  detector's placement, which is more accurate than placement from text and
+  geometry alone, so the agent maps them as they are: an agent's ``move`` or
+  ``resize`` of one is rejected, and so is its ``remove_field`` unless another field
+  or table cell covers the same box (IoU >= ``REPLACE_IOU``: a duplicate, or a cell
+  that replaces it) or the fields inside it cover most of it (``SPLIT_COVER``: it was
+  split into parts). A seeded box that is not a blank stays unmapped (it fills
+  nothing). Human edits are not restricted.
 * History records the op as given (only the keys that were set) plus any
   generated id, so :func:`replay` reproduces the template exactly.
 """
@@ -32,10 +44,20 @@ from collections.abc import Callable
 from pydantic import BaseModel, TypeAdapter, ValidationError
 
 from formcast.errors import OpError
-from formcast.geometry import Rect, contained_fraction, iou
+from formcast.geometry import Rect, contained_fraction, intersect, iou
 from formcast.pagemap.model import FormMap
 from formcast.schema import SchemaPath, flatten_schema
-from formcast.template.model import Field, HistoryEntry, Source, Style, TableSegment, Template
+from formcast.template.model import (
+    Column,
+    Field,
+    HistoryEntry,
+    Source,
+    Style,
+    TableSegment,
+    Template,
+    linked_cells,
+    table_cells,
+)
 from formcast.template.op_models import (
     OP_CLASSES,
     OP_NAMES,
@@ -79,6 +101,12 @@ _WARN_OPS = {
 }  # fmt: skip
 # A plain field this much inside one table cell is covered by the table.
 CELL_COVER_SHARE = 0.7
+# Another box this close (IoU) to a seeded field's box holds the same blank: removing the
+# seeded field then loses nothing (a duplicate, or a table cell that replaces it).
+REPLACE_IOU = 0.6
+_SEEDED = ("widget", "detector")
+# Fields mostly inside a seeded box that together cover this share of it split the box into parts.
+SPLIT_COVER = 0.7
 MAX_WARN_IDS = 20
 
 
@@ -326,6 +354,44 @@ class _Run:
                 self.fail(f"{where}: column {col.key!r} x {_fmt(col.x)} must be at least {MIN_SIZE:g}pt wide "
                           f"and inside the segment rect's x range [{x0:g}, {x1:g}]")
             self.check_chain(f"{where} column {col.key!r} transforms", col.transforms)
+            self.check_column_fields(f, i, col)
+
+    def check_column_fields(self, f: Field, i: int, col: Column) -> None:
+        seg, where = f.segments[i], f"table field {f.id!r} segment {i} column {col.key!r}"
+        if len(col.fields) > seg.max_rows:
+            self.fail(f"{where}: fields lists {len(col.fields)} ids but the segment has {seg.max_rows} rows; "
+                      "give at most one field id (or None) per row")
+        tables = [g for g in self.t.fields if g.type == "table" and g is not f] + [f]
+        for row, fid in enumerate(col.fields):
+            if fid is None:
+                continue
+            g = next((g for g in self.t.fields if g.id == fid), None)
+            if g is None:
+                self.fail(f"{where} row {row}: unknown field id {fid!r}; fields links existing plain fields "
+                          "(ids in tpl), one per row, None where a row has none")
+            if g.type == "table":
+                self.fail(f"{where} row {row}: {fid!r} is a table; a cell can only link a plain field")
+            x0, y0, x1, y1 = seg.rect
+            cx, cy = (g.rect[0] + g.rect[2]) / 2, (g.rect[1] + g.rect[3]) / 2
+            tol = EDGE_TOLERANCE
+            if g.page != seg.page or not (x0 - tol <= cx <= x1 + tol and y0 - tol <= cy <= y1 + tol):
+                self.fail(f"{where} row {row}: field {fid!r} (page {g.page}, rect {_fmt(g.rect)}) is not inside the "
+                          f"segment rect {_fmt(seg.rect)} on page {seg.page}; link fields that sit in this segment")
+            if g.source is not None and g.source.paths:
+                self.fail(f"{where} row {row}: field {fid!r} has its own source {g.source.paths}; a linked cell gets "
+                          f"its value from the column, so set_source({fid!r}, None) first")
+            uses = sum(c.fields.count(fid) for t in tables for s in t.segments for c in s.columns)
+            if uses > 1:
+                self.fail(f"{where} row {row}: field {fid!r} is linked as a cell more than once; "
+                          "each field can be one cell of one table")
+
+    def cell_link(self, fid: str) -> str | None:
+        """How a field linked as a table cell is linked, for messages; None when it is not."""
+        link = linked_cells(self.t).get(fid)
+        if link is None:
+            return None
+        table, seg, row, key = link
+        return f"the cell of table {table!r} segment {seg} column {key!r} row {row}"
 
     # -- sources
 
@@ -339,6 +405,9 @@ class _Run:
         s = f.source
         if s is None:
             return
+        if f.type != "table" and (link := self.cell_link(f.id)):
+            self.fail(f"field {f.id!r} is {link}, so its value comes from that column; set the column's "
+                      "transforms with set_table_columns instead, or unlink the field from the column first")
         if not s.paths:
             self.fail(f"field {f.id!r}: source.paths is empty; give at least one schema path, or source=None to unmap")
         resolved = [self.schema_path(f.id, p) for p in s.paths]
@@ -372,10 +441,12 @@ class _Run:
         return (f"{reason}. For a cell at this field's rect: add_table(source_path={table!r}, segments=[{{"
                 f"'page': {f.page}, 'rect': <the table area>, 'row_top': {y0:g}, 'row_height': <distance "
                 "between consecutive row tops>, 'max_rows': <rows>, 'columns': "
-                f"[{{'key': {key!r}, 'x': [{x0:g}, {x1:g}]}}, ...]}}]); fm.grid([...the fields the table "
-                "replaces...]) gives row_top, row_height and the column x ranges. Then remove the plain "
-                "fields the cells replace. If the records are printed as repeated blocks of lines: one "
-                "table per block line, one segment per record (max_rows=1).")
+                f"[{{'key': {key!r}, 'x': [{x0:g}, {x1:g}], 'fields': [<one field id per row>]}}, ...]}}]); "
+                "fm.grid([...the fields the table holds...]) gives row_top, row_height, the column x ranges "
+                "and column_fields. Link the plain fields as the cells (fields) and unmap them "
+                f"(set_source({f.id!r}, None)) rather than removing them, so each cell keeps its box. If the "
+                "records are printed as repeated blocks of lines: one table per block line, one segment per "
+                "record (max_rows=1).")
 
     def check_table_source(self, f: Field, resolved: list[SchemaPath]) -> None:
         if len(resolved) != 1:
@@ -401,26 +472,102 @@ class _Run:
     # -- warnings
 
     def table_cover_warning(self, f: Field) -> list[str]:
-        """Plain fields that the table's cells cover, so the table may duplicate them."""
-        cells = [
-            (seg.page, (col.x[0], top, col.x[1], top + seg.row_height))
-            for seg in f.segments
-            for r in range(seg.max_rows)
-            for top in [seg.row_top + r * seg.row_height]
-            for col in seg.columns
-        ]
-        covered = [
-            g.id
-            for g in self.t.fields
-            if g is not f and g.rect is not None
-            and any(p == g.page and contained_fraction(g.rect, c) >= CELL_COVER_SHARE for p, c in cells)
-        ]
-        if not covered:
-            return []
-        shown = ", ".join(repr(i) for i in covered[:MAX_WARN_IDS])
-        more = f" and {len(covered) - MAX_WARN_IDS} more" if len(covered) > MAX_WARN_IDS else ""
-        return [f"table {f.id!r} covers field(s) {shown}{more}; if its cells replace them, "
-                "remove_field them so each blank is filled once"]
+        """Plain fields that the table's cells cover, so the table may duplicate them; the ones
+        whose box no cell matches are listed apart, since removing them would lose their box."""
+        cells = table_cells(self.t, f)
+        linked = {c.field.id for c in cells if c.field is not None}
+        matched: list[str] = []
+        mismatched: list[tuple[str, float]] = []
+        for g in self.t.fields:
+            if g is f or g.rect is None or g.id in linked:
+                continue
+            inside = [
+                c.rect for c in cells if c.page == g.page and contained_fraction(g.rect, c.rect) >= CELL_COVER_SHARE
+            ]
+            if not inside:
+                continue
+            best = max(iou(g.rect, c) for c in inside)
+            if best >= REPLACE_IOU:
+                matched.append(g.id)
+            else:
+                mismatched.append((g.id, best))
+        out = []
+        if matched:
+            out.append(f"table {f.id!r} covers field(s) {_ids(matched)}; if its cells replace them, link them as "
+                       "the cells (the column's fields) or remove_field them, so each blank is filled once")
+        if mismatched:
+            lo, hi = min(v for _, v in mismatched), max(v for _, v in mismatched)
+            out.append(
+                f"table {f.id!r}: its cells are larger than or offset from the boxes of field(s) "
+                f"{_ids([i for i, _ in mismatched])} (cell IoU {lo:.2f}-{hi:.2f}), so cells would not sit on those "
+                "blanks. Link those fields as the cells instead of removing them: give each column fields=[one "
+                "field id per row, None where a row has none] (fm.grid(ids)['column_fields'] lists them per "
+                "column); each cell then keeps its field's exact box and widget"
+            )
+        return out
+
+    def best_cover(self, f: Field) -> tuple[float, str | None]:
+        """The highest IoU of another field's box or table cell with ``f``'s box, and whose it is."""
+        best: tuple[float, str | None] = (0.0, None)
+        for g in self.t.fields:
+            if g is f:
+                continue
+            if g.type == "table":
+                boxes = [(c.page, c.rect) for c in table_cells(self.t, g) if c.field is not f]
+            else:
+                boxes = [(g.page, g.rect)]
+            for page, rect in boxes:
+                if page == f.page:
+                    v = iou(f.rect, rect)
+                    if v > best[0]:
+                        best = (v, g.id)
+        return best
+
+    def split_cover(self, f: Field) -> float:
+        """Share of ``f``'s box covered by the plain fields (besides itself) that lie mostly inside it."""
+        x0, y0, x1, y1 = f.rect
+        area = (x1 - x0) * (y1 - y0)
+        covered = 0.0
+        for g in self.t.fields:
+            if g is f or g.type == "table" or g.page != f.page or contained_fraction(g.rect, f.rect) < CELL_COVER_SHARE:
+                continue
+            inter = intersect(tuple(g.rect), tuple(f.rect))
+            if inter is not None:
+                covered += (inter[2] - inter[0]) * (inter[3] - inter[1])
+        return min(1.0, covered / area) if area > 0 else 0.0
+
+    def check_seed_placement(self, f: Field, verb: str) -> None:
+        """Agents map seeded boxes where they are: the widget's or detector's placement wins."""
+        if self.author != "agent" or f.origin not in _SEEDED:
+            return
+        placed_by = "the form's own widget" if f.origin == "widget" else "the field detector"
+        self.fail(f"field {f.id!r} was placed by {placed_by}, which places boxes more accurately than edits made "
+                  f"from text and geometry, so agents do not {verb} seeded fields: map it as it is. If no seeded "
+                  "box sits on a blank, add_field for that blank; leave a seeded box that is not a blank unmapped")
+
+    def check_seed_removal(self, f: Field) -> None:
+        """An agent may drop a seeded box only when another field or cell holds the same box."""
+        best, nearest = self.best_cover(f)
+        if best >= REPLACE_IOU or (f.origin == "detector" and self.split_cover(f) >= SPLIT_COVER):
+            return
+        if f.origin == "widget":
+            what = f"the form's own widget {f.existing_widget!r}" if f.existing_widget else "a widget's field"
+        else:
+            what = "a detected box"
+        closest = f" (the closest box is {nearest!r}, IoU {best:.2f})" if nearest is not None and best > 0 else ""
+        reason = (f"field {f.id!r} is {what} and no second field or table cell covers the same box{closest}, so "
+                  "removing it could drop a blank. Seeded fields can be removed only once another field or cell "
+                  f"covers the same box (IoU >= {REPLACE_IOU:g}), as for a duplicate. ")
+        if f.origin == "widget":
+            reason += ("Keep it, with an empty source when no schema path fits. If a table holds it, link it as a "
+                       "cell (the column's fields, one id per row; fm.grid(ids)['column_fields']) instead of "
+                       "removing it")
+        else:
+            reason += ("Its seeded label is just the nearest text line and is often wrong, so judge the box itself "
+                       "(fm.region around its rect): map it if it is a blank, and if it is not a blank or no schema "
+                       "path fits, leave it with an empty source (an unmapped field fills nothing). To split it "
+                       "into parts (sub-labels under one line), add the parts first; then it can be removed")
+        self.fail(reason)
 
     def warnings(self, f: Field) -> list[str]:
         if f.type == "table":
@@ -437,6 +584,8 @@ class _Run:
         for p in s.paths if s else []:
             if p not in self.paths:
                 out.append(f"field {f.id!r} maps {p!r}, which is not in the schema; set_source to a valid path")
+        if f.type == "text" and s:
+            out.extend(self.boolean_on_text_warning(f, s.paths))
         if f.type == "checkbox" and s and s.when is None and not any(tr.op == "bool_to_check" for tr in s.transforms):
             for p in s.paths:
                 sp = self.paths.get(p)
@@ -445,6 +594,31 @@ class _Run:
                                "bool_to_check transform; add when (e.g. equals/contains) or bool_to_check "
                                "so the box state is explicit")
         return out
+
+
+    def boolean_on_text_warning(self, f: Field, paths: list[str]) -> list[str]:
+        """A boolean path on a text field while a choice box sits in the same row: likely the wrong box."""
+        booleans = [p for p in paths if (sp := self.paths.get(p)) is not None and sp.type == "boolean"]
+        if not booleans:
+            return []
+
+        def same_row(g: Field) -> bool:
+            top, bottom = max(f.rect[1], g.rect[1]), min(f.rect[3], g.rect[3])
+            return bottom - top >= 0.5 * min(f.rect[3] - f.rect[1], g.rect[3] - g.rect[1])
+
+        boxes = [g for g in self.t.fields
+                 if g is not f and g.type in ("checkbox", "radio_option") and g.page == f.page and same_row(g)]
+        if not boxes:
+            return []
+        near = min(boxes, key=lambda g: abs((g.rect[0] + g.rect[2]) / 2 - (f.rect[0] + f.rect[2]) / 2))
+        return [f"text field {f.id!r} maps boolean {booleans[0]!r}, and {near.type} field {near.id!r} sits in the "
+                "same row: a yes/no value is marked in the box (when equals true, or bool_to_check), so map "
+                f"{near.id!r} and keep {f.id!r} for what its own label asks"]
+
+
+def _ids(ids: list[str]) -> str:
+    shown = ", ".join(repr(i) for i in ids[:MAX_WARN_IDS])
+    return shown + (f" and {len(ids) - MAX_WARN_IDS} more" if len(ids) > MAX_WARN_IDS else "")
 
 
 # ------------------------------------------------------------------ handlers
@@ -464,7 +638,13 @@ def _add_field(run: _Run, op: AddField) -> Field:
 
 
 def _remove_field(run: _Run, op: RemoveField) -> None:
-    run.t.fields.remove(run.field(op.id))
+    f = run.field(op.id)
+    if link := run.cell_link(f.id):
+        run.fail(f"field {f.id!r} is {link}; unlink it first (set_table_columns with None in its place in "
+                 "that column's fields) or remove the table")
+    if run.author == "agent" and f.origin in _SEEDED:
+        run.check_seed_removal(f)
+    run.t.fields.remove(f)
 
 
 def _move(run: _Run, op: Move) -> Field:
@@ -472,6 +652,7 @@ def _move(run: _Run, op: Move) -> Field:
     if f.type == "table":
         _move_table(run, f, op)
         return f
+    run.check_seed_placement(f, "move")
     run.no_segment(f, op.segment)
     if op.rect is not None:
         rect = op.rect
@@ -513,6 +694,7 @@ def _resize(run: _Run, op: Resize) -> Field:
         run.table_segment(f, op.segment, "resize").rect = op.rect  # rows and columns keep their positions
         run.check_segment(f, op.segment)
         return f
+    run.check_seed_placement(f, "resize")
     run.no_segment(f, op.segment)
     run.check_rect(f.id, f.page, op.rect)
     f.rect = op.rect

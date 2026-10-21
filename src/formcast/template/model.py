@@ -7,7 +7,7 @@ and schema paths lives elsewhere; these models only check structural invariants.
 from __future__ import annotations
 
 import uuid
-from typing import Any, Literal
+from typing import Any, Literal, NamedTuple
 
 import pydantic
 from pydantic import BaseModel, ConfigDict
@@ -35,10 +35,16 @@ class Style(BaseModel):
 
 
 class Column(BaseModel):
+    """One table column. ``fields`` optionally links existing plain fields as the
+    column's cells, one id per row (``None``, or rows past the list, use the cell
+    computed from the segment's rows and ``x``). A linked field keeps its own rect,
+    type and widget; the column supplies its value (see :func:`table_cells`)."""
+
     key: str
     x: tuple[float, float]
     transforms: list[Transform] = []
     wrap: int | None = None
+    fields: list[str | None] = []
 
 
 class TableSegment(BaseModel):
@@ -71,6 +77,52 @@ class Field(BaseModel):
         elif self.page is None or self.rect is None:
             raise ValueError(f"{self.type} field {self.id!r} needs page and rect")
         return self
+
+
+class Cell(NamedTuple):
+    """One table cell: where it is and, for a linked cell, the plain field that is the cell."""
+
+    page: int
+    rect: Rect
+    segment: int
+    row: int
+    column: Column
+    field: Field | None
+
+
+def table_cells(template: Template, table: Field) -> list[Cell]:
+    """Every cell of ``table``: each segment's ``max_rows`` rows by its columns, in that order.
+
+    A computed cell spans the column's x range and one row (``row_top + row *
+    row_height``, ``row_height`` tall). A cell linked through ``Column.fields`` takes
+    the linked field's page and rect instead; an id the template no longer has falls
+    back to the computed cell.
+    """
+    by_id = {f.id: f for f in template.fields}
+    out: list[Cell] = []
+    for si, seg in enumerate(table.segments):
+        for row in range(seg.max_rows):
+            top = seg.row_top + row * seg.row_height
+            for col in seg.columns:
+                fid = col.fields[row] if row < len(col.fields) else None
+                linked = by_id.get(fid) if fid is not None else None
+                if linked is not None and linked.rect is not None and linked.page is not None:
+                    out.append(Cell(linked.page, linked.rect, si, row, col, linked))
+                else:
+                    out.append(Cell(seg.page, (col.x[0], top, col.x[1], top + seg.row_height), si, row, col, None))
+    return out
+
+
+def linked_cells(template: Template) -> dict[str, tuple[str, int, int, str]]:
+    """Field id -> (table id, segment, row, column key) for every field linked as a table cell."""
+    out: dict[str, tuple[str, int, int, str]] = {}
+    for f in template.fields:
+        for si, seg in enumerate(f.segments):
+            for col in seg.columns:
+                for row, fid in enumerate(col.fields):
+                    if fid is not None:
+                        out.setdefault(fid, (f.id, si, row, col.key))
+    return out
 
 
 class FormInfo(BaseModel):

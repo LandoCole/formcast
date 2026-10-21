@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from formcast.geometry import Rect, contained_fraction, iou
 from formcast.pagemap.model import FormMap
 from formcast.schema import SchemaPath
-from formcast.template.model import Field, Template
+from formcast.template.model import Field, Template, linked_cells
 
 LOW_CONFIDENCE = 0.5
 CANDIDATE_IOU = 0.3
@@ -19,7 +19,7 @@ CANDIDATE_INSIDE = 0.7
 class Coverage(BaseModel):
     unmapped_paths: list[str] = []  # mappable schema paths no field source references, schema order
     unused_candidates: list[str] = []  # detector candidates no field covers (see coverage)
-    unmapped_fields: list[str] = []  # fields without a source
+    unmapped_fields: list[str] = []  # fields without a source (fields linked as table cells excluded)
     low_confidence: list[str] = []  # fields with confidence < 0.5
     mappable_count: int = 0  # schema paths that can be mapped (see is_mappable); mapped = this - unmapped
 
@@ -74,6 +74,7 @@ def coverage(template: Template, form_map: FormMap, schema_paths: list[SchemaPat
         if is_mappable(sp) and sp.path not in referenced and not covered_by_table(sp)
     ]
 
+    linked = linked_cells(template)  # their value comes from a table column
     regions: dict[int, list[Rect]] = {}
     for f in template.fields:
         for page, rect in _field_regions(f):
@@ -89,7 +90,9 @@ def coverage(template: Template, form_map: FormMap, schema_paths: list[SchemaPat
         mappable_count=sum(1 for sp in schema_paths if is_mappable(sp)),
         unmapped_paths=unmapped_paths,
         unused_candidates=unused,
-        unmapped_fields=[f.id for f in template.fields if f.source is None or not f.source.paths],
+        unmapped_fields=[
+            f.id for f in template.fields if (f.source is None or not f.source.paths) and f.id not in linked
+        ],
         low_confidence=[
             f.id for f in template.fields if f.confidence is not None and f.confidence < LOW_CONFIDENCE
         ],

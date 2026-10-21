@@ -527,3 +527,17 @@ def test_a_tall_box_over_boxes_side_by_side_is_not_a_multiline_cover():
 def test_a_tall_box_over_two_stacked_lines_is_a_cover():
     gt = [score.GTField(0, LINES[0], "text"), score.GTField(0, LINES[1], "text")]
     assert _detect(gt, _template([_field("big", (36.0, 299.0, 576.0, 332.0))]), 0.5)["matched"] == 2
+
+
+def test_a_linked_cell_scores_once_with_its_fields_box_and_type():
+    linked = _field("w0_0", (50, 108, 150, 120))
+    box = _field("w0_1", (160, 108, 170, 118), type="checkbox")
+    table = _table({"name": (50, 150), "done": (150, 200)})
+    table.segments[0].columns[0].fields = ["w0_0"]
+    table.segments[0].columns[1].fields = ["w0_1", None]
+    boxes = score.template_boxes(_template([linked, box, table]))
+    assert len(boxes) == 4  # the two linked fields count only as their cells
+    assert ("text", 0, (50, 108, 150, 120)) in boxes and ("choice", 0, (160, 108, 170, 118)) in boxes
+    assert ("text", 0, (150.0, 120.0, 200.0, 140.0)) in boxes  # row 1 of "done" is computed
+    gt = [score.GTField(0, (50, 108, 150, 120), "text", path="items[].name")]
+    assert score.score_mapping(gt, _template([linked, box, table]))["path_acc"] == 1.0
