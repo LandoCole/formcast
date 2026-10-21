@@ -92,6 +92,11 @@ PREVIEW_DPI = 110
 GT_COLOR = (0, 170, 0)
 DEFAULT_BASELINE_STAMP = "2026-10-21"
 
+# The agent sees the form map's source name in its summary; in the eval every input gets the
+# same neutral name so the file name (a form id) cannot cue prior knowledge of a public form.
+ANON_SOURCE_NAME = "form.pdf"
+
+
 NOTES = [
     "Detection is scored on the manifest's scored pages that have at least one GT field (the baseline's pages); "
     "tables count one box per cell.",
@@ -112,6 +117,7 @@ NOTES = [
     "a template's join and when count as ops. joint = "
     "path and transforms right; exact = the matched field's source paths equal GT path + also_paths.",
     "Totals are micro-averaged over forms (sums of counts).",
+    f"The agent's form map carries the neutral source name {ANON_SOURCE_NAME!r}, not the file name.",
 ]
 
 
@@ -366,6 +372,11 @@ def _run_name(stamp: str, tag: str | None) -> str:
     return f"{stamp}_{re.sub(r'[^A-Za-z0-9_.-]+', '-', tag).strip('-')}"
 
 
+def anonymized(fm):
+    """``fm`` with the neutral source name (the library keeps real names; only the eval hides them)."""
+    return fm.model_copy(update={"source_name": ANON_SOURCE_NAME})
+
+
 def prepare(form: dict, variant: str, run_dir: str) -> dict:
     """Write the input PDF (fake scans) and the form map for one form/variant; returns their paths."""
     from formcast.pagemap.build import build_form_map
@@ -379,7 +390,7 @@ def prepare(form: dict, variant: str, run_dir: str) -> dict:
         pdf_path.write_bytes(fake_scan_pdf(form["id"], original))
     else:
         pdf_path = original
-    fm = build_form_map(pdf_path)
+    fm = anonymized(build_form_map(pdf_path))
     fm_path = inputs / f"{form['id']}_{variant}.formmap.json"
     fm_path.write_text(fm.model_dump_json())
     return {

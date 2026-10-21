@@ -284,3 +284,13 @@ def test_totals_precision_counts_matched_boxes_not_matched_gt():
     out = agent_eval.totals([row])["as_published"]["detection"]["iou0.3"]
     assert out["recall"] == pytest.approx(9 / 10)
     assert out["precision"] == pytest.approx(5 / 6, abs=1e-4)
+
+
+def test_form_maps_given_to_the_agent_do_not_carry_the_file_name():
+    from formcast.pagemap.model import FormMap
+    from formcast.pagemap.summarize import summarize
+
+    fm = FormMap(pages=[], fingerprint="x", source_name="some_known_form_fake_scan.pdf")
+    anon = agent_eval.anonymized(fm)
+    assert anon.source_name == agent_eval.ANON_SOURCE_NAME and anon.fingerprint == "x"
+    assert "some_known_form" not in summarize(anon)
