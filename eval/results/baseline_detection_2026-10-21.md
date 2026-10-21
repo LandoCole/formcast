@@ -16,10 +16,10 @@ CommonForms detectors only, no agent. Recall/precision at IoU 0.3 (IoU 0.5 recal
 | dev | ndguard | flat | as_published | FFDetr | 1 | 33 | 31 | 0.67 (0.61) | 0.71 | 0.82 | 7 / 3 |
 | dev | ndguard | flat | fake_scan | FFDNet-L | 1 | 33 | 15 | 0.42 (0.42) | 0.93 | 1.00 | 10 / 8 |
 | dev | ndguard | flat | fake_scan | FFDetr | 1 | 33 | 34 | 0.76 (0.64) | 0.74 | 0.76 | 5 / 3 |
-| dev | i9 | fillable | as_published | FFDNet-L | 3 | 130 | 129 | 0.95 (0.95) | 0.96 | 1.00 | 2 / 4 |
-| dev | i9 | fillable | as_published | FFDetr | 3 | 130 | 129 | 0.95 (0.94) | 0.96 | 1.00 | 1 / 5 |
-| dev | i9 | fillable | fake_scan | FFDNet-L | 3 | 130 | 124 | 0.95 (0.94) | 0.99 | 1.00 | 0 / 7 |
-| dev | i9 | fillable | fake_scan | FFDetr | 3 | 130 | 130 | 0.94 (0.92) | 0.94 | 1.00 | 2 / 6 |
+| dev | i9 | fillable | as_published | FFDNet-L | 3 | 130 | 129 | 0.95 (0.95) | 0.96 | 0.93 | 2 / 4 |
+| dev | i9 | fillable | as_published | FFDetr | 3 | 130 | 129 | 0.95 (0.94) | 0.96 | 0.93 | 1 / 5 |
+| dev | i9 | fillable | fake_scan | FFDNet-L | 3 | 130 | 124 | 0.95 (0.94) | 0.99 | 0.93 | 0 / 7 |
+| dev | i9 | fillable | fake_scan | FFDetr | 3 | 130 | 130 | 0.94 (0.92) | 0.94 | 0.93 | 2 / 6 |
 | dev | f8949 | fillable | as_published | FFDNet-L | 2 | 202 | 200 | 0.99 (0.98) | 1.00 | 1.00 | 2 / 0 |
 | dev | f8949 | fillable | as_published | FFDetr | 2 | 202 | 198 | 0.94 (0.21) | 0.95 | 1.00 | 9 / 4 |
 | dev | f8949 | fillable | fake_scan | FFDNet-L | 2 | 202 | 4 | 0.02 (0.02) | 1.00 | 1.00 | 186 / 12 |

@@ -410,7 +410,7 @@
    "signature": 0
   },
   "matched@0.5": 49,
-  "type_ok@0.5": 49,
+  "type_ok@0.5": 47,
   "missed_by_type@0.5": {
    "text": 2,
    "choice": 1,
@@ -419,7 +419,7 @@
   "recall@0.5": 0.9423,
   "precision@0.5": 0.8909,
   "matched@0.3": 50,
-  "type_ok@0.3": 50,
+  "type_ok@0.3": 48,
   "missed_by_type@0.3": {
    "text": 1,
    "choice": 1,
@@ -443,7 +443,7 @@
    "signature": 0
   },
   "matched@0.5": 47,
-  "type_ok@0.5": 47,
+  "type_ok@0.5": 45,
   "missed_by_type@0.5": {
    "text": 2,
    "choice": 3,
@@ -452,7 +452,7 @@
   "recall@0.5": 0.9038,
   "precision@0.5": 0.8704,
   "matched@0.3": 49,
-  "type_ok@0.3": 49,
+  "type_ok@0.3": 47,
   "missed_by_type@0.3": {
    "text": 1,
    "choice": 2,
@@ -476,7 +476,7 @@
    "signature": 0
   },
   "matched@0.5": 47,
-  "type_ok@0.5": 47,
+  "type_ok@0.5": 45,
   "missed_by_type@0.5": {
    "text": 1,
    "choice": 4,
@@ -485,7 +485,7 @@
   "recall@0.5": 0.9038,
   "precision@0.5": 0.9592,
   "matched@0.3": 48,
-  "type_ok@0.3": 48,
+  "type_ok@0.3": 46,
   "missed_by_type@0.3": {
    "text": 0,
    "choice": 4,
@@ -509,7 +509,7 @@
    "signature": 0
   },
   "matched@0.5": 44,
-  "type_ok@0.5": 44,
+  "type_ok@0.5": 42,
   "missed_by_type@0.5": {
    "text": 4,
    "choice": 4,
@@ -518,7 +518,7 @@
   "recall@0.5": 0.8462,
   "precision@0.5": 0.8148,
   "matched@0.3": 47,
-  "type_ok@0.3": 47,
+  "type_ok@0.3": 45,
   "missed_by_type@0.3": {
    "text": 2,
    "choice": 3,
@@ -542,7 +542,7 @@
    "signature": 0
   },
   "matched@0.5": 39,
-  "type_ok@0.5": 39,
+  "type_ok@0.5": 35,
   "missed_by_type@0.5": {
    "text": 0,
    "choice": 0,
@@ -551,7 +551,7 @@
   "recall@0.5": 1.0,
   "precision@0.5": 1.0,
   "matched@0.3": 39,
-  "type_ok@0.3": 39,
+  "type_ok@0.3": 35,
   "missed_by_type@0.3": {
    "text": 0,
    "choice": 0,
@@ -575,7 +575,7 @@
    "signature": 0
   },
   "matched@0.5": 39,
-  "type_ok@0.5": 39,
+  "type_ok@0.5": 35,
   "missed_by_type@0.5": {
    "text": 0,
    "choice": 0,
@@ -584,7 +584,7 @@
   "recall@0.5": 1.0,
   "precision@0.5": 1.0,
   "matched@0.3": 39,
-  "type_ok@0.3": 39,
+  "type_ok@0.3": 35,
   "missed_by_type@0.3": {
    "text": 0,
    "choice": 0,
@@ -608,7 +608,7 @@
    "signature": 0
   },
   "matched@0.5": 39,
-  "type_ok@0.5": 39,
+  "type_ok@0.5": 35,
   "missed_by_type@0.5": {
    "text": 0,
    "choice": 0,
@@ -617,7 +617,7 @@
   "recall@0.5": 1.0,
   "precision@0.5": 1.0,
   "matched@0.3": 39,
-  "type_ok@0.3": 39,
+  "type_ok@0.3": 35,
   "missed_by_type@0.3": {
    "text": 0,
    "choice": 0,
@@ -641,7 +641,7 @@
    "signature": 0
   },
   "matched@0.5": 39,
-  "type_ok@0.5": 39,
+  "type_ok@0.5": 35,
   "missed_by_type@0.5": {
    "text": 0,
    "choice": 0,
@@ -650,7 +650,7 @@
   "recall@0.5": 1.0,
   "precision@0.5": 1.0,
   "matched@0.3": 39,
-  "type_ok@0.3": 39,
+  "type_ok@0.3": 35,
   "missed_by_type@0.3": {
    "text": 0,
    "choice": 0,
@@ -674,7 +674,7 @@
    "signature": 0
   },
   "matched@0.5": 35,
-  "type_ok@0.5": 35,
+  "type_ok@0.5": 32,
   "missed_by_type@0.5": {
    "text": 1,
    "choice": 3,
@@ -683,7 +683,7 @@
   "recall@0.5": 0.8974,
   "precision@0.5": 1.0,
   "matched@0.3": 35,
-  "type_ok@0.3": 35,
+  "type_ok@0.3": 32,
   "missed_by_type@0.3": {
    "text": 1,
    "choice": 3,
@@ -707,7 +707,7 @@
    "signature": 0
   },
   "matched@0.5": 36,
-  "type_ok@0.5": 36,
+  "type_ok@0.5": 33,
   "missed_by_type@0.5": {
    "text": 0,
    "choice": 3,
@@ -716,7 +716,7 @@
   "recall@0.5": 0.9231,
   "precision@0.5": 1.0,
   "matched@0.3": 36,
-  "type_ok@0.3": 36,
+  "type_ok@0.3": 33,
   "missed_by_type@0.3": {
    "text": 0,
    "choice": 3,
@@ -740,7 +740,7 @@
    "signature": 0
   },
   "matched@0.5": 36,
-  "type_ok@0.5": 36,
+  "type_ok@0.5": 33,
   "missed_by_type@0.5": {
    "text": 0,
    "choice": 3,
@@ -749,7 +749,7 @@
   "recall@0.5": 0.9231,
   "precision@0.5": 1.0,
   "matched@0.3": 36,
-  "type_ok@0.3": 36,
+  "type_ok@0.3": 33,
   "missed_by_type@0.3": {
    "text": 0,
    "choice": 3,
@@ -773,7 +773,7 @@
    "signature": 0
   },
   "matched@0.5": 36,
-  "type_ok@0.5": 36,
+  "type_ok@0.5": 33,
   "missed_by_type@0.5": {
    "text": 0,
    "choice": 3,
@@ -782,7 +782,7 @@
   "recall@0.5": 0.9231,
   "precision@0.5": 0.973,
   "matched@0.3": 36,
-  "type_ok@0.3": 36,
+  "type_ok@0.3": 33,
   "missed_by_type@0.3": {
    "text": 0,
    "choice": 3,
