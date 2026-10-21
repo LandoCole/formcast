@@ -23,7 +23,7 @@ from formcast.render.fit import Fit, fit_text
 from formcast.render.report import FillReport, FillWarning
 from formcast.render.values import CellTarget, Resolved, resolve
 from formcast.render.write import read_existing, text_font_for, write_choice, write_choice_mark, write_text
-from formcast.schema import validate_data
+from formcast.schema import flatten_schema, validate_data
 from formcast.template.model import Style, Template
 
 __all__ = ["fill", "to_smart_pdf"]
@@ -92,6 +92,7 @@ def _run(template, pdf, data, *, check_fingerprint: bool, strict: bool, smart: b
         cells = {(c.table_id, c.row, c.key): c for t in tables.values() for c in t.cells}
         _write(doc, slots, fields, cells, smart=smart)
         _conflicts(slots)
+        _settle_choice_states(doc, slots)
         # garbage=1 drops the appearance streams a refill orphaned; higher levels renumber every
         # object, which would rewrite the references of widgets fill never touched.
         out = doc.tobytes(garbage=1, deflate=True)
@@ -125,6 +126,7 @@ def _slots(template: Template) -> list[Slot]:
     """One target per field with a box, and one per table-cell slot (every row of every segment)."""
     out: list[Slot] = []
     keys: set[str] = set()
+    item_types = {sp.path: sp.item_type for sp in flatten_schema(template.schema_)}
     for f in template.fields:
         mapped = f.source is not None and bool(f.source.paths)
         if f.type != "table":
@@ -134,6 +136,7 @@ def _slots(template: Template) -> list[Slot]:
             out.append(Slot(target, f, mapped=mapped, path=path))
             continue
         table_path = f.source.paths[0] if mapped else None
+        list_rows = item_types.get(table_path) not in (None, "object")
         base = 0
         for k, seg in enumerate(f.segments):
             for r in range(seg.max_rows):
@@ -145,8 +148,9 @@ def _slots(template: Template) -> list[Slot]:
                     keys.add(key)
                     rect = (col.x[0], y, col.x[1], y + seg.row_height)
                     target = Target(key, f.id, "text", seg.page, rect, None)
-                    path = column_path(table_path, col.key) if table_path else None
-                    out.append(Slot(target, f, mapped=mapped, path=path, column=col, segment=k, row=base + r))
+                    path = column_path(table_path, col.key, list_rows=list_rows) if table_path else None
+                    out.append(Slot(target, f, mapped=mapped, path=path, column=col, segment=k, row=base + r,
+                                    list_row=list_rows))  # fmt: skip
             base += seg.max_rows
     for i, s in enumerate(out):
         s.order = order_key(s.target, i)
@@ -274,12 +278,22 @@ def _differ(a: str | bool | None, b: str | bool | None) -> bool:
     return isinstance(a, str) and isinstance(b, str) and a != b  # both non-empty (empty is None)
 
 
-def _conflicts(slots: list[Slot]) -> None:
-    """Report two written targets that show different values through one PDF widget or text field.
+def _choice_clash(a: Slot, b: Slot) -> bool:
+    """Two kids of one button field show one shared value (Ruling G2): both "on" needs equal
+    on-states; one on and one off needs different ones (else the "off" kid shows on too)."""
+    if not (isinstance(a.value, bool) and isinstance(b.value, bool)) or not (a.value or b.value):
+        return False
+    same_state = a.binding.widget.on_state == b.binding.widget.on_state
+    return not same_state if a.value and b.value else same_state
 
-    Groups: every bound widget instance (two targets bound to one widget), and every text field
-    name (PDF text widgets with one name share a value). The later target (page, then top) gets
-    ``shared_field_conflict`` naming both; identical values are harmless.
+
+def _conflicts(slots: list[Slot]) -> None:
+    """Report two written targets that can't both show their values through one widget or field.
+
+    Groups (Rulings G and G2): every bound widget instance (two targets bound to one widget);
+    every text field name (text widgets with one name share a value); every button field name
+    (kids share one value, so two "on" kids with different on-states clash). The later target
+    (page, then top) gets ``shared_field_conflict`` naming both; identical values are harmless.
     """
     groups: dict[tuple, list[Slot]] = defaultdict(list)
     for s in slots:
@@ -287,24 +301,38 @@ def _conflicts(slots: list[Slot]) -> None:
         if not s.written or w is None:
             continue
         groups[("widget", w.page, w.index)].append(s)
-        if not s.choice:
-            groups[("name", w.name)].append(s)
+        groups[("buttons" if s.choice else "name", w.name)].append(s)
     for (kind, *what), members in groups.items():
+        clash = _choice_clash if kind == "buttons" else (lambda a, b: _differ(a.value, b.value))
         members.sort(key=lambda s: s.order)
         for j, later in enumerate(members):
             for earlier in members[:j]:
-                if earlier.target.key in later.conflicts_with or not _differ(earlier.value, later.value):
+                if earlier.target.key in later.conflicts_with or not clash(earlier, later):
                     continue
                 later.conflicts_with.add(earlier.target.key)
                 name = later.binding.widget.name
-                via = f"PDF text field {name!r}" if kind == "name" else f"widget {name!r} on page {what[0]}"
+                via = f"widget {name!r} on page {what[0]}" if kind == "widget" else f"PDF field {name!r}"
                 later.warnings.append(FillWarning.make(
                     "shared_field_conflict",
-                    f"{earlier.target.key!r} and {later.target.key!r} both write to {via} with different "
-                    f"values ({_shown(earlier.value)} vs {_shown(later.value)}); it can show only one",
+                    f"{earlier.target.key!r} and {later.target.key!r} both write to {via} with clashing "
+                    f"values ({_shown(earlier)} vs {_shown(later)}); it can show only one",
                     field=later.field.id, path=later.path, page=later.target.page, rect=later.widget_rect,
                 ))  # fmt: skip
 
 
-def _shown(v: str | bool | None) -> str:
-    return ("on" if v else "off") if isinstance(v, bool) else repr(v)
+def _settle_choice_states(doc: pymupdf.Document, slots: list[Slot]) -> None:
+    """Report what each existing button really shows after every write (its /AS), so a box another
+    target turned off (a radio sibling, a shared field's kid) is reported off, not on."""
+    for s in slots:
+        w = s.binding.widget if s.binding is not None else None
+        if s.written and s.choice and w is not None:
+            kind, state = doc.xref_get_key(w.xref, "AS")
+            s.value = kind == "name" and state != "/Off"
+
+
+def _shown(s: Slot) -> str:
+    v = s.value
+    if not isinstance(v, bool):
+        return repr(v)
+    state = s.binding.widget.on_state if s.binding is not None and s.binding.widget is not None else None
+    return ("on" + (f" ({state!r})" if state else "")) if v else "off"

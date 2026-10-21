@@ -232,6 +232,31 @@ def _refresh_text_siblings(page: pymupdf.Page, xref: int, quadding: str | None =
         sib.update()
 
 
+def _pdf_name(value: str) -> str:
+    """``value`` as a PDF name object (``/Yes_5``), escaping delimiters, spaces and non-ASCII as ``#xx``."""
+    out = []
+    for byte in value.encode("utf-8"):
+        c = chr(byte)
+        out.append(c if 0x21 <= byte <= 0x7E and c not in "#()<>[]{}/%" else f"#{byte:02X}")
+    return "/" + "".join(out)
+
+
+def _settle_button_value(doc: pymupdf.Document, xref: int, value: str) -> None:
+    """Put a written checkbox's value on its field, as a name, and nowhere else.
+
+    PyMuPDF writes /V onto the kid widget too (and a string /V on the parent). A kid's own /V
+    then shadows the field's in readers that inherit /V (PyMuPDF's ``field_value`` on a checkbox
+    kid), so a sibling turned off by a later write would still read as on.
+    """
+    field = _field_xref(doc, xref)
+    doc.xref_set_key(field, "V", _pdf_name(value))
+    if field == xref:
+        return
+    for kid in [xref, *_sibling_kids(doc, xref)]:
+        if doc.xref_get_key(kid, "V")[0] != "null":
+            doc.xref_set_key(kid, "V", "null")
+
+
 def _refresh_button_siblings(page: pymupdf.Page, xref: int) -> None:
     """Point every sibling checkbox kid's /AS at the field's new value (Ruling J)."""
     doc = page.parent
@@ -384,6 +409,8 @@ def write_choice(
     w.field_value = w.on_state() if on else False
     w.update()
     if binding.widget.kind == "checkbox":  # PyMuPDF already sets every radio kid's /AS
+        on_state = w.on_state()
+        _settle_button_value(page.parent, w.xref, on_state if on and isinstance(on_state, str) else "Off")
         _refresh_button_siblings(page, w.xref)
     name, got = _read_back(page, w.xref)
     return name, got, []

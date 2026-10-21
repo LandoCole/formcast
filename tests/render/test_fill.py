@@ -501,3 +501,125 @@ def test_corpus_fill_smoke():
     doc = pymupdf.open(stream=second)
     states = sorted((w.rect.x0, w.field_value) for p in doc for w in p.widgets() if w.field_name == "group_1")
     assert [v for _, v in states] == ["Yes_5", "Off"]
+
+
+# ---------------------------------------------------------------- fix round 1
+
+
+def _kid_states(out: bytes, name: str) -> list:
+    """Each kid's visible state (/AS): PyMuPDF's field_value on a checkbox kid is the field's value."""
+    doc = pymupdf.open(stream=out)
+    kids = sorted((w for p in doc for w in p.widgets() if w.field_name == name), key=lambda w: (w.rect.y0, w.rect.x0))
+    return [doc.xref_get_key(w.xref, "AS")[1].lstrip("/") for w in kids]
+
+
+def _contains(v):
+    return Transform(op="contains", args={"value": v})
+
+
+def test_radio_kids_both_on_conflict_and_loser_reported_off(make_pdf):
+    pdf = make_pdf(text=TEXT, widgets=[
+        {"type": "radio", "name": "grp", "rect": (100, 130, 112, 142), "on_state": "E"},
+        {"type": "radio", "name": "grp", "rect": (150, 130, 162, 142), "on_state": "P"},
+    ])  # fmt: skip
+    tpl = _tpl(
+        pdf,
+        _choice("r1", "contact", (100, 130, 112, 142), type="radio_option", widget="grp", when=_contains("email")),
+        _choice("r2", "contact", (150, 130, 162, 142), type="radio_option", widget="grp", when=_contains("phone")),
+    )
+    out, rep = fill(tpl, pdf, {"contact": ["email", "phone"]})
+    assert _kid_states(out, "grp") == ["Off", "P"]
+    by_id = {f.id: f for f in rep.fields}
+    assert by_id["r1"].value is False and by_id["r2"].value is True  # the report tells the truth
+    (c,) = [w for w in rep.warnings if w.code == "shared_field_conflict"]
+    assert c.field == "r2" and "r1" in c.message and "r2" in c.message and "grp" in c.message
+    # one option on: no conflict
+    out, rep = fill(tpl, pdf, {"contact": ["email"]})
+    assert _kid_states(out, "grp") == ["E", "Off"]
+    assert "shared_field_conflict" not in _codes(rep)
+    assert [f.value for f in rep.fields] == [True, False]
+
+
+def test_shared_checkbox_with_distinct_on_states_conflicts(make_pdf):
+    pdf = make_pdf(text=TEXT, widgets=[
+        {"type": "checkbox", "name": "sel", "rect": (100, 200, 112, 212), "on_state": "A"},
+        {"type": "checkbox", "name": "sel", "rect": (150, 200, 162, 212), "on_state": "B"},
+    ])  # fmt: skip
+    tpl = _tpl(
+        pdf,
+        _choice("c1", "contact", (100, 200, 112, 212), widget="sel", when=_contains("email")),
+        _choice("c2", "contact", (150, 200, 162, 212), widget="sel", when=_contains("phone")),
+    )
+    out, rep = fill(tpl, pdf, {"contact": ["email", "phone"]})
+    assert _kid_states(out, "sel") == ["Off", "B"]
+    assert [f.value for f in rep.fields] == [False, True]
+    (c,) = [w for w in rep.warnings if w.code == "shared_field_conflict"]
+    assert c.field == "c2" and "c1" in c.message
+    _, rep = fill(tpl, pdf, {"contact": ["phone"]})
+    assert "shared_field_conflict" not in _codes(rep)
+
+
+def test_same_on_state_kids_share_a_value(make_pdf):
+    pdf = make_pdf(text=TEXT, widgets=[
+        {"type": "checkbox", "name": "same", "rect": (100, 260, 112, 272)},
+        {"type": "checkbox", "name": "same", "rect": (150, 260, 162, 272)},
+    ])  # fmt: skip
+    tpl = _tpl(
+        pdf,
+        _choice("s1", "contact", (100, 260, 112, 272), widget="same", when=_contains("email")),
+        _choice("s2", "contact", (150, 260, 162, 272), widget="same", when=_contains("phone")),
+    )
+    out, rep = fill(tpl, pdf, {"contact": ["email", "phone"]})  # both on: harmless
+    assert _kid_states(out, "same") == ["Yes", "Yes"]
+    assert "shared_field_conflict" not in _codes(rep)
+    # one on, one off: the kids share one value, so the "off" box shows on too; reported
+    out, rep = fill(tpl, pdf, {"contact": ["phone"]})
+    assert _kid_states(out, "same") == ["Yes", "Yes"]
+    assert [f.value for f in rep.fields] == [True, True]
+    (c,) = [w for w in rep.warnings if w.code == "shared_field_conflict"]
+    assert c.field == "s2" and "s1" in c.message
+
+
+def test_multi_path_field_warnings_reach_every_path(make_pdf):
+    pdf = make_pdf(text=TEXT)
+    joined = Field(id="f_both", type="text", page=0, rect=(100, 100, 130, 110), style=Style(min_font_size=6),
+                   source=Source(paths=["name", "notes"], join=" "))  # fmt: skip
+    lost = Field(id="f_lost", type="text", page=0, rect=(100, 200, 300, 216), existing_widget="nope",
+                 source=Source(paths=["name", "notes"], join=" "))  # fmt: skip
+    tpl = _tpl(pdf, joined, lost)
+    _, rep = fill(tpl, pdf, {"name": "Ada Lovelace", "notes": "mathematician and writer"})
+    for path in ("name", "notes"):
+        codes = [(w.field, w.code) for w in rep.paths[path].warnings]
+        assert ("f_both", "overflow") in codes and ("f_lost", "widget_not_found") in codes
+
+
+def test_list_row_table_paths(make_pdf):
+    pdf = make_pdf(text=TEXT)
+    schema = {"type": "object", "properties": {"rows": {"type": "array", "items": {"type": "array",
+              "items": {"type": "string"}}}}}  # fmt: skip
+    seg = TableSegment(page=0, rect=(72, 300, 540, 340), row_top=300, row_height=20, max_rows=2,
+                       columns=[Column(key="0", x=(72, 300)), Column(key="1", x=(300, 320))])  # fmt: skip
+    tpl = _tpl(pdf, Field(id="t", type="table", segments=[seg], source=Source(paths=["rows"])))
+    tpl.schema_ = schema
+    out, rep = fill(tpl, pdf, {"rows": [["a", "a long value for a narrow column"], [["x", "y"], "b"]]})
+    assert _values(out)["t_r0_0"] == "a" and _values(out)["t_r1_0"] == "x, y"
+    item = rep.paths["rows[]"]
+    assert item.mapped and item.fields == ["t"]
+    assert item.rendered == {"t[0][0]": "a", "t[0][1]": "a long value for a narrow column",
+                             "t[1][0]": "x, y", "t[1][1]": "b"}  # fmt: skip
+    codes = [(w.field, w.code) for w in item.warnings]
+    assert ("t", "overflow") in codes and ("t", "list_joined") in codes  # fill's and resolve's cell warnings
+    # every cell warning (fill's and resolve's) names a path the report lists
+    assert all(w.path in rep.paths for t in rep.tables for c in t.cells for w in c.warnings)
+
+
+def test_table_without_slots_is_a_gap(make_pdf):
+    pdf = make_pdf(text=TEXT)
+    seg = TableSegment(page=0, rect=(72, 300, 540, 340), row_top=300, row_height=20, max_rows=0,
+                       columns=[Column(key="drug", x=(72, 300))])  # fmt: skip
+    empty_cols = TableSegment(page=0, rect=(72, 400, 540, 440), row_top=400, row_height=20, max_rows=2, columns=[])
+    tpl = _tpl(pdf, Field(id="t0", type="table", segments=[seg], source=Source(paths=["medications"])),
+               Field(id="t1", type="table", segments=[empty_cols], source=Source(paths=["medications"])))  # fmt: skip
+    _, rep = fill(tpl, pdf, {"medications": [{"drug": "A"}]})
+    assert {"t0", "t1"} <= set(rep.gaps)
+    assert [t.cells for t in rep.tables] == [[], []]

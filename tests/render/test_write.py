@@ -517,3 +517,21 @@ def test_checkbox_sibling_kids_follow_the_field(make_pdf):
     d3 = _reopen(d2)
     assert d3.xref_get_key(k1.widget.xref, "AS")[1] == "/Off"
     assert d3.xref_get_key(k0.widget.xref, "AS")[1] == "/Off"
+
+
+def test_checkbox_kid_value_lives_on_the_field(make_pdf):
+    # PyMuPDF writes /V onto the kid too; a stale kid /V would make a sibling turned off still read on.
+    doc = _open(make_pdf(widgets=[
+        {"type": "checkbox", "name": "sel", "rect": (72, 100, 84, 112), "on_state": "A"},
+        {"type": "checkbox", "name": "sel", "rect": (100, 100, 112, 112), "on_state": "B"},
+    ]))  # fmt: skip
+    a, b = [w for w in read_existing(doc) if w.name == "sel"]
+    write_choice(doc[0], Binding("a", "named", widget=a), on=True, style_circle=False)
+    write_choice(doc[0], Binding("b", "named", widget=b), on=True, style_circle=False)
+    d2 = _reopen(doc)
+    kids = [w for w in d2[0].widgets() if w.field_name == "sel"]
+    assert [d2.xref_get_key(w.xref, "AS")[1] for w in kids] == ["/Off", "/B"]
+    assert all(d2.xref_get_key(w.xref, "V")[0] == "null" for w in kids)
+    parent = int(d2.xref_get_key(kids[0].xref, "Parent")[1].split()[0])
+    assert d2.xref_get_key(parent, "V") == ("name", "/B")
+    assert [w.field_value for w in kids] == ["B", "B"]  # the field's value, no stale "A"

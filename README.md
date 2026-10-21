@@ -117,7 +117,10 @@ The report also has:
   other box gets a new widget. Widgets the template doesn't use are left as
   they were.
 - **Refilling a filled PDF works.** Fields whose data is missing are cleared, so
-  nothing from an earlier record is left behind.
+  nothing from an earlier record is left behind. The fingerprint check ignores
+  filled-in values, so a filled copy still matches its template. The exception
+  is a blank form whose text fields already carry default values: its filled
+  copies no longer match, so refill those with `check_fingerprint=False`.
 - **Validation is lenient by default.** Bad data is reported as `invalid` and
   the rest is filled. `strict=True` raises `FormcastError` instead.
   `check_fingerprint=False` fills a PDF whose fingerprint differs from the

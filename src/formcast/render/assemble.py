@@ -33,6 +33,7 @@ class Slot:
     column: Column | None = None
     segment: int | None = None
     row: int | None = None
+    list_row: bool = False  # a cell of a list-row table: its column path is the table's item path
     order: tuple = ()  # page, top, left, input position
     binding: Binding | None = None
     written: bool = False
@@ -65,12 +66,16 @@ def order_key(target: Target, index: int) -> tuple:
     return (target.page, target.rect[1], target.rect[0], index)
 
 
-def column_path(table_path: str, key: str) -> str:
-    """Schema path of a table column: ``medications`` + ``dose`` -> ``medications[].dose``."""
+def column_path(table_path: str, key: str, *, list_rows: bool = False) -> str:
+    """Schema path of a table column: ``medications`` + ``dose`` -> ``medications[].dose``.
+
+    Columns of a list-row table (rows are arrays, keys are indices) all live at the item path
+    ``rows[]``, which is what ``flatten_schema`` lists.
+    """
     try:
-        return format_path(parse_path(table_path) + [ARRAY_ITEM] + parse_path(key))
+        return format_path(parse_path(table_path) + [ARRAY_ITEM] + ([] if list_rows else parse_path(key)))
     except ValueError:
-        return f"{table_path}[].{key}"
+        return f"{table_path}[]" if list_rows else f"{table_path}[].{key}"
 
 
 def _sort_key(w: FillWarning) -> tuple:
@@ -105,10 +110,12 @@ def _table_report(f: Field, slots: list[Slot], tr: TableResolved | None, cells: 
     for s in slots:
         name, rect = s.widget()
         c: CellTarget | None = cells.get((f.id, s.row, s.column.key))
+        # resolve() words a cell's path as "<table>[].<key>"; use the schema path the slot carries
+        resolved = [w if w.path == s.path else w.model_copy(update={"path": s.path}) for w in (c.warnings if c else [])]
         cell_reports.append(CellReport(
             row=s.row, key=s.column.key, segment=s.segment, page=s.target.page, rect=s.target.rect,
             binding=s.binding.how, widget=name, widget_rect=rect, value=s.value, font_size=s.font_size,
-            warnings=(list(c.warnings) if c is not None else []) + s.warnings,
+            warnings=resolved + s.warnings,
         ))  # fmt: skip
     per_segment = list(tr.rows_per_segment) if tr is not None else [0] * len(f.segments)
     return TableReport(
@@ -120,8 +127,8 @@ def _table_report(f: Field, slots: list[Slot], tr: TableResolved | None, cells: 
 
 def _is_gap(f: Field, slots: list[Slot], r: Resolved | None) -> bool:
     """A box that came out empty: no source, or mapped but nothing visible was written."""
-    if not slots[0].mapped:
-        return True
+    if f.source is None or not f.source.paths or not slots:
+        return True  # a table with no cell slots (no columns, or max_rows 0) writes nothing
     if f.type == "table":
         return not any(s.value for s in slots)
     s = slots[0]
@@ -149,11 +156,15 @@ def _paths(template: Template, data: Any, slots_by_field: dict[str, list[Slot]],
             if f.id not in fields_at[cp]:
                 fields_at[cp].append(f.id)
             if (f.id, s.row, s.column.key) in cells:
-                rendered[cp][f"{f.id}[{s.row}]"] = s.value
+                key = f"{f.id}[{s.row}][{s.column.key}]" if s.list_row else f"{f.id}[{s.row}]"
+                rendered[cp][key] = s.value
+    # A field joining several paths words its warnings without a path; they belong to each one.
+    multi = {f.id: list(dict.fromkeys(f.source.paths)) for f in template.fields
+             if f.type != "table" and f.source is not None and len(f.source.paths) > 1}  # fmt: skip
     by_path: dict[str, list[FillWarning]] = defaultdict(list)
     for w in warnings:
-        if w.path is not None:
-            by_path[w.path].append(w)
+        for p in [w.path] if w.path is not None else multi.get(w.field or "", []):
+            by_path[p].append(w)
     return {
         sp.path: PathReport(path=sp.path, mapped=sp.path in fields_at, has_value=_has_value(data, sp.path),
                             fields=list(fields_at.get(sp.path, [])), rendered=dict(rendered.get(sp.path, {})),
