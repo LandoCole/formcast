@@ -11,11 +11,14 @@ from formcast.template.model import Field, Template
 
 LOW_CONFIDENCE = 0.5
 CANDIDATE_IOU = 0.3
+# A candidate this much inside a field box is covered too (a tall answer field over
+# several detected line blanks, a table cell over a detected cell).
+CANDIDATE_INSIDE = 0.7
 
 
 class Coverage(BaseModel):
     unmapped_paths: list[str] = []  # mappable schema paths no field source references, schema order
-    unused_candidates: list[str] = []  # detector candidates no field covers (IoU < 0.3)
+    unused_candidates: list[str] = []  # detector candidates no field covers (see coverage)
     unmapped_fields: list[str] = []  # fields without a source
     low_confidence: list[str] = []  # fields with confidence < 0.5
     mappable_count: int = 0  # schema paths that can be mapped (see is_mappable); mapped = this - unmapped
@@ -44,7 +47,21 @@ def _field_regions(f: Field) -> list[tuple[int, Rect]]:
     return out
 
 
+def _inside_share(inner: Rect, outer: Rect) -> float:
+    w = min(inner[2], outer[2]) - max(inner[0], outer[0])
+    h = min(inner[3], outer[3]) - max(inner[1], outer[1])
+    area = (inner[2] - inner[0]) * (inner[3] - inner[1])
+    return w * h / area if w > 0 and h > 0 and area > 0 else 0.0
+
+
+def _covers(region: Rect, cand: Rect) -> bool:
+    return iou(cand, region) >= CANDIDATE_IOU or _inside_share(cand, region) >= CANDIDATE_INSIDE
+
+
 def coverage(template: Template, form_map: FormMap, schema_paths: list[SchemaPath]) -> Coverage:
+    """What ``template`` leaves to do. A candidate is used when some field box (a
+    table's segment, rows or cells included) overlaps it with IoU >= 0.3 or holds
+    at least 70% of it."""
     referenced = {p for f in template.fields if f.source for p in f.source.paths}
     tables = {f.source.paths[0] for f in template.fields if f.type == "table" and f.source and f.source.paths}
     by_path = {sp.path: sp for sp in schema_paths}
@@ -72,7 +89,7 @@ def coverage(template: Template, form_map: FormMap, schema_paths: list[SchemaPat
         c.id
         for page in sorted(form_map.pages, key=lambda p: p.index)
         for c in page.candidates
-        if all(iou(c.rect, r) < CANDIDATE_IOU for r in regions.get(page.index, []))
+        if not any(_covers(r, c.rect) for r in regions.get(page.index, []))
     ]
 
     return Coverage(

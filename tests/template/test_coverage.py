@@ -160,3 +160,12 @@ def test_mappable_count_counts_leaves_and_table_arrays_not_containers():
                                 words=[], lines=[], rules=[], widgets=[])])  # fmt: skip
     cov = coverage(t, fm, paths)
     assert cov.mappable_count == 5 and len(cov.unmapped_paths) == 5
+
+
+def test_a_candidate_mostly_inside_a_field_counts_as_covered():
+    # one tall answer field over several detected line blanks covers all of them
+    schema = {"type": "object", "properties": {}}
+    lines = [_cand(f"l{i}", (50, 200 + 18 * i, 500, 214 + 18 * i)) for i in range(4)]
+    fm = _form_map(lines + [_cand("half_out", (50, 262, 500, 290))])
+    tall = Field(id="f1", type="text", page=0, rect=(48, 198, 502, 272))
+    assert coverage(_template(schema, [tall]), fm, []).unused_candidates == ["half_out"]
