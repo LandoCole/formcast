@@ -287,7 +287,7 @@ JSON, returned with every fill:
 - **Form-side gaps:** blanks or fields on the form that got no data.
 
 ### 7.10 Fingerprint and similarity (`formcast.match`)
-- `fingerprint(pdf)`: a stable id for "this exact blank form", based on page count, sizes and normalized text and layout. It is not a file hash, because re-saved PDFs differ byte-for-byte.
+- `fingerprint(pdf)`: a stable id for "this exact blank form", based on page count, sizes and normalized text and layout. It is not a file hash, because re-saved PDFs differ byte-for-byte. *Layout* is a coarse per-page ink map (a 32×44 grid of a low-resolution grayscale render without annotations, one bit per cell), so image-only scans, which have no text layer, are still told apart (`formcast/match.py`).
 - `similarity(template, pdf) -> float` and a short explanation, so an app can decide between "reuse", "adapt with `start_from`" and "build new".
 
 The core only computes these. The app decides what to do.

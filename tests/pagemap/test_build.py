@@ -419,6 +419,36 @@ def test_fingerprint_is_stable_across_resave(flat_form_pdf, tmp_path):
     assert len(fingerprint(flat_form_pdf)) == 16
 
 
+def _scan_of(draw, path):
+    """A one-page PDF whose page is only an image (no text layer) of what ``draw`` puts on a page."""
+    src = pymupdf.open()
+    draw(src.new_page(width=612, height=792))
+    png = src[0].get_pixmap(dpi=100).tobytes("png")
+    src.close()
+    doc = pymupdf.open()
+    page = doc.new_page(width=612, height=792)
+    page.insert_image(page.rect, stream=png)
+    doc.save(path)
+    doc.close()
+    return path
+
+
+def test_fingerprint_sees_the_layout_of_image_only_pages(tmp_path):
+    blank = _scan_of(lambda page: None, tmp_path / "blank.pdf")
+    lined = _scan_of(lambda page: page.draw_line((72, 212), (250, 212), width=0.75), tmp_path / "lined.pdf")
+    with pymupdf.open(blank) as doc:
+        assert doc[0].get_text().strip() == ""
+    assert fingerprint(blank) != fingerprint(lined)
+
+
+def test_fingerprint_of_image_only_page_is_stable_across_resave(image_only_pdf, tmp_path):
+    out = tmp_path / "resaved.pdf"
+    with pymupdf.open(image_only_pdf) as doc:
+        doc.save(out, garbage=4, deflate=True)
+    assert out.read_bytes() != image_only_pdf.read_bytes()
+    assert fingerprint(out) == fingerprint(image_only_pdf)
+
+
 def test_fingerprint_changes_with_text_and_size(flat_form_pdf, address_form_pdf, tmp_path):
     assert fingerprint(address_form_pdf) != fingerprint(flat_form_pdf)
     out = tmp_path / "a4.pdf"
