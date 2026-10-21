@@ -1,62 +1,22 @@
-# RLM Lab
+# formcast
 
-`RLM Lab` is a small exploratory project for running DSPy's experimental `dspy.RLM` side by side with a direct baseline while inspecting recursion steps, retrieval activity, and token usage.
-
-## Features
-
-- `dspy.RLM` runner with explicit iteration and interpreter events
-- Baseline `dspy.Predict` runner for side-by-side comparison
-- Local file retrieval over `.txt`, `.md`, and `.json` corpora
-- Streamlit UI for live inspection and replay of saved traces
-- CLI for single prompts, scenario sets, and trace export
-- JSON and JSONL run artifacts under `runs/`
+formcast turns blank PDF forms into field templates. It detects form fields with
+`commonforms`, then uses an LLM agent to name, type and structure them.
 
 ## Setup
 
-Create a virtual environment and install the project dependencies:
-
-```bash
-python3 -m venv .venv
-.venv/bin/pip install -e .[dev]
+```sh
+uv venv -p 3.12 .venv
+uv pip install -p .venv/bin/python -e ".[ocr,dev]"
+.venv/bin/pytest -q
 ```
 
-Set your model environment:
+API keys go in `.env` (git-ignored): `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`.
 
-```bash
-export OPENAI_API_KEY=...
-export OPENAI_MODEL=gpt-5.4
-# Optional:
-export OPENAI_BASE_URL=https://api.openai.com/v1
-```
+Tests marked `slow` (model downloads) and `llm` (real model calls) are skipped by
+default; run them with `-m slow` / `-m llm`.
 
-## Run The UI
+## Spec
 
-```bash
-streamlit run app.py
-```
-
-## Run The CLI
-
-Single prompt:
-
-```bash
-python -m rlm_lab.run prompt --prompt "Summarize the local corpus" --runner both --corpus-dir tests/fixtures/corpus
-```
-
-Scenario set:
-
-```bash
-python -m rlm_lab.run scenario --set starter
-```
-
-Export saved run summaries:
-
-```bash
-python -m rlm_lab.run export --format csv --output runs/summary.csv
-```
-
-## Notes
-
-- The recursive path uses DSPy's `RLM`, but this project supplies a local Python interpreter so you can experiment without requiring Deno.
-- The interpreter intentionally supports only a constrained set of builtins and helper modules because the executed code is model-generated.
-- Token and cost metadata depend on the model provider. OpenAI-compatible endpoints work best for the current instrumentation.
+Design spec: [docs/superpowers/specs/2026-10-20-form-projection-design.md](docs/superpowers/specs/2026-10-20-form-projection-design.md)
+Plan: [docs/superpowers/plans/2026-10-20-formcast-agent-layer.md](docs/superpowers/plans/2026-10-20-formcast-agent-layer.md)
