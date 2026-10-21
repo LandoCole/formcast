@@ -57,15 +57,14 @@ OVERLAY_COLORS = {"text": (220, 0, 0), "choice": (0, 90, 230), "signature": (200
 def iter_pages(form: dict, pdf_path: Path, gt: list[score.GTField] | None):
     """Yield (page number, page with widgets stripped, that page's GT or None).
 
-    Pages are in memory only; the PDF on disk is untouched. cms1500 scores page 0
-    only (the rest is not the blank form), and fillable pages without widgets
-    (instruction pages) are skipped.
+    Pages are in memory only; the PDF on disk is untouched. Only the manifest's
+    ``scored_pages`` are visited (every page when absent), and fillable pages
+    without widgets (instruction pages) are skipped.
     """
     doc = open_pdf(pdf_path)
     try:
-        for page in doc:
-            if form["id"] == "cms1500" and page.number != 0:
-                continue
+        for pno in score.scored_pages(form, doc.page_count):
+            page = doc[pno]
             page_gt = None if gt is None else [g for g in gt if g.page == page.number]
             if form["kind"] == "fillable" and not page_gt:
                 continue

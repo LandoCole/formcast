@@ -2,6 +2,7 @@ import json
 import sys
 from pathlib import Path
 
+import pymupdf
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "eval"))
@@ -254,3 +255,60 @@ def test_load_gt_rejects_an_unknown_type(flat_form_pdf, tmp_path):
     _write_gt(tmp_path, "fl", {"form": "fl", "fields": [{"page": 0, "rect": [0, 0, 5, 5], "type": "radio"}]})
     with pytest.raises(ValueError, match="fl.json"):
         score.load_gt({"id": "fl", "kind": "flat"}, flat_form_pdf, gt_dir=tmp_path)
+
+
+def test_load_gt_fillable_skips_push_buttons(fillable_form_pdf, tmp_path):
+    doc = pymupdf.open(fillable_form_pdf)
+    button = pymupdf.Widget()
+    button.field_name = "print_form"
+    button.field_type = pymupdf.PDF_WIDGET_TYPE_BUTTON
+    button.rect = pymupdf.Rect(400, 86, 480, 104)
+    doc[0].add_widget(button)
+    path = tmp_path / "with_button.pdf"
+    doc.save(path)
+    doc.close()
+    gt = score.load_gt({"id": "ff", "kind": "fillable"}, path, gt_dir=tmp_path / "none")
+    assert sorted(g.label for g in gt) == ["agree", "applicant_name"]
+
+
+def test_load_gt_reads_also_paths(fillable_form_pdf, flat_form_pdf, tmp_path):
+    _write_gt(tmp_path, "ff", {"form": "ff", "widget_paths": {
+        "applicant_name": {"path": "p.first", "also_paths": ["p.last"], "transforms": ["join"]}}})
+    gt = score.load_gt({"id": "ff", "kind": "fillable"}, fillable_form_pdf, gt_dir=tmp_path)
+    name = next(g for g in gt if g.label == "applicant_name")
+    assert (name.path, name.also_paths, name.transforms) == ("p.first", ["p.last"], ["join"])
+    assert next(g for g in gt if g.label == "agree").also_paths == []
+
+    _write_gt(tmp_path, "fl", {"form": "fl", "fields": [
+        {"page": 0, "rect": [120, 86, 300, 100], "type": "text", "path": "p.first", "also_paths": ["p.last"]},
+        {"page": 0, "rect": [72, 140, 82, 150], "type": "choice"}]})
+    gt = score.load_gt({"id": "fl", "kind": "flat"}, flat_form_pdf, gt_dir=tmp_path)
+    assert [g.also_paths for g in gt] == [["p.last"], []]
+
+
+def test_scored_pages_default_to_all_pages():
+    assert score.scored_pages({"id": "x"}, 3) == [0, 1, 2]
+    assert score.scored_pages({"id": "x", "scored_pages": [2, 0]}, 3) == [0, 2]
+
+
+def test_scored_pages_rejects_a_page_outside_the_document():
+    with pytest.raises(ValueError, match="x"):
+        score.scored_pages({"id": "x", "scored_pages": [3]}, 3)
+
+
+def test_load_gt_keeps_only_scored_pages(fillable_form_pdf, flat_form_pdf, tmp_path):
+    doc = pymupdf.open(fillable_form_pdf)
+    page = doc.new_page()
+    w = pymupdf.Widget()
+    w.field_name = "page_two"
+    w.field_type = pymupdf.PDF_WIDGET_TYPE_TEXT
+    w.rect = pymupdf.Rect(100, 100, 300, 120)
+    page.add_widget(w)
+    path = tmp_path / "two_pages.pdf"
+    doc.save(path)
+    doc.close()
+    form = {"id": "ff", "kind": "fillable"}
+    assert {g.page for g in score.load_gt(form, path, gt_dir=tmp_path)} == {0, 1}
+    gt = score.load_gt({**form, "scored_pages": [1]}, path, gt_dir=tmp_path)
+    assert [g.label for g in gt] == ["page_two"]
+    assert score.load_gt({**form, "scored_pages": [0]}, path, gt_dir=tmp_path)[0].page == 0

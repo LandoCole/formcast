@@ -9,13 +9,19 @@ Ground-truth file ``forms/gt/<id>.json``::
 
     {"form": id,
      "fields": [{"page": int, "rect": [x0, y0, x1, y1], "type": "text"|"choice"|"signature",
-                 "label": str, "path"?: str, "transforms"?: [op names]}],
-     "widget_paths": {widget_name: {"path": str, "transforms"?: [op names]}},
+                 "label": str, "path"?: str, "also_paths"?: [str], "transforms"?: [op names]}],
+     "widget_paths": {widget_name: {"path": str, "also_paths"?: [str], "transforms"?: [op names]}},
      "notes": str}
 
 Fillable forms take their boxes from the PDF's widgets (``widget_paths`` adds
-``path``/``transforms`` by widget name); flat and scanned forms take them from
-``fields``. A table is ground-truthed one box per cell with path ``arr[].col``.
+``path``/``also_paths``/``transforms`` by widget name; push buttons are not data
+fields and are skipped); flat and scanned forms take them from ``fields``. A
+table is ground-truthed one box per cell with path ``arr[].col``. ``also_paths``
+lists the further schema paths a box is fed from (a full name from first + last:
+``path`` is the first, ``also_paths`` the rest).
+
+A manifest entry's ``scored_pages`` (0-based page indexes; absent = every page)
+limits ground truth and scoring to those pages.
 
 Division by zero: every ratio is 0.0 when its denominator is 0.
 """
@@ -64,9 +70,28 @@ class GTField:
     label: str = ""
     path: str | None = None
     transforms: list[str] = field(default_factory=list)
+    also_paths: list[str] = field(default_factory=list)
 
 
 # ---------- ground truth ----------
+
+
+def scored_pages(form: dict, n_pages: int) -> list[int]:
+    """The 0-based pages of ``form`` that are ground-truthed and scored, ascending.
+
+    A manifest entry's ``scored_pages`` names them; without it every one of the
+    document's ``n_pages`` pages is scored.
+
+    Raises:
+        ValueError: when ``scored_pages`` names a page the document does not have.
+    """
+    pages = form.get("scored_pages")
+    if pages is None:
+        return list(range(n_pages))
+    bad = [p for p in pages if not isinstance(p, int) or not 0 <= p < n_pages]
+    if bad:
+        raise ValueError(f"{form['id']}: scored_pages {bad} not in a {n_pages}-page document")
+    return sorted(set(pages))
 
 
 def _widget_type(w) -> str:
@@ -74,7 +99,7 @@ def _widget_type(w) -> str:
         return "choice"
     if w.field_type == pymupdf.PDF_WIDGET_TYPE_SIGNATURE:
         return "signature"
-    return "text"  # text, combo, list, push button
+    return "text"  # text, combo, list (push buttons are skipped by load_gt)
 
 
 def _read_gt_file(gt_dir: Path, form_id: str) -> dict | None:
@@ -99,6 +124,7 @@ def _gt_from_entry(entry: dict, source: str) -> GTField:
             label=entry.get("label", ""),
             path=entry.get("path"),
             transforms=list(entry.get("transforms", [])),
+            also_paths=list(entry.get("also_paths", [])),
         )
     except (KeyError, TypeError, ValueError) as exc:
         raise ValueError(f"{source}: bad field entry {entry!r}") from exc
@@ -107,13 +133,15 @@ def _gt_from_entry(entry: dict, source: str) -> GTField:
 def load_gt(form: dict, pdf_path, gt_dir: Path | None = None) -> list[GTField] | None:
     """Ground-truth fields of one form, or None when it has none.
 
-    ``form`` is a ``forms/manifest.json`` entry (``id`` and ``kind`` are used).
-    A fillable form's boxes are its PDF widgets (every page), typed like the
-    CommonForms classes: check boxes and radio buttons are "choice", signatures
-    "signature", everything else "text"; widgets under 3 pt are dropped. A
-    ``widget_paths`` entry for the widget's field name adds ``path`` and
-    ``transforms``. A fillable form with no widgets has no ground truth. Flat and
-    scanned forms read ``fields`` from the GT file and have none without it.
+    ``form`` is a ``forms/manifest.json`` entry (``id``, ``kind`` and
+    ``scored_pages`` are used); only fields on scored pages are returned.
+    A fillable form's boxes are its PDF widgets, typed like the CommonForms
+    classes: check boxes and radio buttons are "choice", signatures
+    "signature", everything else "text"; push buttons (not data fields) and
+    widgets under 3 pt are dropped. A ``widget_paths`` entry for the widget's
+    field name adds ``path``, ``also_paths`` and ``transforms``. A fillable form
+    with no widgets has no ground truth. Flat and scanned forms read ``fields``
+    from the GT file and have none without it.
 
     Raises:
         ValueError: when the GT file is not valid JSON or has a malformed field.
@@ -124,14 +152,19 @@ def load_gt(form: dict, pdf_path, gt_dir: Path | None = None) -> list[GTField] |
     if form["kind"] != "fillable":
         if data is None:
             return None
-        return [_gt_from_entry(e, source) for e in data.get("fields", [])]
+        fields = [_gt_from_entry(e, source) for e in data.get("fields", [])]
+        keep = form.get("scored_pages")
+        return fields if keep is None else [g for g in fields if g.page in keep]
 
     widget_paths = (data or {}).get("widget_paths", {})
     out: list[GTField] = []
     doc = open_pdf(pdf_path)
     try:
-        for page in doc:
+        for pno in scored_pages(form, doc.page_count):
+            page = doc[pno]
             for w in page.widgets() or []:
+                if w.field_type == pymupdf.PDF_WIDGET_TYPE_BUTTON:
+                    continue
                 if w.rect.width < MIN_WIDGET_SIZE or w.rect.height < MIN_WIDGET_SIZE:
                     continue
                 extra = widget_paths.get(w.field_name) or {}
@@ -143,6 +176,7 @@ def load_gt(form: dict, pdf_path, gt_dir: Path | None = None) -> list[GTField] |
                         label=w.field_label or w.field_name or "",
                         path=extra.get("path"),
                         transforms=list(extra.get("transforms", [])),
+                        also_paths=list(extra.get("also_paths", [])),
                     )
                 )
     finally:
