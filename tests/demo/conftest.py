@@ -5,7 +5,8 @@ is reachable as ``{server}/demo/web/...`` exactly as the demo is served in use. 
 ``page`` skip the test with a clear reason when Playwright or Chromium is not installed.
 
 ``demo_server`` is the workbench server (``demo.server``) on an ephemeral port, over a throwaway copy of
-``demo/data`` so nothing a test saves reaches the repository. ``start_demo_server(**kw)`` starts another
+``demo/data`` so nothing a test saves reaches the repository. The copy leaves out ``demo/data/local/`` (the
+templates a developer saved in the workbench), so every test sees the shipped data only. ``start_demo_server(**kw)`` starts another
 one with different settings, a provider factory, a store or records.
 """
 
@@ -21,6 +22,17 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 DEMO_DATA = ROOT / "demo" / "data"
+
+
+def copy_demo_data(src: Path, dst: Path) -> None:
+    """Copy the demo data folder ``src`` to ``dst``, without its ``local/`` folder (a developer's own saves)."""
+    shutil.copytree(src, dst, ignore=lambda folder, names: ["local"] if Path(folder) == Path(src) and "local" in names else [])
+
+
+@pytest.fixture
+def demo_data_copier():
+    """``copy_demo_data`` (above), for the test that checks it."""
+    return copy_demo_data
 
 
 class _QuietHandler(SimpleHTTPRequestHandler):
@@ -64,7 +76,7 @@ def start_demo_server(tmp_path):
     threads: list[threading.Thread] = []
     data_dir = tmp_path / "data"
     if not data_dir.exists():
-        shutil.copytree(DEMO_DATA, data_dir)
+        copy_demo_data(DEMO_DATA, data_dir)
 
     def start(*, provider_factory=None, store=None, records=None, **settings_overrides) -> str:
         settings = Settings.from_env({})

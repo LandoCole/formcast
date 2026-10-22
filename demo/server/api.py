@@ -42,7 +42,7 @@ from demo.server.documents import MAX_DPI, MIN_DPI, PYMUPDF_LOCK, Doc, Documents
 from demo.server.jobs import KINDS, Jobs, JobsBusy
 from demo.server.records import MultiRecords, RecordSource, RecordSourceError
 from demo.server.settings import Settings
-from demo.server.store import NAME_RE, FolderTemplateStore, StoredTemplateError, TemplateStore
+from demo.server.store import NAME_RE, OverlayTemplateStore, ShippedTemplateError, StoredTemplateError, TemplateStore
 from formcast import (
     FormcastError, OpContext, OpError, Template, apply, fill, flatten_schema, rebind, similarity, to_smart_pdf,
 )
@@ -135,7 +135,9 @@ class Api:
     ) -> None:
         self.settings = settings
         self.provider_factory = provider_factory
-        self.store = store if store is not None else FolderTemplateStore(settings.data_dir / "templates")
+        if store is None:  # saves go to <data>/local/templates (git-ignored), over the shipped <data>/templates
+            store = OverlayTemplateStore(settings.data_dir / "local" / "templates", settings.data_dir / "templates")
+        self.store = store
         self.records = records if records is not None else _default_records(settings)
         self.documents = documents if documents is not None else Documents()
         self.jobs = Jobs(secrets=[settings.llm.api_key] if settings.llm is not None else [])
@@ -527,8 +529,12 @@ class Api:
         return {"name": req.match["name"], "template_id": template.template_id}
 
     def delete_template(self, req: Request) -> dict:
-        with missing("template"), bad_request():
-            self.store.delete(req.match["name"])
+        """Delete a saved template; one that ships with the demo is 409 ``read_only``."""
+        try:
+            with missing("template"), bad_request():
+                self.store.delete(req.match["name"])
+        except ShippedTemplateError as exc:
+            raise ApiError(409, "read_only", str(exc)) from None
         return {"deleted": req.match["name"]}
 
     # ---- schemas and records

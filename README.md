@@ -259,7 +259,7 @@ python -m demo.server            # then open http://127.0.0.1:8765/workbench/
 
 Run it from the repository root. Without the install it still starts from a clone, because
 `python -m demo.server` adds `src/` to the path. Flags: `--host`, `--port` and `--data-dir` (a folder
-with `forms/`, `schemas/`, `records/` and `templates/`; default `demo/data`). Binding a wildcard
+with `forms/`, `schemas/`, `records/`, `records.sqlite` and `templates/`; default `demo/data`). Binding a wildcard
 address (`0.0.0.0`) does not make a usable URL: bind your machine's own IP with `--host` if you want
 to reach it from another machine, and know that anyone who can reach that address can use it.
 
@@ -279,7 +279,9 @@ The flow:
    dev forms only.
 3. **Edit or revise.** Edit by hand, or draw an area and type an instruction for the agent. Undo and
    redo cover both.
-4. **Save** to the template store.
+4. **Save** to the template store. Saves go to `local/templates/` in the data folder
+   (`demo/data/local/templates/`, git-ignored), never into the shipped `demo/data/templates/`. A saved
+   template hides a shipped one with the same name; the shipped ones cannot be deleted.
 5. **Fill.** Pick a record and fill. If the stored template was made for a different version of the PDF,
    the server answers 409 and the page offers *Rebind* (`formcast.rebind`: the same pages, this PDF's
    fingerprint) or *Fill anyway*. Templates made in the browser have no fingerprint and fill with a note.
@@ -293,8 +295,19 @@ reaches them through two small interfaces, so you can swap them for your own dat
 `TemplateStore` (`demo/server/store.py`: `list`, `get`, `put`, `delete`; the default keeps one JSON
 file per template and raises `StoredTemplateError` for a file that is not a valid template) and
 `RecordSource` (`demo/server/records.py`: `schemas`, `list`, `get`; the defaults read CSV files and a
-SQLite file, and raise `RecordSourceError` when a source cannot be read at all). Settings are one
-object, built in `Settings.from_env`. Odd records (a bad JSON cell, NULLs, extra columns) come back with
+SQLite file, and raise `RecordSourceError` when a source cannot be read at all). To use your own,
+pass them to `make_server(settings, store=..., records=...)` (`demo/server/server.py`); the
+`python -m demo.server` command has no flag for this, so write a short script:
+
+```python
+from demo.server.server import make_server
+from demo.server.settings import Settings
+
+httpd = make_server(Settings.from_env(), store=MyTemplateStore(), records=MyRecordSource())
+httpd.serve_forever()
+```
+
+Settings are one object, built in `Settings.from_env`. Odd records (a bad JSON cell, NULLs, extra columns) come back with
 what could be read, and the fill report says what is wrong.
 
 Tests:

@@ -16,7 +16,7 @@ import pytest
 from demo.server import settings as settings_mod
 from demo.server.records import CsvRecords, MultiRecords, RecordSourceError, SqliteRecords
 from demo.server.settings import Settings, read_dotenv
-from demo.server.store import FolderTemplateStore, StoredTemplateError
+from demo.server.store import FolderTemplateStore, OverlayTemplateStore, ShippedTemplateError, StoredTemplateError
 from formcast import Template, fill
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -382,6 +382,53 @@ def test_multi_records_isolates_a_failing_source_and_reports_it(data_dir):
     write_csv(data_dir, "id,name\np1,Ada\n")  # fixed on disk: the problem clears on the next read
     assert [r["id"] for r in multi.list("person")] == ["p1", "s1"]
     assert multi.problems() == []
+
+
+def test_overlay_saves_locally_and_never_writes_the_shipped_folder(tmp_path, template):
+    shipped, local = tmp_path / "templates", tmp_path / "local" / "templates"
+    FolderTemplateStore(shipped).put("fw9", template)
+    before = (shipped / "fw9.json").read_bytes()
+    store = OverlayTemplateStore(local, shipped)
+    mine = template.model_copy(update={"template_id": "mine"})
+    store.put("fw9", mine)  # the name of a shipped template, as the Save dialog suggests after Reuse
+    store.put("extra", template)
+    assert (shipped / "fw9.json").read_bytes() == before and sorted(p.name for p in shipped.iterdir()) == ["fw9.json"]
+    assert sorted(p.name for p in local.iterdir()) == ["extra.json", "fw9.json"]
+    assert store.get("fw9").template_id == "mine"  # local wins
+    listed = store.list()
+    assert [(t["name"], t["template_id"]) for t in listed] == [("extra", template.template_id), ("fw9", "mine")]
+
+
+def test_overlay_lists_both_folders_and_refuses_to_delete_a_shipped_template(tmp_path, template):
+    shipped, local = tmp_path / "templates", tmp_path / "local" / "templates"
+    FolderTemplateStore(shipped).put("shipped one", template)
+    store = OverlayTemplateStore(local, shipped)  # the local folder does not exist yet
+    assert [t["name"] for t in store.list()] == ["shipped one"]
+    store.put("mine", template)
+    assert [t["name"] for t in store.list()] == ["mine", "shipped one"]
+    with pytest.raises(ShippedTemplateError, match="came with the demo"):
+        store.delete("shipped one")
+    assert store.get("shipped one") == template
+    store.put("shipped one", template.model_copy(update={"template_id": "over"}))
+    store.delete("shipped one")  # removes the local copy; the shipped one shows again
+    assert store.get("shipped one").template_id == template.template_id
+    store.delete("mine")
+    with pytest.raises(KeyError):
+        store.delete("mine")
+    for call in (lambda: store.get("../x"), lambda: store.put("../x", template), lambda: store.delete("../x")):
+        with pytest.raises(ValueError, match="bad template name"):
+            call()
+
+
+def test_server_tests_copy_the_demo_data_without_a_developers_local_saves(tmp_path, template, demo_data_copier):
+    src = tmp_path / "data"
+    FolderTemplateStore(src / "templates").put("fw9", template)
+    FolderTemplateStore(src / "local" / "templates").put("my save", template)
+    (src / "forms" / "local").mkdir(parents=True)  # only the top-level local/ is left out
+    demo_data_copier(src, tmp_path / "copy")
+    assert sorted(p.relative_to(tmp_path / "copy").as_posix() for p in (tmp_path / "copy").rglob("*")) == [
+        "forms", "forms/local", "templates", "templates/fw9.json",
+    ]  # fmt: skip
 
 
 # ------------------------------------------------------------------ the committed demo data

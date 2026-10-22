@@ -592,6 +592,26 @@ def test_templates_list_get_put_delete(demo_server):
     assert get_json(demo_server, tpl("never saved"))[0] == 404
 
 
+def test_saving_under_a_shipped_name_goes_to_the_local_folder_and_leaves_the_shipped_file(start_demo_server, tmp_path):
+    base = start_demo_server()
+    data = start_demo_server.servers[-1].api.settings.data_dir
+    shipped = (data / "templates" / "fw9.json").read_bytes()
+    template = stored(base, "fw9")
+    template["template_id"] = "my-fw9"
+    assert post(base, tpl("fw9"), {"template": template}, "PUT")[0] == 200
+    assert post(base, tpl("mine"), {"template": template}, "PUT")[0] == 200
+    assert (data / "templates" / "fw9.json").read_bytes() == shipped
+    assert sorted(p.name for p in (data / "templates").iterdir()) == ["fw9.json", "menomonie_app.json", "wadoc_auth.json"]
+    assert sorted(p.name for p in (data / "local" / "templates").iterdir()) == ["fw9.json", "mine.json"]
+    listed = {t["name"]: t["template_id"] for t in get_json(base, "/api/templates")[1]["templates"]}
+    assert set(listed) == {"fw9", "menomonie_app", "wadoc_auth", "mine"} and listed["fw9"] == "my-fw9"
+    assert stored(base, "fw9")["template_id"] == "my-fw9"
+    status, body = get_json(base, tpl("wadoc_auth"), "DELETE")
+    assert (status, body["error"]) == (409, "read_only") and "came with the demo" in body["detail"]
+    assert get_json(base, tpl("fw9"), "DELETE")[0] == 200  # the saved copy goes; the shipped one is back
+    assert stored(base, "fw9")["template_id"] != "my-fw9"
+
+
 @pytest.mark.parametrize(
     "name",
     ["..", "%2e%2e%2fx", "..%2f..%2fetc%2fpasswd", "a%2Fb", "%2Fetc%2Fpasswd", ".hidden", "%20lead", "x" * 81, "a%00b", "caf%C3%A9", "back%5Cslash", "tab%09"],
