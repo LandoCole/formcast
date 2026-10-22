@@ -134,6 +134,7 @@ def test_upload_a_pdf_returns_its_summary(demo_server):
     assert doc["page_count"] == 6
     assert doc["page_sizes"][0] == pytest.approx([612.0, 792.0], abs=0.1) and len(doc["page_sizes"]) == 6
     assert len(doc["kinds"]) == 6 and set(doc["kinds"]) <= {"fillable", "digital", "scanned"}
+    assert doc["rotations"] == [0] * 6
 
 
 def test_kinds_tell_fillable_digital_and_scanned_pages_apart(demo_server):
@@ -261,6 +262,7 @@ def test_page_image_follows_the_pages_rotation(demo_server):
     assert doc["page_sizes"][0] == [200.0, 100.0]  # unrotated crop box, as in the library
     png = http_request(demo_server, "GET", f"/api/documents/{doc['id']}/pages/0.png?dpi=72")[2]
     assert png_size(png) == (100, 200)  # what the viewer sees
+    assert doc["rotations"] == [90]  # so a client can place unrotated-space boxes over the turned image
 
 
 def test_page_image_errors(demo_server):

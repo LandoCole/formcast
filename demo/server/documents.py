@@ -49,6 +49,7 @@ class Doc:
             try:
                 self.page_count: int = pdf.page_count
                 self.page_sizes: list[tuple[float, float]] = [page_size(p) for p in pdf]
+                self.rotations: list[int] = [int(p.rotation) for p in pdf]  # /Rotate, as page_png shows it
                 # The same rule build_form_map applies, without detecting or reading any text.
                 self.kinds: list[str] = [
                     "fillable" if p.first_widget else ("scanned" if is_image_dominated(p) else "digital") for p in pdf
@@ -71,6 +72,7 @@ class Doc:
             "name": self.name,
             "page_count": self.page_count,
             "page_sizes": [list(s) for s in self.page_sizes],
+            "rotations": self.rotations,
             "kinds": self.kinds,
         }
 
