@@ -46,6 +46,37 @@ const PARTS = {
       return performance.now() - t0;
     };
   },
+  async panels() {
+    const [{ SchemaList }, { Inspector }, { HistoryPanel }, { renderReport }] = await Promise.all([
+      import("../../../demo/web/core/schemalist.js"),
+      import("../../../demo/web/core/inspector.js"),
+      import("../../../demo/web/core/history.js"),
+      import("../../../demo/web/core/report.js"),
+    ]);
+    const bus = createBus();
+    for (const type of ["pick", "op", "undo", "redo"]) bus.on(type, (detail) => events.push({ type, detail }));
+    window.bus = bus;
+    // ?part=panels: window.setup(options) builds each panel that has its options given
+    window.setup = ({ schemaPaths = [], template, field = null, warnings = [], canUndo = false, canRedo = false, report, draggable = true }) => {
+      const mount = document.getElementById("mount");
+      mount.replaceChildren();
+      events.length = 0;
+      const section = (id) => {
+        const d = document.createElement("section");
+        d.id = id;
+        mount.append(d);
+        return d;
+      };
+      window.schemaList = new SchemaList(section("schema"), { bus, draggable });
+      window.schemaList.set(schemaPaths, template);
+      window.inspector = new Inspector(section("inspector"), { bus });
+      window.inspector.show(field, { schemaPaths, warnings });
+      window.history_ = new HistoryPanel(section("history"), { bus });
+      window.history_.set(template, { canUndo, canRedo });
+      const r = section("report");
+      if (report !== undefined) renderReport(r, report);
+    };
+  },
 };
 
 if (!(part in PARTS)) throw new Error(`unknown part ${part}`);
