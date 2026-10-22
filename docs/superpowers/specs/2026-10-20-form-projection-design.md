@@ -733,6 +733,7 @@ The causes, in order of size:
 | round 3, defer placement | **0.66** | 0.78 | **0.93** | 0.63 | 0.55 | 0.62 | **18.0** | **411K** |
 
 - **By group** (recall@.5 / path / joint): fillable 1.00 / 0.96 / 0.81, digital 0.74 / 0.66 / 0.62, scanned 0.47 / 0.48 / 0.40. Recall stays at or above the seed in every group, and precision is back at the seed's 0.93.
+- **Fill** (`fill_acc`, from the rescored file; 16,098 units, no model calls): fillable 0.93, digital 0.58, scanned 0.45, overall **0.58** (round3-gen 0.63).
 - **Digital path** recovers from 0.57 to 0.66 (round3-gen 0.71). Sessions are shorter: 18 steps and 411K input tokens on average, against 23 and 517K.
 - **Mapping is still below round3-gen** overall: path 0.63 against 0.70, joint 0.55 against 0.64.
 
