@@ -271,6 +271,8 @@ Extend `eval/baseline_detection.py` with a `--detectors` option (default unchang
 - `jobs.py`: AI jobs in threads (`build`, `adapt`, `revise`), each with status, step events from `on_step`, result template or error, and cancel.
 - `api.py`: the JSON API; `server.py`: `ThreadingHTTPServer` that serves `demo/web/` and routes `/api/*`. Start with `python -m demo.server` (documented in the README).
 
+(as built, review fixes) The default store is `OverlayTemplateStore`: saves go to the git-ignored `<data>/local/templates/`, over the shipped `<data>/templates/`, which is never written (a saved template hides a shipped one of the same name; deleting a shipped one is 409 `read_only`). `Documents.add` starts the form-map build on a background thread; seed, matches, apply-with-doc and jobs wait for that build (the client gives them 120 s). The build holds `PYMUPDF_LOCK` throughout (Ruling 12), so other MuPDF work waits while it runs. API paths are routed as sent and each captured part is percent-decoded on its own.
+
 ### 11.2 API
 | method and path | does |
 |---|---|
