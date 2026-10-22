@@ -141,6 +141,20 @@ GATE_APPLY = """
 """
 
 
+# Holds every /api/seed request in the page until the test calls window.__releaseSeed().
+GATE_SEED = """
+  (() => {
+    const real = window.fetch.bind(window);
+    window.__seedGates = [];
+    window.__releaseSeed = () => window.__seedGates.shift()?.();
+    window.fetch = async (url, init) => {
+      if (String(url).includes("/api/seed")) await new Promise((resolve) => window.__seedGates.push(resolve));
+      return real(url, init);
+    };
+  })();
+"""
+
+
 def box(page, fid: str):
     return page.locator(f'#pageview .fc-box[data-field-id="{fid}"]')
 
@@ -195,6 +209,27 @@ def test_picking_fw9_offers_reuse_of_the_stored_template_and_reuse_loads_it(demo
     assert "fw9.pdf" in b.page.locator("#doc-name").inner_text()
     stored = get_json(demo_server, "/api/templates/fw9")[1]["template"]
     assert b.template()["template_id"] == stored["template_id"]
+
+
+def test_while_the_seed_waits_for_the_form_reading_the_page_says_so(demo_server, bench, page):
+    page.add_init_script(GATE_SEED)
+    b = bench(demo_server)
+    b.upload(widget_pdf())  # nothing stored fits: straight to the seed
+    page.wait_for_function("window.__seedGates.length === 1")
+    expect(page.locator("#start-msg")).to_have_text("Reading the form (the first time can take a minute while the detector downloads)…")
+    page.evaluate("window.__releaseSeed()")
+    expect(page.locator("#start")).to_be_hidden()
+    page.wait_for_function("window.__workbench.template !== null")
+
+    page.click("#doc-name")  # Build new from the match prompt: the prompt says it while it waits
+    b.open_form("fw9")
+    expect(page.locator("#match")).to_be_visible()
+    page.click("#build-new")
+    page.wait_for_function("window.__seedGates.length === 1")
+    expect(page.locator("#match-hint")).to_contain_text("Reading the form (the first time can take a minute")
+    page.evaluate("window.__releaseSeed()")
+    expect(page.locator("#match")).to_be_hidden()
+    page.wait_for_function("window.__workbench.template?.fields.length > 20")
 
 
 def test_a_pdf_that_is_not_a_pdf_gets_a_plain_message_and_the_start_screen_stays(demo_server, bench):

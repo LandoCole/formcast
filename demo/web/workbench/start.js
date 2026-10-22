@@ -7,6 +7,10 @@
 import { checkTemplateFits } from "../core/store.js";
 
 const PASTE = "__paste__";
+// The server reads a PDF (its form map) once, starting when the document opens; the first time it also
+// downloads the detector weights. Matching and seeding wait for that reading.
+const FIRST_TIME = "the first time can take a minute while the detector downloads";
+const READING = `Reading the form (${FIRST_TIME})…`;
 
 /** @param {object} app see workbench.js */
 export function mountStart(app) {
@@ -113,7 +117,7 @@ export function mountStart(app) {
     }
     let fits = [];
     if (engine.capabilities.matches) {
-      say(msg, "Comparing with the stored templates…");
+      say(msg, `Reading the form and comparing it with the stored templates (${FIRST_TIME})…`);
       try {
         fits = (await engine.matches(doc)).filter((m) => m.action === "reuse" || m.action === "adapt");
       } catch {
@@ -217,7 +221,8 @@ export function mountStart(app) {
 
   /** Seed the document and put it on screen. Resolves false (with a message) when the seed fails. */
   async function buildNew({ doc, schema, schemaName }) {
-    say(msg, "Reading the form…");
+    if (match.hidden) say(msg, READING);
+    else $("match-hint").textContent = READING; // asked from the match prompt, which stays up while it waits
     try {
       const template = await engine.seed(doc, schemaName ?? schema);
       hideAll();

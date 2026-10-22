@@ -272,7 +272,11 @@ server and no response contains it.
 
 The flow:
 
-1. **Start.** Pick a demo form or drop a PDF, then pick a schema.
+1. **Start.** Pick a demo form or drop a PDF, then pick a schema. The server starts reading the PDF
+   (its form map: text, widgets and detected boxes) in the background as soon as it opens. The first
+   time you open a PDF that needs detection, this downloads the detector weights from Hugging Face,
+   so it can take a minute or more; after that they are cached. While a reading runs, other PDF work
+   on the server (page images, matching, filling) waits for it.
 2. **Match.** The PDF is scored against every stored template (`formcast.similarity`). The server
    offers *Reuse* at 0.95 or above, *Adapt* at 0.60 or above (an agent job that starts from the stored
    template), or *Build new*. The thresholds are in `demo/server/settings.py` and were calibrated on the

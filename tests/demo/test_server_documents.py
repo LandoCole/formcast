@@ -27,10 +27,35 @@ from demo.server.documents import Documents
 from demo.server.settings import Settings
 from formcast import FormcastError
 from formcast.llm import LLMConfig
+from formcast.pagemap.build import DetectPolicy
 
 ROOT = Path(__file__).resolve().parents[2]
 FW9 = (ROOT / "demo" / "data" / "forms" / "fw9.pdf").read_bytes()
 SENTINEL_KEY = "sk-sentinel-DO-NOT-LEAK-0123456789"
+
+
+@pytest.fixture(autouse=True)
+def no_model_loads(monkeypatch):
+    """Adding a document starts its form map in the background: build it without detectors or OCR here."""
+    real = documents_mod.build_form_map
+    policy = DetectPolicy(digital=(), scanned=())
+    monkeypatch.setattr(documents_mod, "build_form_map", lambda pdf: real(pdf, detectors={}, policy=policy, ocr="never"))
+
+
+class GatedBuilder:
+    """A fake ``build_form_map`` that records each call (thread, whether it holds PYMUPDF_LOCK) and waits for ``gate``."""
+
+    def __init__(self, result="map"):
+        self.result = result
+        self.gate = threading.Event()
+        self.started = threading.Event()
+        self.calls: list[tuple[str, bool]] = []
+
+    def __call__(self, pdf):
+        self.calls.append((threading.current_thread().name, documents_mod.PYMUPDF_LOCK._is_owned()))
+        self.started.set()
+        assert self.gate.wait(timeout=10), "the test never opened the gate"
+        return self.result(pdf) if callable(self.result) else self.result
 
 
 # ------------------------------------------------------------------ helpers
@@ -275,13 +300,25 @@ def test_page_image_errors(demo_server):
     assert json.loads(out)["error"] == "not_found"
 
 
-def test_adding_and_rendering_never_builds_the_form_map(demo_server, monkeypatch):
-    def boom(*a, **k):
-        raise AssertionError("detection must not run for documents or page images")
-
-    monkeypatch.setattr(documents_mod, "build_form_map", boom)
-    _, doc = upload(demo_server, "fw9.pdf", FW9)
-    assert http_request(demo_server, "GET", f"/api/documents/{doc['id']}/pages/2.png")[0] == 200
+def test_adding_a_document_starts_one_form_map_build_in_the_background(demo_server, monkeypatch):
+    builder = GatedBuilder()
+    monkeypatch.setattr(documents_mod, "build_form_map", builder)
+    started = time.monotonic()
+    status, doc = upload(demo_server, "fw9.pdf", FW9)  # answers while the build is held
+    assert status == 200 and time.monotonic() - started < 5
+    assert builder.started.wait(timeout=5)
+    (name, holds_lock), = builder.calls
+    assert name.startswith("form-map-") and holds_lock  # its own thread, under the MuPDF lock (Ruling 12)
+    # what blocks: a page image asked for during the build waits for the MuPDF lock and is served after it
+    got: list = []
+    t = threading.Thread(target=lambda: got.append(http_request(demo_server, "GET", f"/api/documents/{doc['id']}/pages/2.png")[0]))
+    t.start()
+    t.join(timeout=0.5)
+    assert got == []
+    builder.gate.set()
+    t.join(timeout=10)
+    assert got == [200]
+    assert len(builder.calls) == 1  # rendering never builds the form map
 
 
 def test_concurrent_page_requests_all_succeed(demo_server):
@@ -361,6 +398,39 @@ def test_a_failed_form_map_build_is_not_kept(monkeypatch):
     with pytest.raises(FormcastError):
         doc.form_map()
     assert doc.form_map() == "map" and doc.form_map() == "map" and len(attempts) == 2
+
+
+def test_form_map_waits_for_the_background_build_instead_of_starting_another(monkeypatch):
+    builder = GatedBuilder(result=object())
+    monkeypatch.setattr(documents_mod, "build_form_map", builder)
+    doc = Documents().add(small_pdf(), "x.pdf")
+    assert builder.started.wait(timeout=5)
+    got: list = []
+    waiter = threading.Thread(target=lambda: got.append(doc.form_map()))
+    waiter.start()
+    waiter.join(timeout=0.3)
+    assert got == []  # still waiting on the build under way
+    builder.gate.set()
+    waiter.join(timeout=10)
+    assert got == [builder.result] and doc.form_map() is builder.result
+    assert len(builder.calls) == 1 and builder.calls[0][0].startswith("form-map-")
+
+
+def test_a_failed_background_build_is_reported_once_then_built_again(monkeypatch):
+    attempts = []
+
+    def flaky(pdf):
+        attempts.append(threading.current_thread().name)
+        if len(attempts) == 1:
+            raise OSError("cannot fetch the detection weights")
+        return "map"
+
+    monkeypatch.setattr(documents_mod, "build_form_map", flaky)
+    doc = Documents().add(small_pdf(), "x.pdf")
+    with pytest.raises(OSError, match="detection weights"):
+        doc.form_map()  # the first call after the failed background build gets its error
+    assert doc.form_map() == "map" and doc.form_map() == "map"
+    assert len(attempts) == 2 and attempts[0].startswith("form-map-") and attempts[1] == threading.current_thread().name
 
 
 def test_page_png_caches_by_page_and_dpi_and_clamps():
@@ -822,11 +892,13 @@ def test_mupdf_work_runs_under_the_process_wide_lock(monkeypatch):
 
     monkeypatch.setattr(documents_mod, "PYMUPDF_LOCK", Probe(documents_mod.PYMUPDF_LOCK))
     doc = Documents().add(small_pdf(), "x.pdf")
-    assert held == ["enter", "exit"]  # the light open
+    doc.form_map()  # waits for the build that add started
+    assert held == ["enter", "exit"] * 2  # the light open, then the form-map build
     doc.page_png(0, 72)
-    assert held == ["enter", "exit"] * 2  # the render
+    assert held == ["enter", "exit"] * 3  # the render
     doc.page_png(0, 72)
-    assert held == ["enter", "exit"] * 2  # a cache hit needs no MuPDF
+    doc.form_map()
+    assert held == ["enter", "exit"] * 3  # a cache hit and a built form map need no MuPDF
     assert hasattr(documents_mod.PYMUPDF_LOCK.real, "acquire")
 
 

@@ -118,10 +118,36 @@ test("the session can use the server engine: an op and a refused op", async () =
 test("a request that never answers times out with EngineError timeout", async () => {
   const hang = (url, init) => new Promise((_, reject) => init.signal.addEventListener("abort", () => reject(init.signal.reason)));
   const fetch = async (url, init) => (url === "/api/capabilities" ? json(200, CAPS) : hang(url, init));
-  const slow = await createServerEngine({ fetch, timeoutMs: 20, uploadTimeoutMs: 20 });
+  const slow = await createServerEngine({ fetch, timeoutMs: 20, uploadTimeoutMs: 20, formMapTimeoutMs: 20 });
   await assert.rejects(slow.seed({ id: "x" }, {}), (e) => e instanceof EngineError && e.code === "timeout" && /didn't answer in time/.test(e.message));
   assert.match((await slow.apply(TEMPLATE, {})).error, /didn't answer in time/);
   await assert.rejects(slow.open(new Uint8Array([1, 2, 3])), (e) => e.code === "timeout");
+});
+
+test("seed, matches and an edit checked against the PDF wait longer, for the server's first reading of the form", async () => {
+  // every answer comes after 80 ms: past the 20 ms request timeout, inside the 400 ms form-map one
+  const late = (body) => (url, init) =>
+    new Promise((resolve, reject) => {
+      const timer = setTimeout(() => resolve(json(200, body)), 80);
+      init.signal.addEventListener("abort", () => {
+        clearTimeout(timer);
+        reject(init.signal.reason);
+      });
+    });
+  const routes = {
+    "/api/seed": late({ template: TEMPLATE }),
+    "/api/apply": late({ template: TEMPLATE, warnings: [] }),
+    [`/api/documents/${"d".repeat(32)}/matches`]: late([]),
+    "/api/forms": late({ forms: [] }),
+  };
+  const fetch = async (url, init) => (url === "/api/capabilities" ? json(200, CAPS) : routes[url](url, init));
+  const engine = await createServerEngine({ fetch, timeoutMs: 20, uploadTimeoutMs: 20, formMapTimeoutMs: 400 });
+  const doc = { id: "d".repeat(32) };
+  assert.deepEqual(await engine.seed(doc, "fw9"), TEMPLATE);
+  assert.deepEqual(await engine.matches(doc), []);
+  assert.deepEqual(await engine.apply(TEMPLATE, { op: "move" }, "human", { doc }), { template: TEMPLATE, warnings: [] });
+  assert.match((await engine.apply(TEMPLATE, { op: "move" })).error, /didn't answer in time/); // no PDF to wait for
+  await assert.rejects(engine.forms(), (e) => e.code === "timeout");
 });
 
 test("every request carries a timeout signal; uploads get a longer one", async () => {

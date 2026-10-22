@@ -324,12 +324,12 @@ def test_an_unexpected_exception_gives_a_generic_message_and_logs_the_traceback_
 
 def test_a_job_whose_form_map_cannot_be_built_ends_in_error(start_demo_server, monkeypatch):
     base = start_demo_server(provider_factory=Factory([finish()]))
-    doc = open_doc(base)
 
     def fail(pdf):
         raise OSError("the detection weights are not available")
 
     monkeypatch.setattr(documents_mod, "build_form_map", fail)
+    doc = open_doc(base)  # its form map build starts now, and fails
     body = wait_ended(base, start(base, kind="build", doc=doc, schema=SCHEMA))
     assert body["status"] == "error" and body["template"] is None and "unexpected" in body["error"]
 

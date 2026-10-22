@@ -16,7 +16,9 @@
 // Errors. Every failure is an `EngineError(code, detail)` whose `message` is the plain detail:
 //   the server's own {error, detail} keeps its code (not_found, bad_input, busy, ai_not_configured,
 //   fingerprint_mismatch, cannot_rebind, ...); `timeout`, `network` and `server` are made here.
-// Every request has a timeout (30 s; 120 s for a document upload).
+// Every request has a timeout: 30 s, or 120 s for a document upload and for the requests that may wait
+// for the server's first reading of a PDF (its form map, started when the document is opened, which on a
+// first run includes downloading the detector weights): seed, matches, and an edit checked against the PDF.
 // `apply` is the exception to throwing: like the browser engine it always resolves
 // `{template, warnings}` or `{error}`, because the session's queue relies on that. A fill or smart
 // PDF for a PDF that is not the one the template was made for rejects with code
@@ -34,6 +36,8 @@ import { assertEngine } from "../../core/engine.js";
 /** Milliseconds a request may take (a document upload gets {@link UPLOAD_TIMEOUT_MS}). */
 export const REQUEST_TIMEOUT_MS = 30_000;
 export const UPLOAD_TIMEOUT_MS = 120_000;
+/** Milliseconds for a request that may wait for the server's first reading of the PDF (see the top). */
+export const FORM_MAP_TIMEOUT_MS = 120_000;
 /** How often a running job is polled. */
 export const POLL_MS = 1000;
 /** Consecutive failed polls before `done` gives up. */
@@ -91,7 +95,7 @@ function recordBody(record, recordRef) {
  * Create the server engine; fetches the server's capabilities first (rejects with an EngineError
  * when the server can't be reached).
  * @param {{baseUrl?: string, fetch?: typeof fetch, timeoutMs?: number, uploadTimeoutMs?: number,
- *   pollMs?: number}} [opts] `fetch`, the timeouts and `pollMs` are for tests
+ *   formMapTimeoutMs?: number, pollMs?: number}} [opts] `fetch`, the timeouts and `pollMs` are for tests
  * @returns {Promise<object>} an engine (see core/engine.js)
  */
 export async function createServerEngine({
@@ -99,6 +103,7 @@ export async function createServerEngine({
   fetch: fetchImpl = (...args) => globalThis.fetch(...args),
   timeoutMs = REQUEST_TIMEOUT_MS,
   uploadTimeoutMs = UPLOAD_TIMEOUT_MS,
+  formMapTimeoutMs = FORM_MAP_TIMEOUT_MS,
   pollMs = POLL_MS,
 } = {}) {
   const root = baseUrl.replace(/\/+$/, "");
@@ -242,7 +247,7 @@ export async function createServerEngine({
      * @param {object | string} schema a JSON Schema, or the name of a stored one
      */
     async seed(doc, schema) {
-      return (await call("POST", "/api/seed", { json: { doc: doc.id, schema } })).template;
+      return (await call("POST", "/api/seed", { json: { doc: doc.id, schema }, timeout: formMapTimeoutMs })).template;
     },
 
     /**
@@ -258,7 +263,9 @@ export async function createServerEngine({
       const body = { template, op, author, note };
       if (doc !== null) body.doc = doc.id;
       try {
-        const { template: updated, warnings } = await call("POST", "/api/apply", { json: body });
+        // checked against the PDF, the edit may wait for the server's first reading of it
+        const timeout = doc !== null ? formMapTimeoutMs : timeoutMs;
+        const { template: updated, warnings } = await call("POST", "/api/apply", { json: body, timeout });
         return { template: updated, warnings };
       } catch (e) {
         if (e instanceof EngineError) return { error: e.message };
@@ -330,7 +337,7 @@ export async function createServerEngine({
 
     /** Stored templates scored against `doc`, best first: `[{name, template_id, score, basis, explanation, action}]`. */
     async matches(doc) {
-      return call("GET", `/api/documents/${doc.id}/matches`);
+      return call("GET", `/api/documents/${doc.id}/matches`, { timeout: formMapTimeoutMs }); // may wait behind the form map
     },
 
     templates: {

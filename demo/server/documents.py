@@ -1,9 +1,16 @@
 """PDFs the workbench has open: uploaded or picked, held in memory by id.
 
 Each ``Doc`` keeps the PDF bytes, a light summary (page count, page sizes, page kinds) taken when
-it is added, its form map (built on first use, once, by ``form_map()``), its match features (``features()``, likewise) and
+it is added, its form map, its match features (``features()``, computed on first use and kept) and
 the page images rendered so far. Nothing is written to disk. ``Documents`` keeps the 20 most recently used and
 drops the rest; a request that holds a ``Doc`` keeps it alive after eviction.
+
+The form map. Building it can take a while: seconds of detection and OCR, and on the very first run a
+download of the detector weights from Hugging Face. So ``Documents.add`` starts the build on a
+background thread (``Doc.start_form_map``) as soon as the document is open, while the person is still
+looking at the match prompt, and ``form_map()`` (seed, apply with a document, AI jobs, rebind) waits for
+that build instead of starting its own. It is built once and kept. A failed build is not kept: the
+first ``form_map()`` call after it raises its error, and the next call builds again.
 
 Threads: ``Documents`` has one lock for its table; each ``Doc`` has its own locks for the form
 map and for filling its image cache. MuPDF is not safe to call from several threads at once
@@ -12,6 +19,11 @@ process-wide ``PYMUPDF_LOCK``: opening, rendering, form-map builds, feature comp
 ``api.py``) fills, smart PDFs and rebinds. Every render also opens its own PyMuPDF document from
 the bytes. Lock order: a ``Doc``'s own lock first, ``PYMUPDF_LOCK`` second; code that holds
 ``PYMUPDF_LOCK`` must not call ``form_map()`` or ``features()``.
+
+What blocks: a form-map build holds ``PYMUPDF_LOCK`` from start to end (the detector download included,
+since the library loads the weights inside the build). While a document's first build runs, every other
+MuPDF step in the server waits for it: page images, matches, fills, smart PDFs and rebinds, for any
+document. Requests that only read memory (capabilities, templates, records, job status) do not wait.
 """
 
 from __future__ import annotations
@@ -19,6 +31,7 @@ from __future__ import annotations
 import threading
 import uuid
 from collections import OrderedDict
+from concurrent.futures import Future
 
 import pymupdf
 
@@ -59,7 +72,7 @@ class Doc:
         self.id: str = uuid.uuid4().hex
         self.name = name
         self.bytes = pdf_bytes
-        self._form_map: FormMap | None = None
+        self._map: Future[FormMap] | None = None  # the build in progress or done; None before one starts
         self._map_lock = threading.Lock()
         self._features: PdfFeatures | None = None
         self._features_lock = threading.Lock()
@@ -76,16 +89,46 @@ class Doc:
             "kinds": self.kinds,
         }
 
-    def form_map(self) -> FormMap:
-        """The form map, built on the first call (this can take seconds) and kept.
+    def start_form_map(self) -> None:
+        """Start building the form map on a background thread, unless a build is running or done."""
+        future, mine = self._claim_build()
+        if mine:
+            builder = build_form_map  # looked up now, by the caller, not later on the thread
+            threading.Thread(target=self._build, args=(future, builder), name=f"form-map-{self.id[:8]}", daemon=True).start()
 
-        Concurrent first calls build it once; a failed build is not kept, so the next call tries again.
+    def form_map(self) -> FormMap:
+        """The form map: waits for the build under way, or builds it here if none was started; kept once built.
+
+        Concurrent calls share one build. A failed build is not kept: the calls that come for it raise
+        its error, and the next call builds again.
         """
+        future, mine = self._claim_build()
+        if mine:
+            self._build(future, build_form_map)
+        try:
+            return future.result()
+        except BaseException:
+            with self._map_lock:
+                if self._map is future:
+                    self._map = None
+            raise
+
+    def _claim_build(self) -> tuple[Future[FormMap], bool]:
+        """The build under way or done, and False; or a new one for the caller to run, and True."""
         with self._map_lock:
-            if self._form_map is None:
-                with PYMUPDF_LOCK:
-                    self._form_map = build_form_map(self.bytes)
-            return self._form_map
+            if self._map is not None:
+                return self._map, False
+            self._map = Future()
+            return self._map, True
+
+    def _build(self, future: Future[FormMap], builder) -> None:
+        try:
+            with PYMUPDF_LOCK:
+                result = builder(self.bytes)
+        except BaseException as exc:  # handed to whoever waits; a background thread has nobody else to tell
+            future.set_exception(exc)
+        else:
+            future.set_result(result)
 
     def features(self) -> PdfFeatures:
         """What ``formcast.similarity`` reads from this PDF, kept: each part is computed on first use and then reused.
@@ -143,12 +186,13 @@ class Documents:
         self._lock = threading.Lock()
 
     def add(self, pdf_bytes: bytes, name: str) -> Doc:
-        """Open ``pdf_bytes`` and keep it. Raises ``FormcastError`` for a PDF that cannot be used."""
+        """Open ``pdf_bytes``, keep it and start building its form map. Raises ``FormcastError`` for a PDF that cannot be used."""
         doc = Doc(name, pdf_bytes)  # validated outside the lock: opening can take a moment
         with self._lock:
             self._docs[doc.id] = doc
             while len(self._docs) > self.limit:
                 self._docs.popitem(last=False)
+        doc.start_form_map()  # in the background, so seed and apply find it built or under way
         return doc
 
     def get(self, doc_id: str) -> Doc:

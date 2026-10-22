@@ -10,12 +10,13 @@ import base64
 import csv
 import json
 import logging
+import threading
 from pathlib import Path
 from urllib.parse import quote
 
 import pymupdf
 import pytest
-from test_server_documents import get_json, http_request, upload
+from test_server_documents import GatedBuilder, get_json, http_request, upload
 
 from demo.server import api as api_mod
 from demo.server import documents as documents_mod
@@ -113,6 +114,25 @@ def test_seed_takes_a_schema_object_too(demo_server):
     assert status == 200 and body["template"]["schema"] == schema
     expected = new_template(schema, build_form_map(FW9, detectors={}, policy=NO_DETECT, ocr="never"), candidates=True)
     assert [f["id"] for f in body["template"]["fields"]] == [f.id for f in expected.fields]
+
+
+def test_seed_waits_for_the_form_map_build_the_upload_started(demo_server, monkeypatch):
+    real = documents_mod.build_form_map  # the no-detector build from the autouse fixture
+    builder = GatedBuilder(result=real)
+    monkeypatch.setattr(documents_mod, "build_form_map", builder)
+    doc = open_doc(demo_server, "fw9.pdf", FW9)
+    assert builder.started.wait(timeout=5)  # the upload started it
+    got: list = []
+    seed = threading.Thread(target=lambda: got.append(post(demo_server, "/api/seed", {"doc": doc, "schema": "fw9"})))
+    seed.start()
+    seed.join(timeout=0.5)
+    assert got == []  # waiting on the build under way
+    builder.gate.set()
+    seed.join(timeout=30)
+    (status, body), = got
+    assert status == 200 and body["template"]["fields"]
+    assert len(builder.calls) == 1  # seed did not start a second build
+    assert post(demo_server, "/api/seed", {"doc": doc, "schema": "fw9"})[0] == 200 and len(builder.calls) == 1
 
 
 @pytest.mark.slow
