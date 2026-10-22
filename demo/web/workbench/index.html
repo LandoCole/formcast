@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>formcast workbench</title>
+<meta name="description" content="The formcast workbench: open a PDF form, link its boxes to a JSON Schema by hand or with an AI agent, save the template and fill the form from your records.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../core/parts.css">
+<link rel="stylesheet" href="workbench.css">
+</head>
+<body>
+<header class="topbar">
+  <span>formcast · workbench</span>
+  <span id="engine-line">Local server</span>
+</header>
+
+<div class="toolbar" id="toolbar" role="toolbar" aria-label="Template">
+  <div class="tb-left">
+    <button type="button" class="btn sel" id="doc-name" title="Open another form">No form open</button>
+  </div>
+  <div class="tb-right">
+    <button type="button" class="btn quiet" id="undo" disabled>Undo</button>
+    <button type="button" class="btn quiet" id="redo" disabled>Redo</button>
+    <button type="button" class="btn quiet" id="add-box" aria-pressed="false" disabled>+ Box</button>
+    <button type="button" class="btn" id="build-ai" hidden disabled>Build with AI</button>
+    <button type="button" class="btn quiet" id="save" disabled>Save</button>
+    <button type="button" class="btn dark" id="fill-open" disabled>Fill →</button>
+  </div>
+</div>
+<p class="ai-note" id="ai-note" hidden>AI is off. To turn it on, set <code>FORMCAST_DEMO_BASE_URL</code>, <code>FORMCAST_DEMO_API_KEY</code> and <code>FORMCAST_DEMO_MODEL</code> (and <code>FORMCAST_DEMO_API_FORMAT</code> if your endpoint uses the Responses API) in <code>.env</code>, then restart the server.</p>
+<div class="notice" id="notice" role="status" aria-live="polite" hidden>
+  <span id="notice-text"></span>
+  <button type="button" class="btn quiet small" id="notice-action" hidden></button>
+  <button type="button" class="ib" id="notice-close" aria-label="Dismiss">×</button>
+</div>
+
+<main class="bench" id="bench">
+  <aside class="col col-schema" id="col-schema" aria-label="Schema">
+    <p class="label" id="schema-label">Schema</p>
+    <div id="schemalist"></div>
+    <p class="hint">Drag a field onto a box, or select a box and pick its data field on the right.</p>
+  </aside>
+
+  <section class="col col-page" id="col-page" aria-label="Page">
+    <div class="pagebar">
+      <div class="pager">
+        <button type="button" class="ib" id="prev-page" aria-label="Previous page" disabled>‹</button>
+        <span id="page-no">No form open</span>
+        <button type="button" class="ib" id="next-page" aria-label="Next page" disabled>›</button>
+      </div>
+      <div class="zoom">
+        <button type="button" class="ib" id="zoom-out" aria-label="Zoom out">−</button>
+        <button type="button" class="zoom-level" id="zoom-level" title="Fit the page to the column">Fit</button>
+        <button type="button" class="ib" id="zoom-in" aria-label="Zoom in">+</button>
+      </div>
+    </div>
+    <div class="stage" id="stage">
+      <div id="pageview"></div>
+      <p class="empty" id="stage-empty">Open a form to start.</p>
+    </div>
+    <p class="cap" id="caption"></p>
+    <div class="ask" id="ask" role="dialog" aria-labelledby="ask-label" hidden>
+      <p class="label" id="ask-label">Ask the AI about this area</p>
+      <textarea id="ask-text" rows="3" aria-labelledby="ask-label" placeholder="The signature line needs its own box."></textarea>
+      <div class="row">
+        <button type="button" class="btn quiet small" id="ask-cancel">Cancel</button>
+        <button type="button" class="btn dark small" id="ask-go">Revise</button>
+      </div>
+    </div>
+  </section>
+
+  <aside class="col col-side" id="col-side" aria-label="Selected box and history">
+    <div class="group">
+      <p class="label">Selected box</p>
+      <div id="inspector"></div>
+    </div>
+    <div class="group">
+      <p class="label">History</p>
+      <div id="history"></div>
+    </div>
+  </aside>
+</main>
+
+<!-- start screen -->
+<div class="overlay" id="start" role="dialog" aria-modal="true" aria-labelledby="start-title">
+  <div class="sheet">
+    <h1 id="start-title">Open a form</h1>
+    <div class="group">
+      <p class="label"><label for="form-pick">Demo form</label></p>
+      <select id="form-pick"><option value="">Loading…</option></select>
+    </div>
+    <div class="group">
+      <p class="label">Or your own PDF</p>
+      <label class="btn quiet file"><span id="file-label">Choose a PDF</span><input type="file" id="file" accept=".pdf,application/pdf"></label>
+    </div>
+    <div class="group">
+      <p class="label"><label for="schema-pick">Schema</label></p>
+      <select id="schema-pick"><option value="">Loading…</option></select>
+      <textarea id="schema-text" rows="7" spellcheck="false" aria-label="Your JSON Schema" placeholder='{"type": "object", "properties": {...}}' hidden></textarea>
+    </div>
+    <p class="msg" id="start-msg" role="alert" hidden></p>
+    <div class="row">
+      <button type="button" class="btn quiet" id="start-close" hidden>Back</button>
+      <button type="button" class="btn dark" id="open">Open</button>
+    </div>
+  </div>
+</div>
+
+<!-- match prompt -->
+<div class="overlay" id="match" role="dialog" aria-modal="true" aria-labelledby="match-title" hidden>
+  <div class="sheet">
+    <h2 id="match-title">A stored template may fit</h2>
+    <p id="match-text"></p>
+    <div class="group" id="match-pick-group" hidden>
+      <p class="label"><label for="match-pick">Stored templates that fit</label></p>
+      <select id="match-pick"></select>
+    </div>
+    <p class="hint" id="match-hint"></p>
+    <div class="row">
+      <button type="button" class="btn dark" id="reuse">Reuse</button>
+      <button type="button" class="btn" id="adapt" hidden>Adapt with AI</button>
+      <button type="button" class="btn quiet" id="build-new">Build new</button>
+    </div>
+  </div>
+</div>
+
+<!-- AI job progress -->
+<div class="overlay" id="job" role="dialog" aria-modal="true" aria-labelledby="job-title" hidden>
+  <div class="sheet">
+    <h2 id="job-title">AI build</h2>
+    <ol class="steps" id="job-steps"></ol>
+    <p class="readout" id="job-status" aria-live="polite"></p>
+    <div class="row">
+      <button type="button" class="btn quiet" id="job-cancel">Cancel</button>
+      <button type="button" class="btn quiet" id="job-close" hidden>Close</button>
+      <button type="button" class="btn dark" id="job-load" hidden>Load result</button>
+    </div>
+  </div>
+</div>
+
+<!-- save -->
+<div class="overlay" id="save-box" role="dialog" aria-modal="true" aria-labelledby="save-title" hidden>
+  <div class="sheet narrow">
+    <h2 id="save-title">Save the template</h2>
+    <div class="group">
+      <p class="label"><label for="save-name">Name in the store</label></p>
+      <input type="text" class="text" id="save-name" maxlength="80" autocomplete="off" spellcheck="false">
+      <p class="hint">Letters, digits, spaces, dots, dashes and underscores. A template with the same name is replaced.</p>
+    </div>
+    <p class="msg" id="save-msg" role="alert" hidden></p>
+    <div class="row">
+      <button type="button" class="btn quiet" id="save-cancel">Cancel</button>
+      <button type="button" class="btn dark" id="save-go">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- fill drawer -->
+<aside class="drawer" id="fill" role="dialog" aria-labelledby="fill-title" hidden>
+  <div class="drawer-head">
+    <h2 id="fill-title">Fill</h2>
+    <button type="button" class="ib" id="fill-close" aria-label="Close">×</button>
+  </div>
+  <div class="group">
+    <p class="label"><label for="fill-schema">Records for</label></p>
+    <select id="fill-schema"></select>
+  </div>
+  <div class="group">
+    <p class="label"><label for="fill-record">Record</label></p>
+    <select id="fill-record"></select>
+  </div>
+  <div class="row">
+    <button type="button" class="btn dark" id="fill-go">Fill</button>
+    <button type="button" class="btn quiet" id="smart-go">Fillable PDF</button>
+  </div>
+  <div class="mismatch" id="fill-mismatch" role="alert" hidden>
+    <p id="mismatch-text"></p>
+    <div class="row">
+      <button type="button" class="btn" id="rebind">Rebind to this PDF</button>
+      <button type="button" class="btn quiet" id="fill-anyway">Fill anyway</button>
+    </div>
+  </div>
+  <p class="msg" id="fill-msg" role="status" aria-live="polite" hidden></p>
+  <div id="report"></div>
+</aside>
+
+<script type="module" src="workbench.js"></script>
+</body>
+</html>

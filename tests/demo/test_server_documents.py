@@ -579,9 +579,7 @@ def test_the_root_goes_to_a_page_that_exists(demo_server):
         assert http_request(demo_server, "GET", headers["location"])[0] == 200
 
 
-def test_the_workbench_page_is_served_once_it_exists(demo_server):
-    if not (ROOT / "demo" / "web" / "workbench" / "index.html").is_file():
-        pytest.skip("demo/web/workbench/ arrives with the workbench page (Plan 3B, Task 10)")
+def test_the_workbench_page_is_served(demo_server):
     status, headers, body = http_request(demo_server, "GET", "/workbench/")
     assert status == 200 and headers["content-type"].startswith("text/html") and b"<html" in body.lower()
 

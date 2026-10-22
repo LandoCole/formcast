@@ -23,10 +23,11 @@
 // `fingerprint_mismatch`; the workbench then offers `rebind(template, doc)` or refills with
 // `{checkFingerprint: false}`.
 //
-// Jobs (`build`, `revise`) return a JobHandle {id, kind, poll(), cancel(), done}. `done` polls
-// `GET /api/jobs/{id}` (first at once, then every `pollMs`, 1000 by default) and resolves with the
-// job when its status is done, cancelled or error. It rejects only if the server cannot be
-// reached several polls in a row.
+// Jobs (`build`, `revise`) return a JobHandle {id, kind, poll(), cancel(), done, onUpdate}. `done`
+// polls `GET /api/jobs/{id}` (first at once, then every `pollMs`, 1000 by default) and resolves with
+// the job when its status is done, cancelled or error. It rejects only if the server cannot be
+// reached several polls in a row. Set `onUpdate` to a function to see the job after every poll
+// (its steps so far), without polling a second time.
 
 import { assertEngine } from "../../core/engine.js";
 
@@ -171,6 +172,8 @@ export async function createServerEngine({
     const handle = {
       id,
       kind,
+      /** Called with the job after every poll; null for none. */
+      onUpdate: null,
       /** The job as the server reports it now. */
       poll: () => call("GET", `/api/jobs/${id}`),
       /** Ask the job to stop at its next step; the job (still running until it does). */
@@ -186,7 +189,16 @@ export async function createServerEngine({
         } catch (e) {
           if (++failures >= POLL_FAILURES) throw e;
         }
-        if (job !== undefined && job.status !== "running") return job;
+        if (job !== undefined) {
+          try {
+            handle.onUpdate?.(job);
+          } catch (e) {
+            queueMicrotask(() => {
+              throw e; // a listener's bug reaches the page's error handler, not the poll loop
+            });
+          }
+          if (job.status !== "running") return job;
+        }
         await new Promise((resolve) => setTimeout(resolve, pollMs));
       }
     })();
@@ -274,12 +286,15 @@ export async function createServerEngine({
      * The PDF with an empty form field for every template field it lacks.
      * @param {object} template
      * @param {object} doc
-     * @param {{checkFingerprint?: boolean}} [opts]
-     * @returns {Promise<Uint8Array>}
+     * @param {{checkFingerprint?: boolean, withNote?: boolean}} [opts] `withNote: true` resolves
+     *   `{pdfBytes, note}` instead of the bytes alone, `note` saying why the fingerprint check was
+     *   skipped (or null), as for `fill`
+     * @returns {Promise<Uint8Array | {pdfBytes: Uint8Array, note: string | null}>}
      */
-    async smartPdf(template, doc, { checkFingerprint } = {}) {
+    async smartPdf(template, doc, { checkFingerprint, withNote = false } = {}) {
       const out = await call("POST", "/api/smart-pdf", { json: { template, doc: doc.id, ...fingerprintOption(checkFingerprint) } });
-      return fromBase64(out.pdf_base64);
+      const pdfBytes = fromBase64(out.pdf_base64);
+      return withNote ? { pdfBytes, note: out.fingerprint_note ?? null } : pdfBytes;
     },
 
     /** The template carrying this PDF's fingerprint, page kinds and signature. */
@@ -345,4 +360,5 @@ export async function createServerEngine({
  * @property {() => Promise<object>} poll the job now: {id, kind, status, steps, template, summary, error, unplaceable, started, ended}
  * @property {() => Promise<object>} cancel
  * @property {Promise<object>} done the job once it is done, cancelled or error
+ * @property {((job: object) => void) | null} onUpdate set it to see the job after every poll of `done`
  */

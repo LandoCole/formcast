@@ -234,6 +234,30 @@ test("the job done promise resolves after running, running, done", async () => {
   assert.equal((await handle.poll()).status, "done"); // a later poll still works
 });
 
+test("onUpdate sees the job after every poll of done, without extra requests", async () => {
+  const job = (status, n) => json(200, { id: "j".repeat(32), kind: "build", status, steps: Array.from({ length: n }, (_, i) => ({ step: i + 1 })), template: null, summary: "", error: null, started: 1, ended: null, unplaceable: [] });
+  const { engine, fetch } = await engineWith({
+    "POST /api/jobs": json(200, { id: "j".repeat(32) }),
+    [`GET /api/jobs/${"j".repeat(32)}`]: [job("running", 0), job("running", 1), job("running", 2), job("done", 3)],
+  }, { pollMs: 5 });
+  const handle = await engine.build({ id: "abc" }, { type: "object" });
+  const seen = [];
+  handle.onUpdate = (j) => seen.push(`${j.status}:${j.steps.length}`);
+  await handle.done;
+  assert.deepEqual(seen.slice(-2), ["running:2", "done:3"]);
+  assert.equal(fetch.calls.filter((c) => c.method === "GET").length, 4);
+});
+
+test("smartPdf withNote resolves the bytes and the server's fingerprint note", async () => {
+  const note = "This template has no fingerprint, so the check was skipped.";
+  const { engine } = await engineWith({ "POST /api/smart-pdf": json(200, { pdf_base64: b64("%PDF-smart"), fingerprint_note: note }) });
+  const out = await engine.smartPdf(TEMPLATE, { id: "abc" }, { withNote: true });
+  assert.equal(Buffer.from(out.pdfBytes).toString(), "%PDF-smart");
+  assert.equal(out.note, note);
+  const plain = await engine.smartPdf(TEMPLATE, { id: "abc" });
+  assert.ok(plain instanceof Uint8Array);
+});
+
 test("done also resolves for cancelled and error jobs, and polls every pollMs", async () => {
   const final = (status) => json(200, { id: "j".repeat(32), kind: "build", status, steps: [], template: null, summary: "", error: status === "error" ? "The model call failed." : null, started: 1, ended: 2, unplaceable: [] });
   for (const status of ["cancelled", "error"]) {
