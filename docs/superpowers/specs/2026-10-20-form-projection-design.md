@@ -573,6 +573,19 @@ Haiku's fill_acc progression on the dev set, all sessions: round 1 0.47, round 2
 - *Fingerprints.* All archived Plan 1 templates predate commit e2afa94 (2026-10-21), which folded a coarse ink map into the fingerprint. Their stored fingerprints equal the pre-e2afa94 fingerprint of the original PDFs (checked on `wadoc_auth`, `ndguard`, `menomonie_app` and `f8949`: flat, fillable and digital alike), so all 226 fills report `fingerprint_mismatch` and the eval fills with `check_fingerprint=False`. A template built before e2afa94 needs `check_fingerprint=False` or a rebuild. The fingerprint check itself is not exercised by this eval (Ruling M).
 - *Dev numbers are optimistic* in the same way the detection numbers are (four rounds tuned against dev).
 
+#### Browser models (FFDNet-S/L ONNX, single pass) vs the library's FFDNet-L
+
+The browser demo runs the published ONNX exports of FFDNet-S and FFDNet-L, one pass with no test-time augmentation; the library's FFDNet-L is the `.pt` model with augmentation. Run on the 12 dev forms (`eval/results/baseline_detection_2026-10-21_onnx.md`, bare detectors, no merge), micro-averaged over GT fields, recall@.5 / recall@.3 / precision@.3:
+
+| form kind, variant | library FFDNet-L (.pt, augmented) | FFDNet-L ONNX | FFDNet-S ONNX |
+|---|---|---|---|
+| fillable, as published (641 GT) | 0.81 / 0.99 / 0.98 | 0.79 / 0.98 / 0.99 | 0.79 / 0.97 / 0.99 |
+| fillable, fake scan | 0.40 / 0.44 / 0.99 | 0.37 / 0.41 / 1.00 | 0.38 / 0.56 / 0.98 |
+| flat, as published (812 GT) | 0.72 / 0.74 / 0.92 | 0.66 / 0.68 / 0.95 | 0.66 / 0.69 / 0.95 |
+| flat, fake scan | 0.32 / 0.42 / 0.86 | 0.25 / 0.33 / 0.86 | 0.27 / 0.27 / 0.95 |
+
+For the demo: on pages as published S and L single-pass are within 0.01 of each other at IoU .3 on fillable forms and flat forms alike, and both trail the library's augmented L by 0.01 to 0.02 (fillable) and 0.05 to 0.06 (flat) in recall@.3, so the demo can ship the 38 MB S model and let the visitor opt in to L. Neither browser model is reliable on a fake scan (recall@.3 0.27 to 0.56; S is lower than L on flat scans, higher on fillable ones), which is the case the library hands to FFDetr, so the demo should say that scanned pages need the Python pipeline. The ONNX path is `FFDNetOnnxDetector` (`src/formcast/pagemap/detect.py`); its graph facts are Ruling A in `docs/superpowers/plans/2026-10-21-formcast-plan3-rulings.md`.
+
 #### Known scoring caveats
 
 - **Multi-line rule.** A plain text field counts as multi-line if it has `style.multiline` or is at least 1.8 times the page's median GT text-box height. It then also covers unmatched GT text boxes at least 70% inside it, provided at least two such boxes are stacked in one column inside it (horizontal overlap of 50% or more). The field counts once for precision and gets path credit through the GT line box that carries the path. The first version credited any single tall box at any IoU (for example six extra matches at IoU .36–.47 on one fake scan); that is fixed and every result file here was re-scored from the saved templates. Effect on Haiku round3-gen: recall@.5 0.56 → 0.55, as-published path 0.84 → 0.83. The rule can still be gamed by a very large multi-line field over a stacked column; none was seen.

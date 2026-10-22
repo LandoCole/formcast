@@ -19,6 +19,7 @@ function of the 144 dpi render of the stripped page, as in the first baseline.
 
 Usage:
     python eval/baseline_detection.py [--split dev|heldout|all] [--out eval/results]
+        [--detectors FFDNet-L,FFDetr,FFDNet-L-onnx,FFDNet-S-onnx]
 """
 from __future__ import annotations
 
@@ -40,12 +41,21 @@ import pymupdf  # noqa: E402
 from PIL import Image, ImageDraw, ImageFilter  # noqa: E402
 
 import score  # noqa: E402
-from formcast.pagemap.detect import DetectPolicy, Detector, detect_page, load_default_detectors  # noqa: E402
+from formcast.pagemap.detect import (  # noqa: E402
+    DetectPolicy,
+    Detector,
+    FFDNetOnnxDetector,
+    detect_page,
+    load_default_detectors,
+)
 from formcast.pagemap.extract import open_pdf  # noqa: E402
 from formcast.pagemap.ocr import render  # noqa: E402
 
 FORMS = ROOT / "forms"
-DETECTORS = ("FFDNet-L", "FFDetr")
+# Library detectors (FFDNet-L is the .pt with test-time augmentation) plus the single-pass
+# ONNX exports the browser demo runs. The default reproduces the earlier runs.
+DEFAULT_DETECTORS = ("FFDNet-L", "FFDetr")
+VALID_DETECTORS = ("FFDNet-L", "FFDetr", "FFDNet-L-onnx", "FFDNet-S-onnx")
 TYPES = score.TYPES
 DPI = 144  # what commonforms renders at
 IOU_THRESHOLDS = (0.5, 0.3)
@@ -141,12 +151,33 @@ def overlay(img: Image.Image, page: pymupdf.Page, gt, boxes, path: Path) -> None
     im.save(path)
 
 
+def parse_detectors(arg: str) -> tuple[str, ...]:
+    """Names from a comma-separated ``--detectors`` value; exits listing the valid ones if any is unknown."""
+    names = tuple(n.strip() for n in arg.split(",") if n.strip())
+    unknown = [n for n in names if n not in VALID_DETECTORS]
+    if unknown or not names:
+        sys.exit(f"unknown detector(s) {unknown or [arg]}; valid names: {', '.join(VALID_DETECTORS)}")
+    return names
+
+
+def build_detectors(names: tuple[str, ...]) -> dict[str, Detector]:
+    """The named detectors, loading lazily on first use."""
+    dets = dict(load_default_detectors())
+    for name in names:
+        if name.endswith("-onnx"):
+            dets[name] = FFDNetOnnxDetector(name.removesuffix("-onnx"))
+    return dets
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--split", default="all", choices=["dev", "heldout", "all"])
     ap.add_argument("--out", default=str(ROOT / "eval" / "results"))
     ap.add_argument("--stamp", default=None, help="date stamp for the result files (default: today)")
+    ap.add_argument("--detectors", default=",".join(DEFAULT_DETECTORS),
+                    help=f"comma-separated, from: {', '.join(VALID_DETECTORS)} (default: %(default)s)")
     args = ap.parse_args()
+    detector_names = parse_detectors(args.detectors)
 
     out = Path(args.out)
     stamp = args.stamp or dt.date.today().isoformat()
@@ -155,7 +186,7 @@ def main():
     manifest = json.loads((FORMS / "manifest.json").read_text())["forms"]
     forms = [f for f in manifest if args.split == "all" or f["split"] == args.split]
 
-    dets = load_default_detectors()
+    dets = build_detectors(detector_names)
     rows = []
     for form in forms:
         pdf_path = FORMS / form["split"] / f"{form['id']}.pdf"
@@ -167,7 +198,7 @@ def main():
                 scan = fake_scan(clean, seed=zlib.crc32(f"{form['id']}:{pno}".encode()))
                 variants.append(("fake_scan", scan, scan))
             for variant, shown, given in variants:
-                for name in DETECTORS:
+                for name in detector_names:
                     boxes = detect(page, name, dets, given)
                     row = dict(form=form["id"], split=form["split"], kind=form["kind"], page=pno, variant=variant,
                                detector=name, gt=None if page_gt is None else len(page_gt), pred=len(boxes),
@@ -210,6 +241,18 @@ def summary_markdown(rows, stamp) -> str:
             rec = prec = tok = miss = "–"
             gt = "none yet"
         lines.append(f"| {split} | {form} | {kind} | {variant} | {det} | {a['pages']} | {gt} | {a['pred']} | {rec} | {prec} | {tok} | {miss} |")
+    lines += ["", "## Totals by form kind", "",
+              "Micro-averaged over GT fields of the forms that have ground truth. Precision is matched/detected at IoU 0.3.", "",
+              "| kind | variant | detector | GT | detected | recall@.5 | recall@.3 | precision@.3 |",
+              "|---|---|---|---|---|---|---|---|"]
+    tot = {}
+    for (split, form, kind, variant, det), a in agg.items():
+        if a["has_gt"] and a["gt"]:
+            t = tot.setdefault((kind, variant, det), dict(gt=0, pred=0, m5=0, m3=0))
+            t["gt"] += a["gt"]; t["pred"] += a["pred"]; t["m5"] += a["m5"]; t["m3"] += a["m3"]
+    for (kind, variant, det), t in sorted(tot.items()):
+        lines.append(f"| {kind} | {variant} | {det} | {t['gt']} | {t['pred']} | {t['m5']/t['gt']:.2f} | "
+                     f"{t['m3']/t['gt']:.2f} | {t['m3']/max(t['pred'], 1):.2f} |")
     return "\n".join(lines) + "\n"
 
 
