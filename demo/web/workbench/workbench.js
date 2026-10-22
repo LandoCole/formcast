@@ -18,8 +18,9 @@ import { makeView, viewSize } from "../core/geometry.js";
 import { HistoryPanel } from "../core/history.js";
 import { Inspector } from "../core/inspector.js";
 import { PageView } from "../core/pageview.js";
-import { flattenSchema } from "../core/schema.js";
-import { SchemaList, placementStatus } from "../core/schemalist.js";
+import { showLinkPanels } from "../core/panels.js";
+import { schemaPathsOf } from "../core/schema.js";
+import { SchemaList, fieldWarnings } from "../core/schemalist.js";
 import { createSession } from "../core/session.js";
 import { createServerEngine } from "../engines/server/client.js";
 import { mountFill } from "./fill.js";
@@ -70,7 +71,6 @@ let pending = 0; // session calls queued or running
 const held = { pointer: false, key: false };
 let pageDirty = false;
 let selectAfterRender = null;
-let schemaCache = { schema: null, paths: [] };
 
 const app = {
   $,
@@ -145,17 +145,13 @@ const app = {
 
   /** The current schema's flattened paths ([] when it can't be flattened). */
   schemaPaths() {
-    const schema = app.template?.schema ?? null;
-    if (schema !== schemaCache.schema) {
-      let paths = [];
-      try {
-        paths = schema ? flattenSchema(schema) : [];
-      } catch {
-        paths = [];
-      }
-      schemaCache = { schema, paths };
-    }
-    return schemaCache.paths;
+    return schemaPathsOf(app.template?.schema);
+  },
+
+  /** The stored schema whose JSON is exactly `schema`, else null. */
+  schemaNameOf(schema) {
+    const text = JSON.stringify(schema ?? null);
+    return Object.keys(app.schemas).find((n) => JSON.stringify(app.schemas[n]) === text) ?? null;
   },
 
   render,
@@ -214,18 +210,6 @@ function showPage(index) {
   renderPage(true);
 }
 
-/** Per-field messages for the page view: the last edit's warnings, and paths the schema lacks. */
-function fieldWarnings(template) {
-  const known = new Set(app.schemaPaths().map((sp) => sp.path));
-  const out = {};
-  for (const f of template.fields) {
-    const missing = (f.source?.paths ?? []).filter((p) => !known.has(p));
-    const msgs = [...(session.fieldWarnings[f.id] ?? []), ...missing.map((p) => `${p} is not in the schema`)];
-    if (msgs.length) out[f.id] = msgs;
-  }
-  return out;
-}
-
 /** Redraw the boxes, unless an edit is on its way or the person is mid-gesture (see the top). */
 function renderPage(force = false) {
   if (!force && (pending > 0 || held.pointer || held.key)) {
@@ -239,7 +223,7 @@ function renderPage(force = false) {
     state.selected = null;
     view.select(null);
   }
-  view.setTemplate(t, { warnings: fieldWarnings(t) });
+  view.setTemplate(t, { warnings: fieldWarnings(t, app.schemaPaths(), session.fieldWarnings) });
   if (selectAfterRender !== null) {
     view.select(selectAfterRender);
     selectAfterRender = null;
@@ -251,10 +235,16 @@ function flushPage() {
 }
 
 const pv = $("pageview");
-pv.addEventListener("pointerdown", () => {
-  held.pointer = true;
-});
-for (const type of ["pointerup", "pointercancel"]) {
+// capture phase: the page view stops propagation of a press on a resize handle. Only the primary
+// button holds a gesture (a secondary press may never see its pointerup, e.g. under a context menu).
+pv.addEventListener(
+  "pointerdown",
+  (e) => {
+    if (e.button === 0) held.pointer = true;
+  },
+  { capture: true },
+);
+for (const type of ["pointerup", "pointercancel", "contextmenu"]) {
   addEventListener(type, () => {
     if (!held.pointer) return;
     held.pointer = false;
@@ -291,24 +281,18 @@ function renderPanels() {
   $("undo").disabled = !session.canUndo;
   $("redo").disabled = !session.canRedo;
 
+  $("schema-label").textContent = showLinkPanels({ schemaList, inspector, history }, {
+    template: open ? t : null,
+    schemaPaths: app.schemaPaths(),
+    selected: state.selected,
+    editWarnings: session.fieldWarnings,
+    canUndo: session.canUndo,
+    canRedo: session.canRedo,
+  });
   if (!open) {
-    schemaList.set([], { fields: [] });
-    inspector.show(null);
-    history.set({ fields: [], history: [] }, { canUndo: false, canRedo: false });
-    $("schema-label").textContent = "Schema";
     $("caption").textContent = "";
     return;
   }
-  const paths = app.schemaPaths();
-  schemaList.set(paths, t);
-  const { status } = placementStatus(paths, t);
-  const placed = [...status.values()].filter((s) => s === "placed").length;
-  const title = typeof t.schema?.title === "string" && t.schema.title ? `${t.schema.title} · ` : "";
-  $("schema-label").textContent = `Schema · ${title}${placed} of ${status.size} placed`;
-  const field = t.fields.find((f) => f.id === state.selected) ?? null;
-  schemaList.setPicked(field?.source?.paths?.[0] ?? null);
-  inspector.show(field, { schemaPaths: paths, warnings: field ? (session.fieldWarnings[field.id] ?? []) : [] });
-  history.set(t, { canUndo: session.canUndo, canRedo: session.canRedo });
   const linked = t.fields.filter((f) => (f.source?.paths ?? []).length > 0).length;
   const source = session.source?.text ?? "";
   const regionHint = engine.capabilities.ai ? " · drag on empty space to ask the AI about an area" : "";
@@ -363,6 +347,52 @@ addEventListener("resize", () => {
   }, 150);
 });
 
+// ------------------------------------------------------------------ overlays are modal
+
+// While an overlay (start, match, job, save) is open, everything else on the page is inert: no
+// focus, no clicks, no keys reach the boxes behind it. Focus moves into the overlay, Tab cycles
+// inside it, and focus goes back to where it was when the last overlay closes.
+const overlays = [...document.querySelectorAll(".overlay")];
+const FOCUSABLE = "button:not([hidden]):not(:disabled), select:not(:disabled), textarea:not([hidden]), input:not([hidden]), [tabindex='0']";
+let focusBefore = null; // the element focused outside the overlays
+
+document.addEventListener("focusin", (e) => {
+  if (!e.target.closest?.(".overlay")) focusBefore = e.target;
+});
+
+function openOverlay() {
+  return overlays.find((o) => !o.hidden) ?? null;
+}
+
+function focusables(overlay) {
+  return [...overlay.querySelectorAll(FOCUSABLE)].filter((el) => el.offsetParent !== null);
+}
+
+function syncModal() {
+  const open = openOverlay();
+  for (const el of document.body.children) {
+    if (el.tagName !== "SCRIPT") el.inert = open !== null && el !== open;
+  }
+  if (open !== null) {
+    if (!open.contains(document.activeElement)) focusables(open)[0]?.focus();
+  } else if (focusBefore?.isConnected) {
+    focusBefore.focus({ preventScroll: true });
+  }
+}
+
+const watcher = new MutationObserver(syncModal);
+for (const o of overlays) watcher.observe(o, { attributes: true, attributeFilter: ["hidden"] });
+document.addEventListener("keydown", (e) => {
+  const open = openOverlay();
+  if (open === null || e.key !== "Tab") return;
+  const items = focusables(open);
+  if (items.length === 0) return;
+  const at = items.indexOf(document.activeElement);
+  const next = e.shiftKey ? (at <= 0 ? items.length - 1 : at - 1) : (at + 1) % items.length;
+  e.preventDefault();
+  items[next].focus();
+});
+
 // ------------------------------------------------------------------ bus
 
 bus.on("select", ({ id }) => {
@@ -412,4 +442,5 @@ app.jobs = mountJobs(app);
 mountFill(app);
 mountSave(app);
 mountStart(app);
+syncModal();
 render();

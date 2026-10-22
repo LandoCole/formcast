@@ -542,6 +542,29 @@ function placeholderArray(node, origin, name, root, ctx) {
   });
 }
 
+const PATHS = new WeakMap(); // schema object -> its flattened paths
+
+/**
+ * The flattened paths of a schema, computed once per schema object: what the panels and the page
+ * view show. A missing schema, or one that can't be flattened, gives [] (the layouts report a bad
+ * schema where it is entered, not on every render).
+ * @param {object | null | undefined} schema
+ * @returns {SchemaPath[]}
+ */
+export function schemaPathsOf(schema) {
+  if (schema === null || typeof schema !== "object") return [];
+  let paths = PATHS.get(schema);
+  if (paths === undefined) {
+    try {
+      paths = flattenSchema(schema);
+    } catch {
+      paths = [];
+    }
+    PATHS.set(schema, paths);
+  }
+  return paths;
+}
+
 /**
  * A sample record for `schema`: a value at every path, shaped like the data the schema describes.
  * Strings get "Sample <title or name>" or a fitting fake value (dates are ISO, emails contain "@",

@@ -492,6 +492,24 @@ def test_region_select_reports_the_page_rect(pv):
     assert pv.page.locator(".fc-marquee").count() == 0
 
 
+def test_with_region_select_a_click_on_empty_space_still_clears_the_selection(pv):
+    pv.setup(regionSelect=True)
+    pv.box("w0_0").click()
+    assert pv.events("select")[-1]["detail"] == {"id": "w0_0"}
+    origin = pv.page.locator(".fc-pv-page").bounding_box()
+    pv.page.mouse.click(origin["x"] + 100, origin["y"] + 1480)
+    assert pv.events("select")[-1]["detail"] == {"id": None}
+    assert pv.events("region") == [] and pv.page.locator(".fc-marquee").count() == 0
+    assert pv.page.locator(".fc-box.is-selected").count() == 0
+
+
+def test_escape_clears_the_selection(pv):
+    pv.box("w0_0").click()
+    pv.page.keyboard.press("Escape")
+    assert pv.events("select")[-1]["detail"] == {"id": None}
+    assert pv.page.locator(".fc-box.is-selected").count() == 0
+
+
 def test_tables_draw_segment_rows_and_columns_for_the_page(pv):
     seg = pv.box("items", 0)
     assert seg.count() == 1 and pv.box("items", 1).count() == 0  # segment 1 is on page 1

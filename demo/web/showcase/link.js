@@ -3,8 +3,9 @@
 
 import { HistoryPanel } from "../core/history.js";
 import { Inspector } from "../core/inspector.js";
+import { showLinkPanels } from "../core/panels.js";
 import { flattenSchema, placeholderRecord } from "../core/schema.js";
-import { SchemaList, placementStatus } from "../core/schemalist.js";
+import { SchemaList } from "../core/schemalist.js";
 
 /** @param {object} app see showcase.js */
 export function mountLink(app) {
@@ -67,24 +68,14 @@ export function mountLink(app) {
   });
 
   app.onRender(() => {
-    const t = app.template;
     $("sample-schema").hidden = state.sample === null;
-    if (t === null) {
-      schemaList.set([], { fields: [] });
-      inspector.show(null);
-      history.set({ fields: [], history: [] }, { canUndo: false, canRedo: false });
-      $("schema-label").textContent = "Schema";
-      return;
-    }
-    const paths = app.schemaPaths();
-    schemaList.set(paths, t);
-    const { status } = placementStatus(paths, t);
-    const placed = [...status.values()].filter((s) => s === "placed").length;
-    const title = typeof t.schema?.title === "string" && t.schema.title ? `${t.schema.title} · ` : "";
-    $("schema-label").textContent = `Schema · ${title}${placed} of ${status.size} placed`;
-    const field = t.fields.find((f) => f.id === state.selected) ?? null;
-    schemaList.setPicked(field?.source?.paths?.[0] ?? null);
-    inspector.show(field, { schemaPaths: paths, warnings: field ? (session.fieldWarnings[field.id] ?? []) : [] });
-    history.set(t, { canUndo: session.canUndo, canRedo: session.canRedo });
+    $("schema-label").textContent = showLinkPanels({ schemaList, inspector, history }, {
+      template: app.template,
+      schemaPaths: app.schemaPaths(),
+      selected: state.selected,
+      editWarnings: session.fieldWarnings,
+      canUndo: session.canUndo,
+      canRedo: session.canRedo,
+    });
   });
 }

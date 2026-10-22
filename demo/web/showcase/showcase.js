@@ -11,7 +11,8 @@
 import { createBus } from "../core/bus.js";
 import { makeView, viewSize } from "../core/geometry.js";
 import { PageView } from "../core/pageview.js";
-import { flattenSchema } from "../core/schema.js";
+import { schemaPathsOf } from "../core/schema.js";
+import { fieldWarnings } from "../core/schemalist.js";
 import { createSession } from "../core/session.js";
 import { remember } from "../core/store.js";
 import { createBrowserEngine } from "../engines/browser/engine.js";
@@ -74,7 +75,6 @@ const state = {
   },
 };
 const hooks = [];
-let schemaCache = { schema: null, paths: [] };
 let step = "detect";
 
 /** Show `text` in a message element, or hide it when `text` is empty. */
@@ -105,17 +105,7 @@ const app = {
 
   /** The current schema's flattened paths ([] when it can't be flattened). */
   schemaPaths() {
-    const schema = app.template?.schema ?? null;
-    if (schema !== schemaCache.schema) {
-      let paths = [];
-      try {
-        paths = schema ? flattenSchema(schema) : [];
-      } catch {
-        paths = [];
-      }
-      schemaCache = { schema, paths };
-    }
-    return schemaCache.paths;
+    return schemaPathsOf(app.template?.schema);
   },
 
   /** Register a function called after every render. */
@@ -194,18 +184,6 @@ function compareRects() {
   return state.sample.originals.pages[String(state.page)] ?? [];
 }
 
-/** Per-field messages for the page view: the last edit's warnings, and paths the schema lacks. */
-function fieldWarnings(template) {
-  const known = new Set(app.schemaPaths().map((sp) => sp.path));
-  const out = {};
-  for (const f of template.fields) {
-    const missing = (f.source?.paths ?? []).filter((p) => !known.has(p));
-    const msgs = [...(session.fieldWarnings[f.id] ?? []), ...missing.map((p) => `${p} is not in the schema`)];
-    if (msgs.length) out[f.id] = msgs;
-  }
-  return out;
-}
-
 const plural = (n, word, many = `${word}s`) => `${n} ${n === 1 ? word : many}`;
 
 function render() {
@@ -219,7 +197,7 @@ function render() {
       state.selected = null;
       view.select(null);
     }
-    view.setTemplate(t, { compare: compareRects(), warnings: fieldWarnings(t) });
+    view.setTemplate(t, { compare: compareRects(), warnings: fieldWarnings(t, app.schemaPaths(), session.fieldWarnings) });
     $("page-no").textContent = `Page ${state.page + 1} of ${state.doc.pageCount}`;
     $("prev-page").disabled = state.page === 0;
     $("next-page").disabled = state.page >= state.doc.pageCount - 1;

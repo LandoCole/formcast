@@ -1,6 +1,7 @@
 // The page view: a page image (a canvas from pdf.js, or a PNG from the server) with a box over
 // each field. Select, drag to move, corner handles to resize, draw a new box, nudge with the
-// arrow keys, Delete, drop a schema path on a box to link it, and an optional area select.
+// arrow keys, Delete, drop a schema path on a box to link it, and an optional area select (a drag
+// on empty space reports the area; a click there still clears the selection, as does Escape).
 //
 // Everything on screen is placed through geometry.js (`toScreen`, `toPage`), the only place that
 // converts between PDF points and pixels, so rotated pages work the same as upright ones. The
@@ -137,6 +138,7 @@ export class PageView {
         if (e.key === "Escape") {
           if (this.#addMode) this.setAddMode(false);
           this.#clearMarquee();
+          this.#userSelect(null);
         }
       },
       { signal },
@@ -615,8 +617,8 @@ export class PageView {
       const minPx = ptToPx(MIN_PT, this.#view);
       const big = box.width >= minPx && box.height >= minPx && ev.type === "pointerup";
       if (!big) {
-        this.#clearMarquee();
-        if (kind === "add") this.#userSelect(null);
+        this.#clearMarquee(); // a click on empty space, not a drag: it clears the selection
+        this.#userSelect(null);
         return;
       }
       const rect = this.#rectOf(box);

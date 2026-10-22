@@ -1,6 +1,7 @@
 // AI jobs: Build with AI, Adapt (from the match prompt) and area revise (drag on empty page space,
-// then type an instruction). A job runs on the server; the panel lists its steps as they come and
-// offers Cancel. Cancel is seen between steps, so the panel says it stops after the step running
+// then type an instruction). One at a time. A job runs on the server; the panel lists its steps as
+// they come and offers Cancel, or Run in background (the job goes on; its result is offered in the
+// notice line when it ends). Cancel is seen between steps, so the panel says it stops after the step running
 // now. A finished job's template loads with one undo step, so Undo returns to the template from
 // before the AI. A cancelled or failed job closes the panel and leaves the template alone; its
 // partial result (which includes the step that was running) can still be loaded from the notice.
@@ -19,7 +20,7 @@ function stepText(s) {
 
 /**
  * @param {object} app see workbench.js
- * @returns {{adapt: (template: object, name: string) => void}}
+ * @returns {{adapt: (template: object) => void}}
  */
 export function mountJobs(app) {
   const { $, engine, session, view } = app;
@@ -29,6 +30,10 @@ export function mountJobs(app) {
   const ask = $("ask");
   let handle = null;
   let stopping = false;
+  let running = false; // a job is starting or running
+  let detached = false; // its panel was closed with "Run in background"
+  let kind = "build"; // the running (or last) job's kind
+  let refused = ""; // why the last cancel didn't go through, shown until the next one
   let region = null;
 
   $("build-ai").hidden = !ai;
@@ -42,14 +47,15 @@ export function mountJobs(app) {
         return li;
       }),
     );
-    if (job.status === "running" && !stopping) status.textContent = `Working on step ${job.steps.length + 1}…`;
+    if (job.status === "running" && !stopping) status.textContent = `${refused}Working on step ${job.steps.length + 1}…`;
   }
 
-  function setButtons({ cancel = false, load = false, close = false }) {
+  function setButtons({ cancel = false, load = false, close = false, background = false }) {
     $("job-cancel").hidden = !cancel;
     $("job-cancel").disabled = false;
     $("job-load").hidden = !load;
     $("job-close").hidden = !close;
+    $("job-close").textContent = background ? "Run in background" : "Close";
   }
 
   /** Put a job's template on screen (one undo step), unless the form changed since it started. */
@@ -65,41 +71,57 @@ export function mountJobs(app) {
   }
 
   /**
-   * Run a job: `start` resolves a JobHandle. The panel stays open (and the page behind it waits)
-   * until the job ends.
+   * Run a job: `start` resolves a JobHandle. The panel is modal while it is open; "Run in background"
+   * closes it and the job goes on, its result offered in the notice line when it ends (loading it
+   * then replaces the template on screen, edits made meanwhile included, as one undo step).
    */
-  async function run(kind, start) {
+  async function run(jobKind, start) {
+    if (running) {
+      app.notice("An AI job is already running. Wait for it to end, or cancel it.");
+      return;
+    }
+    running = true;
+    detached = false;
+    kind = jobKind;
     const generation = session.generation;
     stopping = false;
+    refused = "";
     $("job-title").textContent = TITLES[kind];
     $("job-steps").replaceChildren();
     status.textContent = "Starting…";
-    setButtons({ cancel: true });
+    setButtons({ cancel: true, close: true, background: true });
     panel.hidden = false;
-    await app.track(session.idle());
-    try {
-      handle = await start();
-    } catch (e) {
-      status.textContent = e.message;
-      setButtons({ close: true });
-      return;
-    }
-    handle.onUpdate = showSteps;
-    if (stopping) handle.cancel().catch(() => {}); // Cancel was pressed while the job was starting
+    $("job-cancel").focus();
     let job;
     try {
-      job = await handle.done;
-    } catch (e) {
-      status.textContent = e.message;
-      setButtons({ close: true });
-      return;
+      await app.track(session.idle());
+      try {
+        handle = await start();
+      } catch (e) {
+        ended(e.message);
+        return;
+      }
+      handle.onUpdate = showSteps;
+      if (stopping) cancel(); // Cancel was pressed while the job was starting
+      try {
+        job = await handle.done;
+      } catch (e) {
+        ended(e.message);
+        return;
+      }
     } finally {
       handle = null;
+      running = false;
     }
     showSteps(job);
     if (job.status === "done") {
       const unplaced = (job.unplaceable ?? []).map((u) => u.path).filter(Boolean);
-      status.textContent = `Done${job.summary ? `: ${job.summary}` : "."}${unplaced.length ? ` Not placed: ${unplaced.join(", ")}.` : ""}`;
+      const summary = `${job.summary ? `: ${job.summary}` : "."}${unplaced.length ? ` Not placed: ${unplaced.join(", ")}.` : ""}`;
+      if (detached) {
+        app.notice(`The AI ${NOUNS[jobKind]} finished${summary}`, { label: "Load result", run: () => load(job, generation, false) });
+        return;
+      }
+      status.textContent = `Done${summary}`;
       setButtons({ load: true, close: true });
       $("job-load").onclick = () => {
         panel.hidden = true;
@@ -112,25 +134,47 @@ export function mountJobs(app) {
     const n = plural(job.steps.length, "step");
     const text =
       job.status === "cancelled"
-        ? `The AI ${NOUNS[kind]} was cancelled after ${n}. The template is unchanged.`
-        : `The AI ${NOUNS[kind]} stopped after ${n}: ${job.error ?? "an unknown error"} The template on screen is unchanged.`;
+        ? `The AI ${NOUNS[jobKind]} was cancelled after ${n}. The template is unchanged.`
+        : `The AI ${NOUNS[jobKind]} stopped after ${n}: ${job.error ?? "an unknown error"} The template on screen is unchanged.`;
     const action = job.template ? { label: "Load partial result", run: () => load(job, generation, true) } : null;
     app.notice(text, action);
   }
 
-  $("job-cancel").addEventListener("click", async () => {
-    stopping = true;
-    $("job-cancel").disabled = true;
-    status.textContent = "Stopping after this step…";
-    if (handle === null) return; // still starting: run() cancels it once it has started
+  /** The job could not be started or followed: say why, with a way out. */
+  function ended(message) {
+    if (detached) {
+      app.notice(message);
+      return;
+    }
+    status.textContent = message;
+    setButtons({ close: true });
+  }
+
+  async function cancel() {
     try {
       await handle.cancel();
     } catch (e) {
-      status.textContent = e.message;
+      // not stopped: say so, and let the person try again or close the panel
+      stopping = false;
+      refused = `The job couldn't be stopped: ${e.message} `;
+      status.textContent = refused.trim();
+      $("job-cancel").disabled = false;
     }
+  }
+
+  $("job-cancel").addEventListener("click", () => {
+    stopping = true;
+    refused = "";
+    $("job-cancel").disabled = true;
+    status.textContent = "Stopping after this step…";
+    if (handle !== null) cancel(); // else still starting: run() cancels it once it has started
   });
   $("job-close").addEventListener("click", () => {
     panel.hidden = true;
+    if (running) {
+      detached = true;
+      app.notice(`The AI ${NOUNS[kind]} goes on running. Its result will be offered here when it ends.`);
+    }
   });
 
   $("build-ai").addEventListener("click", () => {
@@ -147,7 +191,10 @@ export function mountJobs(app) {
   }
 
   app.bus.on("region", (r) => {
-    if (!ai || app.template === null) return;
+    if (!ai || app.template === null || running) {
+      view.clearRegion();
+      return;
+    }
     region = r;
     const col = $("col-page");
     const marquee = $("pageview").querySelector(".fc-marquee");

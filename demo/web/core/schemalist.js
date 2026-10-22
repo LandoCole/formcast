@@ -82,6 +82,39 @@ function typeText(sp) {
   return sp.type;
 }
 
+/**
+ * Messages per field for the page view: the last edit's warnings for it, then one per path it uses
+ * that the schema does not have.
+ * @param {{fields: {id: string, source?: {paths: string[]} | null}[]}} template
+ * @param {SchemaPath[]} schemaPaths
+ * @param {Record<string, string[]>} [editWarnings] the session's warnings by field id
+ * @returns {Record<string, string[]>} only fields with at least one message
+ */
+export function fieldWarnings(template, schemaPaths, editWarnings = {}) {
+  const known = new Set(schemaPaths.map((sp) => sp.path));
+  const out = {};
+  for (const f of template.fields) {
+    const missing = (f.source?.paths ?? []).filter((p) => !known.has(p));
+    const msgs = [...(editWarnings[f.id] ?? []), ...missing.map((p) => `${p} is not in the schema`)];
+    if (msgs.length) out[f.id] = msgs;
+  }
+  return out;
+}
+
+/**
+ * The schema heading: "Schema · <title> · <placed> of <paths> placed" (no title part when the
+ * schema has none).
+ * @param {SchemaPath[]} schemaPaths
+ * @param {{schema?: {title?: unknown}, fields: object[]}} template
+ * @returns {string}
+ */
+export function schemaLabel(schemaPaths, template) {
+  const { status } = placementStatus(schemaPaths, template);
+  const placed = [...status.values()].filter((s) => s === "placed").length;
+  const title = typeof template.schema?.title === "string" && template.schema.title ? `${template.schema.title} · ` : "";
+  return `Schema · ${title}${placed} of ${status.size} placed`;
+}
+
 export class SchemaList {
   #el;
   #bus;

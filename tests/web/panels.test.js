@@ -3,8 +3,8 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { summarizeOp } from "../../demo/web/core/history.js";
-import { placementStatus } from "../../demo/web/core/schemalist.js";
-import { flattenSchema } from "../../demo/web/core/schema.js";
+import { fieldWarnings, placementStatus, schemaLabel } from "../../demo/web/core/schemalist.js";
+import { flattenSchema, schemaPathsOf } from "../../demo/web/core/schema.js";
 
 const schema = flattenSchema({
   type: "object",
@@ -52,4 +52,28 @@ test("summarizeOp names the op and the field by label, falling back to its id", 
   assert.equal(summarizeOp({ op: { op: "set_source", id: "f2" } }, fields), "set source · f2");
   assert.equal(summarizeOp({ op: { op: "remove_field", id: "gone" } }, fields), "remove field · gone");
   assert.equal(summarizeOp({ op: { op: "add_table", source_path: "rows" } }, fields), "add table · rows");
+});
+
+test("schemaPathsOf flattens once per schema object and gives [] for none or a broken one", () => {
+  const raw = { type: "object", properties: { a: { type: "string" } } };
+  const first = schemaPathsOf(raw);
+  assert.deepEqual(first.map((sp) => sp.path), ["a"]);
+  assert.equal(schemaPathsOf(raw), first); // the same array: not flattened again
+  assert.deepEqual(schemaPathsOf(null), []);
+  assert.deepEqual(schemaPathsOf(undefined), []);
+  assert.deepEqual(schemaPathsOf({ type: "string" }), []); // the root is not an object schema
+});
+
+test("fieldWarnings puts the edit's warnings first, then paths the schema lacks; quiet fields are left out", () => {
+  const template = { fields: [field("f1", "text", ["name", "gone"]), field("f2", "text", ["kind"]), field("f3", "text", null)] };
+  const out = fieldWarnings(template, schema, { f1: ["too long"] });
+  assert.deepEqual(out, { f1: ["too long", "gone is not in the schema"] });
+  assert.deepEqual(fieldWarnings(template, schema), { f1: ["gone is not in the schema"] });
+});
+
+test("schemaLabel counts placed paths and names the schema's title when it has one", () => {
+  const template = { schema: { title: "Vendor" }, fields: [field("f1", "text", ["name"])] };
+  const { status } = placementStatus(schema, template);
+  assert.equal(schemaLabel(schema, template), `Schema · Vendor · 1 of ${status.size} placed`);
+  assert.equal(schemaLabel(schema, { schema: {}, fields: [] }), `Schema · 0 of ${status.size} placed`);
 });

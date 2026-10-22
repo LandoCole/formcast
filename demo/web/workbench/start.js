@@ -159,12 +159,17 @@ export function mountStart(app) {
     for (const id of ["reuse", "adapt", "build-new"]) $(id).disabled = on;
   }
 
-  /** The stored template picked in the prompt, checked against the PDF; null after a message. */
-  async function stored() {
+  /**
+   * The stored template picked in the prompt, checked against the PDF; null after a message. Reuse
+   * needs the same pages (count and sizes); an adapt moves the boxes onto pages of other sizes, so
+   * it needs only the same page count.
+   */
+  async function stored({ forAdapt = false } = {}) {
     const name = $("match-pick").value;
     try {
       const template = await engine.templates.get(name);
-      const misfit = checkTemplateFits(template, pick.doc);
+      const sameCount = template.form.page_count === pick.doc.pageCount;
+      const misfit = forAdapt && sameCount ? null : checkTemplateFits(template, pick.doc);
       if (misfit) {
         $("match-hint").textContent = misfit;
         return null;
@@ -174,12 +179,6 @@ export function mountStart(app) {
       $("match-hint").textContent = e.message;
       return null;
     }
-  }
-
-  /** The stored schema whose JSON is the template's own, else null. */
-  function schemaNameOf(schema) {
-    const text = JSON.stringify(schema);
-    return Object.keys(app.schemas).find((n) => JSON.stringify(app.schemas[n]) === text) ?? null;
   }
 
   $("reuse").addEventListener("click", async () => {
@@ -192,20 +191,20 @@ export function mountStart(app) {
       doc: pick.doc,
       template: s.template,
       source: { kind: "stored", text: `Stored template ${s.name}` },
-      schemaName: schemaNameOf(s.template.schema) ?? pick.schemaName,
+      schemaName: app.schemaNameOf(s.template.schema) ?? pick.schemaName,
       savedName: s.name,
     });
   });
 
   $("adapt").addEventListener("click", async () => {
     busy(true);
-    const s = await stored();
+    const s = await stored({ forAdapt: true });
     if (s === null) {
       busy(false);
       return;
     }
     // the seed (with the stored template's schema) goes on screen first, so one Undo returns to it
-    const opened = await buildNew({ doc: pick.doc, schema: s.template.schema, schemaName: schemaNameOf(s.template.schema) });
+    const opened = await buildNew({ doc: pick.doc, schema: s.template.schema, schemaName: app.schemaNameOf(s.template.schema) });
     busy(false);
     if (opened) app.jobs.adapt(s.template);
   });

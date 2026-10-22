@@ -4,23 +4,11 @@
 // (app.fillTimeoutMs), loading pdf-lib included; a result that comes after it is dropped.
 
 import { renderReport } from "../core/report.js";
-import { checkTemplateFits, downloadTemplate, readTemplateFile } from "../core/store.js";
+import { checkTemplateFits, downloadBytes, downloadTemplate, readTemplateFile } from "../core/store.js";
 import { seconds, withinTime } from "./limits.js";
 
 const PROTECTED =
   "This PDF is protected against changes, so it can't be filled in the browser. The full library can fill it.";
-
-/** Download bytes as a file. */
-function downloadBytes(bytes, filename, type = "application/pdf") {
-  const url = URL.createObjectURL(new Blob([bytes], { type }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.append(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
-}
 
 /** @param {object} app see showcase.js */
 export function mountFill(app) {

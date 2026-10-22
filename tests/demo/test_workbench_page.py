@@ -8,6 +8,7 @@ in a script holds a job mid-run. Form maps are built without detectors, so a see
 
 from __future__ import annotations
 
+from functools import partial
 from pathlib import Path
 
 import pymupdf
@@ -122,6 +123,47 @@ class Bench:
         return Path(info.value.path()).read_bytes()
 
 
+# Holds every /api/apply request in the page until the test releases it (oldest first), and counts them.
+GATE_APPLY = """
+  (() => {
+    const real = window.fetch.bind(window);
+    window.__applyGates = [];
+    window.__applyCalls = 0;
+    window.__releaseApply = () => window.__applyGates.shift()?.();
+    window.fetch = async (url, init) => {
+      if (String(url).includes("/api/apply")) {
+        window.__applyCalls += 1;
+        await new Promise((resolve) => window.__applyGates.push(resolve));
+      }
+      return real(url, init);
+    };
+  })();
+"""
+
+
+def box(page, fid: str):
+    return page.locator(f'#pageview .fc-box[data-field-id="{fid}"]')
+
+
+def box_px(page, fid: str, prop: str) -> float:
+    """A box's on-screen left, top, width or height in pixels (its inline style)."""
+    return float(box(page, fid).evaluate(f"el => el.style.{prop}").removesuffix("px"))
+
+
+def two_boxes(b: Bench) -> tuple[str, str]:
+    """Open a one-widget PDF and add a second box by hand (its apply released at the gate); their ids."""
+    b.upload(widget_pdf(rect=(20, 120, 120, 140)))
+    b.build_new()
+    b.page.click("#add-box")
+    b.drag_on_page(0.6, 0.1, 0.9, 0.25)
+    b.page.wait_for_function("window.__applyCalls === 1")
+    b.page.evaluate("window.__releaseApply()")
+    expect(b.boxes()).to_have_count(2)
+    b.idle()
+    return b.boxes().nth(0).get_attribute("data-field-id"), b.boxes().nth(1).get_attribute("data-field-id")
+
+
+
 @pytest.fixture
 def bench(page):
     made: list[Bench] = []
@@ -204,35 +246,11 @@ def test_build_new_by_hand_move_undo_and_redo(demo_server, bench):
 
 def test_a_box_moved_while_an_earlier_edit_is_in_flight_stays_where_it_was_left(demo_server, bench, page):
     """Under server latency a landing edit must not snap other boxes back or drop a held arrow-key nudge."""
-    page.add_init_script("""
-      (() => {
-        const real = window.fetch.bind(window);
-        window.__applyGates = [];
-        window.__applyCalls = 0;
-        window.__releaseApply = () => window.__applyGates.shift()?.();
-        window.fetch = async (url, init) => {
-          if (String(url).includes("/api/apply")) {
-            window.__applyCalls += 1;
-            await new Promise((resolve) => window.__applyGates.push(resolve));
-          }
-          return real(url, init);
-        };
-      })();
-    """)
+    page.add_init_script(GATE_APPLY)
     b = bench(demo_server)
-    b.upload(widget_pdf(rect=(20, 120, 120, 140)))
-    b.build_new()
-    page.click("#add-box")
-    b.drag_on_page(0.6, 0.1, 0.9, 0.25)  # a second box, so there are two to move
-    page.wait_for_function("window.__applyCalls === 1")
-    page.evaluate("window.__releaseApply()")
-    expect(b.boxes()).to_have_count(2)
-    b.idle()
-    a, c = b.boxes().nth(0), b.boxes().nth(1)
-    a_id, c_id = a.get_attribute("data-field-id"), c.get_attribute("data-field-id")
-
-    def left(fid: str) -> float:
-        return float(page.locator(f'.fc-box[data-field-id="{fid}"]').evaluate("el => el.style.left").removesuffix("px"))
+    a_id, c_id = two_boxes(b)
+    a, c = box(page, a_id), box(page, c_id)
+    left = partial(box_px, page, prop="left")
 
     c_start = left(c_id)
     b.drag(a, 20, 0)  # its move is in flight, held at the gate
@@ -344,6 +362,139 @@ def test_cancel_stops_after_the_step_leaves_the_template_and_offers_the_partial_
     expect(b.boxes(".is-ai")).to_have_count(0)
     b.page.click("#notice-action")
     expect(b.boxes(".is-ai")).to_have_count(2)  # the step in flight when the cancel came is in the partial result
+
+
+def test_a_resize_from_a_corner_handle_survives_an_earlier_edit_landing(demo_server, bench, page):
+    """The page view stops a handle press from bubbling; the workbench must still see the gesture."""
+    page.add_init_script(GATE_APPLY)
+    b = bench(demo_server)
+    a_id, c_id = two_boxes(b)
+    width = partial(box_px, page, prop="width")
+    c_width = width(c_id)
+    b.drag(box(page, a_id), 20, 0)  # its move is in flight, held at the gate
+    page.wait_for_function("window.__applyCalls === 2")
+    box(page, c_id).click()
+    bb = box(page, c_id).locator('.fc-hd[data-handle="se"]').bounding_box()
+    x, y = bb["x"] + bb["width"] / 2, bb["y"] + bb["height"] / 2
+    page.mouse.move(x, y)
+    page.mouse.down()
+    page.mouse.move(x + 15, y + 6, steps=3)
+    page.evaluate("window.__releaseApply()")  # the move lands mid-resize
+    page.wait_for_function("window.__workbench.idle && window.__workbench.template.history.length === 2")
+    assert width(c_id) > c_width + 10  # the box was not redrawn under the pointer
+    page.mouse.move(x + 30, y + 6, steps=3)
+    page.mouse.up()
+    page.wait_for_function("window.__applyCalls === 3")
+    page.evaluate("window.__releaseApply()")
+    b.idle()
+    last = b.template()["history"][-1]["op"]
+    assert last["op"] == "resize" and last["id"] == c_id
+    assert width(c_id) == pytest.approx(c_width + 30, abs=1)
+
+
+def test_a_secondary_button_press_does_not_hold_back_redrawing(demo_server, bench, page):
+    """A right press may never see its pointerup (a context menu takes it); it must not count as a held gesture."""
+    page.add_init_script(GATE_APPLY)
+    b = bench(demo_server)
+    a_id, _ = two_boxes(b)
+    left = partial(box_px, page, prop="left")
+    start = left(a_id)
+    b.drag(box(page, a_id), 20, 0)  # in flight
+    page.wait_for_function("window.__applyCalls === 2")
+    page.dispatch_event("#pageview .fc-pv-layer", "pointerdown", {"button": 2, "buttons": 2, "pointerType": "mouse", "isPrimary": True})
+    page.keyboard.press("Control+z")  # queued behind the move: the box goes back once both have run
+    page.evaluate("window.__releaseApply()")
+    page.wait_for_function("window.__workbench.idle && window.__workbench.template.history.length === 1")
+    assert left(a_id) == pytest.approx(start, abs=0.5)  # redrawn although no pointerup came
+
+
+def test_with_ai_on_a_click_on_empty_space_clears_the_selection_and_a_drag_asks_the_ai(start_demo_server, bench):
+    b = bench(start_demo_server(provider_factory=Factory()))
+    b.upload(widget_pdf())
+    b.build_new()
+    b.boxes().first.click()
+    expect(b.page.locator("#inspector .fc-ins-dl")).to_be_visible()
+    bb = b.page.locator("#pageview .fc-pv-page").bounding_box()
+    b.page.mouse.click(bb["x"] + bb["width"] * 0.8, bb["y"] + bb["height"] * 0.15)
+    expect(b.page.locator("#inspector .fc-ins-empty")).to_be_visible()
+    expect(b.page.locator("#ask")).to_be_hidden()
+    b.boxes().first.click()
+    b.page.keyboard.press("Escape")
+    expect(b.page.locator("#inspector .fc-ins-empty")).to_be_visible()
+    b.drag_on_page(0.55, 0.1, 0.95, 0.5)
+    expect(b.page.locator("#ask")).to_be_visible()
+
+
+def test_adapt_needs_only_the_same_page_count_while_reuse_needs_the_same_page_sizes(start_demo_server, bench, page):
+    unplaced = [{"path": p, "reason": "not on the form"} for p in ("vendor_id", "remit_email")]
+    factory = Factory([finish("moved the boxes", unplaced)])
+    b = bench(start_demo_server(provider_factory=factory))
+    fake = [{"name": "fw9", "template_id": "x", "score": 0.8, "basis": "signature", "explanation": "80% alike.", "action": "adapt"}]
+    page.route("**/api/documents/*/matches", lambda route: route.fulfill(json=fake))
+    doc = pymupdf.open()
+    for _ in range(6):  # fw9 has six pages; these are a different size
+        doc.new_page(width=500, height=500).insert_text((40, 60), "Name")
+    b.upload(doc.tobytes(), "square.pdf", schema_text=None)
+    expect(b.page.locator("#match-text")).to_contain_text("fw9")
+    b.page.click("#reuse")
+    expect(b.page.locator("#match-hint")).to_contain_text("expects page 1 to be")
+    expect(b.page.locator("#match")).to_be_visible()
+    b.page.click("#adapt")
+    expect(b.page.locator("#job-title")).to_have_text("AI adapt")
+    b.page.wait_for_function("document.querySelector('#job-load:not([hidden])') || document.querySelector('#job[hidden]')")
+    assert len(factory.providers) == 1  # the adapt job ran
+
+
+def test_a_cancel_the_server_refuses_can_be_retried_or_the_job_run_in_the_background(start_demo_server, bench, page):
+    gate = Gate()
+    base = start_demo_server(provider_factory=Factory([code(ADD_NAME), gate, code(ADD_NOTE), finish("both added", NO_NOTE)]))
+    b = bench(base)
+    b.upload(widget_pdf())
+    b.build_new()
+    b.page.click("#build-ai")
+    assert gate.reached.wait(10)
+    page.route("**/api/jobs/*/cancel", lambda route: route.fulfill(status=500, body=""))
+    b.page.click("#job-cancel")
+    expect(b.page.locator("#job-status")).to_contain_text("couldn't be stopped")
+    expect(b.page.locator("#job-cancel")).to_be_enabled()
+    expect(b.page.locator("#job-close")).to_contain_text("run in background", ignore_case=True)
+    b.page.click("#job-close")
+    expect(b.page.locator("#job")).to_be_hidden()
+    expect(b.page.locator("#notice")).to_contain_text("goes on running")
+    before = b.template()
+    gate.release()
+    expect(b.page.locator("#notice")).to_contain_text("finished: both added")
+    assert b.template() == before  # nothing loads until asked
+    expect(b.page.locator("#notice-action")).to_have_text("Load result")
+    b.page.click("#notice-action")
+    expect(b.boxes(".is-ai")).to_have_count(2)
+
+
+def test_the_job_panel_takes_and_keeps_focus_and_gives_it_back(start_demo_server, bench, page):
+    page.add_init_script(GATE_APPLY)  # counts edits: none may reach the boxes behind the panel
+    gate = Gate()
+    both = [{"path": p, "reason": "test"} for p in ("name", "note")]
+    b = bench(start_demo_server(provider_factory=Factory([gate, finish("nothing to add", both)])))
+    b.upload(widget_pdf())
+    b.build_new()
+    b.boxes().first.focus()
+    b.page.click("#build-ai")
+    assert gate.reached.wait(10)
+    inside = "document.activeElement && document.activeElement.closest('#job') !== null"
+    b.page.wait_for_function(inside)
+    for _ in range(6):
+        b.page.keyboard.press("Tab")
+        assert b.page.evaluate(inside)
+    for key in ("ArrowRight", "Delete", "Control+z"):
+        b.page.keyboard.press(key)
+    assert b.page.locator("#bench").evaluate("el => el.inert") is True
+    gate.release()
+    expect(b.page.locator("#job-load")).to_be_visible()
+    b.page.click("#job-load")
+    expect(b.page.locator("#job")).to_be_hidden()
+    b.page.wait_for_function("document.activeElement && document.activeElement.id === 'build-ai'")
+    assert b.page.evaluate("window.__applyCalls") == 0
+    assert b.page.locator("#bench").evaluate("el => el.inert") is False
 
 
 def test_without_ai_configured_build_with_ai_is_hidden_and_a_note_says_how_to_turn_it_on(demo_server, bench):

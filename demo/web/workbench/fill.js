@@ -5,18 +5,7 @@
 // (a template with no fingerprint, or Fill anyway) is shown with the result.
 
 import { renderReport } from "../core/report.js";
-
-/** Download bytes as a file. */
-function downloadBytes(bytes, filename, type = "application/pdf") {
-  const url = URL.createObjectURL(new Blob([bytes], { type }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  document.body.append(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
-}
+import { downloadBytes } from "../core/store.js";
 
 /** @param {object} app see workbench.js */
 export function mountFill(app) {
@@ -36,8 +25,7 @@ export function mountFill(app) {
 
   /** The stored schema whose JSON is the template's own, else the one picked at the start. */
   function defaultSchema() {
-    const text = JSON.stringify(app.template?.schema ?? null);
-    return Object.keys(app.schemas).find((n) => JSON.stringify(app.schemas[n]) === text) ?? state.schemaName ?? "";
+    return app.schemaNameOf(app.template?.schema) ?? state.schemaName ?? "";
   }
 
   async function showRecords() {

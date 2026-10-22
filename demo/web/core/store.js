@@ -1,17 +1,17 @@
 // Saving, loading and remembering templates in the browser. Pure apart from the DOM calls in
-// `downloadTemplate` and the `localStorage` calls, which are wrapped so the page works without them.
+// `downloadBytes` and the `localStorage` calls, which are wrapped so the page works without them.
 
 const STORAGE_PREFIX = "formcast:template:";
 const SIZE_TOLERANCE = 1; // points
 
 /**
- * Download a template as a JSON file.
- * @param {object} template
- * @param {string} [filename]
+ * Download bytes (or text) as a file.
+ * @param {Uint8Array | string} data
+ * @param {string} filename
+ * @param {string} [type] the media type (default a PDF)
  */
-export function downloadTemplate(template, filename = "template.json") {
-  const blob = new Blob([`${JSON.stringify(template, null, 2)}\n`], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
+export function downloadBytes(data, filename, type = "application/pdf") {
+  const url = URL.createObjectURL(new Blob([data], { type }));
   const a = document.createElement("a");
   a.href = url;
   a.download = filename;
@@ -19,6 +19,15 @@ export function downloadTemplate(template, filename = "template.json") {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
+/**
+ * Download a template as a JSON file.
+ * @param {object} template
+ * @param {string} [filename]
+ */
+export function downloadTemplate(template, filename = "template.json") {
+  downloadBytes(`${JSON.stringify(template, null, 2)}\n`, filename, "application/json");
 }
 
 /**
