@@ -1,0 +1,570 @@
+{
+ "generated_from": [
+  "eval/results/baseline_detection_2026-10-21.json",
+  "eval/results/baseline_detection_2026-10-21_heldout.json",
+  "eval/results/baseline_detection_2026-10-21_onnx.json",
+  "eval/results/agent_seed_dev_2026-10-21_seed-fill.json",
+  "eval/results/agent_anthropic_eval_dev_2026-10-21_defer-placement.json",
+  "eval/results/agent_anthropic_eval_dev_2026-10-21_round3-gen.json",
+  "eval/results/agent_openai_eval_dev_2026-10-21_round1.json",
+  "eval/results/agent_openai_eval_dev_2026-10-21_round2.json"
+ ],
+ "detection": {
+  "dev": [
+   {
+    "kind": "fillable",
+    "variant": "as_published",
+    "detector": "FFDNet-L",
+    "recall_50": 0.8066,
+    "recall_30": 0.986,
+    "precision_30": 0.9844,
+    "gt": 641
+   },
+   {
+    "kind": "fillable",
+    "variant": "as_published",
+    "detector": "FFDetr",
+    "recall_50": 0.5211,
+    "recall_30": 0.9376,
+    "precision_30": 0.9509,
+    "gt": 641
+   },
+   {
+    "kind": "fillable",
+    "variant": "fake_scan",
+    "detector": "FFDNet-L",
+    "recall_50": 0.4009,
+    "recall_30": 0.4415,
+    "precision_30": 0.9861,
+    "gt": 641
+   },
+   {
+    "kind": "fillable",
+    "variant": "fake_scan",
+    "detector": "FFDetr",
+    "recall_50": 0.6381,
+    "recall_30": 0.9002,
+    "precision_30": 0.8946,
+    "gt": 641
+   },
+   {
+    "kind": "flat",
+    "variant": "as_published",
+    "detector": "FFDNet-L",
+    "recall_50": 0.718,
+    "recall_30": 0.7352,
+    "precision_30": 0.9199,
+    "gt": 812
+   },
+   {
+    "kind": "flat",
+    "variant": "as_published",
+    "detector": "FFDetr",
+    "recall_50": 0.3621,
+    "recall_30": 0.4877,
+    "precision_30": 0.8879,
+    "gt": 812
+   },
+   {
+    "kind": "flat",
+    "variant": "fake_scan",
+    "detector": "FFDNet-L",
+    "recall_50": 0.3239,
+    "recall_30": 0.4187,
+    "precision_30": 0.8564,
+    "gt": 812
+   },
+   {
+    "kind": "flat",
+    "variant": "fake_scan",
+    "detector": "FFDetr",
+    "recall_50": 0.3054,
+    "recall_30": 0.4569,
+    "precision_30": 0.8854,
+    "gt": 812
+   }
+  ],
+  "heldout": [
+   {
+    "kind": "fillable",
+    "variant": "as_published",
+    "detector": "FFDNet-L",
+    "recall_50": 0.8941,
+    "recall_30": 0.9059,
+    "precision_30": 0.7333,
+    "gt": 255
+   },
+   {
+    "kind": "fillable",
+    "variant": "as_published",
+    "detector": "FFDetr",
+    "recall_50": 0.7216,
+    "recall_30": 0.7451,
+    "precision_30": 0.7422,
+    "gt": 255
+   },
+   {
+    "kind": "fillable",
+    "variant": "fake_scan",
+    "detector": "FFDNet-L",
+    "recall_50": 0.2824,
+    "recall_30": 0.2941,
+    "precision_30": 0.8929,
+    "gt": 255
+   },
+   {
+    "kind": "fillable",
+    "variant": "fake_scan",
+    "detector": "FFDetr",
+    "recall_50": 0.8078,
+    "recall_30": 0.8667,
+    "precision_30": 0.8467,
+    "gt": 255
+   },
+   {
+    "kind": "flat",
+    "variant": "as_published",
+    "detector": "FFDNet-L",
+    "recall_50": 0.6584,
+    "recall_30": 0.7481,
+    "precision_30": 0.9288,
+    "gt": 401
+   },
+   {
+    "kind": "flat",
+    "variant": "as_published",
+    "detector": "FFDetr",
+    "recall_50": 0.5486,
+    "recall_30": 0.6234,
+    "precision_30": 0.9124,
+    "gt": 401
+   },
+   {
+    "kind": "flat",
+    "variant": "fake_scan",
+    "detector": "FFDNet-L",
+    "recall_50": 0.1995,
+    "recall_30": 0.419,
+    "precision_30": 0.9655,
+    "gt": 401
+   },
+   {
+    "kind": "flat",
+    "variant": "fake_scan",
+    "detector": "FFDetr",
+    "recall_50": 0.2618,
+    "recall_30": 0.4289,
+    "precision_30": 0.8687,
+    "gt": 401
+   },
+   {
+    "kind": "scanned",
+    "variant": "as_published",
+    "detector": "FFDNet-L",
+    "recall_50": 0.2079,
+    "recall_30": 0.2079,
+    "precision_30": 1.0,
+    "gt": 101
+   },
+   {
+    "kind": "scanned",
+    "variant": "as_published",
+    "detector": "FFDetr",
+    "recall_50": 0.2673,
+    "recall_30": 0.3069,
+    "precision_30": 0.62,
+    "gt": 101
+   }
+  ]
+ },
+ "browser_models": [
+  {
+   "kind": "fillable",
+   "variant": "as_published",
+   "detector": "FFDNet-L",
+   "recall_50": 0.8066,
+   "recall_30": 0.986,
+   "precision_30": 0.9844
+  },
+  {
+   "kind": "fillable",
+   "variant": "as_published",
+   "detector": "FFDNet-L-onnx",
+   "recall_50": 0.7925,
+   "recall_30": 0.9766,
+   "precision_30": 0.9874
+  },
+  {
+   "kind": "fillable",
+   "variant": "as_published",
+   "detector": "FFDNet-S-onnx",
+   "recall_50": 0.7941,
+   "recall_30": 0.9704,
+   "precision_30": 0.9857
+  },
+  {
+   "kind": "fillable",
+   "variant": "fake_scan",
+   "detector": "FFDNet-L",
+   "recall_50": 0.4009,
+   "recall_30": 0.4415,
+   "precision_30": 0.9861
+  },
+  {
+   "kind": "fillable",
+   "variant": "fake_scan",
+   "detector": "FFDNet-L-onnx",
+   "recall_50": 0.3697,
+   "recall_30": 0.4103,
+   "precision_30": 1.0
+  },
+  {
+   "kind": "fillable",
+   "variant": "fake_scan",
+   "detector": "FFDNet-S-onnx",
+   "recall_50": 0.3775,
+   "recall_30": 0.5616,
+   "precision_30": 0.9809
+  },
+  {
+   "kind": "flat",
+   "variant": "as_published",
+   "detector": "FFDNet-L",
+   "recall_50": 0.718,
+   "recall_30": 0.7352,
+   "precision_30": 0.9199
+  },
+  {
+   "kind": "flat",
+   "variant": "as_published",
+   "detector": "FFDNet-L-onnx",
+   "recall_50": 0.6613,
+   "recall_30": 0.6761,
+   "precision_30": 0.9482
+  },
+  {
+   "kind": "flat",
+   "variant": "as_published",
+   "detector": "FFDNet-S-onnx",
+   "recall_50": 0.6638,
+   "recall_30": 0.686,
+   "precision_30": 0.9538
+  },
+  {
+   "kind": "flat",
+   "variant": "fake_scan",
+   "detector": "FFDNet-L",
+   "recall_50": 0.3239,
+   "recall_30": 0.4187,
+   "precision_30": 0.8564
+  },
+  {
+   "kind": "flat",
+   "variant": "fake_scan",
+   "detector": "FFDNet-L-onnx",
+   "recall_50": 0.2537,
+   "recall_30": 0.3264,
+   "precision_30": 0.8604
+  },
+  {
+   "kind": "flat",
+   "variant": "fake_scan",
+   "detector": "FFDNet-S-onnx",
+   "recall_50": 0.2685,
+   "recall_30": 0.2746,
+   "precision_30": 0.9489
+  }
+ ],
+ "agent_dev": [
+  {
+   "run": "2026-10-21_seed-fill",
+   "model": "none",
+   "label": "Seeded template, no agent",
+   "group": "fillable",
+   "sessions": 7,
+   "recall_50": 1.0,
+   "precision_30": 1.0,
+   "path": 0.0,
+   "joint": 0.0,
+   "fill_acc": 0.0,
+   "steps": 0.0,
+   "input_tokens": 0
+  },
+  {
+   "run": "2026-10-21_seed-fill",
+   "model": "none",
+   "label": "Seeded template, no agent",
+   "group": "digital",
+   "sessions": 5,
+   "recall_50": 0.718,
+   "precision_30": 0.9506,
+   "path": 0.0,
+   "joint": 0.0,
+   "fill_acc": 0.0,
+   "steps": 0.0,
+   "input_tokens": 0
+  },
+  {
+   "run": "2026-10-21_seed-fill",
+   "model": "none",
+   "label": "Seeded template, no agent",
+   "group": "scanned",
+   "sessions": 12,
+   "recall_50": 0.457,
+   "precision_30": 0.8863,
+   "path": 0.0,
+   "joint": 0.0,
+   "fill_acc": 0.0,
+   "steps": 0.0,
+   "input_tokens": 0
+  },
+  {
+   "run": "2026-10-21_seed-fill",
+   "model": "none",
+   "label": "Seeded template, no agent",
+   "group": "all",
+   "sessions": 24,
+   "recall_50": 0.6497,
+   "precision_30": 0.9345,
+   "path": 0.0,
+   "joint": 0.0,
+   "fill_acc": 0.0,
+   "steps": 0.0,
+   "input_tokens": 0
+  },
+  {
+   "run": "2026-10-21_defer-placement",
+   "model": "claude-haiku-5-5",
+   "label": "Haiku 5.5, current code (defer-placement)",
+   "group": "fillable",
+   "sessions": 7,
+   "recall_50": 1.0,
+   "precision_30": 0.9923,
+   "path": 0.9598,
+   "joint": 0.8123,
+   "fill_acc": 0.9299,
+   "steps": 9.3,
+   "input_tokens": 190633
+  },
+  {
+   "run": "2026-10-21_defer-placement",
+   "model": "claude-haiku-5-5",
+   "label": "Haiku 5.5, current code (defer-placement)",
+   "group": "digital",
+   "sessions": 5,
+   "recall_50": 0.7352,
+   "precision_30": 0.942,
+   "path": 0.6578,
+   "joint": 0.6222,
+   "fill_acc": 0.581,
+   "steps": 22.2,
+   "input_tokens": 583352
+  },
+  {
+   "run": "2026-10-21_defer-placement",
+   "model": "claude-haiku-5-5",
+   "label": "Haiku 5.5, current code (defer-placement)",
+   "group": "scanned",
+   "sessions": 12,
+   "recall_50": 0.4659,
+   "precision_30": 0.8846,
+   "path": 0.4779,
+   "joint": 0.4018,
+   "fill_acc": 0.447,
+   "steps": 21.2,
+   "input_tokens": 468114
+  },
+  {
+   "run": "2026-10-21_defer-placement",
+   "model": "claude-haiku-5-5",
+   "label": "Haiku 5.5, current code (defer-placement)",
+   "group": "all",
+   "sessions": 24,
+   "recall_50": 0.659,
+   "precision_30": 0.9291,
+   "path": 0.6337,
+   "joint": 0.5535,
+   "fill_acc": 0.5792,
+   "steps": 18.0,
+   "input_tokens": 411190
+  },
+  {
+   "run": "2026-10-21_round3-gen",
+   "model": "claude-haiku-5-5",
+   "label": "Haiku 5.5, round3-gen",
+   "group": "fillable",
+   "sessions": 7,
+   "recall_50": 0.7832,
+   "precision_30": 0.9906,
+   "path": 0.9981,
+   "joint": 0.9464,
+   "fill_acc": 0.9761,
+   "steps": 9.0,
+   "input_tokens": 173658
+  },
+  {
+   "run": "2026-10-21_round3-gen",
+   "model": "claude-haiku-5-5",
+   "label": "Haiku 5.5, round3-gen",
+   "group": "digital",
+   "sessions": 5,
+   "recall_50": 0.6281,
+   "precision_30": 0.8405,
+   "path": 0.7081,
+   "joint": 0.6593,
+   "fill_acc": 0.6097,
+   "steps": 28.6,
+   "input_tokens": 770418
+  },
+  {
+   "run": "2026-10-21_round3-gen",
+   "model": "claude-haiku-5-5",
+   "label": "Haiku 5.5, round3-gen",
+   "group": "scanned",
+   "sessions": 12,
+   "recall_50": 0.4088,
+   "precision_30": 0.9149,
+   "path": 0.5556,
+   "joint": 0.4954,
+   "fill_acc": 0.515,
+   "steps": 22.8,
+   "input_tokens": 476938
+  },
+  {
+   "run": "2026-10-21_round3-gen",
+   "model": "claude-haiku-5-5",
+   "label": "Haiku 5.5, round3-gen",
+   "group": "all",
+   "sessions": 24,
+   "recall_50": 0.5526,
+   "precision_30": 0.9132,
+   "path": 0.6951,
+   "joint": 0.6399,
+   "fill_acc": 0.6308,
+   "steps": 20.0,
+   "input_tokens": 449623
+  },
+  {
+   "run": "2026-10-21_round1",
+   "model": "gpt-6-luna",
+   "label": "Luna 6, round 1 (earlier code)",
+   "group": "fillable",
+   "sessions": 7,
+   "recall_50": 0.7598,
+   "precision_30": 0.9888,
+   "path": 0.7931,
+   "joint": 0.7299,
+   "fill_acc": 0.8654,
+   "steps": 9.4,
+   "input_tokens": 174011
+  },
+  {
+   "run": "2026-10-21_round1",
+   "model": "gpt-6-luna",
+   "label": "Luna 6, round 1 (earlier code)",
+   "group": "digital",
+   "sessions": 5,
+   "recall_50": 0.4433,
+   "precision_30": 0.7074,
+   "path": 0.5926,
+   "joint": 0.5111,
+   "fill_acc": 0.5196,
+   "steps": 16.8,
+   "input_tokens": 372282
+  },
+  {
+   "run": "2026-10-21_round1",
+   "model": "gpt-6-luna",
+   "label": "Luna 6, round 1 (earlier code)",
+   "group": "scanned",
+   "sessions": 12,
+   "recall_50": 0.3166,
+   "precision_30": 0.7103,
+   "path": 0.5581,
+   "joint": 0.4812,
+   "fill_acc": 0.5467,
+   "steps": 18.4,
+   "input_tokens": 337073
+  },
+  {
+   "run": "2026-10-21_round1",
+   "model": "gpt-6-luna",
+   "label": "Luna 6, round 1 (earlier code)",
+   "group": "all",
+   "sessions": 24,
+   "recall_50": 0.4498,
+   "precision_30": 0.782,
+   "path": 0.619,
+   "joint": 0.5439,
+   "fill_acc": 0.5978,
+   "steps": 15.5,
+   "input_tokens": 296848
+  },
+  {
+   "run": "2026-10-21_round2",
+   "model": "gpt-6-luna",
+   "label": "Luna 6, round 2 (partial, 14 of 24 sessions)",
+   "group": "fillable",
+   "sessions": 4,
+   "recall_50": 0.5976,
+   "precision_30": 0.987,
+   "path": 1.0,
+   "joint": 1.0,
+   "fill_acc": 0.9798,
+   "steps": 11.5,
+   "input_tokens": 190378
+  },
+  {
+   "run": "2026-10-21_round2",
+   "model": "gpt-6-luna",
+   "label": "Luna 6, round 2 (partial, 14 of 24 sessions)",
+   "group": "digital",
+   "sessions": 3,
+   "recall_50": 0.4299,
+   "precision_30": 0.7041,
+   "path": 0.4212,
+   "joint": 0.3736,
+   "fill_acc": 0.3259,
+   "steps": 18.0,
+   "input_tokens": 352911
+  },
+  {
+   "run": "2026-10-21_round2",
+   "model": "gpt-6-luna",
+   "label": "Luna 6, round 2 (partial, 14 of 24 sessions)",
+   "group": "scanned",
+   "sessions": 7,
+   "recall_50": 0.3646,
+   "precision_30": 0.9004,
+   "path": 0.6071,
+   "joint": 0.599,
+   "fill_acc": 0.5194,
+   "steps": 22.1,
+   "input_tokens": 364677
+  },
+  {
+   "run": "2026-10-21_round2",
+   "model": "gpt-6-luna",
+   "label": "Luna 6, round 2 (partial, 14 of 24 sessions)",
+   "group": "all",
+   "sessions": 14,
+   "recall_50": 0.4448,
+   "precision_30": 0.8832,
+   "path": 0.6753,
+   "joint": 0.6607,
+   "fill_acc": 0.5874,
+   "steps": 18.2,
+   "input_tokens": 312356
+  }
+ ],
+ "heldout_status": {
+  "sessions_planned": 9,
+  "sessions_completed": 1,
+  "luna_heldout": false,
+  "note": "The Anthropic account hit its API usage limit during the one held-out Haiku run. Of 9 held-out sessions, one finished (ics211, as published). Three were cut off mid-session, five never made a call, and one retry hit the same limit. There is no Luna held-out run (the OpenAI credits were already used up). No code or prompt changed after the dev rounds. The held-out agent numbers are one session, which says nothing about generalization."
+ },
+ "caveats": [
+  "Dev results were tuned on over four Haiku rounds.",
+  "Haiku varies about ±0.1 path per form between runs."
+ ]
+}

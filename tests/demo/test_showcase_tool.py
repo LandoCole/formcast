@@ -591,3 +591,47 @@ def test_a_hung_sample_file_times_out_and_keeps_the_page(open_tool):
     assert tool.boxes().count() == before
     assert "fields stripped" in tool.page.inner_text("#docline")
     assert tool.page.inner_text("#detect-status") == ""
+
+
+# ---------------------------------------------------------------- the real sample bundles
+
+REAL_SAMPLES = ROOT / "demo" / "web" / "showcase" / "samples"
+
+
+@pytest.mark.parametrize("form_id", ["fw9", "fw4", "i9"])
+def test_each_real_sample_loads_by_id_with_boxes_and_the_agent_template(open_tool, form_id):
+    """The page's own samples/ folder (no ?samples=): pick the sample by id, then open the agent's file."""
+    tool = open_tool(samples=None, worker=None, wait=False)
+    tool.page.wait_for_function("document.querySelectorAll('#sample option').length >= 3")
+    index = json.loads((REAL_SAMPLES / "index.json").read_text())
+    assert [o for o in tool.page.locator("#sample option").evaluate_all("els => els.map(e => e.value)")] == [e["id"] for e in index]
+    title = next(e["title"] for e in index if e["id"] == form_id)
+
+    tool.page.select_option("#sample", form_id)
+    detections = json.loads((REAL_SAMPLES / form_id / "detections.json").read_text())["pages"]
+    originals = json.loads((REAL_SAMPLES / form_id / "original-fields.json").read_text())["pages"]
+    tool.wait_boxes(len(detections["0"]))
+    assert title in tool.page.inner_text("#docline")
+    assert "fields stripped" in tool.page.inner_text("#docline")
+    assert "FFDNet-S" in tool.page.inner_text("#caption")
+    found = sum(greedy_matches(originals[p], [d["rect"] for d in detections[p]]) for p in originals)
+    total = sum(len(v) for v in originals.values())
+    assert 0 < found <= total
+    assert f"found {found} of {total}" in tool.page.inner_text("#found")
+
+    template = json.loads((REAL_SAMPLES / form_id / "agent-template.json").read_text())
+    # a table is drawn as one box per segment on the page; any other field as one box
+    drawn = sum(
+        sum(seg["page"] == 0 for seg in f["segments"]) if f["type"] == "table" else int(f["page"] == 0 and bool(f["rect"]))
+        for f in template["fields"]
+    )
+    tool.page.click("#load-agent")
+    tool.page.wait_for_function("document.getElementById('docline').textContent.includes('as published')")
+    tool.wait_boxes(drawn)
+    scores = tool.page.locator("#agent-scores")
+    scores.wait_for()
+    assert "Haiku 5.5" in scores.inner_text()
+    assert "2026-10-21_defer-placement" in scores.inner_text()
+    assert tool.page.locator("#detect-msg").is_hidden()
+    assert tool.requested(MODEL) == []
+    assert tool.errors == []

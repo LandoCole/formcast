@@ -1,0 +1,2173 @@
+{
+  "formcast_version": "1",
+  "template_id": "7d7f2152c041483eaf7a607f3b69a071",
+  "schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.org/schemas/employee-federal-withholding.json",
+    "title": "Employee federal withholding",
+    "description": "Payroll record of an employee's federal income tax withholding elections.",
+    "type": "object",
+    "properties": {
+      "employee_id": {
+        "type": "string",
+        "description": "Payroll employee number."
+      },
+      "employee": {
+        "type": "object",
+        "properties": {
+          "first_name": {
+            "type": "string"
+          },
+          "middle_name": {
+            "type": "string"
+          },
+          "last_name": {
+            "type": "string"
+          },
+          "ssn": {
+            "type": "string",
+            "pattern": "^\\d{3}-\\d{2}-\\d{4}$",
+            "description": "Formatted NNN-NN-NNNN."
+          },
+          "address": {
+            "$ref": "#/$defs/address"
+          }
+        },
+        "required": [
+          "first_name",
+          "last_name",
+          "ssn"
+        ]
+      },
+      "withholding": {
+        "type": "object",
+        "properties": {
+          "filing_status": {
+            "type": "string",
+            "enum": [
+              "single_or_married_separately",
+              "married_jointly_or_surviving_spouse",
+              "head_of_household"
+            ],
+            "description": "Filing status used for withholding."
+          },
+          "two_jobs_only": {
+            "type": "boolean",
+            "description": "Step 2(c): exactly two jobs in the household, box checked on both."
+          },
+          "dependent_credits": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Step 3 total credit amount, in dollars."
+          },
+          "other_income": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Step 4(a): other annual income not from jobs."
+          },
+          "deductions": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Step 4(b): deductions beyond the standard deduction."
+          },
+          "extra_withholding": {
+            "type": "number",
+            "minimum": 0,
+            "description": "Step 4(c): extra tax withheld each pay period."
+          },
+          "exempt": {
+            "type": "boolean",
+            "description": "Claims exemption from withholding."
+          },
+          "effective_date": {
+            "type": "string",
+            "format": "date",
+            "description": "First payroll the elections apply to."
+          }
+        },
+        "required": [
+          "filing_status"
+        ]
+      },
+      "employer": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "address": {
+            "$ref": "#/$defs/address"
+          },
+          "ein": {
+            "type": "string",
+            "pattern": "^\\d{2}-\\d{7}$",
+            "description": "Formatted NN-NNNNNNN."
+          }
+        }
+      },
+      "hire_date": {
+        "type": "string",
+        "format": "date"
+      },
+      "signed_on": {
+        "type": "string",
+        "format": "date"
+      }
+    },
+    "required": [
+      "employee",
+      "withholding"
+    ],
+    "$defs": {
+      "address": {
+        "type": "object",
+        "properties": {
+          "street": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "description": "Two-letter state code."
+          },
+          "postal_code": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "form": {
+    "fingerprint": "1b987ea4624da817",
+    "page_count": 5,
+    "page_sizes": [
+      [
+        611.9760131835938,
+        791.968017578125
+      ],
+      [
+        611.9760131835938,
+        791.968017578125
+      ],
+      [
+        611.9760131835938,
+        791.968017578125
+      ],
+      [
+        611.9760131835938,
+        791.968017578125
+      ],
+      [
+        611.9760131835938,
+        791.968017578125
+      ]
+    ],
+    "kinds": [
+      "fillable",
+      "digital",
+      "fillable",
+      "fillable",
+      "digital"
+    ]
+  },
+  "fields": [
+    {
+      "id": "w0_0",
+      "type": "text",
+      "label": "(a) First name and middle initial",
+      "page": 0,
+      "rect": [
+        94.5999984741211,
+        93.9990234375,
+        272.8500061035156,
+        108.0
+      ],
+      "source": {
+        "paths": [
+          "employee.first_name",
+          "employee.middle_name"
+        ],
+        "transforms": [],
+        "join": " ",
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].Step1a[0].f1_01[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_1",
+      "type": "text",
+      "label": "Last name",
+      "page": 0,
+      "rect": [
+        274.6000061035156,
+        93.9990234375,
+        474.45001220703125,
+        108.0
+      ],
+      "source": {
+        "paths": [
+          "employee.last_name"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].Step1a[0].f1_02[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_4",
+      "type": "text",
+      "label": "(b) Social security number",
+      "page": 0,
+      "rect": [
+        476.20001220703125,
+        93.9990234375,
+        576.0,
+        108.0
+      ],
+      "source": {
+        "paths": [
+          "employee.ssn"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].f1_05[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_2",
+      "type": "text",
+      "label": "Address",
+      "page": 0,
+      "rect": [
+        94.5999984741211,
+        118.0,
+        474.45001220703125,
+        132.00103759765625
+      ],
+      "source": {
+        "paths": [
+          "employee.address.street"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].Step1a[0].f1_03[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_3",
+      "type": "text",
+      "label": "City or town, state, and ZIP code",
+      "page": 0,
+      "rect": [
+        94.5999984741211,
+        142.00103759765625,
+        474.45001220703125,
+        156.00201416015625
+      ],
+      "source": {
+        "paths": [
+          "employee.address.city",
+          "employee.address.state",
+          "employee.address.postal_code"
+        ],
+        "transforms": [],
+        "join": ", ",
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].Step1a[0].f1_04[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_5",
+      "type": "checkbox",
+      "label": "(c) Single or married filing separately",
+      "page": 0,
+      "rect": [
+        115.19999694824219,
+        157.998046875,
+        123.19999694824219,
+        165.998046875
+      ],
+      "source": {
+        "paths": [
+          "withholding.filing_status"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": {
+          "op": "equals",
+          "args": {
+            "value": "single_or_married_separately"
+          }
+        }
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].c1_1[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_6",
+      "type": "checkbox",
+      "label": "Married filing jointly or qualifying surviving spouse",
+      "page": 0,
+      "rect": [
+        115.19999694824219,
+        170.0,
+        123.19999694824219,
+        178.0
+      ],
+      "source": {
+        "paths": [
+          "withholding.filing_status"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": {
+          "op": "equals",
+          "args": {
+            "value": "married_jointly_or_surviving_spouse"
+          }
+        }
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].c1_1[1]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_7",
+      "type": "checkbox",
+      "label": "Head of household",
+      "page": 0,
+      "rect": [
+        115.19999694824219,
+        181.7490234375,
+        123.19999694824219,
+        189.7490234375
+      ],
+      "source": {
+        "paths": [
+          "withholding.filing_status"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": {
+          "op": "equals",
+          "args": {
+            "value": "head_of_household"
+          }
+        }
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].c1_1[2]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_8",
+      "type": "checkbox",
+      "label": "Step 2(c) two jobs only",
+      "page": 0,
+      "rect": [
+        564.0,
+        404.0000305175781,
+        572.0,
+        412.0000305175781
+      ],
+      "source": {
+        "paths": [
+          "withholding.two_jobs_only"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": {
+          "op": "equals",
+          "args": {
+            "value": true
+          }
+        }
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].c1_2[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_9",
+      "type": "text",
+      "label": "3(a) $",
+      "page": 0,
+      "rect": [
+        417.6000061035156,
+        479.9990234375,
+        481.6499938964844,
+        491.9980163574219
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].Step3_ReadOrder[0].f1_06[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_10",
+      "type": "text",
+      "label": "3(b) $",
+      "page": 0,
+      "rect": [
+        417.6000061035156,
+        492.0010070800781,
+        481.6499938964844,
+        504.0000305175781
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].Step3_ReadOrder[0].f1_07[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_11",
+      "type": "text",
+      "label": "Step 3 total credits $",
+      "page": 0,
+      "rect": [
+        511.20001220703125,
+        515.9990234375,
+        576.0,
+        527.998046875
+      ],
+      "source": {
+        "paths": [
+          "withholding.dependent_credits"
+        ],
+        "transforms": [
+          {
+            "op": "number_format",
+            "args": {
+              "decimals": 0,
+              "thousands": "",
+              "prefix": ""
+            }
+          }
+        ],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].f1_08[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_12",
+      "type": "text",
+      "label": "4(a) other income $",
+      "page": 0,
+      "rect": [
+        511.20001220703125,
+        551.9990234375,
+        576.0,
+        563.998046875
+      ],
+      "source": {
+        "paths": [
+          "withholding.other_income"
+        ],
+        "transforms": [
+          {
+            "op": "number_format",
+            "args": {
+              "decimals": 0,
+              "thousands": "",
+              "prefix": ""
+            }
+          }
+        ],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].f1_09[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_13",
+      "type": "text",
+      "label": "4(b) deductions $",
+      "page": 0,
+      "rect": [
+        511.20001220703125,
+        587.9990234375,
+        576.0,
+        599.998046875
+      ],
+      "source": {
+        "paths": [
+          "withholding.deductions"
+        ],
+        "transforms": [
+          {
+            "op": "number_format",
+            "args": {
+              "decimals": 0,
+              "thousands": "",
+              "prefix": ""
+            }
+          }
+        ],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].f1_10[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_14",
+      "type": "text",
+      "label": "4(c) extra withholding $",
+      "page": 0,
+      "rect": [
+        511.20001220703125,
+        605.9990234375,
+        576.0,
+        617.998046875
+      ],
+      "source": {
+        "paths": [
+          "withholding.extra_withholding"
+        ],
+        "transforms": [
+          {
+            "op": "number_format",
+            "args": {
+              "decimals": 0,
+              "thousands": "",
+              "prefix": ""
+            }
+          }
+        ],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].f1_11[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_15",
+      "type": "checkbox",
+      "label": "Exempt from withholding",
+      "page": 0,
+      "rect": [
+        564.0,
+        654.5,
+        572.0,
+        662.5
+      ],
+      "source": {
+        "paths": [
+          "withholding.exempt"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": {
+          "op": "equals",
+          "args": {
+            "value": true
+          }
+        }
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].c1_3[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_16",
+      "type": "text",
+      "label": "Employer name and address",
+      "page": 0,
+      "rect": [
+        94.5999984741211,
+        725.9990234375,
+        388.04998779296875,
+        756.0
+      ],
+      "source": {
+        "paths": [
+          "employer.name",
+          "employer.address.street",
+          "employer.address.city",
+          "employer.address.state",
+          "employer.address.postal_code"
+        ],
+        "transforms": [],
+        "join": ", ",
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": true
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].f1_12[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_17",
+      "type": "text",
+      "label": "First date of employment (hire date)",
+      "page": 0,
+      "rect": [
+        389.79998779296875,
+        743.9990234375,
+        467.25,
+        756.0
+      ],
+      "source": {
+        "paths": [
+          "hire_date"
+        ],
+        "transforms": [
+          {
+            "op": "date_format",
+            "args": {
+              "format": "%m/%d/%Y"
+            }
+          }
+        ],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].f1_13[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_18",
+      "type": "text",
+      "label": "Employer identification number (EIN)",
+      "page": 0,
+      "rect": [
+        469.0,
+        743.9990234375,
+        576.0,
+        756.0
+      ],
+      "source": {
+        "paths": [
+          "employer.ein"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].f1_14[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w2_0",
+      "type": "text",
+      "label": "",
+      "page": 2,
+      "rect": [
+        511.20001220703125,
+        191.9990234375,
+        576.0,
+        203.998046875
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page3[0].f3_01[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w2_1",
+      "type": "text",
+      "label": "",
+      "page": 2,
+      "rect": [
+        511.20001220703125,
+        281.9990234375,
+        576.0,
+        293.9980163574219
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page3[0].f3_02[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w2_2",
+      "type": "text",
+      "label": "",
+      "page": 2,
+      "rect": [
+        511.20001220703125,
+        342.0000305175781,
+        576.0,
+        353.9990234375
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page3[0].f3_03[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w2_3",
+      "type": "text",
+      "label": "",
+      "page": 2,
+      "rect": [
+        511.20001220703125,
+        366.0010070800781,
+        576.0,
+        378.0000305175781
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page3[0].f3_04[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w2_4",
+      "type": "text",
+      "label": "",
+      "page": 2,
+      "rect": [
+        504.0,
+        402.0010070800781,
+        576.0,
+        414.0000305175781
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page3[0].f3_05[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w2_5",
+      "type": "text",
+      "label": "",
+      "page": 2,
+      "rect": [
+        511.20001220703125,
+        450.0000305175781,
+        576.0,
+        461.9990234375
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page3[0].f3_06[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w3_0",
+      "type": "text",
+      "label": "",
+      "page": 3,
+      "rect": [
+        511.20001220703125,
+        119.9990234375,
+        576.0,
+        131.998046875
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page4[0].f4_01[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w3_1",
+      "type": "text",
+      "label": "",
+      "page": 3,
+      "rect": [
+        511.20001220703125,
+        155.9990234375,
+        576.0,
+        167.998046875
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page4[0].f4_02[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w3_2",
+      "type": "text",
+      "label": "",
+      "page": 3,
+      "rect": [
+        511.20001220703125,
+        180.0,
+        576.0,
+        191.9990234375
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page4[0].f4_03[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w3_3",
+      "type": "text",
+      "label": "",
+      "page": 3,
+      "rect": [
+        511.20001220703125,
+        191.9990234375,
+        576.0,
+        203.998046875
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page4[0].f4_04[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w3_4",
+      "type": "text",
+      "label": "",
+      "page": 3,
+      "rect": [
+        511.20001220703125,
+        216.0,
+        576.0,
+        227.9990234375
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page4[0].f4_05[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w3_5",
+      "type": "text",
+      "label": "",
+      "page": 3,
+      "rect": [
+        511.20001220703125,
+        240.00103759765625,
+        576.0,
+        252.0
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page4[0].f4_06[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w3_6",
+      "type": "text",
+      "label": "",
+      "page": 3,
+      "rect": [
+        511.20001220703125,
+        252.0,
+        576.0,
+        263.9990234375
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page4[0].f4_07[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w3_7",
+      "type": "text",
+      "label": "",
+      "page": 3,
+      "rect": [
+        511.20001220703125,
+        288.0000305175781,
+        576.0,
+        299.9990234375
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page4[0].f4_08[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w3_8",
+      "type": "text",
+      "label": "",
+      "page": 3,
+      "rect": [
+        511.20001220703125,
+        324.0000305175781,
+        576.0,
+        335.9990234375
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page4[0].f4_09[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w3_9",
+      "type": "text",
+      "label": "",
+      "page": 3,
+      "rect": [
+        511.20001220703125,
+        348.0010070800781,
+        576.0,
+        360.0000305175781
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page4[0].f4_10[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w3_10",
+      "type": "text",
+      "label": "",
+      "page": 3,
+      "rect": [
+        511.20001220703125,
+        384.0010070800781,
+        576.0,
+        396.0000305175781
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page4[0].f4_11[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w3_11",
+      "type": "text",
+      "label": "",
+      "page": 3,
+      "rect": [
+        511.20001220703125,
+        396.0000305175781,
+        576.0,
+        407.9990234375
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page4[0].f4_12[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w3_12",
+      "type": "text",
+      "label": "",
+      "page": 3,
+      "rect": [
+        511.20001220703125,
+        407.9990234375,
+        576.0,
+        419.9980163574219
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page4[0].f4_13[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w3_13",
+      "type": "text",
+      "label": "",
+      "page": 3,
+      "rect": [
+        511.20001220703125,
+        420.0010070800781,
+        576.0,
+        432.0000305175781
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page4[0].f4_14[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w3_14",
+      "type": "text",
+      "label": "",
+      "page": 3,
+      "rect": [
+        511.20001220703125,
+        443.9990234375,
+        576.0,
+        455.9980163574219
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page4[0].f4_15[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w3_15",
+      "type": "text",
+      "label": "",
+      "page": 3,
+      "rect": [
+        511.20001220703125,
+        456.0010070800781,
+        576.0,
+        468.0000305175781
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page4[0].f4_16[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w3_16",
+      "type": "text",
+      "label": "",
+      "page": 3,
+      "rect": [
+        511.20001220703125,
+        479.9990234375,
+        576.0,
+        491.9980163574219
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page4[0].f4_17[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w3_17",
+      "type": "text",
+      "label": "",
+      "page": 3,
+      "rect": [
+        511.20001220703125,
+        515.9990234375,
+        576.0,
+        527.998046875
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page4[0].f4_18[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w3_18",
+      "type": "text",
+      "label": "",
+      "page": 3,
+      "rect": [
+        511.20001220703125,
+        551.9990234375,
+        576.0,
+        563.998046875
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page4[0].f4_19[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w3_19",
+      "type": "text",
+      "label": "",
+      "page": 3,
+      "rect": [
+        511.20001220703125,
+        587.9990234375,
+        576.0,
+        599.998046875
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page4[0].f4_20[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w3_20",
+      "type": "text",
+      "label": "",
+      "page": 3,
+      "rect": [
+        511.20001220703125,
+        600.0010375976562,
+        576.0,
+        612.0
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page4[0].f4_21[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w3_21",
+      "type": "text",
+      "label": "",
+      "page": 3,
+      "rect": [
+        511.20001220703125,
+        623.9990234375,
+        576.0,
+        635.998046875
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page4[0].f4_22[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w3_22",
+      "type": "text",
+      "label": "",
+      "page": 3,
+      "rect": [
+        511.20001220703125,
+        636.0010375976562,
+        576.0,
+        648.0
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page4[0].f4_23[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "f1",
+      "type": "text",
+      "label": "Date signed",
+      "page": 0,
+      "rect": [
+        462.0,
+        688.0,
+        574.0,
+        700.0
+      ],
+      "source": {
+        "paths": [
+          "signed_on"
+        ],
+        "transforms": [
+          {
+            "op": "date_format",
+            "args": {
+              "format": "%m/%d/%Y"
+            }
+          }
+        ],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "agent"
+    }
+  ],
+  "history": [
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_0",
+        "label": "(a) First name and middle initial"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.890242+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_0",
+        "source": {
+          "paths": [
+            "employee.first_name",
+            "employee.middle_name"
+          ],
+          "join": " "
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.890838+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_1",
+        "label": "Last name"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.891363+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_1",
+        "source": {
+          "paths": [
+            "employee.last_name"
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.891904+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_4",
+        "label": "(b) Social security number"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.892436+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_4",
+        "source": {
+          "paths": [
+            "employee.ssn"
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.892986+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_2",
+        "label": "Address"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.893538+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_2",
+        "source": {
+          "paths": [
+            "employee.address.street"
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.894102+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_3",
+        "label": "City or town, state, and ZIP code"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.894662+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_3",
+        "source": {
+          "paths": [
+            "employee.address.city",
+            "employee.address.state",
+            "employee.address.postal_code"
+          ],
+          "join": ", "
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.895238+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w0_5",
+        "type": "checkbox"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.896228+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_5",
+        "label": "(c) Single or married filing separately"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.896865+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_5",
+        "source": {
+          "paths": [
+            "withholding.filing_status"
+          ],
+          "when": {
+            "op": "equals",
+            "args": {
+              "value": "single_or_married_separately"
+            }
+          }
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.897649+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w0_6",
+        "type": "checkbox"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.898266+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_6",
+        "label": "Married filing jointly or qualifying surviving spouse"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.898872+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_6",
+        "source": {
+          "paths": [
+            "withholding.filing_status"
+          ],
+          "when": {
+            "op": "equals",
+            "args": {
+              "value": "married_jointly_or_surviving_spouse"
+            }
+          }
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.899512+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w0_7",
+        "type": "checkbox"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.900156+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_7",
+        "label": "Head of household"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.900780+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_7",
+        "source": {
+          "paths": [
+            "withholding.filing_status"
+          ],
+          "when": {
+            "op": "equals",
+            "args": {
+              "value": "head_of_household"
+            }
+          }
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.901439+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w0_8",
+        "type": "checkbox"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.902084+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_8",
+        "label": "Step 2(c) two jobs only"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.902733+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_8",
+        "source": {
+          "paths": [
+            "withholding.two_jobs_only"
+          ],
+          "when": {
+            "op": "equals",
+            "args": {
+              "value": true
+            }
+          }
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.903409+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_9",
+        "label": "3(a) $"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.904062+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_10",
+        "label": "3(b) $"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.904720+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_11",
+        "label": "Step 3 total credits $"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.905382+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_11",
+        "source": {
+          "paths": [
+            "withholding.dependent_credits"
+          ],
+          "transforms": [
+            {
+              "op": "number_format",
+              "args": {
+                "decimals": 0,
+                "thousands": "",
+                "prefix": ""
+              }
+            }
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.906101+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_12",
+        "label": "4(a) other income $"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.906798+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_12",
+        "source": {
+          "paths": [
+            "withholding.other_income"
+          ],
+          "transforms": [
+            {
+              "op": "number_format",
+              "args": {
+                "decimals": 0,
+                "thousands": "",
+                "prefix": ""
+              }
+            }
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.907525+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_13",
+        "label": "4(b) deductions $"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.908228+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_13",
+        "source": {
+          "paths": [
+            "withholding.deductions"
+          ],
+          "transforms": [
+            {
+              "op": "number_format",
+              "args": {
+                "decimals": 0,
+                "thousands": "",
+                "prefix": ""
+              }
+            }
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.908968+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_14",
+        "label": "4(c) extra withholding $"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.909693+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_14",
+        "source": {
+          "paths": [
+            "withholding.extra_withholding"
+          ],
+          "transforms": [
+            {
+              "op": "number_format",
+              "args": {
+                "decimals": 0,
+                "thousands": "",
+                "prefix": ""
+              }
+            }
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.910452+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w0_15",
+        "type": "checkbox"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.911200+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_15",
+        "label": "Exempt from withholding"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.911948+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_15",
+        "source": {
+          "paths": [
+            "withholding.exempt"
+          ],
+          "when": {
+            "op": "equals",
+            "args": {
+              "value": true
+            }
+          }
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.912780+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_16",
+        "label": "Employer name and address"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.913852+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_16",
+        "source": {
+          "paths": [
+            "employer.name",
+            "employer.address.street",
+            "employer.address.city",
+            "employer.address.state",
+            "employer.address.postal_code"
+          ],
+          "join": ", "
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.914698+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_style",
+        "id": "w0_16",
+        "style": {
+          "font_size": "auto",
+          "multiline": true
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.915560+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_17",
+        "label": "First date of employment (hire date)"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.916350+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_17",
+        "source": {
+          "paths": [
+            "hire_date"
+          ],
+          "transforms": [
+            {
+              "op": "date_format",
+              "args": {
+                "format": "%m/%d/%Y"
+              }
+            }
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.917197+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_18",
+        "label": "Employer identification number (EIN)"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.918005+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_18",
+        "source": {
+          "paths": [
+            "employer.ein"
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.918826+00:00",
+      "note": "step 5"
+    },
+    {
+      "op": {
+        "op": "add_field",
+        "id": "f1",
+        "type": "text",
+        "page": 0,
+        "rect": [
+          462.0,
+          688.0,
+          574.0,
+          700.0
+        ],
+        "label": "Date signed",
+        "source": {
+          "paths": [
+            "signed_on"
+          ],
+          "transforms": [
+            {
+              "op": "date_format",
+              "args": {
+                "format": "%m/%d/%Y"
+              }
+            }
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:32:52.919705+00:00",
+      "note": "step 5"
+    }
+  ]
+}
