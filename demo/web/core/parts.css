@@ -116,14 +116,18 @@
 .fc-box.fc-table { background: none; }
 .fc-box.fc-table.is-selected { background: var(--tint); }
 
+/* A box's tag is never wider than the box (cut with an ellipsis), so a dense row of small boxes
+   (checkboxes) keeps its tags apart. Hover, focus and selection show the whole tag, above its
+   neighbours. */
 .fc-tag {
   position: absolute;
   left: -1px;
   bottom: 100%;
-  max-width: 28ch;
+  box-sizing: border-box;
+  max-width: min(28ch, calc(100% + 2px));
   overflow: hidden;
   text-overflow: ellipsis;
-  padding: 0 4px;
+  padding: 0 3px;
   background: var(--ink);
   color: var(--paper);
   font-size: 10px;
@@ -131,10 +135,13 @@
   white-space: nowrap;
   pointer-events: none;
 }
+.fc-box:hover .fc-tag,
+.fc-box:focus .fc-tag,
+.fc-box.is-selected .fc-tag { max-width: none; z-index: 6; }
 .fc-box.is-unlinked .fc-tag { display: none; background: var(--paper); color: var(--graphite); outline: 1px dashed var(--graphite); }
 .fc-box.is-unlinked:hover .fc-tag,
 .fc-box.is-unlinked:focus .fc-tag,
-.fc-box.is-unlinked.is-selected .fc-tag { display: block; z-index: 4; }
+.fc-box.is-unlinked.is-selected .fc-tag { display: block; }
 
 .fc-marks {
   position: absolute;

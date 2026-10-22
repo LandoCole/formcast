@@ -16,6 +16,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 SEED = json.loads((ROOT / "tests" / "web" / "fixtures" / "fw9_seed.json").read_text(encoding="utf-8"))
+AGENT_FW9 = json.loads((ROOT / "demo" / "data" / "templates" / "fw9.json").read_text(encoding="utf-8"))  # the stored agent template
 SCALE = 2
 
 
@@ -554,6 +555,48 @@ def test_box_states_differ_by_line_style_only(pv):
     pv.box("w0_2").click()
     linked = pv.box("w0_0").evaluate("e => [getComputedStyle(e).outlineStyle, getComputedStyle(e).outlineWidth]")
     assert linked == ["solid", "1px"]
+
+
+# Tag boxes, with the tags made hit-testable so elementFromPoint can tell which one is painted on top.
+TAGS = """ids => {
+  document.head.insertAdjacentHTML("beforeend", "<style>.fc-tag { pointer-events: auto !important; }</style>");
+  return Object.fromEntries(ids.map((id) => {
+    const box = document.querySelector(`.fc-box[data-field-id="${id}"]`);
+    const tag = box.querySelector(".fc-tag");
+    const r = tag.getBoundingClientRect();
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+    return [id, {left: r.left, right: r.right, top: r.top, bottom: r.bottom, box: box.getBoundingClientRect().width,
+                 cut: tag.scrollWidth > tag.clientWidth, onTop: hit === tag, text: tag.textContent}];
+  }));
+}"""
+
+
+@pytest.mark.parametrize("scale", [1.25, 2])  # about the workbench's fit at 1440 px, and the harness default
+def test_tags_on_a_dense_checkbox_row_stay_apart_and_the_selected_one_shows_whole(pv, scale):
+    pv.setup(template=AGENT_FW9, scale=scale)
+    row = ["w0_2", "w0_3", "w0_4", "w0_5", "w0_6", "w0_7", "w0_9"]  # the W-9 tax classification checkboxes
+    tags = pv.page.evaluate(TAGS, row)
+    assert all(t["text"] == "tax_classification" for t in tags.values())
+    for i, a in enumerate(row):
+        assert tags[a]["right"] - tags[a]["left"] <= tags[a]["box"] + 2.5, a  # no wider than its box
+        for b in row[i + 1 :]:
+            p, q = tags[a], tags[b]
+            apart = p["right"] <= q["left"] or q["right"] <= p["left"] or p["bottom"] <= q["top"] or q["bottom"] <= p["top"]
+            assert apart, (a, b, p, q)
+
+    pv.box("w0_3").click()
+    tags = pv.page.evaluate(TAGS, row)
+    selected = tags["w0_3"]
+    assert not selected["cut"] and selected["onTop"]  # the whole tag, painted above its neighbours
+    if scale < 2:
+        assert selected["right"] > tags["w0_4"]["left"]  # it reaches over the next box's tag, and stays readable
+    pv.page.mouse.move(0, 0)
+    pv.box("w0_5").hover()
+    hovered = pv.page.evaluate(TAGS, ["w0_5"])["w0_5"]
+    assert not hovered["cut"] and hovered["onTop"]
+    # line styles still tell the states apart
+    styles = pv.page.evaluate("ids => ids.map((id) => getComputedStyle(document.querySelector(`.fc-box[data-field-id='${id}']`)).outlineStyle)", ["w0_3", "w0_4"])
+    assert styles == ["solid", "solid"]
 
 
 def test_set_template_keeps_focus_and_selection(pv):

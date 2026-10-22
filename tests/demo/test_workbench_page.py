@@ -760,6 +760,26 @@ def test_at_900_px_wide_the_columns_do_not_overlap(demo_server, bench, page):
     assert page.evaluate("document.documentElement.scrollWidth") <= 900
 
 
+def test_on_the_stored_w9_the_checkbox_tags_stay_apart_and_the_selected_one_shows_whole(demo_server, bench, page):
+    page.set_viewport_size({"width": 1440, "height": 900})
+    b = bench(demo_server)
+    b.open_form("fw9")
+    page.click("#reuse")
+    row = ["w0_2", "w0_3", "w0_4", "w0_5", "w0_6"]
+    expect(box(page, "w0_6")).to_be_visible()
+    rects = lambda: page.evaluate(  # noqa: E731
+        "ids => ids.map((id) => { const t = document.querySelector(`#pageview .fc-box[data-field-id='${id}'] .fc-tag`);"
+        " const r = t.getBoundingClientRect(); return [r.left, r.right, t.scrollWidth > t.clientWidth]; })",
+        row,
+    )
+    tags = rects()
+    for (_, right, _), (left, _, _) in zip(tags, tags[1:]):
+        assert right <= left, tags  # left to right along the row, no overlap
+    box(page, "w0_3").click()
+    left, right, cut = rects()[1]
+    assert not cut and right > tags[2][0]  # the selected tag is whole, reaching past where the next one starts
+
+
 def test_on_a_rotated_page_the_box_sits_over_the_painted_rect(demo_server, bench):
     """/Rotate 90: the server turns the image and geometry.js turns the box; both must land on the same spot."""
     red = (0.9, 0.1, 0.1)
