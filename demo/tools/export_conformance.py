@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import dataclasses
 import datetime
 import json
 import sys
@@ -36,6 +37,8 @@ from pydantic import BaseModel  # noqa: E402
 from formcast import schema as schema_mod  # noqa: E402
 from formcast import transforms as transforms_mod  # noqa: E402
 from formcast.errors import FormcastError, OpError  # noqa: E402
+from formcast.render import report as report_mod  # noqa: E402
+from formcast.render import values as values_mod  # noqa: E402
 from formcast.template import ops as ops_mod  # noqa: E402
 from formcast.template.model import Template  # noqa: E402
 
@@ -195,11 +198,42 @@ def export_ops() -> dict:
     return {"generated_by": GENERATED_BY, "at": OPS_CLOCK, "templates": _plain(stored), "cases": records}
 
 
+def export_values() -> dict:
+    """Fixture for ``values.js``: ``resolve`` on small templates and records.
+
+    The browser cannot validate a record, so every case must be schema-valid: the export fails if
+    Python reports a record-level ``invalid``. Warnings are sorted by ``(code, path, field)`` so the
+    comparison does not depend on how each side orders them.
+    """
+    _check_unique_ids(cases.VALUES_CASES)
+    templates = {name: Template.model_validate(raw) for name, raw in cases.VALUES_TEMPLATES.items()}
+    records = []
+    for case in cases.VALUES_CASES:
+        input_ = {"template": case["template"], "data": case["data"]}
+
+        def run(case=case) -> dict:
+            fields, tables, warnings = values_mod.resolve(templates[case["template"]], case["data"])
+            invalid = [w.message for w in warnings if w.code == "invalid"]
+            if invalid:
+                raise ValueError(f"{case['id']}: the record is not schema-valid: {invalid}")
+            return {
+                "fields": {k: dataclasses.asdict(v) for k, v in fields.items()},
+                "tables": {k: dataclasses.asdict(v) for k, v in tables.items()},
+                "warnings": sorted(warnings, key=lambda w: (w.code, w.path or "", w.field or "")),
+            }
+
+        records.append(_record(case, input_, run, ()))
+    stored = {name: t.model_dump(by_alias=True) for name, t in templates.items()}
+    return {"generated_by": GENERATED_BY, "severity": dict(report_mod.SEVERITY), "templates": _plain(stored),
+            "cases": records}
+
+
 #: fixture file name -> function that builds its document
 GROUPS: dict[str, Callable[[], dict]] = {
     "transforms.json": export_transforms,
     "schema.json": export_schema,
     "ops.json": export_ops,
+    "values.json": export_values,
 }
 
 

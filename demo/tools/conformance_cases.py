@@ -1205,3 +1205,220 @@ def _ops_cases() -> list[dict]:
 
 
 OPS_CASES: list[dict] = _ops_cases()
+
+
+# ---------------------------------------------------------------------- values
+# kind "resolve": ``resolve(template, data)`` from ``formcast.render.values``. A case names a template
+# and gives a record; the record is schema-valid (the browser has no validator, so Python must not
+# report a record-level ``invalid``; the exporter checks). Table rows that cannot supply cells are
+# still ``invalid`` warnings of the table, and those are compared.
+
+VALUES_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "name": {"type": "string"},
+        "first": {"type": "string"},
+        "last": {"type": "string"},
+        "nick": {"type": "string"},
+        "code": {"type": "string"},
+        "note": {"type": "string"},
+        "consent": {"type": "string"},
+        "email": {"type": "string"},
+        "odd key": {"type": "string"},
+        "age": {"type": "integer"},
+        "smoker": {"type": "boolean"},
+        "sex": {"type": "string", "enum": ["F", "M", "X"]},
+        "dob": {"type": "string", "format": "date"},
+        "tags": {"type": "array", "items": {"type": "string"}},
+        "address": {
+            "type": "object",
+            "properties": {"street": {"type": "string"}, "city": {"type": "string"}, "zip": {"type": "string"}},
+        },
+        "meds": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "name": {"type": "string"},
+                    "dose": {"type": "number"},
+                    "sched": {"type": "object", "properties": {"time": {"type": "string"}}},
+                    "dose mg": {"type": "number"},
+                    "refills": {"type": "array", "items": {"type": "string"}},
+                    "pharmacy": {"type": "string"},
+                },
+            },
+        },
+        "grid": {"type": "array", "items": {"type": "array", "items": {"type": "string"}}},
+        "nums": {"type": "array", "items": {"type": "integer"}},
+        "loose": {"type": "array"},
+    },
+}
+
+
+def _vf(id: str, type: str, paths: list[str] | None = None, **src: Any) -> dict:
+    """A box on page 0 with an optional source; ``src`` holds transforms/join/when."""
+    box = {"id": id, "type": type, "page": 0, "rect": [72, 100, 300, 120], "origin": "human"}
+    if paths is not None:
+        box["source"] = {"paths": paths, **src}
+    return box
+
+
+def _vcol(key: str, x0: float, x1: float, transforms: list | None = None, fields: list | None = None) -> dict:
+    return {"key": key, "x": [x0, x1], "transforms": transforms or [], "fields": fields or []}
+
+
+def _vtable(id: str, path: str, segments: list[dict]) -> dict:
+    return {"id": id, "type": "table", "origin": "human", "source": {"paths": [path]}, "segments": segments}
+
+
+def _vseg(page: int, row_top: float, max_rows: int, columns: list[dict]) -> dict:
+    return {"page": page, "rect": [30, row_top - 10, 560, row_top + 20 * max_rows + 10], "row_top": row_top,
+            "row_height": 20, "max_rows": max_rows, "columns": columns}
+
+
+def _values_templates() -> dict[str, dict]:
+    form = {"fingerprint": None, "page_count": 2, "page_sizes": [[612, 792], [612, 792]], "kinds": ["digital", "digital"]}
+    eq = lambda v: {"op": "equals", "args": {"value": v}}  # noqa: E731
+    fields = [
+        # ---- text: sources, joins, every transform family
+        _vf("t_name", "text", ["name"]),
+        _vf("t_full", "text", ["first", "last"], transforms=[T("join", sep=" ")]),
+        _vf("t_implicit", "text", ["first", "last"]),
+        _vf("t_partial", "text", ["first", "nick", "ghost"], transforms=[T("join", sep="-")]),
+        _vf("t_tags_join", "text", ["tags"], join="; "),
+        _vf("t_tags_join_empty", "text", ["tags"], join=""),
+        _vf("t_tags", "text", ["tags"]),
+        _vf("t_upper", "text", ["name"], transforms=[T("upper")]),
+        _vf("t_split_title", "text", ["name"], transforms=[T("split", sep=" ", index=-1), T("lower"), T("title")]),
+        _vf("t_date", "text", ["dob"], transforms=[T("date_format", format="%m/%d/%Y")]),
+        _vf("t_date_part", "text", ["dob"], transforms=[T("date_part", part="year2")]),
+        _vf("t_money", "text", ["age"], transforms=[T("number_format", decimals=2, thousands=",", prefix="$")]),
+        _vf("t_slice", "text", ["last"], transforms=[T("slice", start=0, end=2), T("upper")]),
+        _vf("t_char", "text", ["first"], transforms=[T("char_at", index=0)]),
+        _vf("t_default", "text", ["note"], transforms=[T("default", value="N/A")]),
+        _vf("t_frame", "text", ["note"], transforms=[T("strip"), T("prefix", value="Note: "), T("suffix", value=".")]),
+        _vf("t_equals", "text", ["sex"], transforms=[eq("F")]),
+        _vf("t_age", "text", ["age"]),
+        _vf("t_smoker", "text", ["smoker"]),
+        _vf("t_odd", "text", ['["odd key"]']),
+        _vf("t_city", "text", ["address.city"]),
+        _vf("t_sig", "signature", ["name"]),
+        # ---- text problems
+        _vf("t_missing", "text", ["address.street"]),
+        _vf("t_array_path", "text", ["meds[].name"]),
+        _vf("t_bad_path", "text", ["a..b"]),
+        _vf("t_transform_error", "text", ["code"], transforms=[T("date_format", format="%Y")]),
+        _vf("t_object", "text", ["address"]),
+        _vf("t_nested_list", "text", ["grid"]),
+        _vf("t_bad_chain", "text", ["name"], transforms=[T("shout")]),
+        _vf("t_default_then_upper", "text", ["nick"], transforms=[T("default", value="none"), T("upper")]),
+        # ---- skipped: no source / no paths
+        _vf("t_no_source", "text"),
+        _vf("t_no_paths", "text", []),
+        # ---- choice boxes
+        _vf("c_smoker", "checkbox", ["smoker"]),
+        _vf("c_consent", "checkbox", ["consent"]),
+        _vf("c_sex_f", "radio_option", ["sex"], when=eq("F")),
+        _vf("c_sex_m", "radio_option", ["sex"], when=eq("M")),
+        _vf("c_tags_b", "checkbox", ["tags"], when={"op": "contains", "args": {"value": "b"}}),
+        _vf("c_note_x", "choice_mark", ["note"], when={"op": "contains", "args": {"value": "x"}}),
+        _vf("c_age_42", "checkbox", ["age"], when=eq(42)),
+        _vf("c_age", "checkbox", ["age"]),
+        _vf("c_age_chain", "radio_option", ["age"], transforms=[T("number_format", decimals=0)], when=eq("42")),
+        _vf("c_missing", "checkbox", ["address.city"]),
+        _vf("c_error", "checkbox", ["code"], transforms=[T("date_part", part="year")]),
+        _vf("c_bad_when", "checkbox", ["sex"], when={"op": "shout", "args": {}}),
+        _vf("c_two_paths", "checkbox", ["smoker", "consent"], when={"op": "contains", "args": {"value": "true"}}),
+        # ---- linked cells (plain boxes the table's columns point at; no source of their own)
+        {"id": "m1", "type": "text", "page": 0, "rect": [60, 310, 200, 330], "origin": "human"},
+        {"id": "m2", "type": "text", "page": 0, "rect": [60, 330, 200, 350], "origin": "human"},
+        {"id": "m3", "type": "text", "page": 0, "rect": [210, 330, 300, 350], "origin": "human"},
+        # ---- tables
+        _vtable("tbl_meds", "meds", [
+            _vseg(0, 310, 2, [
+                _vcol("name", 60, 200, fields=["m1", "m2"]),
+                _vcol("dose", 210, 300, transforms=[T("number_format", decimals=1)], fields=[None, "m3"]),
+                _vcol("sched.time", 310, 360),
+                _vcol('["dose mg"]', 370, 420),
+                _vcol("refills", 430, 500),
+            ]),
+            _vseg(1, 210, 2, [_vcol("name", 40, 180), _vcol("dose", 190, 280, transforms=[T("number_format", decimals=1)])]),
+        ]),
+        _vtable("tbl_meds_err", "meds", [
+            _vseg(0, 500, 3, [
+                _vcol("name", 60, 200, transforms=[T("date_part", part="year")]),
+                _vcol("dose", 210, 300, transforms=[T("default", value="-")]),
+                _vcol("bogus", 310, 360),
+            ]),
+        ]),
+        _vtable("tbl_grid", "grid", [
+            _vseg(0, 600, 2, [_vcol(k, 60 + 40 * i, 90 + 40 * i) for i, k in enumerate(["0", "1", "-1", "5", "x", " 1 "])]),
+            _vseg(1, 600, 2, [_vcol("0", 60, 100)]),
+        ]),
+        _vtable("tbl_nums", "nums", [_vseg(0, 700, 2, [_vcol("0", 60, 100)])]),
+        # table sources that are not lists of rows
+        _vtable("tbl_object", "address", [_vseg(1, 100, 1, [_vcol("city", 60, 100)])]),
+        _vtable("tbl_text", "name", [_vseg(1, 130, 1, [_vcol("0", 60, 100)])]),
+        _vtable("tbl_tags", "tags", [_vseg(1, 160, 3, [_vcol("0", 60, 100)])]),
+        _vtable("tbl_loose", "loose", [_vseg(1, 400, 5, [_vcol("a", 60, 100), _vcol("0", 110, 150)])]),
+    ]
+    bare = [  # paths the schema doesn't have, so every record value is unmapped
+        _vf("b_nothing", "text", ["ghost"]),
+        _vf("b_choice", "checkbox", ["ghost.deeper"]),
+        _vtable("b_tbl", "ghost", [_vseg(0, 100, 2, [_vcol("a", 60, 100)])]),
+    ]
+    return {
+        "main": {"template_id": "main", "schema": VALUES_SCHEMA, "form": form, "fields": fields},
+        "bare": {"template_id": "bare", "schema": VALUES_SCHEMA, "form": form, "fields": bare},
+    }
+
+
+VALUES_TEMPLATES: dict[str, dict] = _values_templates()
+
+
+def _values_cases() -> list[dict]:
+    meds_full = [
+        {"name": "Aspirin", "dose": 81.5, "sched": {"time": "am"}, "dose mg": 5, "refills": ["x", "y"]},
+        {"name": "Statin", "dose": 20.25, "sched": {"time": "pm"}, "dose mg": 10, "refills": []},
+        {"name": "Zinc", "dose": 1500, "sched": {}, "refills": ["z"]},
+    ]
+    full = {
+        "name": "Ann Lee", "first": "Ann", "last": "Lee", "nick": "Annie", "code": "abc", "note": "  see x notes ",
+        "consent": "yes", "age": 42, "smoker": True, "sex": "F", "dob": "1990-03-07", "tags": ["a", "b"],
+        "odd key": "odd", "address": {"street": "1 Main St", "city": "Zürich", "zip": "8001"},
+        "meds": meds_full, "grid": [["a", "b", "c"], ["d", "e"]], "nums": [1, 2], "loose": [{"a": "p"}, ["q"]],
+    }
+    records = {
+        "full": full,
+        "empty": {},
+        "blanks": {"name": "   ", "first": "", "last": " ", "note": "", "tags": [], "meds": [], "grid": [],
+                   "nums": [], "loose": [], "address": {"city": ""}},
+        "falsy": {"age": 0, "smoker": False, "consent": "no", "sex": "X", "note": "0", "tags": [""], "nick": "  ",
+                  "first": "Bo", "last": "Li"},
+        "off-word": {"consent": " Off ", "smoker": True, "sex": "M", "tags": ["b"], "note": "x marks", "age": 41,
+                     "name": "José Núñez", "first": "José", "last": "Núñez", "dob": "2001-12-31"},
+        "non-latin": {"name": "北京 Sí", "first": "北京", "last": "Sí", "note": "line\nbreak", "address": {"city": "Zürich"}},
+        "overflow": {
+            "meds": [{"name": f"Drug {i}", "dose": d} for i, d in enumerate([1.5, 3, 4.5, 6, 7.5], 1)] + [{"name": "Last", "dose": 3.25}],
+            "grid": [["r0c0", "r0c1"], ["r1c0"], [], ["r3c0", "r3c1", "r3c2"], ["r4"]],
+            "nums": [1, 2, 3, 4],
+            "loose": [{"a": "p"}, ["q"], None, "s", 7],
+        },
+        "partial-rows": {
+            "meds": [{"name": "Only name"}, {"dose": 2.5}, {"name": "Aspirin", "dose": 0, "refills": ["a", "b", "c"]}],
+        },
+        "unmapped": {
+            "email": "a@b.c", "name": "Ann", "mystery": 1, "address": {"city": "X", "country": "CH"},
+            "meds": [{"name": "A", "pharmacy": "Corner", "bogus": True}, {"name": "B", "pharmacy": ""}],
+            "extra": {"nested": [1, 2]},
+        },
+    }
+    cases: list[dict] = []
+    for name, record in records.items():
+        cases.append({"id": f"main/{name}", "kind": "resolve", "template": "main", "data": record})
+    for name in ("full", "empty", "unmapped"):
+        cases.append({"id": f"bare/{name}", "kind": "resolve", "template": "bare", "data": records[name]})
+    return cases
+
+
+VALUES_CASES: list[dict] = _values_cases()
