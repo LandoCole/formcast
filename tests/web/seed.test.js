@@ -117,9 +117,38 @@ test("nearestLabel limits: 200 pt to the left, 30 pt above, 80 characters", () =
   assert.equal(nearestLabel(box, []), "");
   // the row wins over a closer line above
   assert.equal(
-    nearestLabel(box, [{ text: "above", rect: [300, 95, 380, 99] }, { text: "left", rect: [150, 101, 250, 113] }]),
-    "left",
+    nearestLabel(box, [{ text: "Above", rect: [300, 95, 380, 99] }, { text: "Left", rect: [150, 101, 250, 113] }]),
+    "Left",
   );
+});
+
+test("nearestLabel skips lines with no letter or digit", () => {
+  const box = [300, 100, 400, 114];
+  for (const text of [".", "–", ". .", "$ –"]) {
+    assert.equal(nearestLabel(box, [{ text, rect: [280, 101, 295, 113] }]), "", text);
+    assert.equal(nearestLabel(box, [{ text, rect: [280, 101, 295, 113] }, { text: "Name", rect: [200, 101, 240, 113] }]), "Name", text);
+  }
+});
+
+test("nearestLabel: a weak line on the left gives way to the line above", () => {
+  const box = [300, 100, 400, 114];
+  const above = { text: "Social security number", rect: [300, 85, 400, 95] };
+  const left = (text, x1 = 295) => ({ text, rect: [x1 - 60, 101, x1, 113] });
+  // short: fewer than 3 letters and digits
+  assert.equal(nearestLabel(box, [left("(c)"), above]), "Social security number");
+  assert.equal(nearestLabel(box, [left("2a $"), above]), "Social security number");
+  assert.equal(nearestLabel(box, [left("ZIP"), above]), "ZIP"); // 3 is enough
+  // far: ending more than 72 pt from the box
+  assert.equal(nearestLabel(box, [left("Document title", 227), above]), "Social security number"); // 73 pt
+  assert.equal(nearestLabel(box, [left("Document title", 228), above]), "Document title"); // 72 pt
+  // the tail of a sentence: starts with a lower-case letter
+  assert.equal(nearestLabel(box, [left("on page 3."), above]), "Social security number");
+  assert.equal(nearestLabel(box, [left("On page 3."), above]), "On page 3.");
+  // a weak left line stays when there is no line above, or the line above is short too
+  assert.equal(nearestLabel(box, [left("on page 3.")]), "on page 3.");
+  assert.equal(nearestLabel(box, [left("(c)"), { text: "2c $", rect: [300, 85, 400, 95] }]), "(c)");
+  // a punctuation-only line above is skipped, not taken as the label
+  assert.equal(nearestLabel(box, [left("(c)"), { text: ". . .", rect: [300, 85, 400, 95] }]), "(c)");
 });
 
 test("readingOrder buckets rows by 1% of the page height, then sorts each row left to right", () => {

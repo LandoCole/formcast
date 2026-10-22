@@ -95,40 +95,57 @@ export function readingOrder(cands, pageHeight) {
     .map(({ c }) => c);
 }
 
+/** A left-of-box line ending farther than this (points) from the box is a weak label. */
+export const LABEL_LEFT_NEAR = 72;
+/** A line with fewer letters and digits than this is a weak label ("3", "(c)", "1 $"). */
+export const LABEL_MIN_CHARS = 3;
+
+/** How many letters and digits `text` has. */
+function wordChars(text) {
+  return (text.match(/[\p{L}\p{N}]/gu) ?? []).length;
+}
+
 /**
- * The seed label for a box: the closest text line ending within 200 pt to its left on the same row
- * (vertical overlap of at least half the shorter height), else the closest line ending within 30 pt
- * above it that overlaps it horizontally, else "". Whitespace collapsed, at most 80 characters.
- * A simple heuristic; it does not try to match the library's page map.
+ * The seed label for a box, from the page's text lines. Lines with no letter or digit (".", "–",
+ * ". .") are never labels. The candidates are the closest line ending within 200 pt to the box's
+ * left on the same row (vertical overlap of at least half the shorter height) and the closest line
+ * ending within 30 pt above it that overlaps it horizontally. The line on the left wins unless it
+ * is weak: fewer than 3 letters and digits, ending more than 72 pt from the box, or starting with a
+ * lower-case letter (the tail of a sentence, such as "on page 3."). A weak left line gives way to
+ * the line above when that one is not short. No line gives "". Whitespace collapsed, at most 80
+ * characters. A simple heuristic; it does not try to match the library's page map.
  * @param {Rect} rect
  * @param {TextLine[]} lines
  * @returns {string}
  */
 export function nearestLabel(rect, lines) {
   const [x0, y0, x1, y1] = rect;
-  let best = null;
-  let bestGap = Infinity;
+  let left = null;
+  let leftGap = Infinity;
+  let above = null;
+  let aboveGap = Infinity;
   for (const line of lines) {
+    if (wordChars(line.text) === 0) continue;
     const [lx0, ly0, lx1, ly1] = line.rect;
     const overlap = Math.min(y1, ly1) - Math.max(y0, ly0);
-    if (overlap < 0.5 * Math.min(y1 - y0, ly1 - ly0) || lx1 > x0 + TOUCH) continue;
-    const gap = x0 - lx1;
-    if (gap <= LABEL_LEFT_REACH && gap < bestGap) {
-      best = line;
-      bestGap = gap;
+    if (overlap >= 0.5 * Math.min(y1 - y0, ly1 - ly0) && lx1 <= x0 + TOUCH) {
+      const gap = x0 - lx1;
+      if (gap <= LABEL_LEFT_REACH && gap < leftGap) {
+        left = line;
+        leftGap = gap;
+      }
     }
-  }
-  if (best === null) {
-    for (const line of lines) {
-      const [lx0, ly0, lx1, ly1] = line.rect;
-      if (ly1 > y0 + TOUCH || ly0 >= y0 || lx1 <= x0 || lx0 >= x1) continue;
+    if (ly1 <= y0 + TOUCH && ly0 < y0 && lx1 > x0 && lx0 < x1) {
       const gap = y0 - ly1;
-      if (gap <= LABEL_ABOVE_REACH && gap < bestGap) {
-        best = line;
-        bestGap = gap;
+      if (gap <= LABEL_ABOVE_REACH && gap < aboveGap) {
+        above = line;
+        aboveGap = gap;
       }
     }
   }
+  const short = (line) => wordChars(line.text) < LABEL_MIN_CHARS;
+  const weakLeft = left !== null && (short(left) || leftGap > LABEL_LEFT_NEAR || /^\p{Ll}/u.test(left.text.trim()));
+  const best = left === null || (weakLeft && above !== null && !short(above)) ? above : left;
   return best === null ? "" : squeeze(best.text, MAX_SEED_LABEL);
 }
 

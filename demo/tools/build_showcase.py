@@ -400,7 +400,9 @@ NOTES = {
         "Dev forms only. The page runs the published ONNX exports of FFDNet-S and FFDNet-L in one pass; "
         "the library runs FFDNet-L in PyTorch with test-time augmentation."
     ),
-}  # fmt: skip# main spec 14.3, "Read this first": 1 of 9 Haiku sessions finished; stated, not recomputed, because
+}  # fmt: skip
+
+# main spec 14.3, "Read this first": 1 of 9 Haiku sessions finished; stated, not recomputed, because
 # the held-out agent results are not read for anything but this status.
 HELDOUT_STATUS = {
     "source": "docs/superpowers/specs/2026-10-20-form-projection-design.md, section 14.3",
