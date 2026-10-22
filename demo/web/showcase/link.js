@@ -8,7 +8,7 @@ import { SchemaList, placementStatus } from "../core/schemalist.js";
 
 /** @param {object} app see showcase.js */
 export function mountLink(app) {
-  const { $, bus, state, say } = app;
+  const { $, bus, session, state, say } = app;
   const schemaList = new SchemaList($("schemalist"), { bus, draggable: !app.touch });
   const inspector = new Inspector($("inspector"), { bus });
   const history = new HistoryPanel($("history"), { bus });
@@ -19,11 +19,11 @@ export function mountLink(app) {
     : "Drag a field onto a box, or select a box and pick its data field below.";
 
   /** Swap the template's schema (undoable). Boxes keep their links, flagged when a path is gone. */
-  function useSchema(schema, record) {
+  async function useSchema(schema, record) {
     const t = app.template;
     if (t === null) return;
-    app.commit({ ...structuredClone(t), schema: structuredClone(schema) });
-    app.setRecord(record);
+    const res = await session.replaceTemplate({ ...structuredClone(t), schema: structuredClone(schema) });
+    if (!res.stale) app.setRecord(record);
   }
 
   $("use-schema").addEventListener("click", () => {
@@ -84,7 +84,7 @@ export function mountLink(app) {
     $("schema-label").textContent = `Schema · ${title}${placed} of ${status.size} placed`;
     const field = t.fields.find((f) => f.id === state.selected) ?? null;
     schemaList.setPicked(field?.source?.paths?.[0] ?? null);
-    inspector.show(field, { schemaPaths: paths, warnings: field ? (state.warnings[field.id] ?? []) : [] });
-    history.set(t, { canUndo: state.undo.canUndo, canRedo: state.undo.canRedo });
+    inspector.show(field, { schemaPaths: paths, warnings: field ? (session.fieldWarnings[field.id] ?? []) : [] });
+    history.set(t, { canUndo: session.canUndo, canRedo: session.canRedo });
   });
 }

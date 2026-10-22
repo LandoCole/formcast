@@ -55,11 +55,27 @@ const COMMANDS = {
     let template = await engine.seed(doc, schema);
     const results = [];
     for (const op of ops) {
-      const res = await engine.apply(template, op, "human");
+      const res = await engine.apply(template, op, "human", { doc });
       results.push(res.error !== undefined ? { error: res.error } : { warnings: res.warnings });
       if (res.template) template = res.template;
     }
     return results;
+  },
+  // open `pdf` (document A) and `other` (document B, opened last), then apply the same ops once
+  // against each: widget kinds come from the document passed, not from the one opened last
+  async applyAcrossDocs({ pdf, other, schema, ops }) {
+    const a = await engine.open(await pdfBytes(pdf));
+    const b = await engine.open(await pdfBytes(other));
+    const template = await engine.seed(a, schema);
+    const run = async (doc) => {
+      const out = [];
+      for (const op of ops) {
+        const res = await engine.apply(template, op, "human", { doc });
+        out.push(res.error !== undefined ? { error: res.error } : { warnings: res.warnings });
+      }
+      return out;
+    };
+    return { a: await run(a), b: await run(b), none: await run(null) };
   },
   // open, then fill with a record: the report, or the error message
   async fill({ pdf, template, record }) {

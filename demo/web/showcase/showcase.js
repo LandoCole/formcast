@@ -1,6 +1,7 @@
 // The formcast showcase (layout C) on the browser engine. A thin wiring layer: it creates the
-// engine, mounts the page view, keeps the session (document, template and its undo stack) and hands
-// the three steps to their modules (detect.js, link.js, fill.js), which call back through `app`.
+// engine and the session (core/session.js: document, template, undo, the ordered edit queue),
+// mounts the page view, renders on the session's events and hands the three steps to their modules
+// (detect.js, link.js, fill.js), which call back through `app`.
 // The write-up's Results section renders from results.json (results.js).
 //
 // Test hooks: `?samples=<dir>/` (the folder holding index.json), `?worker=<url>` (a stand-in
@@ -11,8 +12,8 @@ import { createBus } from "../core/bus.js";
 import { makeView, viewSize } from "../core/geometry.js";
 import { PageView } from "../core/pageview.js";
 import { flattenSchema } from "../core/schema.js";
+import { createSession } from "../core/session.js";
 import { remember } from "../core/store.js";
-import { UndoStack } from "../core/undo.js";
 import { createBrowserEngine } from "../engines/browser/engine.js";
 import { mountDetect } from "./detect.js";
 import { mountFill } from "./fill.js";
@@ -57,21 +58,21 @@ const touch = detectTouch();
 const bus = createBus();
 const engine = createBrowserEngine({ workerUrl });
 const view = new PageView($("pageview"), { bus });
+const session = createSession({ engine, bus });
 
-/** Session state. Every template lives in the undo stack; `state.undo.current` is the one shown. */
+/** What the page shows besides the session's document and template. */
 const state = {
-  doc: null,
   name: "",
   sample: null, // the open sample's files (see detect.js), or null for a visitor's own PDF
   variant: null, // "form" (fields stripped), "published" (as published) or "own"
-  undo: null,
   page: 0,
   selected: null,
   compare: false,
-  warnings: {}, // field id -> messages from the last edit
-  token: 0, // bumps whenever the document changes, so late async results can be dropped
+  /** The open document (the session's), or null. */
+  get doc() {
+    return session.doc;
+  },
 };
-const sources = new WeakMap(); // template snapshot -> what its boxes are, for the caption
 const hooks = [];
 let schemaCache = { schema: null, paths: [] };
 let step = "detect";
@@ -86,6 +87,7 @@ const app = {
   $,
   bus,
   engine,
+  session,
   view,
   state,
   samplesBase,
@@ -98,7 +100,7 @@ const app = {
 
   /** The template on screen, or null before a document is open. */
   get template() {
-    return state.undo?.current ?? null;
+    return session.template;
   },
 
   /** The current schema's flattened paths ([] when it can't be flattened). */
@@ -125,56 +127,14 @@ const app = {
    * Show a new document with its starting template; the undo history starts over.
    * @param {{doc: object, name: string, sample: object | null, variant: string, template: object,
    *   source: {kind: string, text: string}}} opts
+   * (New templates for the document on screen go through `app.session.replaceTemplate`.)
    */
   setDocument({ doc, name, sample, variant, template, source }) {
-    if (state.doc && state.doc !== doc) state.doc.destroy().catch(() => {});
-    state.token += 1;
-    Object.assign(state, { doc, name, sample, variant, page: 0, selected: null, warnings: {} });
-    state.undo = new UndoStack(template);
-    sources.set(state.undo.current, source);
+    Object.assign(state, { name, sample, variant, page: 0, selected: null });
+    session.setDocument(doc, template, { source });
     say($("op-msg"), "");
     view.select(null);
     showPage(0);
-  },
-
-  /**
-   * Record a new template (an edit, new boxes, a schema change or a loaded template). Undo goes
-   * back to the one before. `source` replaces the caption's description of the boxes.
-   */
-  commit(template, { source, warnings = {} } = {}) {
-    const before = app.template;
-    state.undo.push(template);
-    sources.set(state.undo.current, source ?? sources.get(before));
-    state.warnings = warnings;
-    if (state.sample) remember(storageKey(), state.undo.current);
-    render();
-  },
-
-  /** Apply one edit op from the page view or the inspector. */
-  async apply(op) {
-    const t = app.template;
-    if (t === null) return;
-    const token = state.token;
-    let res;
-    try {
-      res = await engine.apply(t, op, "human");
-    } catch (e) {
-      res = { error: String(e?.message ?? e) };
-    }
-    if (token !== state.token) return;
-    if (res.error !== undefined) {
-      say($("op-msg"), `That change wasn't made: ${res.error}`);
-      render(); // puts a dragged box back where the template has it
-      return;
-    }
-    say($("op-msg"), "");
-    const ids = new Set(t.fields.map((f) => f.id));
-    const added = res.template.fields.find((f) => !ids.has(f.id));
-    const touched = op.op === "remove_field" ? null : (added?.id ?? op.id ?? null);
-    if (op.op === "remove_field" && state.selected === op.id) state.selected = null;
-    if (added) state.selected = added.id;
-    app.commit(res.template, { warnings: touched && res.warnings.length ? { [touched]: res.warnings } : {} });
-    if (added) view.select(added.id);
   },
 
   /** Select a field (or none) from outside the page view, turning to its page. */
@@ -240,7 +200,7 @@ function fieldWarnings(template) {
   const out = {};
   for (const f of template.fields) {
     const missing = (f.source?.paths ?? []).filter((p) => !known.has(p));
-    const msgs = [...(state.warnings[f.id] ?? []), ...missing.map((p) => `${p} is not in the schema`)];
+    const msgs = [...(session.fieldWarnings[f.id] ?? []), ...missing.map((p) => `${p} is not in the schema`)];
     if (msgs.length) out[f.id] = msgs;
   }
   return out;
@@ -264,7 +224,7 @@ function render() {
     $("prev-page").disabled = state.page === 0;
     $("next-page").disabled = state.page >= state.doc.pageCount - 1;
     const linked = t.fields.filter((f) => (f.source?.paths ?? []).length > 0).length;
-    const source = sources.get(t)?.text ?? "";
+    const source = session.source?.text ?? "";
     $("caption").textContent = `Fig. 1 · ${source ? `${source} · ` : ""}${plural(t.fields.length, "box", "boxes")} · ${linked} linked`;
   } else {
     $("caption").textContent = "Fig. 1 · No form open";
@@ -313,20 +273,19 @@ bus.on("select", ({ id }) => {
   if (id !== null && step === "detect") setStep("link");
   render();
 });
-bus.on("op", ({ op }) => app.apply(op));
-bus.on("undo", () => {
-  if (state.undo?.undo()) {
-    state.warnings = {};
-    if (state.sample) remember(storageKey(), state.undo.current);
-    render();
-  }
+bus.on("op", ({ op }) => session.apply(op));
+bus.on("undo", () => session.undo());
+bus.on("redo", () => session.redo());
+bus.on("template", ({ template, added, reason }) => {
+  if (state.sample) remember(storageKey(), template);
+  if (reason === "apply") say($("op-msg"), "");
+  if (added !== null) state.selected = added;
+  render();
+  if (added !== null) view.select(added);
 });
-bus.on("redo", () => {
-  if (state.undo?.redo()) {
-    state.warnings = {};
-    if (state.sample) remember(storageKey(), state.undo.current);
-    render();
-  }
+bus.on("error", ({ message }) => {
+  say($("op-msg"), `That change wasn't made: ${message}`);
+  render(); // puts a dragged box back where the template has it
 });
 
 $("prev-page").addEventListener("click", () => showPage(state.page - 1));

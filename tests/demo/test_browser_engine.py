@@ -212,6 +212,21 @@ def test_apply_checks_set_type_against_the_open_pdfs_widget_kinds(harness):
     assert out == [{"error": str(exc.value)}, {"warnings": []}]
 
 
+def test_apply_reads_widget_kinds_from_the_document_it_is_given(harness, fw9_stripped):
+    """Two documents open at once: the one passed to ``apply`` decides, not the one opened last."""
+    set_check = {"op": "set_type", "id": "w0_0", "type": "checkbox"}
+    out = harness({
+        "op": "applyAcrossDocs",
+        "pdf": {"url": "forms/dev/fw9.pdf"},
+        "other": b64(fw9_stripped),  # opened last, has no widgets
+        "schema": SCHEMA,
+        "ops": [set_check],
+    })  # fmt: skip
+    assert "can't use it" in out["a"][0]["error"]
+    assert out["b"] == [{"warnings": []}]
+    assert out["none"] == [{"warnings": []}]
+
+
 # ------------------------------------------------------------------ detection plumbing
 
 

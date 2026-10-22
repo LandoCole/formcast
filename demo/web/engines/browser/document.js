@@ -42,7 +42,9 @@ const MESSAGES = {
  * @typedef {{index: number, width: number, height: number, rotation: number, cropBox: Rect,
  *   kind: "fillable" | "digital" | "scanned", widgets: Widget[]}} Page
  * @typedef {{text: string, rect: Rect}} TextLine
+ * (`widgetKinds`, widget name -> kinds, is set by the browser engine's `open`.)
  * @typedef {{pageCount: number, pages: Page[], encrypted: boolean, bytes: Uint8Array,
+ *   widgetKinds?: Record<string, string[]>,
  *   render(index: number, canvas: HTMLCanvasElement | OffscreenCanvas, scale: number): Promise<void>,
  *   textLines(index: number): Promise<TextLine[]>, destroy(): Promise<void>}} BrowserDoc
  */

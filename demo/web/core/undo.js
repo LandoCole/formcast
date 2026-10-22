@@ -45,6 +45,16 @@ export class UndoStack {
   }
 
   /**
+   * Swap the current state for `template` without adding a step: undo still goes back to the
+   * state before it. States that were undone are dropped, as with `push`.
+   * @param {object} template
+   */
+  replace(template) {
+    this._states.length = this._index + 1;
+    this._states[this._index] = freeze(template);
+  }
+
+  /**
    * Step back.
    * @returns {object | null} the state now current, or null when already at the start
    */

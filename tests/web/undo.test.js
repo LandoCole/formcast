@@ -77,3 +77,15 @@ test("the stack keeps at most MAX_UNDO states, dropping the oldest", () => {
   small.push(t("e"));
   assert.deepEqual([small.undo()?.name, small.undo()?.name, small.undo()], ["c", "b", null]);
 });
+
+test("replace swaps the current state without a new step and drops the redo branch", () => {
+  const u = new UndoStack(t("a"));
+  u.push(t("b"));
+  u.push(t("c"));
+  u.undo();
+  u.replace(t("x"));
+  assert.equal(u.current.name, "x");
+  assert.equal(u.canRedo, false);
+  assert.equal(u.undo().name, "a");
+  assert.equal(u.canUndo, false);
+});

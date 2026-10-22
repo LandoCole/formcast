@@ -62,7 +62,7 @@ export function scoresLine(s) {
 
 /** @param {object} app see showcase.js */
 export function mountDetect(app) {
-  const { $, engine, state, say } = app;
+  const { $, engine, session, state, say } = app;
   const msg = $("detect-msg");
   const status = (text) => {
     $("detect-status").textContent = text;
@@ -77,10 +77,10 @@ export function mountDetect(app) {
   let restored = false;
 
   /** True while a live detection runs on the document on screen (a run on an older one doesn't count). */
-  const detecting = () => run !== null && run.token === state.token;
+  const detecting = () => run !== null && run.token === session.generation;
   /** Show a status line for document `token` only while it is still the one on screen. */
   const statusFor = (token, text) => {
-    if (token === state.token) status(text);
+    if (token === session.generation) status(text);
   };
 
   // ---------------------------------------------------------------- samples
@@ -335,7 +335,7 @@ export function mountDetect(app) {
       return;
     }
     // claimed before any await, so a second click or a drop can't start a parallel run on this document
-    const mine = { token: state.token };
+    const mine = { token: session.generation };
     run = mine;
     say(msg, "");
     $("live-note").hidden = true;
@@ -344,7 +344,7 @@ export function mountDetect(app) {
       if (state.variant === "published") {
         // the detector runs on the sample with its fields stripped
         if (!(await openSample(state.sample.id)) || state.variant !== "form") return;
-        mine.token = state.token;
+        mine.token = session.generation;
         app.render();
       }
       await detectNow(mine.token);
@@ -375,18 +375,19 @@ export function mountDetect(app) {
             statusFor(token, loaded < total ? `Downloading the model: ${mb(loaded)} of ${mb(total)} MB` : "Model ready. Detecting…");
           },
         });
-        if (token !== state.token) return;
+        if (token !== session.generation) return;
       }
       const template = await engine.seed(doc, app.template.schema, { detections });
-      if (token !== state.token) return;
+      if (token !== session.generation) return;
       const info = engine.detectorInfo(model);
       const how = `${info.model}${info.provider ? ` on ${PROVIDERS[info.provider] ?? info.provider}` : ""}`;
       const speed = info.msPerPage === null ? "" : ` · ${Math.round(info.msPerPage)} ms per page`;
-      app.commit(template, { source: { kind: "live", text: `Detected live by ${how}${speed}` } });
+      const res = await session.replaceTemplate(template, { source: { kind: "live", text: `Detected live by ${how}${speed}` } });
+      if (res.stale) return;
       const found = Object.values(detections).reduce((n, list) => n + list.length, 0);
       status(`Done: ${found} boxes on ${pages.length === 1 ? "1 page" : `${pages.length} pages`}. Undo brings back the boxes before.`);
     } catch (e) {
-      if (token === state.token) {
+      if (token === session.generation) {
         say(msg, `Live detection didn't finish: ${e.message} The boxes shown are unchanged.`);
         status("");
       }

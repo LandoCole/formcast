@@ -44,7 +44,6 @@ export function widgetKinds(doc) {
  */
 export function createBrowserEngine({ workerUrl, detectorModel = "S" } = {}) {
   const detectors = new Map();
-  let openKinds = null; // widget kinds of the last opened document
   let fillModule = null;
 
   async function detector(model) {
@@ -67,12 +66,13 @@ export function createBrowserEngine({ workerUrl, detectorModel = "S" } = {}) {
     capabilities: { detectLive: true, ai: false, matches: false, store: false, records: false, scanned: false },
 
     /**
-     * Open PDF bytes (see document.js `openPdf`; rejects with a DocError).
+     * Open PDF bytes (see document.js `openPdf`; rejects with a DocError). The document keeps its
+     * own widget kinds (`doc.widgetKinds`), so several documents can be open at once.
      * @param {Uint8Array} bytes
      */
     async open(bytes) {
       const doc = await openPdf(bytes);
-      openKinds = widgetKinds(doc);
+      doc.widgetKinds = widgetKinds(doc);
       return doc;
     },
 
@@ -109,13 +109,18 @@ export function createBrowserEngine({ workerUrl, detectorModel = "S" } = {}) {
     },
 
     /**
-     * One edit op, checked against the template and the open document's widget kinds.
+     * One edit op, checked against the template and the widget kinds of `doc` (the document the
+     * template is for; without one, any type may use any widget).
+     * @param {object} template
+     * @param {object} op
+     * @param {"human"} [author]
+     * @param {{doc?: object | null, note?: string}} [opts]
      * @returns {Promise<{template: object, warnings: string[]} | {error: string}>}
      */
-    async apply(template, op, author = "human") {
-      const context = contextFromTemplate(template, { widgetKinds: openKinds });
+    async apply(template, op, author = "human", { doc = null, note = "" } = {}) {
+      const context = contextFromTemplate(template, { widgetKinds: doc?.widgetKinds ?? null });
       try {
-        return applyOp(template, op, { author, context });
+        return applyOp(template, op, { author, note, context });
       } catch (e) {
         if (e instanceof OpError) return { error: e.message };
         throw e;

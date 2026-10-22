@@ -24,7 +24,7 @@ function downloadBytes(bytes, filename, type = "application/pdf") {
 
 /** @param {object} app see showcase.js */
 export function mountFill(app) {
-  const { $, engine, state, say } = app;
+  const { $, engine, session, state, say } = app;
   const msg = $("fill-msg");
   const recordError = $("record-error");
   let busy = false;
@@ -106,7 +106,8 @@ export function mountFill(app) {
         say(msg, misfit);
         return;
       }
-      app.commit(template, { source: { kind: "loaded", text: `Template from ${file.name}` } });
+      const res = await session.replaceTemplate(template, { source: { kind: "loaded", text: `Template from ${file.name}` } });
+      if (res.stale) return;
       say(msg, `Template loaded: ${template.fields.length} boxes. Undo goes back to the one before.`);
     } catch (e) {
       say(msg, e.message);
