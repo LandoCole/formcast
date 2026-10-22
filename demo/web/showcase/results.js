@@ -48,10 +48,16 @@ function tbody(heading, columns, rows, group) {
   return body;
 }
 
-function agentTable(res) {
+/**
+ * The agent runs for `groups`, one tbody per group, in results.json's row order.
+ * @param {object} res results.json
+ * @param {string[]} groups group ids, in table order
+ * @param {string} caption
+ */
+function agentTable(res, groups, caption) {
   const m = res.metrics;
   const headers = ["Run", "Sessions", ...AGENT_METRICS.map((k) => m[k].label), m.steps.label, m.input_tokens.label];
-  const bodies = GROUP_ORDER.map((group) => {
+  const bodies = groups.map((group) => {
     const rows = res.agent_dev
       .filter((r) => r.group === group)
       .map((r) => {
@@ -67,7 +73,7 @@ function agentTable(res) {
       });
     return tbody(res.groups[group].label, headers.length, rows, group);
   });
-  return table("Dev forms · per session, averaged over the answer key's boxes", headers, bodies);
+  return table(caption, headers, bodies);
 }
 
 /** Rows of detector figures grouped by form kind and variant, in the file's order. */
@@ -111,7 +117,7 @@ export function leadText(res) {
   if (!all) return "";
   const by = ["fillable", "digital", "scanned"].map(head);
   return (
-    `With the current code, the agent links ${percent(all.path)} of the boxes that take data to the right schema path: ` +
+    `On the dev forms, with the current code, the agent links ${percent(all.path)} of the boxes that take data to the right schema path: ` +
     `${percent(by[0].path)} on fillable forms, ${percent(by[1].path)} on flat ones and ${percent(by[2].path)} on scans.`
   );
 }
@@ -150,7 +156,12 @@ export function readingText(res) {
  */
 export function renderResults(res, $) {
   $("results-lead").textContent = leadText(res);
-  $("agent-table").replaceChildren(agentTable(res));
+  $("agent-table").replaceChildren(
+    agentTable(res, ["all"], "Dev forms · every session · averaged over the answer key's boxes"),
+  );
+  $("agent-groups").replaceChildren(
+    agentTable(res, GROUP_ORDER.slice(1), "Dev forms by kind · averaged over the answer key's boxes"),
+  );
   $("caveats").replaceChildren(
     el("p", { className: "note" }, [el("b", {}, ["Caveats. "]), res.caveats.join(" ")]),
   );

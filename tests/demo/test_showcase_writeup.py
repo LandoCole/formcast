@@ -226,13 +226,27 @@ def agent(run: str, group: str, sessions_of: str | None = None) -> dict:
 def test_the_agent_table_shows_the_headline_and_the_comparison_rows(open_page):
     page = open_page()
     assert page.eval_on_selector("#results", "el => el.dataset.state") == "ready"
+    # headline first: the all-sessions table is visible, the breakdowns sit in a closed disclosure
     rows = rows_text(page, "#agent-table")
-    assert len(rows) == len(RESULTS["agent_dev"])  # every group and run
+    assert len(rows) == sum(1 for r in RESULTS["agent_dev"] if r["group"] == "all") == 6
+    groups = rows_text(page, "#agent-groups")
+    assert len(rows) + len(groups) == len(RESULTS["agent_dev"])  # every group and run
+    assert page.eval_on_selector("#agent-groups-more", "d => d.open") is False
+    assert page.is_visible("#agent-table table") and not page.is_visible("#agent-groups table")
+    order = page.evaluate(
+        "() => ['#agent-table', '#caveats', '#agent-reading', '#agent-groups-more']"
+        ".map(s => document.querySelector(s)).every((el, i, a) => i === 0 ||"
+        " (a[i - 1].compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING))"
+    )
+    assert order  # the caveats and the reading come right after the headline table
     head = agent("2026-10-21_defer-placement", "all")
     shown = page.eval_on_selector_all(
-        "#agent-table tbody tr.pick", "trs => trs.map(tr => tr.closest('tbody').dataset.group)"
+        "#agent-table tbody tr.pick, #agent-groups tbody tr.pick", "trs => trs.map(tr => tr.closest('tbody').dataset.group)"
     )
     assert shown == ["all", "fillable", "digital", "scanned"]
+    page.click("#agent-groups-more > summary")
+    assert page.is_visible("#agent-groups table")
+    rows = rows + groups
     first = page.eval_on_selector("#agent-table tbody[data-group='all'] tr.pick", f"tr => {CELLS}")
     assert first[0].startswith("Haiku 5.5") and "current code" in first[0]
     want = [str(head["sessions"]), *(f"{head[k]:.2f}" for k in ("recall_50", "precision_30", "path", "joint", "fill_acc"))]
@@ -298,12 +312,16 @@ def test_the_detection_tables_cover_both_splits(open_page):
     assert len(rows_text(page, "#detection-dev")) == len(RESULTS["detection"]["dev"])
     assert len(rows_text(page, "#detection-heldout")) == len(RESULTS["detection"]["heldout"])
     assert "Native scan" in page.text_content("#detection-heldout")
+    assert not page.is_visible("#detection-dev table")  # behind a disclosure until asked for
+    page.click("#detection-more > summary")
+    assert page.is_visible("#detection-dev table") and page.is_visible("#detection-heldout table")
 
 
 def test_the_lead_and_reading_are_worked_out_from_the_numbers(open_page):
     page = open_page()
     head = agent("2026-10-21_defer-placement", "all")
     lead = page.inner_text("#results-lead")
+    assert lead.startswith("On the dev forms")
     assert f"{round(head['path'] * 100)}%" in lead
     for g in ("fillable", "digital", "scanned"):
         assert f"{round(agent('2026-10-21_defer-placement', g)['path'] * 100)}%" in lead
@@ -349,3 +367,18 @@ def test_the_diagram_and_tables_follow_the_dark_theme(open_page):
     assert dark.eval_on_selector(".diagram .wide .bx", stroke) == "rgb(206, 205, 195)"
     assert dark.eval_on_selector(".diagram .wide .t", "el => getComputedStyle(el).fill") == "rgb(206, 205, 195)"
     assert dark.eval_on_selector("#agent-table td", "el => getComputedStyle(el).color") == "rgb(206, 205, 195)"
+
+
+@pytest.mark.parametrize("width", [375, 500, 700, 800, 900, 1280])
+def test_diagram_labels_stay_near_their_drawn_size(open_page, width):
+    page = open_page(viewport=(width, 900), mobile=width < 760)
+    shown = page.eval_on_selector_all(
+        ".diagram svg",
+        "ss => ss.filter(s => getComputedStyle(s).display !== 'none')"
+        ".map(s => [s.getBoundingClientRect().width / s.viewBox.baseVal.width, s.classList.contains('tall')])",
+    )
+    assert len(shown) == 1
+    scale, tall = shown[0]
+    assert tall == (width <= 860)
+    # 10 px sub-labels: never blown up past 1.25x, never shrunk much below 8 px
+    assert 0.8 <= scale <= 1.25, (width, scale)

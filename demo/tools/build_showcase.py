@@ -355,14 +355,14 @@ METRIC_TEXT = {
     "recall_50": {
         "label": "Recall @ .5",
         "text": (
-            "Share of the answer key's boxes that a template box covers closely: intersection over "
-            "union of at least 0.5."
+            "Share of the answer key's boxes that a proposed box (a template's or a detector's) covers "
+            "closely: intersection over union of at least 0.5."
         ),
     },
     "recall_30": {"label": "Recall @ .3", "text": "The same, with a looser overlap of at least 0.3."},
     "precision_30": {
         "label": "Precision @ .3",
-        "text": "Share of the template's boxes that sit on a real box (overlap of at least 0.3).",
+        "text": "Share of the proposed boxes that sit on a real box (overlap of at least 0.3).",
     },
     "path": {
         "label": "Path",
@@ -416,7 +416,7 @@ HELDOUT_STATUS = {
     ),
 }
 CAVEATS = [
-    "Dev results were tuned on over four Haiku rounds.",
+    "Dev results were tuned on over several rounds.",
     "Haiku varies about ±0.1 path per form between runs.",
 ]
 

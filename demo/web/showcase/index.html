@@ -278,6 +278,10 @@
       <div class="tablebox" id="agent-table"></div>
       <div id="caveats"></div>
       <p class="note" id="agent-reading"></p>
+      <details class="more" id="agent-groups-more">
+        <summary>The same runs by form kind: fillable, flat digital and scanned</summary>
+        <div class="tablebox" id="agent-groups"></div>
+      </details>
       <dl class="defs" id="agent-defs"></dl>
       <div id="agent-notes"></div>
       <h3 class="sub">Held-out forms</h3>
@@ -287,8 +291,12 @@
       <div class="tablebox" id="browser-table"></div>
       <div id="browser-notes"></div>
       <h3 class="sub">Bare detectors, dev and held-out</h3>
-      <div class="tablebox" id="detection-dev"></div>
-      <div class="tablebox" id="detection-heldout"></div>
+      <p>Each detector on its own, before any seeding or agent, on the dev and the held-out forms. These are the floor the rest builds on.</p>
+      <details class="more" id="detection-more">
+        <summary>Show the dev and held-out tables</summary>
+        <div class="tablebox" id="detection-dev"></div>
+        <div class="tablebox" id="detection-heldout"></div>
+      </details>
       <div id="detection-notes"></div>
       <p class="note sources" id="sources"></p>
     </div>
@@ -297,7 +305,7 @@
   <section class="sec" aria-labelledby="l-limits">
     <h2 class="label" id="l-limits">Limits</h2>
     <div class="body">
-      <p><b>Mapping is where the agent loses points now.</b> On fillable forms it links nearly every field. On flat and scanned forms it often draws its own box beside a detected one and links that instead, links a list to the text box but not to the checkbox that goes with it, or drops a transform from one run to the next.</p>
+      <p><b>Mapping is where the agent loses points now.</b> On fillable forms it finds nearly every path, but its transforms vary from run to run. On flat and scanned forms it often draws its own box beside a detected one and links that instead. Across forms it often links a list to the text box but not to the checkbox that goes with it.</p>
       <p><b>Scans are weak.</b> On some scanned pages the detector misses most of the boxes, and a scan has no printed rules to place the missing ones against. Neither model in this page is reliable on scans; the library sends scanned pages to FFDetr and reads them with OCR. Finding lines and boxes in the image itself would be new work.</p>
       <p><b>Long forms.</b> The agent stops early or gives up on long, noisy forms, and those sessions cost the most, because every step resends the first message.</p>
       <p><b>Drawn boxes.</b> A blank drawn as a rectangle reaches the page map only as two rules, so the agent can put the field on the label row above it.</p>

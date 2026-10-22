@@ -167,7 +167,7 @@ textarea:focus-visible { outline: 2px solid var(--ink); outline-offset: -1px; }
 
 .diagram { margin: 0 0 24px; width: round(down, 100%, 24px); }
 .diagram svg { display: block; width: 100%; height: auto; overflow: visible; }
-.diagram .tall { display: none; }
+.diagram .tall { display: none; max-width: 336px; }  /* laid out for phones; never scaled up */
 .diagram .bx { fill: var(--paper); stroke: var(--ink); stroke-width: 1; }
 .diagram .bx.you { fill: none; stroke: var(--graphite); stroke-dasharray: 4 3; }
 .diagram .ln { fill: none; stroke: var(--ink); stroke-width: 1; }
@@ -199,13 +199,21 @@ textarea:focus-visible { outline: 2px solid var(--ink); outline-offset: -1px; }
 .foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 24px; padding-block: 24px; line-height: 24px; box-shadow: var(--line-top); font-family: var(--mono); font-size: 11px; letter-spacing: .08em; color: var(--graphite); }
 .foot a { color: inherit; }
 
+/* the wide diagram needs about 612 px to keep its 10 px labels near 10 px; narrower columns get the tall one */
+@media (max-width: 860px) {
+  .diagram .wide { display: none; }
+  .diagram .tall { display: block; }
+}
+.more { margin: 24px 0 0; }
+.more > summary { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; line-height: 48px; color: var(--graphite); cursor: pointer; }
+.more[open] > summary { color: var(--ink); }
+.more > summary + .tablebox { margin-top: 24px; }
+
 @media (max-width: 960px) {
   .tool { grid-template-columns: minmax(0, 1fr) 320px; gap: 24px 32px; }
 }
 @media (max-width: 760px) {
   .sec { grid-template-columns: minmax(0, 1fr); }
-  .diagram .wide { display: none; }
-  .diagram .tall { display: block; }
   .defs { grid-template-columns: minmax(0, 1fr); }
   .defs { gap: 0; }
   .tablebox tbody th { position: sticky; left: 0; background: var(--paper); }  /* names stay put while the figures scroll */

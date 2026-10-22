@@ -231,7 +231,7 @@ def test_heldout_status_and_caveats(results):
     assert status["source"] == "docs/superpowers/specs/2026-10-20-form-projection-design.md, section 14.3"
     assert (ROOT / status["source"].split(",")[0]).is_file()
     assert results["caveats"] == [
-        "Dev results were tuned on over four Haiku rounds.",
+        "Dev results were tuned on over several rounds.",  # spec 10.3; several Haiku dev rounds came first
         "Haiku varies about ±0.1 path per form between runs.",
     ]
 
