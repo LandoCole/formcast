@@ -204,10 +204,8 @@ To open it locally, serve `demo/web` and visit the showcase:
 cd demo/web && python -m http.server 8000   # then open http://localhost:8000/showcase/
 ```
 
-The workbench server (`demo/server/`, standard library only) serves the same files and a JSON API. Run
-it on your own machine only; the agent's sandbox is not a security boundary. After `pip install -e .`
-(the normal way), start it from the repository root with `python -m demo.server`. It also starts from a
-plain checkout, using `src/`.
+The [Workbench](#workbench) below serves the same files from a local Python server and adds the
+library's agent, form matching and server-side fills.
 
 Tests:
 
@@ -244,9 +242,77 @@ made by `tools/sync_formcast.py` in the portfolio repo: edit the page here, then
 committed here), so keep the page on EB Garamond. It fails if the font link, the stylesheet and script tags,
 or the "Landon Thornton" link in `showcase/index.html` change; update the script when they do.
 
+## Workbench
+
+The workbench (`demo/server/` and `demo/web/workbench/`) is the browser demo's review screen backed by a
+small Python server that calls the library: detect and seed a template, match a PDF against stored
+templates, build, adapt or revise with the agent, edit by hand with undo, save, and fill a record into
+the PDF. The server uses only the standard library. It is a local, single-user tool and not a product.
+**Run it on your own machine only: the agent's sandbox is not a security boundary** (see above), and the
+server holds your model API key. It binds `127.0.0.1`, and it refuses requests whose `Origin` or `Host`
+is not its own, so another web page open in your browser cannot drive it or spend your API credits.
+
+```sh
+pip install -e '.[ocr,dev]'      # `dev` is only for the tests
+python -m demo.server            # then open http://127.0.0.1:8765/workbench/
+```
+
+Run it from the repository root. Without the install it still starts from a clone, because
+`python -m demo.server` adds `src/` to the path. Flags: `--host`, `--port` and `--data-dir` (a folder
+with `forms/`, `schemas/`, `records/` and `templates/`; default `demo/data`). Binding a wildcard
+address (`0.0.0.0`) does not make a usable URL: bind your machine's own IP with `--host` if you want
+to reach it from another machine, and know that anyone who can reach that address can use it.
+
+Settings come from the git-ignored `.env` and the environment. `FORMCAST_DEMO_BASE_URL`,
+`FORMCAST_DEMO_API_KEY` and `FORMCAST_DEMO_MODEL` turn the AI features on, and `FORMCAST_DEMO_API_FORMAT`
+(`chat_completions`, the default, or `responses`) picks the API. `FORMCAST_DEMO_HOST`,
+`FORMCAST_DEMO_PORT` and `FORMCAST_DEMO_DATA_DIR` set the rest. With the three AI values missing, the
+AI controls are hidden; hand editing, matching, saving and filling still work. The key stays on the
+server and no response contains it.
+
+The flow:
+
+1. **Start.** Pick a demo form or drop a PDF, then pick a schema.
+2. **Match.** The PDF is scored against every stored template (`formcast.similarity`). The server
+   offers *Reuse* at 0.95 or above, *Adapt* at 0.60 or above (an agent job that starts from the stored
+   template), or *Build new*. The thresholds are in `demo/server/settings.py` and were calibrated on the
+   dev forms only.
+3. **Edit or revise.** Edit by hand, or draw an area and type an instruction for the agent. Undo and
+   redo cover both.
+4. **Save** to the template store.
+5. **Fill.** Pick a record and fill. If the stored template was made for a different version of the PDF,
+   the server answers 409 and the page offers *Rebind* (`formcast.rebind`: the same pages, this PDF's
+   fingerprint) or *Fill anyway*. Templates made in the browser have no fingerprint and fill with a note.
+
+AI work runs as a background job with a step-by-step panel and a Cancel button; cancel takes effect
+between steps. If you close the panel, the finished result is offered as *Load result* until you load
+or discard it.
+
+Where the app layer ends: the library knows nothing about a store, records or HTTP. The server
+reaches them through two small interfaces, so you can swap them for your own database.
+`TemplateStore` (`demo/server/store.py`: `list`, `get`, `put`, `delete`; the default keeps one JSON
+file per template and raises `StoredTemplateError` for a file that is not a valid template) and
+`RecordSource` (`demo/server/records.py`: `schemas`, `list`, `get`; the defaults read CSV files and a
+SQLite file, and raise `RecordSourceError` when a source cannot be read at all). Settings are one
+object, built in `Settings.from_env`. Odd records (a bad JSON cell, NULLs, extra columns) come back with
+what could be read, and the fill report says what is wrong.
+
+Tests:
+
+```sh
+.venv/bin/python -m pytest tests/demo                   # server, stores, jobs, and the browser flows
+.venv/bin/python -m pytest -m slow tests/match tests/demo
+```
+
+The browser flows use Playwright, which comes with the `dev` extra, and Chromium
+(`playwright install chromium`); they skip themselves when either is missing. Agent flows run against
+the scripted fake provider, so no test calls a model. See [Demo](#demo) for the browser-only version and
+the JS tests.
+
 ## Spec
 
 Design spec: [docs/superpowers/specs/2026-10-20-form-projection-design.md](docs/superpowers/specs/2026-10-20-form-projection-design.md)
 (results of the first eval in section 14.3).
+Review apps (browser demo and workbench): [docs/superpowers/specs/2026-10-21-formcast-review-apps-design.md](docs/superpowers/specs/2026-10-21-formcast-review-apps-design.md).
 Fill design: [docs/superpowers/specs/2026-10-21-formcast-fill-design.md](docs/superpowers/specs/2026-10-21-formcast-fill-design.md).
 Plan: [docs/superpowers/plans/2026-10-20-formcast-agent-layer.md](docs/superpowers/plans/2026-10-20-formcast-agent-layer.md)

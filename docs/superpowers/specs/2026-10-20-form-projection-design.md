@@ -284,7 +284,8 @@ The core only computes these. The app decides what to do.
 ## 8. Public API (sketch)
 
 ```python
-from formcast import LLMConfig, build_template, revise, fill, preview, to_smart_pdf, apply, ops, fingerprint, similarity
+from formcast import LLMConfig, build_template, revise, fill, preview, to_smart_pdf, apply, ops, fingerprint, similarity, rebind
+from formcast import StepEvent, SessionCancelled
 
 llm = LLMConfig(base_url=..., api_key=..., model=..., api_format="responses")
 result = build_template(schema, "intake.pdf", llm)  # SessionResult
@@ -294,6 +295,12 @@ tpl, warnings = apply(tpl, ops.Move("f_dob_month", dx=4), author="human")  # con
 tpl = revise(tpl, "intake.pdf", "Phone goes on the line under Address", llm, region=(0, [72, 300, 540, 330])).template
 pdf_bytes, report = fill(tpl, "intake.pdf", record)
 tpl.model_dump_json()                                 # app stores this
+
+# (as built, Plan 3B)
+sim = similarity(tpl, "intake_v2.pdf")                # Similarity: score 0-1, parts, plain-words explanation
+tpl = rebind(tpl, "intake_v2.pdf")                    # same page count and sizes; takes this PDF's fingerprint, kinds, signature
+def on_step(event: StepEvent): ...                    # step number, summary, counts, token use; raise SessionCancelled to stop
+result = build_template(schema, "intake.pdf", llm, on_step=on_step)   # also accepted by revise()
 ```
 
 ## 9. Repo layout (suggested)

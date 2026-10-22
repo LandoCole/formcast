@@ -30,3 +30,16 @@
 - Ruling C: pdf-lib 1.17.1 fill findings: comb, custom `choice_mark` appearance, unencodable text kept in the value, rotated pages via `/MK /R`, encrypted PDFs refused, library text widths reproduced (including its under-measuring of accented text), XFA dropped.
 - Ruling D: FFDNet-S in the browser runs on WebAssembly in headless Chromium at about 2.7 s per page, with 97.9% pairing against the library's detector.
 - Final run (Task 16): `node --test "tests/web/*.test.js"` 1198 pass, 0 fail; `.venv/bin/python -m pytest -q` 1223 passed, 8 deselected; `-m slow tests/demo tests/pagemap/test_detect_onnx.py` 4 passed; `export_conformance.py --check` clean.
+
+## Plan 3B summary
+
+- Ruling 3: `similarity` caps a PDF with a different fingerprint at 0.94 (so reuse means `fill` accepts it), chance-corrects the ink part and compares word pairs for labels; thresholds (reuse 0.95, adapt 0.60) live in demo settings and were calibrated on dev forms only.
+- Ruling 9: state-changing `/api` requests need Origin equal to Host (403 otherwise); other web pages in the same browser cannot spend the user's API credits through the local server.
+- Ruling 10: a `FormcastError` stays a 4xx with its plain message; any other exception is a 500.
+- Ruling 13: the Task 6 response shapes are the contract the browser engine and workbench use (`{templates}`, `{template}`, matches as a bare list, `op_rejected`/`cannot_rebind` 422, `bad_author`/`bad_template` 400).
+- Ruling 14: `fill` and `smart-pdf` return 409 `fingerprint_mismatch` for a non-null differing fingerprint unless `check_fingerprint: false`; a null fingerprint fills with a note; the workbench offers Rebind or Fill anyway.
+- Ruling 18: server pages keep the unrotated size plus their real rotation (the summary gains `rotations`), so boxes line up over rotated pages.
+- Session controller (3A Ruling 26, used by 3B): the ordered op queue, undo and `replaceTemplate` for job results live in `core/session.js`, shared by the showcase and the workbench; `replaceTemplate` takes a function so queued edits are not dropped.
+- Server hardening: a Host check (loopback or the bind address) beside the Origin check, so DNS rebinding fails; an unread request body closes the connection (no smuggled second request); X-Frame-Options DENY and CSP `frame-ancestors 'none'` on every response; a 30 s handler timeout; refusal of repeated Content-Length headers; a process-wide PyMuPDF lock.
+- Not exercised: the real-model path. With no API key in this environment, build, adapt and revise are covered only by the scripted fake provider. The browser flow without a model (start, reuse, hand edit, fill, download) is covered by the Playwright tests and the controller's manual smoke.
+- Final run (Task 11): `.venv/bin/python -m pytest -q` 1588 passed, 10 deselected; `node --test "tests/web/*.test.js"` 1260 pass, 0 fail; `-m slow tests/match tests/demo` 4 passed, 486 deselected; `export_conformance.py --check` clean (exit 0).

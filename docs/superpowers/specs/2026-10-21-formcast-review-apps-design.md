@@ -200,10 +200,14 @@ Port of `formcast.template.ops` for: `add_field`, `remove_field`, `move`, `resiz
   - A template without a signature (older, or made in the browser) falls back to its fields' labels against the PDF's text plus page geometry, and the explanation says so.
 - The library only scores. The workbench decides: by default reuse at ≥ 0.95, adapt at ≥ 0.60, else build new (config in `demo/server/settings.py`, calibrated on the dev corpus, never the held-out set). Calibration cases: a re-saved copy, a filled copy (`ignore_field_values`), the fake-scan variant of the same form, and different forms.
 
+- (as built) Ruling 3: a PDF whose fingerprint differs is capped at 0.94, so a "reuse" score (>= 0.95) always means `fill` would accept the PDF and a changed revision of the same layout lands in the adapt band. The ink part is chance-corrected (not plain 1 - Hamming), and the label fallback compares word pairs rather than single words. Each change fixed a measured failure on the dev forms; absolute scores differ from the sketch above, and the thresholds still live in `demo/server/settings.py`.
+
 ### 9.2 `rebind` and fingerprint-less templates
 - `FormInfo.fingerprint` becomes `str | None` (default required in Python-built templates stays a string; `None` means "not computed", as in browser templates).
 - `fill` and `to_smart_pdf` with `check_fingerprint=True` on a template whose fingerprint is `None` raise `FormcastError` with a message that says to call `rebind()` or pass `check_fingerprint=False`.
 - `rebind(template, pdf) -> Template`: checks page count and page sizes match (error otherwise), then returns a copy with this PDF's form info (fingerprint, kinds, signature). It does not change fields. `build_template(start_from=...)` already does the equivalent internally; refactor it to use `rebind`'s form-info helper without changing behaviour.
+
+- (as built) Ruling 14: the workbench's `fill` and `smart-pdf` routes apply the check like this: equal fingerprints fill checked; a template with a `null` fingerprint (browser or old) fills unchecked and the answer carries a `fingerprint_note`; a non-null fingerprint that differs from the PDF's returns 409 `fingerprint_mismatch` ("rebind it to this PDF first") unless the request sends `check_fingerprint: false`, which fills with the note.
 
 ### 9.3 Session progress and cancel
 - `build_template` and `revise` take `on_step: Callable[[StepEvent], None] | None`. A `StepEvent` carries the step number, a short summary (ops applied and rejected counts, coverage counts, the model's finish summary on the last step) and token usage so far. Default `None` changes nothing.
@@ -287,6 +291,8 @@ Extend `eval/baseline_detection.py` with a `--detectors` option (default unchang
 | `GET /api/schemas`, `GET /api/records?schema=`, `GET /api/records/{schema}/{id}` | record source |
 
 Errors are JSON `{error, detail}` with 4xx for bad input and 5xx for library failures; uploads capped (50 MB).
+
+(as built) Ruling 14: `POST /api/fill` and `POST /api/smart-pdf` answer 409 `fingerprint_mismatch` when the template's fingerprint is set and differs from the document's, unless `check_fingerprint: false` is sent; a `null` fingerprint fills unchecked with a `fingerprint_note`. Ruling 18: a server document's pages keep their unrotated `width`/`height` and carry their real `rotation` (the summary gains `rotations`), because template rects are in unrotated space and the page image is rendered rotated. Ruling 10: a `FormcastError` from the library (bad PDF, fingerprint or rebind mismatch, bad template) is a 4xx with its plain message; any other exception is a 500.
 
 ### 11.3 Flow
 1. Start screen: pick a demo form or upload a PDF, pick a schema.
