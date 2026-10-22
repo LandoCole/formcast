@@ -258,8 +258,12 @@ function keySegments(key) {
   }
 }
 
-/** Python's `int(text)` for a column key, or null where it raises ValueError. */
-function pyInt(text) {
+/**
+ * Python's `int(text)` for a column key, or null where it raises ValueError.
+ * @param {string} text
+ * @returns {number|null}
+ */
+export function pyInt(text) {
   const s = pyStrip(text);
   const sign = s.startsWith("-") ? -1 : 1;
   const chars = Array.from(s.startsWith("-") || s.startsWith("+") ? s.slice(1) : s);
@@ -281,7 +285,13 @@ function pyInt(text) {
   return sign * n;
 }
 
-function cellValue(row, key) {
+/**
+ * A row's value for a column key: object rows by (dotted) property path, list rows by index.
+ * @param {unknown} row
+ * @param {string} key
+ * @returns {any}
+ */
+export function cellValue(row, key) {
   if (isDict(row)) {
     let cur = row;
     for (const seg of keySegments(key)) {
@@ -299,8 +309,13 @@ function cellValue(row, key) {
   return null;
 }
 
-/** Why `row` cannot supply cells, or null when it can. */
-function rowProblem(row, itemType) {
+/**
+ * Why `row` cannot supply cells, or null when it can.
+ * @param {unknown} row
+ * @param {string|null} itemType  the table path's schema item type
+ * @returns {string|null}
+ */
+export function rowProblem(row, itemType) {
   if (row === null || row === undefined) return "row is null";
   if (isDict(row)) {
     return itemType === null || itemType === "object" ? null : `row is an object but the schema expects ${itemType}`;
@@ -405,8 +420,13 @@ function valuesAt(node, segments, out) {
   }
 }
 
-/** Whether any value reachable at schema path `path` is not missing (`[]` fans out over list items). */
-function hasValueAt(data, path) {
+/**
+ * Whether any value reachable at schema path `path` is not missing (`[]` fans out over list items).
+ * @param {unknown} data
+ * @param {string} path
+ * @returns {boolean}
+ */
+export function hasValueAt(data, path) {
   const found = [];
   valuesAt(data, parsePath(path), found);
   return found.some((v) => !isMissing(v));

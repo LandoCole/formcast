@@ -165,3 +165,15 @@ export function toUserSpace(rect, cropBox) {
   const [x0, y0, x1, y1] = normRect(rect);
   return [cropBox[0] + x0, cropBox[3] - y1, cropBox[0] + x1, cropBox[3] - y0];
 }
+
+/**
+ * Inverse of {@link toUserSpace}: a PDF user-space rect (bottom-left origin) back to a page rect
+ * (top-left origin, relative to the crop box).
+ * @param {Rect} rect PDF user space
+ * @param {Rect} cropBox PDF user space `[x0, y0, x1, y1]`, bottom-left origin
+ * @returns {Rect}
+ */
+export function fromUserSpace(rect, cropBox) {
+  const [x0, y0, x1, y1] = normRect(rect);
+  return [x0 - cropBox[0], cropBox[3] - y1, x1 - cropBox[0], cropBox[3] - y0];
+}

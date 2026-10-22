@@ -20,6 +20,7 @@ import contextlib
 import dataclasses
 import datetime
 import json
+import shutil
 import sys
 import types
 from collections.abc import Callable
@@ -37,6 +38,7 @@ from pydantic import BaseModel  # noqa: E402
 from formcast import schema as schema_mod  # noqa: E402
 from formcast import transforms as transforms_mod  # noqa: E402
 from formcast.errors import FormcastError, OpError  # noqa: E402
+from formcast.render.fill import fill as fill_pdf  # noqa: E402
 from formcast.render import report as report_mod  # noqa: E402
 from formcast.render import values as values_mod  # noqa: E402
 from formcast.template import ops as ops_mod  # noqa: E402
@@ -47,6 +49,11 @@ OPS_CLOCK = "2026-10-21T00:00:00Z"  # the timestamp every recorded history entry
 DEFAULT_OUT_DIR = "tests/web/fixtures"
 
 _MAX_SAFE_INT = 2**53
+
+#: Inputs of the fill group, committed beside the fixtures: archived templates and generated PDFs.
+FILL_INPUTS = ROOT / DEFAULT_OUT_DIR
+#: Report codes the browser writer never produces (they need MuPDF or a JSON Schema validator).
+BROWSER_SKIPS = frozenset({"font_substituted", "adopted", "invalid"})
 
 
 # ------------------------------------------------------------------- helpers
@@ -228,12 +235,139 @@ def export_values() -> dict:
             "cases": records}
 
 
+def make_fill_pdf(spec: dict) -> bytes:
+    """One Letter page with the case labels, rotated and/or with a crop box, or a dev form saved
+    without its encryption (``FILL_PDFS``)."""
+    import pymupdf
+
+    if "source" in spec:
+        return pymupdf.open(ROOT / spec["source"]).tobytes(garbage=3, deflate=True, no_new_id=True)
+    doc = pymupdf.open()
+    page = doc.new_page(width=612, height=792)
+    for x, y, text in cases.FILL_PDF_LABELS:
+        page.insert_text((x, y), text, fontname="helv", fontsize=9)
+    if spec["cropbox"] is not None:
+        page.set_cropbox(pymupdf.Rect(spec["cropbox"]))
+    if spec["rotation"]:
+        page.set_rotation(spec["rotation"])
+    doc.set_metadata({})
+    return doc.tobytes(no_new_id=True, garbage=3)
+
+
+def _fill_input_problems(spec: dict, data: bytes) -> str | None:
+    import pymupdf
+
+    doc = pymupdf.open(stream=data, filetype="pdf")
+    if "source" in spec:
+        source = pymupdf.open(ROOT / spec["source"])
+        if doc.is_encrypted or doc.page_count != source.page_count:
+            return f"encrypted or not a copy of {spec['source']}"
+        return None
+    page = doc[0]
+    if page.rotation != spec["rotation"]:
+        return f"rotation {page.rotation}, expected {spec['rotation']}"
+    want = spec["cropbox"] or [0, 0, 612, 792]
+    if [round(v, 3) for v in page.cropbox] != [float(v) for v in want]:
+        return f"crop box {list(page.cropbox)}, expected {want}"
+    return None
+
+
+def ensure_fill_inputs(check: bool) -> list[str]:
+    """Make sure the fill group's committed inputs exist; return the names that are missing or wrong.
+
+    Archived templates are copied once from the extracted archive (``tar -xzf
+    eval/results/templates.tar.gz``) and the PDFs are generated once; with ``check`` nothing is
+    written, so the check never depends on the git-ignored extraction (plan Ruling 1).
+    """
+    bad: list[str] = []
+    for name, source in cases.FILL_ARCHIVED.items():
+        dest = FILL_INPUTS / "templates" / f"{name}.json"
+        if dest.exists():
+            continue
+        if check:
+            bad.append(str(dest.relative_to(ROOT)))
+            continue
+        src = ROOT / source
+        if not src.exists():
+            raise SystemExit(f"{source} is missing; run `tar -xzf eval/results/templates.tar.gz` first")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(src, dest)
+        print(f"copied {dest.relative_to(ROOT)}")
+    for name, spec in cases.FILL_PDFS.items():
+        dest = FILL_INPUTS / "pdfs" / name
+        if dest.exists():
+            problem = _fill_input_problems(spec, dest.read_bytes())
+            if problem is None:
+                continue
+            if check:
+                bad.append(f"{dest.relative_to(ROOT)} ({problem})")
+                continue
+        elif check:
+            bad.append(str(dest.relative_to(ROOT)))
+            continue
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_bytes(make_fill_pdf(spec))
+        print(f"wrote {dest.relative_to(ROOT)}")
+    return bad
+
+
+def _fill_templates() -> tuple[dict[str, Template], dict[str, dict]]:
+    """Validated templates by name, and how the fixture stores each (a file path or the dump)."""
+    templates: dict[str, Template] = {}
+    stored: dict[str, dict] = {}
+    for name in cases.FILL_ARCHIVED:
+        path = FILL_INPUTS / "templates" / f"{name}.json"
+        templates[name] = Template.model_validate_json(path.read_text(encoding="utf-8"))
+        stored[name] = {"file": str(path.relative_to(ROOT))}
+    for name, raw in cases.FILL_TEMPLATES.items():
+        dumped = _plain(Template.model_validate(raw).model_dump(by_alias=True))
+        templates[name] = Template.model_validate(dumped)  # fill what JavaScript reads: every style key set
+        stored[name] = {"template": dumped}
+    return templates, stored
+
+
+def export_fill() -> dict:
+    """Fixture for ``fill/index.js``: ``fill(..., check_fingerprint=False)`` on dev and generated PDFs.
+
+    Recorded per case: each field's ``{id, binding, widget, value}``, each table cell's ``{table, row,
+    key, value}``, and the top-level warning codes with their counts, without the codes the browser
+    never produces (``BROWSER_SKIPS``). Records must be schema-valid, as for the values group.
+    """
+    _check_unique_ids(cases.FILL_CASES)
+    templates, stored = _fill_templates()
+    records = []
+    for case in cases.FILL_CASES:
+        input_ = {"template": case["template"], "pdf": case["pdf"], "data": case["data"]}
+
+        def run(case=case) -> dict:
+            pdf = (ROOT / case["pdf"]).read_bytes()
+            _, report = fill_pdf(templates[case["template"]], pdf, case["data"], check_fingerprint=False)
+            invalid = [w.message for w in report.warnings if w.code == "invalid" and w.page is None]
+            if invalid:
+                raise ValueError(f"{case['id']}: the record is not schema-valid: {invalid}")
+            codes: dict[str, int] = {}
+            for w in report.warnings:
+                if w.code not in BROWSER_SKIPS:
+                    codes[w.code] = codes.get(w.code, 0) + 1
+            return {
+                "fields": [{"id": f.id, "binding": f.binding, "widget": f.widget, "value": f.value} for f in report.fields],
+                "cells": [{"table": t.id, "row": c.row, "key": c.key, "value": c.value}
+                          for t in report.tables for c in t.cells],
+                "codes": dict(sorted(codes.items())),
+            }
+
+        records.append(_record(case, input_, run, ()))
+    return {"generated_by": GENERATED_BY, "skipped_codes": sorted(BROWSER_SKIPS), "templates": stored,
+            "cases": records}
+
+
 #: fixture file name -> function that builds its document
 GROUPS: dict[str, Callable[[], dict]] = {
     "transforms.json": export_transforms,
     "schema.json": export_schema,
     "ops.json": export_ops,
     "values.json": export_values,
+    "fill.json": export_fill,
 }
 
 
@@ -254,8 +388,12 @@ def main(out_dir: str | Path = DEFAULT_OUT_DIR, check: bool = False) -> int:
     out = Path(out_dir)
     if not out.is_absolute():
         out = ROOT / out
-    stale: list[str] = []
+    missing_inputs = ensure_fill_inputs(check)
+    stale: list[str] = list(missing_inputs)
     for name, build in GROUPS.items():
+        if name == "fill.json" and missing_inputs:
+            stale.append(name)  # its inputs are missing; nothing to compare against
+            continue
         text = render(build())
         path = out / name
         if check:

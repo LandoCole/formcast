@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  area, intersect, iou, normRect, makeView, toScreen, toPage, viewSize, toUserSpace,
+  area, intersect, iou, normRect, makeView, toScreen, toPage, viewSize, toUserSpace, fromUserSpace,
 } from '../../demo/web/core/geometry.js';
 
 const close = (a, b, eps = 1e-6) => assert.ok(Math.abs(a - b) < eps, `${a} != ${b}`);
@@ -71,6 +71,12 @@ test('user space honours the crop box offset', () => {
 test('user space is independent of rotation and a crop box at the origin flips y only', () => {
   assert.deepEqual(toUserSpace([0, 0, 612, 792], [0, 0, 612, 792]), [0, 0, 612, 792]);
   assert.deepEqual(toUserSpace([72, 100, 172, 120], [0, 0, 612, 792]), [72, 672, 172, 692]);
+});
+
+test('fromUserSpace undoes toUserSpace, crop box offset included', () => {
+  assert.deepEqual(fromUserSpace([46, 788, 146, 808], [36, 36, 648, 828]), [10, 20, 110, 40]);
+  assert.deepEqual(fromUserSpace([146, 808, 46, 788], [36, 36, 648, 828]), [10, 20, 110, 40]);
+  assert.deepEqual(fromUserSpace(toUserSpace([72, 100, 172, 120], [0, 0, 612, 792]), [0, 0, 612, 792]), [72, 100, 172, 120]);
 });
 
 test('screen placement of a box does not depend on the crop box offset', () => {

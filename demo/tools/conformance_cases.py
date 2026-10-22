@@ -1422,3 +1422,167 @@ def _values_cases() -> list[dict]:
 
 
 VALUES_CASES: list[dict] = _values_cases()
+
+
+# ------------------------------------------------------------------------ fill
+# kind "fill": ``fill(template, pdf, data, check_fingerprint=False)`` from ``formcast.render.fill``.
+# A case names a template and a PDF and gives a record. Templates are the archived agent templates
+# (copied once into ``tests/web/fixtures/templates/`` so the fixtures never need the git-ignored
+# extraction; plan Ruling 1) or the hand templates below; PDFs are dev forms or the two generated
+# fixtures (``tests/web/fixtures/pdfs/``, made by the exporter with PyMuPDF). Records are
+# schema-valid, as for the values group (the browser has no validator).
+
+#: archived template name -> where the exporter copies it from (the extracted archive)
+FILL_ARCHIVED: dict[str, str] = {
+    "fw9_as_published": "eval/results/templates/2026-10-21_defer-placement/anthropic_eval/fw9_as_published.json",
+    "wadoc_auth_as_published": "eval/results/templates/2026-10-21_defer-placement/anthropic_eval/wadoc_auth_as_published.json",
+}
+
+#: generated PDF name -> how to make it: one Letter page with a few labels, rotated or cropped; or
+#: a dev form saved without its encryption. pdf-lib cannot read encrypted PDFs (forms/dev/wadoc_auth.pdf
+#: has an owner password and an empty user password, which PyMuPDF opens transparently), so the
+#: browser fills the copy PyMuPDF saves, as the showcase's sample bundles will ship it.
+FILL_PDFS: dict[str, dict] = {
+    "rotated90.pdf": {"rotation": 90, "cropbox": None},
+    "cropbox.pdf": {"rotation": 0, "cropbox": [36, 36, 576, 756]},
+    "wadoc_auth_decrypted.pdf": {"source": "forms/dev/wadoc_auth.pdf"},
+}
+
+#: labels drawn on the generated pages: (x, baseline y, text), unrotated page space
+FILL_PDF_LABELS: list[tuple[float, float, str]] = [
+    (72, 96, "Name"), (72, 136, "Code"), (36, 190, "I agree"), (114, 189, "Zurich"), (72, 296, "Items"),
+    (72, 396, "Note"),
+]
+
+FILL_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "name": {"type": "string"},
+        "code": {"type": "string"},
+        "answer": {"type": "string", "enum": ["Sí", "No"]},
+        "city": {"type": "string"},
+        "note": {"type": "string"},
+        "items": {
+            "type": "array",
+            "items": {"type": "object", "properties": {"desc": {"type": "string"}, "qty": {"type": "integer"}}},
+        },
+    },
+}
+
+_FILL_FORM = {"fingerprint": None, "page_count": 1, "page_sizes": [[612, 792]], "kinds": ["digital"]}
+_FILL_FORM_CROP = {"fingerprint": None, "page_count": 1, "page_sizes": [[540, 720]], "kinds": ["digital"]}
+_FW9_FORM = {"fingerprint": None, "page_count": 6, "page_sizes": [[611.976, 791.968]] * 6, "kinds": ["fillable"] * 6}
+
+_EQ = lambda v: {"op": "equals", "args": {"value": v}}  # noqa: E731
+
+
+def _fill_templates() -> dict[str, dict]:
+    hand = [  # the 4-field hand template: text, comb text, checkbox, choice_mark
+        _field("name", "text", 0, [72, 100, 300, 120], source=_src("name")),
+        _field("code", "text", 0, [72, 140, 160, 160], source=_src("code"), style={"comb": 4}),
+        _field("agree", "checkbox", 0, [72, 180, 84, 192], source=_src("answer", when=_EQ("Sí"))),
+        _field("zurich", "choice_mark", 0, [100, 178, 160, 194], source=_src("city", when=_EQ("Zürich"))),
+    ]
+    table = [
+        _field("note", "text", 0, [72, 400, 300, 440], source=_src("note"), style={"multiline": True}),
+        _field("yes", "radio_option", 0, [320, 400, 332, 412], source=_src("answer", when=_EQ("Sí"))),
+        _field("unmapped", "text", 0, [320, 420, 500, 436]),
+        {"id": "items", "type": "table", "origin": "human", "source": _src("items"), "segments": [
+            {"page": 0, "rect": [60, 290, 400, 345], "row_top": 300, "row_height": 20, "max_rows": 2,
+             "columns": [{"key": "desc", "x": [72, 300]},
+                         {"key": "qty", "x": [310, 380], "transforms": [{"op": "number_format", "args": {"decimals": 0}}]}]},
+        ]},
+    ]
+    fw9_rect = lambda x0, y0, x1, y1: [x0, y0, x1, y1]  # noqa: E731
+    binding = [  # names, kinds and adoption against forms/dev/fw9.pdf's own widgets
+        _field("named_text", "text", 0, fw9_rect(58.6, 118.0, 576.0, 132.0), source=_src("name"),
+               origin="widget", existing_widget="topmostSubform[0].Page1[0].f1_01[0]"),
+        _field("wrong_kind", "text", 0, fw9_rect(73.0, 180.2, 81.0, 188.2), source=_src("code"),
+               origin="widget", existing_widget="topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[0]"),
+        _field("no_widget", "checkbox", 0, fw9_rect(180.0, 180.2, 188.0, 188.2), source=_src("answer", when=_EQ("Sí")),
+               origin="widget", existing_widget="topmostSubform[0].Page1[0].nothing_here[0]"),
+        _field("named_box", "checkbox", 0, fw9_rect(252.0, 180.2, 260.0, 188.2), source=_src("answer", when=_EQ("Sí")),
+               origin="widget", existing_widget="topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[2]"),
+        _field("adopt_text", "text", 0, fw9_rect(55, 140, 580, 158), source=_src("city")),
+        _field("adopt_box", "radio_option", 0, fw9_rect(320, 178, 336, 190), source=_src("answer", when=_EQ("No"))),
+        _field("comb_cut", "text", 0, fw9_rect(417.6, 372.0, 460.8, 396.0), source=_src("code"),
+               origin="widget", existing_widget="topmostSubform[0].Page1[0].f1_11[0]"),
+        _field("long_note", "text", 0, fw9_rect(58.6, 334.0, 576.0, 348.0), source=_src("note"),
+               origin="widget", existing_widget="topmostSubform[0].Page1[0].f1_10[0]"),
+    ]
+    return {
+        "hand": {"template_id": "hand", "schema": FILL_SCHEMA, "form": _FILL_FORM, "fields": hand},
+        "hand_crop": {"template_id": "hand_crop", "schema": FILL_SCHEMA, "form": _FILL_FORM_CROP, "fields": hand},
+        "table_crop": {"template_id": "table_crop", "schema": FILL_SCHEMA, "form": _FILL_FORM_CROP, "fields": table},
+        "fw9_binding": {"template_id": "fw9_binding", "schema": FILL_SCHEMA, "form": _FW9_FORM, "fields": binding},
+    }
+
+
+FILL_TEMPLATES: dict[str, dict] = _fill_templates()
+
+
+def _fill_cases() -> list[dict]:
+    long_name = "Northwind Regional Cooperative of Independent Hardware, Lumber and Building Supply Dealers " * 2
+    fw9 = {
+        "probe": {
+            "vendor_id": "V-1042", "legal_name": "Ann Lee", "business_name": "Lee Consulting LLC",
+            "tax_classification": "llc", "llc_tax_classification": "s_corporation", "has_foreign_partners": True,
+            "exempt_payee_code": "5", "address": {"street": "1 Main St", "city": "Springfield", "state": "IL",
+                                                    "postal_code": "62701"},
+            "ssn": "123-45-6789", "ein": "12-3456789", "remit_email": "ap@example.com", "certified_on": "2026-10-01",
+        },
+        "long": {
+            "legal_name": long_name.strip(), "tax_classification": "other",
+            "other_classification": "Unincorporated association of members with a very long description",
+            "has_foreign_partners": False, "address": {"street": "4000 Commerce Parkway, Building 7, Suite 1200"},
+        },
+        "non-latin": {
+            "legal_name": "José Núñez", "business_name": "北京 Trading Sí", "tax_classification": "c_corporation",
+            "address": {"street": "Bahnhofstrasse 1", "city": "Zürich", "postal_code": "8001"},
+        },
+    }
+    wadoc = {
+        "probe": {
+            "individual": {"first_name": "Ann", "middle_name": "Q", "last_name": "Lee", "date_of_birth": "1980-05-17",
+                           "doc_number": "998877"},
+            "releasing_organization": {"name": "Riverside Correctional Center",
+                                       "address": {"street": "200 River Rd", "city": "Olympia", "state": "WA",
+                                                   "postal_code": "98501"}, "phone": "360-555-0100"},
+            "recipient_organization": {"name": "Harbor Legal Aid", "address": {"city": "Tacoma", "state": "WA"}},
+            "information_requested": "Medical and education records from 2020 to 2025",
+            "purpose": "Continuity of care", "signed_on": "2026-10-01",
+            "witness": {"name": "Bo Li", "signed_on": "2026-10-01"},
+        },
+        "required-only": {
+            "individual": {"first_name": "José", "last_name": "Núñez"},
+            "releasing_organization": {"name": "北京 Clinic"}, "recipient_organization": {"name": "Zürich Hospital"},
+        },
+    }
+    hand = {
+        "probe": {"name": "Ann Lee", "code": "1234", "answer": "Sí", "city": "Zürich"},
+        "latin1": {"name": "José Núñez", "code": "ÄB12", "answer": "Sí", "city": "Zürich"},
+        "non-latin": {"name": "北京 Sí", "code": "北京12345", "answer": "No", "city": "北京"},
+    }
+    table = {
+        "probe": {"note": "First line of the note\nsecond line", "answer": "Sí",
+                  "items": [{"desc": "Bolts", "qty": 40}, {"desc": "Washers", "qty": 120}]},
+        "non-latin": {"note": "北京 " + "long words " * 30, "answer": "No",
+                      "items": [{"desc": "José's 北京 order", "qty": 3}, {"desc": "Zürich"}, {"desc": "dropped", "qty": 1}]},
+    }
+    binding = {
+        "probe": {"name": "Ann Lee", "code": "123456", "answer": "No", "city": "Springfield", "note": long_name.strip()},
+    }
+
+    def case(id: str, template: str, pdf: str, data: dict) -> dict:
+        return {"id": id, "kind": "fill", "template": template, "pdf": pdf, "data": data}
+
+    out = [case(f"fw9/{k}", "fw9_as_published", "forms/dev/fw9.pdf", v) for k, v in fw9.items()]
+    out += [case(f"wadoc/{k}", "wadoc_auth_as_published", "tests/web/fixtures/pdfs/wadoc_auth_decrypted.pdf", v) for k, v in wadoc.items()]
+    out += [case(f"fw9-binding/{k}", "fw9_binding", "forms/dev/fw9.pdf", v) for k, v in binding.items()]
+    out += [case(f"rotated90/{k}", "hand", "tests/web/fixtures/pdfs/rotated90.pdf", v) for k, v in hand.items()]
+    out += [case(f"cropbox/{k}", "hand_crop", "tests/web/fixtures/pdfs/cropbox.pdf", v) for k, v in hand.items()]
+    out += [case(f"cropbox-table/{k}", "table_crop", "tests/web/fixtures/pdfs/cropbox.pdf", v) for k, v in table.items()]
+    return out
+
+
+FILL_CASES: list[dict] = _fill_cases()
