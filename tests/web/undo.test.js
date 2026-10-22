@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { UndoStack } from "../../demo/web/core/undo.js";
+import { MAX_UNDO, UndoStack } from "../../demo/web/core/undo.js";
 
 const t = (name) => ({ name, fields: [] });
 
@@ -57,4 +57,23 @@ test("stored states are private copies and cannot be changed", () => {
   }, TypeError);
   u.push({ name: "b", fields: [] });
   assert.equal(u.undo().name, "a");
+});
+
+test("the stack keeps at most MAX_UNDO states, dropping the oldest", () => {
+  assert.equal(MAX_UNDO, 100);
+  const u = new UndoStack(t("s0"));
+  for (let i = 1; i <= 150; i++) u.push(t(`s${i}`));
+  assert.equal(u.current.name, "s150");
+  let steps = 0;
+  while (u.undo()) steps += 1;
+  assert.equal(steps, MAX_UNDO - 1); // 100 states kept: s51 .. s150
+  assert.equal(u.current.name, "s51");
+  while (u.redo());
+  assert.equal(u.current.name, "s150");
+  // a smaller cap from the constructor; a push after undoing still drops the redo branch first
+  const small = new UndoStack(t("a"), { max: 3 });
+  for (const n of ["b", "c", "d"]) small.push(t(n));
+  small.undo();
+  small.push(t("e"));
+  assert.deepEqual([small.undo()?.name, small.undo()?.name, small.undo()], ["c", "b", null]);
 });
