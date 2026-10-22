@@ -31,7 +31,7 @@ STOP = finish("stop", [{"path": "name", "reason": "test"}])
 def no_model_loads(monkeypatch):
     real = documents_mod.build_form_map
     policy = DetectPolicy(digital=(), scanned=())
-    monkeypatch.setattr(documents_mod, "build_form_map", lambda pdf: real(pdf, detectors={}, policy=policy, ocr="never"))
+    monkeypatch.setattr(documents_mod, "build_form_map", lambda pdf, detectors=None: real(pdf, detectors={}, policy=policy, ocr="never"))
 
 
 def b64(data: bytes) -> str:

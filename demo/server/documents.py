@@ -1,16 +1,24 @@
 """PDFs the workbench has open: uploaded or picked, held in memory by id.
 
 Each ``Doc`` keeps the PDF bytes, a light summary (page count, page sizes, page kinds) taken when
-it is added, its form map, its match features (``features()``, computed on first use and kept) and
+it is added, its form map, its match features (``features()``, each part computed on first use and kept) and
 the page images rendered so far. Nothing is written to disk. ``Documents`` keeps the 20 most recently used and
 drops the rest; a request that holds a ``Doc`` keeps it alive after eviction.
 
-The form map. Building it can take a while: seconds of detection and OCR, and on the very first run a
-download of the detector weights from Hugging Face. So ``Documents.add`` starts the build on a
+The form map. Building it takes seconds of detection and OCR. So ``Documents.add`` starts the build on a
 background thread (``Doc.start_form_map``) as soon as the document is open, while the person is still
 looking at the match prompt, and ``form_map()`` (seed, apply with a document, AI jobs, rebind) waits for
 that build instead of starting its own. It is built once and kept. A failed build is not kept: the
 first ``form_map()`` call after it raises its error, and the next call builds again.
+
+The build thread does three things in order. (1) It computes every part of the document's match features
+(``match_features()``, under ``PYMUPDF_LOCK`` briefly), so the match prompt never waits for detection:
+scoring complete features needs no MuPDF and no lock. (2) If a page needs detection and the documents were given
+a ``DetectorWarmup`` (``demo/server/detectors.py``; ``python -m demo.server`` starts one), it waits,
+holding no lock, until the detector weights are loaded; a fully fillable PDF does not wait. (3) It
+builds the form map under ``PYMUPDF_LOCK`` with the warm-up's detectors. Without a warm-up (``Documents()``,
+as in the tests) the library loads its stock detectors inside the build, so the first download happens
+under the lock.
 
 Threads: ``Documents`` has one lock for its table; each ``Doc`` has its own locks for the form
 map and for filling its image cache. MuPDF is not safe to call from several threads at once
@@ -18,16 +26,18 @@ map and for filling its image cache. MuPDF is not safe to call from several thre
 process-wide ``PYMUPDF_LOCK``: opening, rendering, form-map builds, feature computation, and (in
 ``api.py``) fills, smart PDFs and rebinds. Every render also opens its own PyMuPDF document from
 the bytes. Lock order: a ``Doc``'s own lock first, ``PYMUPDF_LOCK`` second; code that holds
-``PYMUPDF_LOCK`` must not call ``form_map()`` or ``features()``.
+``PYMUPDF_LOCK`` must not call ``form_map()``, ``features()`` or ``match_features()``.
 
-What blocks: a form-map build holds ``PYMUPDF_LOCK`` from start to end (the detector download included,
-since the library loads the weights inside the build). While a document's first build runs, every other
-MuPDF step in the server waits for it: page images, matches, fills, smart PDFs and rebinds, for any
-document. Requests that only read memory (capabilities, templates, records, job status) do not wait.
+What blocks: a form-map build holds ``PYMUPDF_LOCK`` from start to end (seconds of detection and OCR;
+with a warm-up, never the weight download). While it runs, every other MuPDF step in the server waits for
+it: page images, fills, smart PDFs and rebinds, for any document, and opening another PDF (its summary and
+features). Matching a document whose features are computed does not wait, nor do requests that only read
+memory (capabilities, templates, records, job status).
 """
 
 from __future__ import annotations
 
+import logging
 import threading
 import uuid
 from collections import OrderedDict
@@ -35,10 +45,14 @@ from concurrent.futures import Future
 
 import pymupdf
 
+from demo.server.detectors import DetectorWarmup
 from formcast.match import PdfFeatures, pdf_features
 from formcast.pagemap.build import build_form_map
+from formcast.pagemap.detect import Detector
 from formcast.pagemap.extract import is_image_dominated, open_pdf, page_size
 from formcast.pagemap.model import FormMap
+
+log = logging.getLogger("demo.server")
 
 # One at a time, server-wide. Re-entrant, so code holding it may call other code that takes it.
 PYMUPDF_LOCK = threading.RLock()
@@ -46,6 +60,8 @@ PYMUPDF_LOCK = threading.RLock()
 MAX_DOCUMENTS = 20
 MIN_DPI, MAX_DPI = 36, 200
 _IMAGES_PER_DOC = 24  # rendered pages kept per document (least recently used dropped)
+# Every part of PdfFeatures that similarity may read; Doc.match_features computes them all.
+_FEATURE_PARTS = ("fingerprint", "fingerprint_blind", "page_sizes", "signature", "phrases")
 
 
 def clamp_dpi(dpi: int) -> int:
@@ -55,7 +71,7 @@ def clamp_dpi(dpi: int) -> int:
 class Doc:
     """One open PDF. Build with ``Documents.add``."""
 
-    def __init__(self, name: str, pdf_bytes: bytes) -> None:
+    def __init__(self, name: str, pdf_bytes: bytes, *, detectors: DetectorWarmup | None = None) -> None:
         # open_pdf rejects encrypted, corrupt and empty PDFs with FormcastError.
         with PYMUPDF_LOCK:
             pdf = open_pdf(pdf_bytes)
@@ -72,10 +88,12 @@ class Doc:
         self.id: str = uuid.uuid4().hex
         self.name = name
         self.bytes = pdf_bytes
+        self._detectors = detectors
         self._map: Future[FormMap] | None = None  # the build in progress or done; None before one starts
         self._map_lock = threading.Lock()
         self._features: PdfFeatures | None = None
         self._features_lock = threading.Lock()
+        self._features_complete = False  # every part computed, so scoring them needs no MuPDF
         self._images: OrderedDict[tuple[int, int], bytes] = OrderedDict()
         self._image_lock = threading.Lock()
 
@@ -123,18 +141,34 @@ class Doc:
 
     def _build(self, future: Future[FormMap], builder) -> None:
         try:
+            self._prime_features()
+            detectors = self._detectors_for_build()  # may wait for the weights, holding no lock
             with PYMUPDF_LOCK:
-                result = builder(self.bytes)
+                result = builder(self.bytes, detectors=detectors)
         except BaseException as exc:  # handed to whoever waits; a background thread has nobody else to tell
             future.set_exception(exc)
         else:
             future.set_result(result)
 
+    def _prime_features(self) -> None:
+        """Compute the match features before the build takes ``PYMUPDF_LOCK``, so matching never waits for it."""
+        try:
+            self.match_features()
+        except Exception:  # not the build's business: the request that needs the features meets the error
+            log.debug("could not compute the match features of %s ahead of its form map", self.name, exc_info=True)
+
+    def _detectors_for_build(self) -> dict[str, Detector] | None:
+        """The detectors this document's build passes to the library: ``None`` lets the library load its own."""
+        if self._detectors is None:
+            return None
+        if all(kind == "fillable" for kind in self.kinds):
+            return self._detectors.detectors  # nothing to detect, so no need to wait for the weights
+        return self._detectors.ready()
+
     def features(self) -> PdfFeatures:
         """What ``formcast.similarity`` reads from this PDF, kept: each part is computed on first use and then reused.
 
-        A request that scores this PDF against many templates passes the result to each call. Parts
-        compute MuPDF work lazily, so use them under ``PYMUPDF_LOCK``.
+        Parts compute MuPDF work lazily, so use them under ``PYMUPDF_LOCK``, or use ``match_features``.
         """
         with self._features_lock:
             if self._features is None:
@@ -142,10 +176,25 @@ class Doc:
                     self._features = pdf_features(self.bytes)
             return self._features
 
+    def match_features(self) -> PdfFeatures:
+        """``features()`` with every part computed (under ``PYMUPDF_LOCK``, once), so using them needs no lock.
+
+        A request that scores this PDF against many templates passes the result to each call, and does
+        not wait for a form-map build. The build thread computes them before it builds (``_build``); a
+        request that comes sooner computes them itself.
+        """
+        features = self.features()
+        if not self._features_complete:
+            with PYMUPDF_LOCK:  # two first calls at once: the second finds every part kept
+                for part in _FEATURE_PARTS:
+                    getattr(features, part)
+            self._features_complete = True
+        return features
+
     def has_fingerprint(self, expected: str | None) -> bool:
         """Whether a template with this fingerprint was made for this PDF (a filled copy of it counts, as in ``fill``).
 
-        Computes only the fingerprint(s), not the signature or text.
+        Computes only the fingerprint(s), not the signature or text, unless they are computed already.
         """
         if expected is None:
             return False
@@ -180,14 +229,16 @@ class Doc:
 
 
 class Documents:
-    def __init__(self, limit: int = MAX_DOCUMENTS) -> None:
+    def __init__(self, limit: int = MAX_DOCUMENTS, *, detectors: DetectorWarmup | None = None) -> None:
+        """``detectors``: the server's warm-up, whose detectors every build uses; ``None`` leaves them to the library."""
         self.limit = limit
+        self.detectors = detectors
         self._docs: OrderedDict[str, Doc] = OrderedDict()
         self._lock = threading.Lock()
 
     def add(self, pdf_bytes: bytes, name: str) -> Doc:
         """Open ``pdf_bytes``, keep it and start building its form map. Raises ``FormcastError`` for a PDF that cannot be used."""
-        doc = Doc(name, pdf_bytes)  # validated outside the lock: opening can take a moment
+        doc = Doc(name, pdf_bytes, detectors=self.detectors)  # validated outside the lock: opening can take a moment
         with self._lock:
             self._docs[doc.id] = doc
             while len(self._docs) > self.limit:

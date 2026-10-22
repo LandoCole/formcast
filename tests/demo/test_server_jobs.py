@@ -35,7 +35,7 @@ ADD_NOTE = 'add_field(type="text", page=0, rect=[60, 80, 150, 95], label="Note")
 def no_model_loads(monkeypatch):
     real = documents_mod.build_form_map
     policy = DetectPolicy(digital=(), scanned=())
-    monkeypatch.setattr(documents_mod, "build_form_map", lambda pdf: real(pdf, detectors={}, policy=policy, ocr="never"))
+    monkeypatch.setattr(documents_mod, "build_form_map", lambda pdf, detectors=None: real(pdf, detectors={}, policy=policy, ocr="never"))
 
 
 # ------------------------------------------------------------------ a scripted provider
@@ -325,7 +325,7 @@ def test_an_unexpected_exception_gives_a_generic_message_and_logs_the_traceback_
 def test_a_job_whose_form_map_cannot_be_built_ends_in_error(start_demo_server, monkeypatch):
     base = start_demo_server(provider_factory=Factory([finish()]))
 
-    def fail(pdf):
+    def fail(pdf, detectors=None):
         raise OSError("the detection weights are not available")
 
     monkeypatch.setattr(documents_mod, "build_form_map", fail)
@@ -588,7 +588,7 @@ def test_a_thread_that_cannot_start_frees_its_slot(start_demo_server, monkeypatc
 def test_a_cancel_during_the_form_map_build_ends_cancelled_without_a_model_call(start_demo_server, monkeypatch):
     building, proceed = threading.Event(), threading.Event()
 
-    def slow(pdf):
+    def slow(pdf, detectors=None):
         building.set()
         assert proceed.wait(30)
         return build_form_map(pdf, detectors={}, policy=DetectPolicy(digital=(), scanned=()), ocr="never")

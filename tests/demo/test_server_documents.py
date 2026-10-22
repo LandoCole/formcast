@@ -23,6 +23,7 @@ import pytest
 
 from demo.server import documents as documents_mod
 from demo.server.api import Api, ApiError
+from demo.server.detectors import DetectorWarmup
 from demo.server.documents import Documents
 from demo.server.settings import Settings
 from formcast import FormcastError
@@ -39,20 +40,25 @@ def no_model_loads(monkeypatch):
     """Adding a document starts its form map in the background: build it without detectors or OCR here."""
     real = documents_mod.build_form_map
     policy = DetectPolicy(digital=(), scanned=())
-    monkeypatch.setattr(documents_mod, "build_form_map", lambda pdf: real(pdf, detectors={}, policy=policy, ocr="never"))
+    monkeypatch.setattr(documents_mod, "build_form_map", lambda pdf, detectors=None: real(pdf, detectors={}, policy=policy, ocr="never"))
 
 
 class GatedBuilder:
-    """A fake ``build_form_map`` that records each call (thread, whether it holds PYMUPDF_LOCK) and waits for ``gate``."""
+    """A fake ``build_form_map`` that records each call (thread, whether it holds PYMUPDF_LOCK) and waits for ``gate``.
+
+    ``detectors`` lists the ``detectors`` argument of each call.
+    """
 
     def __init__(self, result="map"):
         self.result = result
         self.gate = threading.Event()
         self.started = threading.Event()
         self.calls: list[tuple[str, bool]] = []
+        self.detectors: list = []
 
-    def __call__(self, pdf):
+    def __call__(self, pdf, detectors=None):
         self.calls.append((threading.current_thread().name, documents_mod.PYMUPDF_LOCK._is_owned()))
+        self.detectors.append(detectors)
         self.started.set()
         assert self.gate.wait(timeout=10), "the test never opened the gate"
         return self.result(pdf) if callable(self.result) else self.result
@@ -309,6 +315,7 @@ def test_adding_a_document_starts_one_form_map_build_in_the_background(demo_serv
     assert builder.started.wait(timeout=5)
     (name, holds_lock), = builder.calls
     assert name.startswith("form-map-") and holds_lock  # its own thread, under the MuPDF lock (Ruling 12)
+    assert builder.detectors == [None]  # a server made without a warm-up leaves the detectors to the library
     # what blocks: a page image asked for during the build waits for the MuPDF lock and is served after it
     got: list = []
     t = threading.Thread(target=lambda: got.append(http_request(demo_server, "GET", f"/api/documents/{doc['id']}/pages/2.png")[0]))
@@ -369,7 +376,7 @@ def test_the_form_map_is_built_once_even_when_asked_for_concurrently(monkeypatch
     calls = []
     gate = threading.Event()
 
-    def slow_build(pdf):
+    def slow_build(pdf, detectors=None):
         calls.append(1)
         gate.wait(timeout=5)
         return object()
@@ -387,7 +394,7 @@ def test_the_form_map_is_built_once_even_when_asked_for_concurrently(monkeypatch
 def test_a_failed_form_map_build_is_not_kept(monkeypatch):
     attempts = []
 
-    def flaky(pdf):
+    def flaky(pdf, detectors=None):
         attempts.append(1)
         if len(attempts) == 1:
             raise FormcastError("detector missing")
@@ -419,7 +426,7 @@ def test_form_map_waits_for_the_background_build_instead_of_starting_another(mon
 def test_a_failed_background_build_is_reported_once_then_built_again(monkeypatch):
     attempts = []
 
-    def flaky(pdf):
+    def flaky(pdf, detectors=None):
         attempts.append(threading.current_thread().name)
         if len(attempts) == 1:
             raise OSError("cannot fetch the detection weights")
@@ -440,6 +447,122 @@ def test_page_png_caches_by_page_and_dpi_and_clamps():
     assert doc.page_png(0, 5) is doc.page_png(0, 36) and doc.page_png(0, 999) is doc.page_png(0, 200)
     with pytest.raises(IndexError):
         doc.page_png(2, 72)
+
+
+# ------------------------------------------------------------------ detector warm-up
+
+
+class GatedDetector:
+    """A fake detector: records each ``detect`` (thread, image size, whether it holds PYMUPDF_LOCK) and waits for ``gate``.
+
+    With ``fail_first`` its first call raises, as when the weights cannot be fetched.
+    """
+
+    def __init__(self, name: str, fail_first: bool = False):
+        self.name = name
+        self.fail_first = fail_first
+        self.gate = threading.Event()
+        self.started = threading.Event()
+        self.calls: list[tuple[str, tuple[int, int], bool]] = []
+
+    def detect(self, image):
+        self.calls.append((threading.current_thread().name, image.size, documents_mod.PYMUPDF_LOCK._is_owned()))
+        self.started.set()
+        assert self.gate.wait(timeout=10), "the test never opened the gate"
+        if self.fail_first and len(self.calls) == 1:
+            raise OSError("cannot fetch the detection weights")
+        return []
+
+
+def fillable_pdf() -> bytes:
+    """A one-page PDF with a text field, so no page needs detection."""
+    pdf = pymupdf.open()
+    page = pdf.new_page(width=200, height=300)
+    widget = pymupdf.Widget()
+    widget.field_type = pymupdf.PDF_WIDGET_TYPE_TEXT
+    widget.field_name = "name"
+    widget.rect = pymupdf.Rect(20, 20, 150, 40)
+    page.add_widget(widget)
+    data = pdf.tobytes()
+    pdf.close()
+    return data
+
+
+def test_the_warmup_runs_each_detector_once_on_its_own_thread_off_the_mupdf_lock(caplog):
+    a, b = GatedDetector("A"), GatedDetector("B")
+    warmup = DetectorWarmup(load=lambda: {"A": a, "B": b})
+    with caplog.at_level(logging.INFO, logger="demo.server"):
+        warmup.start()
+        warmup.start()  # one warm-up at a time
+        assert a.started.wait(timeout=5)
+        assert documents_mod.PYMUPDF_LOCK.acquire(timeout=1)  # MuPDF stays free while the weights load
+        documents_mod.PYMUPDF_LOCK.release()
+        got: list = []
+        waiter = threading.Thread(target=lambda: got.append(warmup.ready()))
+        waiter.start()
+        waiter.join(timeout=0.3)
+        assert got == []  # waits for the warm-up under way instead of starting another
+        a.gate.set()
+        b.gate.set()
+        waiter.join(timeout=10)
+    assert got == [{"A": a, "B": b}] and got[0] is warmup.detectors and warmup.ready() is warmup.detectors
+    assert a.calls == b.calls == [("detector-warmup", (64, 64), False)]  # once each, a tiny image, no lock
+    assert "Loading the field detectors (A, B)" in caplog.text and "Field detectors ready" in caplog.text
+
+
+def test_a_build_that_needs_detection_waits_for_the_warmup_off_the_lock_then_uses_its_detectors(monkeypatch):
+    detector = GatedDetector("A")
+    warmup = DetectorWarmup(load=lambda: {"A": detector})
+    builder = GatedBuilder()
+    builder.gate.set()
+    monkeypatch.setattr(documents_mod, "build_form_map", builder)
+    warmup.start()
+    assert detector.started.wait(timeout=5)
+    try:
+        doc = Documents(detectors=warmup).add(small_pdf(pages=2), "x.pdf")  # digital pages: detection needed
+        assert not builder.started.wait(timeout=0.3)  # the build waits for the weights...
+        assert doc.page_png(1, 72) and doc.match_features()  # ...holding no lock, so MuPDF work goes on
+    finally:
+        detector.gate.set()
+    assert doc.form_map() == "map"
+    (name, holds_lock), = builder.calls
+    assert name.startswith("form-map-") and holds_lock
+    assert builder.detectors == [warmup.detectors]  # the warm-up's own instances, loaded
+    assert detector.calls == [("detector-warmup", (64, 64), False)]  # loaded once, by the warm-up
+
+
+def test_a_fillable_pdf_is_built_without_waiting_for_the_warmup(monkeypatch):
+    detector = GatedDetector("A")
+    warmup = DetectorWarmup(load=lambda: {"A": detector})
+    builder = GatedBuilder()
+    builder.gate.set()
+    monkeypatch.setattr(documents_mod, "build_form_map", builder)
+    warmup.start()
+    assert detector.started.wait(timeout=5)
+    try:
+        doc = Documents(detectors=warmup).add(fillable_pdf(), "f.pdf")
+        assert doc.kinds == ["fillable"]
+        assert doc.form_map() == "map"  # built while the warm-up is still loading
+        assert builder.detectors == [warmup.detectors]
+    finally:
+        detector.gate.set()
+
+
+def test_a_failed_warmup_fails_the_build_waiting_on_it_and_the_next_build_tries_again(monkeypatch, caplog):
+    detector = GatedDetector("A", fail_first=True)
+    detector.gate.set()
+    warmup = DetectorWarmup(load=lambda: {"A": detector})
+    builder = GatedBuilder()
+    builder.gate.set()
+    monkeypatch.setattr(documents_mod, "build_form_map", builder)
+    with caplog.at_level(logging.WARNING, logger="demo.server"):
+        doc = Documents(detectors=warmup).add(small_pdf(), "x.pdf")  # no warm-up yet: the build runs one, which fails
+        with pytest.raises(OSError, match="detection weights"):
+            doc.form_map()
+    assert builder.calls == []  # the build never took the MuPDF lock
+    assert "Could not load the field detectors: OSError: cannot fetch the detection weights" in caplog.text
+    assert doc.form_map() == "map"  # the next build warms up again, and this time the weights load
+    assert builder.detectors == [warmup.detectors] and len(detector.calls) == 2
 
 
 # ------------------------------------------------------------------ error shape and mapping
@@ -893,12 +1016,13 @@ def test_mupdf_work_runs_under_the_process_wide_lock(monkeypatch):
     monkeypatch.setattr(documents_mod, "PYMUPDF_LOCK", Probe(documents_mod.PYMUPDF_LOCK))
     doc = Documents().add(small_pdf(), "x.pdf")
     doc.form_map()  # waits for the build that add started
-    assert held == ["enter", "exit"] * 2  # the light open, then the form-map build
+    assert held == ["enter", "exit"] * 4  # the light open, the match features (opened, then every part), the build
     doc.page_png(0, 72)
-    assert held == ["enter", "exit"] * 3  # the render
+    assert held == ["enter", "exit"] * 5  # the render
     doc.page_png(0, 72)
     doc.form_map()
-    assert held == ["enter", "exit"] * 3  # a cache hit and a built form map need no MuPDF
+    doc.match_features()
+    assert held == ["enter", "exit"] * 5  # a cache hit, a built form map and complete features need no MuPDF
     assert hasattr(documents_mod.PYMUPDF_LOCK.real, "acquire")
 
 
@@ -967,14 +1091,18 @@ def test_the_server_binds_localhost_by_default_and_shuts_down_cleanly(start_demo
     assert http_request(base, "GET", "/api/capabilities")[0] == 200
 
 
-def test_the_command_line_builds_a_server_from_flags_and_a_mapping(tmp_path):
+def test_the_command_line_builds_a_server_from_flags_and_a_mapping(tmp_path, monkeypatch):
     from demo.server.__main__ import build
 
+    started: list = []
+    monkeypatch.setattr(DetectorWarmup, "start", lambda self: started.append(self))
     httpd = build(["--port", "0", "--host", "127.0.0.1", "--data-dir", str(tmp_path)], env={"FORMCAST_DEMO_PORT": "9"})
     try:
         assert httpd.server_address[0] == "127.0.0.1" and httpd.server_address[1] != 9
         assert httpd.api.settings.data_dir == tmp_path.resolve()
         assert httpd.api.provider_factory is None
+        assert isinstance(httpd.detectors, DetectorWarmup) and httpd.api.documents.detectors is httpd.detectors
+        assert started == []  # main starts the warm-up, not build
     finally:
         httpd.server_close()
 
@@ -1001,8 +1129,11 @@ def test_a_port_out_of_range_in_the_settings_is_refused_by_name():
 def test_a_wildcard_bind_prints_a_url_that_works_and_says_how_to_serve_the_network(tmp_path, capsys, monkeypatch):
     from demo.server import __main__ as entry
 
+    starts: list = []
+
     class Stub:
         server_address = ("0.0.0.0", 8765)
+        detectors = type("Warmup", (), {"start": lambda self: starts.append(1)})()
 
         def serve_forever(self):
             raise KeyboardInterrupt
@@ -1015,6 +1146,7 @@ def test_a_wildcard_bind_prints_a_url_that_works_and_says_how_to_serve_the_netwo
     out = capsys.readouterr()
     assert "http://127.0.0.1:8765/workbench/" in out.out and "0.0.0.0:8765" not in out.out
     assert "--host" in out.err and "another machine" in out.err
+    assert starts == [1]  # the detector warm-up starts with the server
     Stub.server_address = ("192.168.1.5", 9000)
     assert entry.main([]) == 0
     out = capsys.readouterr()

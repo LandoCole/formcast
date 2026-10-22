@@ -57,7 +57,7 @@ def no_model_loads(request, monkeypatch):
     if request.node.get_closest_marker("slow"):
         return
     real = documents_mod.build_form_map
-    monkeypatch.setattr(documents_mod, "build_form_map", lambda pdf: real(pdf, detectors={}, policy=NO_DETECT, ocr="never"))
+    monkeypatch.setattr(documents_mod, "build_form_map", lambda pdf, detectors=None: real(pdf, detectors={}, policy=NO_DETECT, ocr="never"))
 
 
 def tpl(name: str) -> str:
@@ -317,6 +317,23 @@ def test_the_action_follows_the_settings_thresholds(start_demo_server):
     base = start_demo_server(reuse_threshold=0.5, adapt_threshold=0.4)
     doc = open_doc(base, "fw9_rev.pdf", FW9_EDITED)
     assert get_json(base, f"/api/documents/{doc}/matches")[1][0]["action"] == "reuse"
+
+
+def test_matches_answer_while_the_form_map_build_holds_the_mupdf_lock(demo_server, monkeypatch):
+    builder = GatedBuilder(result=documents_mod.build_form_map)  # the no-detector build, held at the gate
+    monkeypatch.setattr(documents_mod, "build_form_map", builder)
+    doc = open_doc(demo_server, "fw9_rev.pdf", FW9_EDITED)
+    try:
+        assert builder.started.wait(timeout=5) and builder.calls[0][1]  # the build is under way, holding the lock
+        got: list = []
+        asking = threading.Thread(target=lambda: got.append(get_json(demo_server, f"/api/documents/{doc}/matches")))
+        asking.start()
+        asking.join(timeout=10)
+        (status, matches), = got  # answered before the build finished
+        assert status == 200 and matches[0]["name"] == "fw9" and matches[0]["action"] == "adapt"
+        assert not builder.gate.is_set()
+    finally:
+        builder.gate.set()
 
 
 def test_matches_read_the_pdf_once_for_all_templates(demo_server, monkeypatch):
@@ -724,7 +741,10 @@ def test_unexpected_errors_in_a_new_route_are_500_with_a_log_and_no_details(demo
 
 
 def test_a_fill_with_a_matching_fingerprint_never_computes_the_signature(demo_server, monkeypatch):
+    callers: list[str] = []
+
     def boom(*a, **k):
+        callers.append(threading.current_thread().name)
         raise AssertionError("the signature is not needed to compare fingerprints")
 
     monkeypatch.setattr(match_mod, "compute_signature", boom)
@@ -734,6 +754,8 @@ def test_a_fill_with_a_matching_fingerprint_never_computes_the_signature(demo_se
     assert post(demo_server, "/api/fill", {"template": template, "doc": doc, "record": {}})[0] == 200
     assert post(demo_server, "/api/smart-pdf", {"template": template, "doc": doc})[0] == 200
     assert post(demo_server, "/api/fill", {"template": template, "doc": open_doc(demo_server, "r.pdf", FW9_EDITED), "record": {}})[0] == 409
+    # only each document's build thread asks, computing the match features ahead of its form map
+    assert all(name.startswith("form-map-") for name in callers), callers
 
 
 def test_apply_falls_back_to_template_only_checks_when_the_form_map_cannot_be_built(demo_server, monkeypatch, caplog):
@@ -741,7 +763,7 @@ def test_apply_falls_back_to_template_only_checks_when_the_form_map_cannot_be_bu
     _, body = post(demo_server, "/api/seed", {"doc": doc, "schema": "fw9"})
     template = body["template"]
 
-    def offline(pdf):
+    def offline(pdf, detectors=None):
         raise OSError("cannot fetch the detection weights")
 
     monkeypatch.setattr(documents_mod, "build_form_map", offline)

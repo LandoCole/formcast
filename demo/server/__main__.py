@@ -21,6 +21,7 @@ import logging
 from collections.abc import Mapping, Sequence
 from http.server import ThreadingHTTPServer
 
+from demo.server.detectors import DetectorWarmup
 from demo.server.server import make_server
 from demo.server.settings import PORT_RANGE, Settings, parse_port
 
@@ -37,7 +38,10 @@ def _port(text: str) -> int:
 
 
 def build(argv: Sequence[str] | None = None, env: Mapping[str, str] | None = None) -> ThreadingHTTPServer:
-    """The server for these command-line flags. Settings come from ``env`` (default: ``.env`` plus the environment)."""
+    """The server for these command-line flags. Settings come from ``env`` (default: ``.env`` plus the environment).
+
+    The server gets a detector warm-up that is not started yet; ``main`` starts it.
+    """
     parser = argparse.ArgumentParser(prog="python -m demo.server", description="Run the formcast workbench on this machine.")
     parser.add_argument("--host", help="address to bind (default 127.0.0.1)")
     parser.add_argument("--port", type=_port, help="port (default 8765; 0 picks a free one)")
@@ -50,7 +54,7 @@ def build(argv: Sequence[str] | None = None, env: Mapping[str, str] | None = Non
         settings.port = args.port
     if args.data_dir is not None:
         settings.data_dir = args.data_dir.expanduser().resolve()
-    return make_server(settings)
+    return make_server(settings, detectors=DetectorWarmup())
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -74,6 +78,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"Workbench: http://{host}:{port}/workbench/", flush=True)
     if host not in ("127.0.0.1", "localhost", "::1"):
         print(f"Warning: listening on {host}. Anyone who can reach this machine can use the workbench.", file=sys.stderr)
+    if httpd.detectors is not None:
+        httpd.detectors.start()  # loads (on a first run, downloads) the detector weights while you pick a PDF
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
