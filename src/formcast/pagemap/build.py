@@ -27,7 +27,7 @@ from typing import Literal
 
 import pymupdf
 
-from formcast.match import fingerprint_document
+from formcast.match import compute_signature, fingerprint_document
 from formcast.pagemap.detect import DetectPolicy, Detector, detect_page, load_default_detectors
 from formcast.pagemap.extract import extract_page, is_image_dominated, needs_ocr, open_pdf
 from formcast.pagemap.model import FormMap, PageMap, TextLine, Word
@@ -75,10 +75,11 @@ def build_form_map(
     try:
         pages = [_build_page(page, detectors, policy, ocr) for page in doc]
         fp = fingerprint_document(doc)
+        signature = compute_signature(doc)
     finally:
         doc.close()
     source_name = "" if isinstance(pdf, (bytes, bytearray, memoryview)) else Path(pdf).name
-    return FormMap(pages=pages, fingerprint=fp, source_name=source_name)
+    return FormMap(pages=pages, fingerprint=fp, signature=signature, source_name=source_name)
 
 
 def _build_page(

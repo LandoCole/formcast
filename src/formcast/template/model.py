@@ -13,7 +13,7 @@ import pydantic
 from pydantic import BaseModel, ConfigDict
 
 from formcast.geometry import Rect
-from formcast.pagemap.model import FormMap
+from formcast.pagemap.model import FormMap, FormSignature
 from formcast.transforms import Transform
 
 
@@ -148,6 +148,7 @@ class FormInfo(BaseModel):
     page_count: int
     page_sizes: list[tuple[float, float]]
     kinds: list[str]
+    signature: FormSignature | None = None  # None for older templates and ones made in the browser
 
 
 class HistoryEntry(BaseModel):
@@ -252,6 +253,7 @@ def new_template(schema: dict, form_map: FormMap, *, candidates: bool = False) -
             page_count=len(form_map.pages),
             page_sizes=[(p.width, p.height) for p in form_map.pages],
             kinds=[p.kind for p in form_map.pages],
+            signature=form_map.signature,
         ),
         fields=fields,
     )

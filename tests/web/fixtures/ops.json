@@ -78,7 +78,8 @@
     "kinds": [
      "digital",
      "digital"
-    ]
+    ],
+    "signature": null
    },
    "fields": [],
    "history": []
@@ -159,7 +160,8 @@
     "kinds": [
      "digital",
      "digital"
-    ]
+    ],
+    "signature": null
    },
    "fields": [
     {
@@ -495,7 +497,8 @@
     "kinds": [
      "digital",
      "digital"
-    ]
+    ],
+    "signature": null
    },
    "fields": [
     {

@@ -65,7 +65,8 @@
      ],
      "kinds": [
       "digital"
-     ]
+     ],
+     "signature": null
     },
     "fields": [
      {
@@ -259,7 +260,8 @@
      ],
      "kinds": [
       "digital"
-     ]
+     ],
+     "signature": null
     },
     "fields": [
      {
@@ -453,7 +455,8 @@
      ],
      "kinds": [
       "digital"
-     ]
+     ],
+     "signature": null
     },
     "fields": [
      {
@@ -697,7 +700,8 @@
       "fillable",
       "fillable",
       "fillable"
-     ]
+     ],
+     "signature": null
     },
     "fields": [
      {
