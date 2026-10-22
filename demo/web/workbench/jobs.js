@@ -1,10 +1,14 @@
 // AI jobs: Build with AI, Adapt (from the match prompt) and area revise (drag on empty page space,
 // then type an instruction). One at a time. A job runs on the server; the panel lists its steps as
-// they come and offers Cancel, or Run in background (the job goes on; its result is offered in the
-// notice line when it ends). Cancel is seen between steps, so the panel says it stops after the step running
-// now. A finished job's template loads with one undo step, so Undo returns to the template from
-// before the AI. A cancelled or failed job closes the panel and leaves the template alone; its
-// partial result (which includes the step that was running) can still be loaded from the notice.
+// they come and offers Cancel, or Run in background (the job goes on). Cancel is seen between steps,
+// so the panel says it stops after the step running now. A finished job's template loads with one
+// undo step, so Undo returns to the template from before it. A cancelled or failed job closes the
+// panel and leaves the template alone.
+//
+// A result not loaded from the panel (a job run in the background, or the partial result of a
+// cancelled or failed one, which includes the step that was running) is kept here, with the job's
+// snapshot, and offered on its own line under the toolbar until it is loaded or discarded. Other
+// messages don't replace it. Opening another form discards it (it belongs to the PDF it ran on).
 
 const NOUNS = { build: "build", adapt: "adapt", revise: "revision" };
 const TITLES = { build: "AI build", adapt: "AI adapt", revise: "AI revision" };
@@ -34,6 +38,7 @@ export function mountJobs(app) {
   let detached = false; // its panel was closed with "Run in background"
   let kind = "build"; // the running (or last) job's kind
   let refused = ""; // why the last cancel didn't go through, shown until the next one
+  let offered = null; // the result on offer: {job, generation, partial}
   let region = null;
 
   $("build-ai").hidden = !ai;
@@ -70,10 +75,32 @@ export function mountJobs(app) {
     });
   }
 
+  /** Offer a job's template until it is loaded or discarded. */
+  function offer(job, generation, partial, text) {
+    offered = { job, generation, partial };
+    $("offer-text").textContent =
+      `${text} Loading it replaces the template on screen, including any edits made since the job started; Undo goes back.`;
+    $("offer-load").textContent = partial ? "Load partial result" : "Load result";
+    $("offer").hidden = false;
+  }
+
+  function clearOffer() {
+    offered = null;
+    $("offer").hidden = true;
+  }
+
+  $("offer-load").addEventListener("click", () => {
+    const o = offered;
+    clearOffer();
+    if (o !== null) load(o.job, o.generation, o.partial);
+  });
+  $("offer-dismiss").addEventListener("click", clearOffer);
+  app.onReset(clearOffer);
+
   /**
    * Run a job: `start` resolves a JobHandle. The panel is modal while it is open; "Run in background"
-   * closes it and the job goes on, its result offered in the notice line when it ends (loading it
-   * then replaces the template on screen, edits made meanwhile included, as one undo step).
+   * closes it and the job goes on, its result offered when it ends (loading it then replaces the
+   * template on screen, edits made meanwhile included, as one undo step).
    */
   async function run(jobKind, start) {
     if (running) {
@@ -118,7 +145,8 @@ export function mountJobs(app) {
       const unplaced = (job.unplaceable ?? []).map((u) => u.path).filter(Boolean);
       const summary = `${job.summary ? `: ${job.summary}` : "."}${unplaced.length ? ` Not placed: ${unplaced.join(", ")}.` : ""}`;
       if (detached) {
-        app.notice(`The AI ${NOUNS[jobKind]} finished${summary}`, { label: "Load result", run: () => load(job, generation, false) });
+        app.notice("");
+        offer(job, generation, false, `The AI ${NOUNS[jobKind]} finished${summary}`);
         return;
       }
       status.textContent = `Done${summary}`;
@@ -136,8 +164,12 @@ export function mountJobs(app) {
       job.status === "cancelled"
         ? `The AI ${NOUNS[jobKind]} was cancelled after ${n}. The template is unchanged.`
         : `The AI ${NOUNS[jobKind]} stopped after ${n}: ${job.error ?? "an unknown error"} The template on screen is unchanged.`;
-    const action = job.template ? { label: "Load partial result", run: () => load(job, generation, true) } : null;
-    app.notice(text, action);
+    if (job.template) {
+      app.notice("");
+      offer(job, generation, true, text);
+    } else {
+      app.notice(text);
+    }
   }
 
   /** The job could not be started or followed: say why, with a way out. */
@@ -173,7 +205,7 @@ export function mountJobs(app) {
     panel.hidden = true;
     if (running) {
       detached = true;
-      app.notice(`The AI ${NOUNS[kind]} goes on running. Its result will be offered here when it ends.`);
+      app.notice(`The AI ${NOUNS[kind]} goes on running. Its result will be offered under the toolbar when it ends.`);
     }
   });
 

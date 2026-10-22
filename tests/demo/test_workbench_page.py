@@ -356,11 +356,12 @@ def test_cancel_stops_after_the_step_leaves_the_template_and_offers_the_partial_
     expect(b.page.locator("#job-status")).to_have_text("Stopping after this step…")
     gate.release()
     expect(b.page.locator("#job")).to_be_hidden()
-    expect(b.page.locator("#notice")).to_contain_text("cancelled")
+    expect(b.page.locator("#offer")).to_contain_text("cancelled")
     b.idle()
     assert b.template() == before
     expect(b.boxes(".is-ai")).to_have_count(0)
-    b.page.click("#notice-action")
+    expect(b.page.locator("#offer-load")).to_have_text("Load partial result")
+    b.page.click("#offer-load")
     expect(b.boxes(".is-ai")).to_have_count(2)  # the step in flight when the cancel came is in the partial result
 
 
@@ -463,11 +464,72 @@ def test_a_cancel_the_server_refuses_can_be_retried_or_the_job_run_in_the_backgr
     expect(b.page.locator("#notice")).to_contain_text("goes on running")
     before = b.template()
     gate.release()
-    expect(b.page.locator("#notice")).to_contain_text("finished: both added")
+    expect(b.page.locator("#offer")).to_contain_text("finished: both added")
     assert b.template() == before  # nothing loads until asked
-    expect(b.page.locator("#notice-action")).to_have_text("Load result")
-    b.page.click("#notice-action")
+    expect(b.page.locator("#offer-load")).to_have_text("Load result")
+    b.page.click("#offer-load")
     expect(b.boxes(".is-ai")).to_have_count(2)
+    expect(b.page.locator("#offer")).to_be_hidden()
+
+
+def test_a_background_result_stays_on_offer_through_other_messages_and_loads_over_edits_as_one_step(start_demo_server, bench, page):
+    gate = Gate()
+    b = bench(start_demo_server(provider_factory=Factory([code(ADD_NAME), gate, finish("name added", NO_NOTE)])))
+    b.upload(widget_pdf())
+    b.build_new()
+    b.page.click("#build-ai")
+    assert gate.reached.wait(10)
+    b.page.click("#job-close")  # run in background
+    expect(b.page.locator("#job")).to_be_hidden()
+
+    widget = b.boxes().first  # edits while the job runs: a move and a link
+    b.drag(widget, 20, 0)
+    b.page.select_option('#inspector select[data-ctl="path"]', "name")
+    expect(b.page.locator("#history .fc-hi-list li")).to_have_count(2)
+    b.idle()
+    edited = b.template()
+
+    gate.release()
+    offer = b.page.locator("#offer")
+    expect(offer).to_contain_text("finished: name added")
+    expect(offer).to_contain_text("including any edits made since the job started")
+
+    # other messages come and go; the offer stays
+    b.page.click('#schemalist [data-path="name"]')  # a placed path: clears the message line
+    b.page.click('#schemalist [data-path="note"]')  # no box uses it: a message
+    expect(b.page.locator("#notice")).to_contain_text("No box uses note")
+    page.route("**/api/apply", lambda route: route.fulfill(status=422, json={"error": "op_rejected", "detail": "not here"}))
+    b.drag(b.boxes().first, 0, 15)
+    expect(b.page.locator("#notice")).to_contain_text("That change wasn't made")
+    page.unroute("**/api/apply")
+    b.idle()
+    assert b.template() == edited
+    expect(offer).to_be_visible()
+
+    b.page.click("#offer-load")
+    expect(b.boxes(".is-ai")).to_have_count(1)
+    expect(offer).to_be_hidden()
+    b.idle()
+    b.page.click("#undo")  # one step back: the template with the edits made during the run
+    b.idle()
+    assert b.template() == edited
+
+
+def test_a_result_on_offer_can_be_discarded(start_demo_server, bench):
+    gate = Gate()
+    b = bench(start_demo_server(provider_factory=Factory([code(ADD_NAME), gate, code(ADD_NOTE), finish()])))
+    b.upload(widget_pdf())
+    b.build_new()
+    before = b.template()
+    b.page.click("#build-ai")
+    assert gate.reached.wait(10)
+    b.page.click("#job-cancel")
+    gate.release()
+    expect(b.page.locator("#offer-load")).to_have_text("Load partial result")
+    b.page.click("#offer-dismiss")
+    expect(b.page.locator("#offer")).to_be_hidden()
+    b.idle()
+    assert b.template() == before
 
 
 def test_the_job_panel_takes_and_keeps_focus_and_gives_it_back(start_demo_server, bench, page):

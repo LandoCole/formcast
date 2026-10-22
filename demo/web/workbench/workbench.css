@@ -98,7 +98,8 @@ textarea:focus-visible, .text:focus-visible { outline: 2px solid var(--ink); out
 .ai-note, .notice { margin: 0; padding: 6px 24px; font-size: 15px; line-height: 22px; box-shadow: inset 0 -.5px 0 0 var(--rule); }
 .ai-note { font-style: italic; color: var(--graphite); }
 .notice { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-style: italic; }
-.notice #notice-text { flex: 1 1 320px; min-width: 0; overflow-wrap: anywhere; }
+.notice #notice-text, .offer #offer-text { flex: 1 1 320px; min-width: 0; overflow-wrap: anywhere; }
+.offer { font-style: normal; box-shadow: inset 2px 0 0 0 var(--ink), inset 0 -.5px 0 0 var(--rule); }
 .notice .btn { font-style: normal; }
 
 /* ---------- the three columns ---------- */

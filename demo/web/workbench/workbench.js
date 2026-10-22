@@ -122,20 +122,13 @@ const app = {
   },
 
   /**
-   * Show a line under the toolbar (empty text hides it), with an optional button.
+   * Show a passing message under the toolbar (empty text hides it). An AI result on offer has its
+   * own line (jobs.js), which messages never replace.
    * @param {string} text
-   * @param {{label: string, run: () => void} | null} [action]
    */
-  notice(text, action = null) {
+  notice(text) {
     say($("notice-text"), text);
     $("notice").hidden = !text;
-    const btn = $("notice-action");
-    btn.hidden = action === null;
-    btn.textContent = action?.label ?? "";
-    btn.onclick = action === null ? null : () => {
-      app.notice("");
-      action.run();
-    };
   },
 
   /** Register a function called when a new document is shown. */
@@ -413,7 +406,7 @@ bus.on("undo", undo);
 bus.on("redo", redo);
 bus.on("addmode", ({ on }) => $("add-box").setAttribute("aria-pressed", String(on)));
 bus.on("template", ({ added, reason }) => {
-  if (reason === "apply" && $("notice-action").hidden) app.notice(""); // a made edit clears an old message, not an offer
+  if (reason === "apply") app.notice(""); // a made edit clears an old message
   if (added !== null) {
     state.selected = added;
     selectAfterRender = added;

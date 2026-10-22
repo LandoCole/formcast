@@ -33,8 +33,12 @@
 <p class="ai-note" id="ai-note" hidden>AI is off. To turn it on, set <code>FORMCAST_DEMO_BASE_URL</code>, <code>FORMCAST_DEMO_API_KEY</code> and <code>FORMCAST_DEMO_MODEL</code> (and <code>FORMCAST_DEMO_API_FORMAT</code> if your endpoint uses the Responses API) in <code>.env</code>, then restart the server.</p>
 <div class="notice" id="notice" role="status" aria-live="polite" hidden>
   <span id="notice-text"></span>
-  <button type="button" class="btn quiet small" id="notice-action" hidden></button>
   <button type="button" class="ib" id="notice-close" aria-label="Dismiss">×</button>
+</div>
+<div class="notice offer" id="offer" role="region" aria-label="AI result" hidden>
+  <span id="offer-text"></span>
+  <button type="button" class="btn small" id="offer-load">Load result</button>
+  <button type="button" class="ib" id="offer-dismiss" aria-label="Discard this result">×</button>
 </div>
 
 <main class="bench" id="bench">
