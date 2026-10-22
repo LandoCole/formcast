@@ -210,7 +210,7 @@ def test_fill_accepts_none_fingerprint_unchecked(tpl_none, blank_pdf):
   - `toScreen(rect: Rect, view: View): {left, top, width, height}` and `toPage(box: {left, top, width, height}, view): Rect` (inverse; round-trip within 1e-6).
   - `viewSize(view): {width, height}` in px (swapped for 90/270).
   - `toUserSpace(rect: Rect, cropBox: Rect /* PDF user space [x0,y0,x1,y1], bottom-left origin */): Rect /* user space, bottom-left */` — `x = crop.x0 + r.x0`, `y = crop.y1 - r.y1`; independent of page rotation.
-- Produces (`test_node_suite.py`): `test_node_suites()` runs `node --test tests/web` (cwd = repo root), asserts exit code 0, prints node output on failure; skips with "node not found" if absent.
+- Produces (`test_node_suite.py`): `test_node_suites()` runs `node --test "tests/web/*.test.js"` (cwd = repo root), asserts exit code 0, prints node output on failure; skips with "node not found" if absent.
 
 - [ ] **Step 1: Vendor the libraries.** Pick exact versions released before 2026-10-07 of `pdfjs-dist` (ES module build: `build/pdf.mjs`, `build/pdf.worker.mjs`, plus `cmaps/` and `standard_fonts/`), `pdf-lib` (`dist/pdf-lib.esm.min.js`) and `onnxruntime-web` (`dist/ort.webgpu.min.mjs` or the bundle that includes both WebGPU and WASM EPs, plus its `.wasm` and `.mjs` loader files). Download with `npm pack <name>@<version>` into a scratch directory and copy the needed files; include each package's `LICENSE`. `vendor/README.md` lists name, version, files, licence, source URL and the date fetched.
 
@@ -243,9 +243,9 @@ test('iou', () => { assert.equal(iou([0,0,10,10],[0,0,10,10]), 1); assert.equal(
 
 (Rotation convention matches PDF `/Rotate` clockwise, as pdf.js renders it and as the Python preview's `page.rotation_matrix` does; check against a PyMuPDF render of a rotated fixture in Task 8.)
 
-- [ ] **Step 3: Run** `node --test tests/web` — expect FAIL (module missing).
+- [ ] **Step 3: Run** `node --test "tests/web/*.test.js"` — expect FAIL (module missing).
 - [ ] **Step 4: Implement `geometry.js`.**
-- [ ] **Step 5: Run** `node --test tests/web` then `.venv/bin/python -m pytest tests/web -v` — expect PASS.
+- [ ] **Step 5: Run** `node --test "tests/web/*.test.js"` then `.venv/bin/python -m pytest tests/web -v` — expect PASS.
 - [ ] **Step 6: Install Playwright for tests:** `.venv/bin/pip install playwright` (pin the version whose Chromium build is already in `~/Library/Caches/ms-playwright`, or run `.venv/bin/playwright install chromium`). Add a trivial `tests/demo/test_static_server.py` that loads `demo/web/vendor/README.md` through the conftest server and checks status 200 — expect PASS.
 - [ ] **Step 7: Commit** `git commit -m "demo/web: vendored pdf.js, pdf-lib, onnxruntime-web; geometry; node and Playwright test runners"`
 
@@ -270,11 +270,11 @@ test('iou', () => { assert.equal(iou([0,0,10,10],[0,0,10,10]), 1); assert.equal(
 
 - [ ] **Step 2: Write the exporter** for these two groups: for each case call the real Python (`apply_chain`/`validate_chain`, `flatten_schema`), record `{"input": ..., "output": ...}` or `{"input": ..., "error": "<message>"}` (dates as ISO strings, Decimals as strings, pydantic models `model_dump()`). Run it: `.venv/bin/python demo/tools/export_conformance.py` — expect two fixture files.
 
-- [ ] **Step 3: Write the failing JS tests**: `transforms.test.js` loops over `fixtures/transforms.json` cases and asserts `applyChain(...)` deep-equals `output` or throws a `TransformError` whose `message` equals `error`; also asserts `listTransforms()` deep-equals the fixture's catalogue entry. `schema.test.js` does the same for `flattenSchema`. Run `node --test tests/web` — expect FAIL.
+- [ ] **Step 3: Write the failing JS tests**: `transforms.test.js` loops over `fixtures/transforms.json` cases and asserts `applyChain(...)` deep-equals `output` or throws a `TransformError` whose `message` equals `error`; also asserts `listTransforms()` deep-equals the fixture's catalogue entry. `schema.test.js` does the same for `flattenSchema`. Run `node --test "tests/web/*.test.js"` — expect FAIL.
 
 - [ ] **Step 4: Implement `transforms.js` and `schema.js`** by reading `src/formcast/transforms.py` and `src/formcast/schema.py` line by line. Number and date formatting must use the same rules (no `Intl` locale formatting unless it reproduces Python exactly; prefer explicit code).
 
-- [ ] **Step 5: Run** `node --test tests/web` — expect PASS. Add `test_fixtures_fresh` and run `.venv/bin/python -m pytest tests/web -v` — expect PASS.
+- [ ] **Step 5: Run** `node --test "tests/web/*.test.js"` — expect PASS. Add `test_fixtures_fresh` and run `.venv/bin/python -m pytest tests/web -v` — expect PASS.
 
 - [ ] **Step 6: Placeholder records.** Write `tests/web/placeholders.test.js` (record for the sample schemas has a value at every scalar path; enum takes its first option; `format: date` gives an ISO date; arrays have 2 rows; `email`-named or `format: email` strings contain "@"; ZIP-named strings are 5 digits) and `tests/web/test_placeholder_records.py`, which runs a tiny node script (`tests/web/print_placeholders.mjs`) that prints `placeholderRecord` for each schema in `forms/schemas/*.json` (dev forms only: filter by `forms/manifest.json` split) and validates each with `jsonschema` against its schema. Run both — expect FAIL, implement `placeholderRecord`, run — expect PASS.
 
@@ -303,7 +303,7 @@ test('iou', () => { assert.equal(iou([0,0,10,10],[0,0,10,10]), 1); assert.equal(
 
 - [ ] **Step 2: Write the failing JS tests**: `ops.test.js` loops the fixture, calls `applyOp` with `at: "2026-10-21T00:00:00Z"`, deep-equals the template and warnings, or matches the error message; plus `applyOp(t, {op: "add_table", ...})` throws `OpError` matching `/not available in the browser/`. `undo.test.js`: push a, b, c → undo → current is b, canRedo; push d → canRedo false; undo twice → a; undo at start returns null.
 
-- [ ] **Step 3: Run** `node --test tests/web` — expect FAIL. **Step 4: Implement** both modules by porting the relevant parts of `src/formcast/template/ops.py` (only what the eight ops and their validation need, including the linked-cell checks; agent-only guards are skipped because the author is always `"human"` here, matching Python's behaviour for human authors). **Step 5: Run** — expect PASS.
+- [ ] **Step 3: Run** `node --test "tests/web/*.test.js"` — expect FAIL. **Step 4: Implement** both modules by porting the relevant parts of `src/formcast/template/ops.py` (only what the eight ops and their validation need, including the linked-cell checks; agent-only guards are skipped because the author is always `"human"` here, matching Python's behaviour for human authors). **Step 5: Run** — expect PASS.
 
 - [ ] **Step 6: Browser templates validate in Python.** `build_templates.mjs` builds three templates the way the browser engine will (a hand-written seed JSON for `forms/dev/fw9.pdf` page 0 with `fingerprint: null`, then 10 scripted ops: add, move, resize, set_source with transforms, set_type, remove) and writes them to a temp path given as argv. `test_browser_templates.py` runs it, then for each: `Template.model_validate_json(...)` succeeds; `formcast.template.ops.replay(seed, t.history)` reproduces `t.fields` exactly; `fill(t, "forms/dev/fw9.pdf", {}, check_fingerprint=False)` runs without raising. Run — expect PASS after Step 4.
 
@@ -346,7 +346,7 @@ test('iou', () => { assert.equal(iou([0,0,10,10],[0,0,10,10]), 1); assert.equal(
 - [ ] **Step 1: Spike pdf-lib** (throwaway script in the scratchpad, not committed): text field with comb + maxLen, a checkbox with a custom ellipse on-appearance, saved and re-opened by PyMuPDF (`page.widgets()` shows the fields, on-state toggles) and rendered (ellipse visible). Record Ruling C.
 - [ ] **Step 2: Add `FILL_CASES`** to the exporter: (a) `forms/dev/fw9.pdf` as published with its archived agent template from `eval/results/templates/2026-10-21_defer-placement/` (or round3-gen per Ruling B) and a probe record; (b) `forms/dev/wadoc_auth.pdf` with its archived template and a record; (c) `rotated90.pdf` and `cropbox.pdf` (generated: one page, `/Rotate 90`; one page with crop box `[36,36,576,756]`) with a 4-field hand template; (d) records with "Sí", "José", "Zürich", "北京". Record from Python `fill(..., check_fingerprint=False)`: per field `{id, binding, widget, value}`, per table cell `{row, key, value}`, the set of warning codes with counts excluding `font_substituted`, `adopted`, `invalid`.
 - [ ] **Step 3: Write the failing tests.** `fill.test.js`: for each case run `fill`, re-open the output with pdf-lib, and assert (i) the report's per-field `{id, binding, widget, value}` equals the fixture, (ii) per-cell values equal, (iii) warning codes and counts equal the fixture's (browser code set only), (iv) no case throws, including the non-Latin records, where "北京" yields `unencodable`. `test_browser_fill.py`: runs `fill_to_disk.mjs` for cases (c) and (d), opens the outputs with PyMuPDF and asserts every written widget's `rect` equals the template field rect within 0.5 pt (this pins rotation and crop-box handling) and that `widget.field_value` equals the report value.
-- [ ] **Step 4: Run** `node --test tests/web` and `.venv/bin/python -m pytest tests/web -v` — expect FAIL. **Step 5: Implement** the fill modules. **Step 6: Run** — expect PASS.
+- [ ] **Step 4: Run** `node --test "tests/web/*.test.js"` and `.venv/bin/python -m pytest tests/web -v` — expect FAIL. **Step 5: Implement** the fill modules. **Step 6: Run** — expect PASS.
 - [ ] **Step 7: Commit** `git commit -m "demo/web: browser fill with pdf-lib, report in the library's shape"`
 
 ---
@@ -367,7 +367,7 @@ test('iou', () => { assert.equal(iou([0,0,10,10],[0,0,10,10]), 1); assert.equal(
 - Produces (`engines/browser/engine.js`): `createBrowserEngine({workerUrl, detectorModel = "S"}): Engine` with `capabilities = {detectLive: true, ai: false, matches: false, store: false, records: false, scanned: false}` and `open, seed, detect, apply (ops.js), fill/smartPdf (fill/index.js)`.
 
 - [ ] **Step 1: Failing tests.** `seed.test.js` (Node, with a fake `BrowserDoc` object): widget ordering and ids; detection ids and types; label linking left-of and above; pages with widgets skip detections; `form.fingerprint === null`; the produced template passes `applyOp` with a `set_label`. `test_browser_engine.py` (Playwright, harness page `tests/web/harness/engine.html` exposing `window.runEngine(cmd)`): `openPdf` on `forms/dev/fw9.pdf` → 6 pages, page 0 `fillable` with ≥ 20 widgets; on the stripped sample PDF (produced in a fixture with PyMuPDF) → page 0 `digital`; on bytes of a text file → `not_pdf`; on an encrypted PDF (fixture made with PyMuPDF `encryption=PDF_ENCRYPT_AES_256`, user password set) → `encrypted`. A `slow` test: load FFDNet-S in the worker (real download), detect on the stripped fw9 page 0, and **parity**: compare with `FFDNetOnnxDetector("FFDNet-S")` boxes in points for 3 dev pages (fw9 p0, fw4 p0, i9 p0, stripped) — ≥ 95% paired at IoU ≥ 0.9 and counts within 5%; record provider and ms/page as Ruling D.
-- [ ] **Step 2: Run** — FAIL. **Step 3: Implement.** **Step 4: Run** `node --test tests/web`, `.venv/bin/python -m pytest tests/demo -v`, and once `-m slow tests/demo/test_browser_engine.py` — expect PASS.
+- [ ] **Step 2: Run** — FAIL. **Step 3: Implement.** **Step 4: Run** `node --test "tests/web/*.test.js"`, `.venv/bin/python -m pytest tests/demo -v`, and once `-m slow tests/demo/test_browser_engine.py` — expect PASS.
 - [ ] **Step 5: Commit** `git commit -m "demo/web: engine interface; browser engine opens, seeds and detects in a worker"`
 
 ---
@@ -437,7 +437,7 @@ Steps:
   - Dark mode (`color_scheme="dark"`): body background is `rgb(16, 15, 15)`.
 - [ ] **Step 2: Run** `.venv/bin/python -m pytest tests/demo/test_showcase_tool.py -v` — FAIL.
 - [ ] **Step 3: Implement** `index.html` (site chrome per `landon-portfolio/classifier/index.html`: topbar, `.sec` grid, tokens, dot grid, fonts EB Garamond + IBM Plex Mono from Google Fonts, `@media (prefers-color-scheme: dark)` guarded by `:root:not([data-theme="light"])` and `:root[data-theme="dark"]`), `showcase.css` (layout C: page column + 360 px panel, sticky page on desktop, stacked under 760 px), and `showcase.js` (state: doc, template, undo stack, schema, record; wiring of bus events → `engine.apply` → `undo.push` → re-render; lazy imports: `await import('../engines/browser/detect.js')` only on Run live / dropped flat PDF; `await import('../core/fill/index.js')` on first Fill; phone detection per spec §6).
-- [ ] **Step 4: Run** — PASS. Also `node --test tests/web` and the full pytest suite.
+- [ ] **Step 4: Run** — PASS. Also `node --test "tests/web/*.test.js"` and the full pytest suite.
 - [ ] **Step 5: Commit** `git commit -m "showcase: the guided-steps tool on the browser engine"`
 
 ---
@@ -509,6 +509,6 @@ Steps:
 **Files:**
 - Modify: `README.md` (Demo section: what the browser demo is, how to open it locally `python -m http.server` from `demo/web` and visit `/showcase/`, how to run node/Playwright tests, how to regenerate fixtures, samples and results), rulings file (closing summary)
 
-- [ ] **Step 1: Run everything:** `node --test tests/web`; `.venv/bin/python -m pytest -q`; `.venv/bin/python -m pytest -q -m slow tests/demo tests/pagemap/test_detect_onnx.py`; `python demo/tools/export_conformance.py --check`. Expected: all pass; fixtures fresh.
+- [ ] **Step 1: Run everything:** `node --test "tests/web/*.test.js"`; `.venv/bin/python -m pytest -q`; `.venv/bin/python -m pytest -q -m slow tests/demo tests/pagemap/test_detect_onnx.py`; `python demo/tools/export_conformance.py --check`. Expected: all pass; fixtures fresh.
 - [ ] **Step 2: Manual smoke** in the built-in browser at 1280 and 375 widths, light and dark: sample loads, run live (real model) on desktop, link three fields, fill, download, open the PDF in Preview. Note anything odd in the rulings file.
 - [ ] **Step 3: Commit** `git commit -m "docs: browser demo how-to; Plan 3A rulings summary"`

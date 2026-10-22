@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -27,3 +28,14 @@ def test_node_suites():
         print(proc.stdout)
         print(proc.stderr)
     assert proc.returncode == 0, "node --test failed; output printed above"
+
+
+def test_fixtures_fresh():
+    """The conformance fixtures match what the Python library produces today (regenerate with
+    ``python demo/tools/export_conformance.py``)."""
+    sys.path.insert(0, str(ROOT / "demo" / "tools"))
+    try:
+        import export_conformance
+    finally:
+        sys.path.remove(str(ROOT / "demo" / "tools"))
+    assert export_conformance.main(check=True) == 0, "stale conformance fixtures; see stderr"

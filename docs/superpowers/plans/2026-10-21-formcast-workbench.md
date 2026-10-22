@@ -251,7 +251,7 @@ Fixtures build templates with `new_template(schema, build_form_map(pdf))` (cache
   - Save: PUT to the store; reload page → the template is listed in matches.
   - With AI not configured: Build with AI hidden, note shown.
   - Window 900 px wide: no overlapping columns (columns stack or the side columns collapse to drawers).
-- [ ] **Step 2: Run** `.venv/bin/python -m pytest tests/demo/test_workbench_page.py -v` — FAIL. **Step 3: Implement.** **Step 4: Run** — PASS, plus `node --test tests/web` and the full pytest suite.
+- [ ] **Step 2: Run** `.venv/bin/python -m pytest tests/demo/test_workbench_page.py -v` — FAIL. **Step 3: Implement.** **Step 4: Run** — PASS, plus `node --test "tests/web/*.test.js"` and the full pytest suite.
 - [ ] **Step 5: Commit** `git commit -m "workbench: three-column review app on the server engine"`
 
 ---
@@ -261,6 +261,6 @@ Fixtures build templates with `new_template(schema, build_form_map(pdf))` (cache
 **Files:**
 - Modify: `README.md` (Workbench section: what it is and isn't, `python -m demo.server`, `.env` keys `FORMCAST_DEMO_BASE_URL/API_KEY/MODEL/API_FORMAT`, where the app layer ends and how to swap the store and record sources, "run it on your own machine only; the sandbox is not a security boundary"), `docs/superpowers/specs/2026-10-20-form-projection-design.md` §8 public API sketch (add `similarity`, `rebind`, `on_step`), `docs/superpowers/plans/2026-10-21-formcast-plan3-rulings.md` (closing summary for 3B)
 
-- [ ] **Step 1: Run everything:** `.venv/bin/python -m pytest -q`; `node --test tests/web`; `.venv/bin/python -m pytest -q -m slow tests/match tests/demo`. Expected: all pass.
+- [ ] **Step 1: Run everything:** `.venv/bin/python -m pytest -q`; `node --test "tests/web/*.test.js"`; `.venv/bin/python -m pytest -q -m slow tests/match tests/demo`. Expected: all pass.
 - [ ] **Step 2: Manual smoke** in the built-in browser: `python -m demo.server`, then the start screen → reuse flow → hand edit → fill → download. (Without a real API key the AI path is checked only by the fake-provider tests; say so in the rulings.)
 - [ ] **Step 3: Commit** `git commit -m "docs: workbench how-to; public API sketch; Plan 3B rulings summary"`

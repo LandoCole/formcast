@@ -54,7 +54,7 @@ These count as failure even if tests pass:
 
 - Vanilla HTML, CSS and ES modules. No build step. Third-party browser libraries are vendored at pinned versions with their licence files (§8.1).
 - The portfolio site is static on Vercel. The demo must work as static files under `/formcast/`.
-- Node 20+ is available for running JS unit tests (`node --test`, no npm dependencies). Python Playwright (with Chromium) runs page tests, as on the portfolio site.
+- Node 22+ is available for running JS unit tests (`node --test`, no npm dependencies). Python Playwright (with Chromium) runs page tests, as on the portfolio site.
 - Library changes keep the existing public API working and the 1,035 existing tests passing.
 - The held-out split is never read or used for anything in this plan.
 - No real-model (paid) calls are needed to build or test Plan 3. Agent flows are tested with the existing scripted fake provider.
@@ -154,7 +154,7 @@ Both are thin: they create an engine, mount the parts, and wire their events.
 - **ops**: for each op in the browser subset, a starting template, the op, the author, and Python's resulting template (or error message class) and warnings.
 - **values**: templates plus records, with the value Python's fill resolves for every slot (after transforms, `when`, joins and table flow) and the report entries that resolution produces (`missing`, `transform_error`, `unmapped_data`, `rows_dropped`, `not_shown`, ...).
 
-`tests/web/*.test.js` load the fixtures and require the JS output to equal Python's. A pytest test regenerates the fixtures in memory and fails if the committed files are stale, and another runs `node --test tests/web` (skipped with a clear message if `node` is missing). A second direction is also tested: a Node script builds templates the way the browser engine does (seed, then a scripted list of ops), and pytest validates them with `Template.model_validate` and checks that `replay` of their history on the seed reproduces them.
+`tests/web/*.test.js` load the fixtures and require the JS output to equal Python's. A pytest test regenerates the fixtures in memory and fails if the committed files are stale, and another runs `node --test "tests/web/*.test.js"` (skipped with a clear message if `node` is missing). A second direction is also tested: a Node script builds templates the way the browser engine does (seed, then a scripted list of ops), and pytest validates them with `Template.model_validate` and checks that `replay` of their history on the seed reproduces them.
 
 ## 8. Browser engine (`demo/web/engines/browser/`)
 
@@ -300,7 +300,7 @@ Two or three schemas matched to demo forms from the dev corpus (reusing `forms/s
 
 ## 12. Testing
 
-- `node --test tests/web`: conformance (transforms, schema, ops, values), geometry (rotation, crop box), undo stack, placeholder records, report shape. Run from pytest as well.
+- `node --test "tests/web/*.test.js"`: conformance (transforms, schema, ops, values), geometry (rotation, crop box), undo stack, placeholder records, report shape. Run from pytest as well.
 - Detection parity (§8.2), marked `slow`.
 - pytest for library additions: signature, similarity calibration cases, rebind, fingerprint `None` handling, `on_step` and cancel with the scripted fake provider.
 - pytest for the server: every API route with an in-process server on an ephemeral port, the fake provider for jobs, stores and record sources on temp folders.
