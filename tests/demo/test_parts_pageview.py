@@ -312,6 +312,90 @@ def test_delete_and_backspace_remove_the_field(pv):
     assert pv.ops()[-1] == {"op": "remove_field", "id": "w0_2"}
 
 
+def test_held_delete_removes_one_box(pv):
+    """Auto-repeat (a held Delete or Backspace) emits one remove_field, not one per repeat."""
+    pv.box("w0_1").focus()
+    for _ in range(4):
+        pv.page.keyboard.down("Delete")  # the 2nd to 4th presses arrive with repeat = true
+    pv.page.keyboard.up("Delete")
+    assert pv.ops() == [{"op": "remove_field", "id": "w0_1"}]
+    pv.box("w0_2").focus()
+    for _ in range(3):
+        pv.page.keyboard.down("Backspace")
+    pv.page.keyboard.up("Backspace")
+    assert pv.ops() == [{"op": "remove_field", "id": "w0_1"}, {"op": "remove_field", "id": "w0_2"}]
+
+
+def test_drag_back_to_the_start_emits_nothing(pv):
+    box = pv.box("w0_0")
+    before = box.bounding_box()
+    mouse = pv.drag(box, 30, 12)
+    bb = before
+    mouse.move(bb["x"] + bb["width"] / 2, bb["y"] + bb["height"] / 2, steps=3)  # back to where it was
+    mouse.up()
+    assert pv.ops() == []
+    assert box.bounding_box() == before
+    # the same for a resize handle dragged out and back
+    box.click()
+    handle = box.locator('.fc-hd[data-handle="se"]')
+    hb = handle.bounding_box()
+    mouse = pv.drag(handle, 20, 10)
+    mouse.move(hb["x"] + hb["width"] / 2, hb["y"] + hb["height"] / 2, steps=3)
+    mouse.up()
+    assert pv.ops() == []
+
+
+def test_a_nudge_against_the_page_edge_emits_nothing(pv):
+    t = copy.deepcopy(pv.template)
+    edge = field(t, "w0_1")
+    edge["rect"] = [0, 100, 40, 114]  # on the left edge of the page
+    pv.setup(template=t)
+    pv.box("w0_1").focus()
+    pv.page.keyboard.press("ArrowLeft")
+    assert pv.ops() == []
+    assert pv.box("w0_1").bounding_box()["x"] == pytest.approx(pv.page.locator(".fc-pv-layer").bounding_box()["x"], abs=0.5)
+    # right then left before either key-up: back where it started, so still nothing
+    pv.page.keyboard.down("ArrowRight")
+    pv.page.keyboard.down("ArrowLeft")
+    pv.page.keyboard.up("ArrowLeft")
+    pv.page.keyboard.up("ArrowRight")
+    assert pv.ops() == []
+    # a step away from the edge still moves
+    pv.page.keyboard.press("ArrowRight")
+    (op,) = pv.ops()
+    assert close(op["rect"], [1, 100, 41, 114])
+
+
+def test_destroy_removes_listeners_observer_and_its_elements(pv):
+    out = pv.page.evaluate(
+        """() => {
+          let disconnected = 0;
+          const real = ResizeObserver.prototype.disconnect;
+          ResizeObserver.prototype.disconnect = function () { disconnected += 1; return real.call(this); };
+          const mount = document.getElementById("mount");
+          const box = mount.querySelector('.fc-box[data-field-id="w0_1"]');
+          const layer = mount.querySelector(".fc-pv-layer");
+          window.view.setAddMode(true);
+          window.events.length = 0;
+          window.view.destroy();
+          ResizeObserver.prototype.disconnect = real;
+          // events on the (now detached) parts and on the container reach no handler
+          box.dispatchEvent(new KeyboardEvent("keydown", { key: "Delete", bubbles: true }));
+          layer.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true, button: 0, pointerType: "mouse" }));
+          mount.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+          window.view.setTemplate({ fields: [] });
+          window.view.setScale(1);
+          return {
+            disconnected,
+            events: window.events.length,
+            children: mount.children.length,
+            cls: mount.classList.contains("fc-pageview"),
+          };
+        }"""
+    )
+    assert out == {"disconnected": 1, "events": 0, "children": 0, "cls": False}
+
+
 def drop(box, path):
     return box.evaluate(
         """(el, path) => {

@@ -28,6 +28,7 @@ const PARTS = {
     for (const type of ["select", "op", "region", "addmode"]) bus.on(type, (detail) => events.push({ type, detail }));
     window.setup = ({ readOnly = false, regionSelect = false, page, template, scale, compare, warnings }) => {
       const mount = document.getElementById("mount");
+      window.view?.destroy();
       mount.replaceChildren();
       events.length = 0;
       const view = new PageView(mount, { bus, readOnly, regionSelect });

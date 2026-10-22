@@ -5,7 +5,8 @@
 // Everything on screen is placed through geometry.js (`toScreen`, `toPage`), the only place that
 // converts between PDF points and pixels, so rotated pages work the same as upright ones. The
 // view never edits a template: it emits ready-to-apply ops on the bus (once per gesture, on
-// pointerup or keyup) and redraws when the host calls `setTemplate` again.
+// pointerup or keyup, and only when the box ends somewhere new) and redraws when the host calls
+// `setTemplate` again. `destroy()` removes its listeners, its observer and what it drew.
 
 import { makeView, ptToPx, toPage, toScreen, viewSize } from "./geometry.js";
 
@@ -78,9 +79,11 @@ export class PageView {
   #paintTimer = 0;
   #marquee = null;
   #observer = null;
+  /** Aborted by `destroy()`; every listener the view adds uses its signal. */
+  #life = new AbortController();
   /** @type {WeakMap<Element, Box>} the box each element currently shows (it may be ahead of the template) */
   #shown = new WeakMap();
-  /** @type {{el: HTMLElement, box: Box} | null} arrow-key nudges not yet emitted */
+  /** @type {{el: HTMLElement, box: Box, start: Box} | null} arrow-key nudges not yet emitted */
   #nudge = null;
 
   /**
@@ -93,6 +96,7 @@ export class PageView {
     this.#readOnly = readOnly;
     this.#regionSelect = regionSelect;
     el.classList.add("fc-pageview");
+    const signal = this.#life.signal;
 
     if (!readOnly) {
       const bar = document.createElement("div");
@@ -102,7 +106,7 @@ export class PageView {
       add.className = "fc-pv-btn fc-pv-add";
       add.textContent = "Add box";
       add.setAttribute("aria-pressed", "false");
-      add.addEventListener("click", () => this.setAddMode(!this.#addMode));
+      add.addEventListener("click", () => this.setAddMode(!this.#addMode), { signal });
       bar.append(add);
       this.#addBtn = add;
       el.append(bar);
@@ -119,20 +123,24 @@ export class PageView {
     el.append(this.#stage);
 
     const layer = this.#layer;
-    layer.addEventListener("pointerdown", (e) => this.#onPointerDown(e));
-    layer.addEventListener("keydown", (e) => this.#onKeyDown(e));
-    layer.addEventListener("keyup", (e) => this.#onKeyUp(e));
-    layer.addEventListener("focusin", (e) => this.#onFocusIn(e));
-    layer.addEventListener("focusout", () => this.#flushNudge());
-    layer.addEventListener("dragover", (e) => this.#onDragOver(e));
-    layer.addEventListener("dragleave", (e) => this.#onDragLeave(e));
-    layer.addEventListener("drop", (e) => this.#onDrop(e));
-    el.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") {
-        if (this.#addMode) this.setAddMode(false);
-        this.#clearMarquee();
-      }
-    });
+    layer.addEventListener("pointerdown", (e) => this.#onPointerDown(e), { signal });
+    layer.addEventListener("keydown", (e) => this.#onKeyDown(e), { signal });
+    layer.addEventListener("keyup", (e) => this.#onKeyUp(e), { signal });
+    layer.addEventListener("focusin", (e) => this.#onFocusIn(e), { signal });
+    layer.addEventListener("focusout", () => this.#flushNudge(), { signal });
+    layer.addEventListener("dragover", (e) => this.#onDragOver(e), { signal });
+    layer.addEventListener("dragleave", (e) => this.#onDragLeave(e), { signal });
+    layer.addEventListener("drop", (e) => this.#onDrop(e), { signal });
+    el.addEventListener(
+      "keydown",
+      (e) => {
+        if (e.key === "Escape") {
+          if (this.#addMode) this.setAddMode(false);
+          this.#clearMarquee();
+        }
+      },
+      { signal },
+    );
 
     if (typeof ResizeObserver === "function") {
       this.#observer = new ResizeObserver(() => this.#layout(false));
@@ -204,6 +212,26 @@ export class PageView {
   /** Remove the area-select outline. */
   clearRegion() {
     this.#clearMarquee();
+  }
+
+  /**
+   * Take the view down: stop observing the container's size, remove every listener (a gesture in
+   * progress included), drop a pending repaint and nudge, and remove what the view added to the
+   * container. The view does nothing after this; make a new one to show a page again.
+   */
+  destroy() {
+    this.#life.abort();
+    this.#observer?.disconnect();
+    this.#observer = null;
+    clearTimeout(this.#paintTimer);
+    this.#token += 1; // a paint still in flight is dropped
+    this.#nudge = null;
+    this.#page = null;
+    this.#view = null;
+    this.#template = null;
+    this.#addBtn?.closest(".fc-pv-bar")?.remove();
+    this.#stage.remove();
+    this.#el.classList.remove("fc-pageview");
   }
 
   // ------------------------------------------------------------------ layout and image
@@ -520,6 +548,7 @@ export class PageView {
       captureEl.removeEventListener("pointercancel", onCancel);
       boxEl.classList.remove("is-dragging");
       if (!moved) return;
+      if (commit && this.#sameRect(box, base)) commit = false; // dragged back to where it started
       if (commit) {
         this.#shown.set(boxEl, box);
         if (boxEl.classList.contains("is-selected")) this.#applySelection(this.#selected);
@@ -530,9 +559,17 @@ export class PageView {
     };
     const onUp = (ev) => finish(ev, true);
     const onCancel = (ev) => finish(ev, false);
-    captureEl.addEventListener("pointermove", onMove);
-    captureEl.addEventListener("pointerup", onUp);
-    captureEl.addEventListener("pointercancel", onCancel);
+    const signal = this.#life.signal;
+    captureEl.addEventListener("pointermove", onMove, { signal });
+    captureEl.addEventListener("pointerup", onUp, { signal });
+    captureEl.addEventListener("pointercancel", onCancel, { signal });
+  }
+
+  /** True when two screen boxes give the same rect in points (as emitted, to 0.01 pt). */
+  #sameRect(a, b) {
+    const ra = this.#rectOf(a);
+    const rb = this.#rectOf(b);
+    return ra.every((v, i) => v === rb[i]);
   }
 
   /** Update a box's pixels without recording them as the committed position. */
@@ -591,9 +628,10 @@ export class PageView {
         this.#bus.emit("region", { page: this.#page.index, rect });
       }
     };
-    layer.addEventListener("pointermove", onMove);
-    layer.addEventListener("pointerup", onUp);
-    layer.addEventListener("pointercancel", onUp);
+    const signal = this.#life.signal;
+    layer.addEventListener("pointermove", onMove, { signal });
+    layer.addEventListener("pointerup", onUp, { signal });
+    layer.addEventListener("pointercancel", onUp, { signal });
   }
 
   #clearMarquee() {
@@ -623,7 +661,7 @@ export class PageView {
     if (this.#readOnly || e.ctrlKey || e.metaKey || e.altKey) return;
     if (e.key === "Delete" || e.key === "Backspace") {
       e.preventDefault();
-      this.#emitOp({ op: "remove_field", id: el.dataset.fieldId });
+      if (!e.repeat) this.#emitOp({ op: "remove_field", id: el.dataset.fieldId }); // a held key removes one box
       return;
     }
     const dir = ARROWS[e.key];
@@ -641,7 +679,7 @@ export class PageView {
       width: from.width,
       height: from.height,
     };
-    this.#nudge = { el, box };
+    this.#nudge = { el, box, start: this.#nudge?.start ?? shown };
     this.#setBoxStyle(el, box);
   }
 
@@ -649,12 +687,16 @@ export class PageView {
     if (e.key in ARROWS) this.#flushNudge();
   }
 
-  /** Emit one `move` for the arrow presses since the last emit. */
+  /** Emit one `move` for the arrow presses since the last emit; none when the box is where it started. */
   #flushNudge() {
     const n = this.#nudge;
     if (n === null) return;
     this.#nudge = null;
     if (!n.el.isConnected) return;
+    if (this.#sameRect(n.box, n.start)) {
+      this.#place(n.el, n.start); // pressed against the page edge, or back and forth
+      return;
+    }
     this.#shown.set(n.el, n.box);
     this.#emitBox("move", n.el, n.box);
   }
