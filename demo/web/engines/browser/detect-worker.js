@@ -4,9 +4,11 @@
 //
 // Messages in:  {id, type: "load", url, bytes}  and  {id, type: "detect", rgba, width, height}
 // Messages out: {id, type: "progress", loaded, total}, then {id, ok: true, ...} or {id, ok: false, message}
+// Requests are handled one at a time, in the order they arrive (serial.js).
 
 import * as ort from "../../vendor/onnxruntime-web/ort.webgpu.min.mjs";
 import { IMAGE_SIZE, decode, letterbox } from "./ffdnet.js";
+import { serial } from "./serial.js";
 
 ort.env.wasm.wasmPaths = new URL("../../vendor/onnxruntime-web/", import.meta.url).href;
 ort.env.wasm.proxy = false; // already off the main thread
@@ -153,10 +155,13 @@ async function handle(msg) {
   throw new Error(`unknown request ${msg.type}`);
 }
 
+// One message at a time: onnxruntime-web does not support overlapping runs on one session.
+const handleInOrder = serial(handle);
+
 self.onmessage = async (event) => {
   const msg = event.data;
   try {
-    postMessage({ id: msg.id, ok: true, ...(await handle(msg)) });
+    postMessage({ id: msg.id, ok: true, ...(await handleInOrder(msg)) });
   } catch (e) {
     const detail = e instanceof Error && e.cause ? String(e.cause?.message ?? e.cause) : undefined;
     postMessage({ id: msg.id, ok: false, message: e instanceof Error ? e.message : String(e), detail });
