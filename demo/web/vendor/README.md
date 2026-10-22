@@ -20,11 +20,23 @@ Licence: `pdfjs/LICENSE`.
 | `build/pdf.worker.min.mjs` | 1,265,413 |
 | `cmaps/` (character maps, 169 files) | about 1.6 MB |
 | `standard_fonts/` (the 14 standard fonts, 16 files) | about 0.8 MB |
-| `wasm/` (JBIG2, JPEG 2000 and colour decoders, with their licences) | about 1.5 MB |
+| `wasm/` (JBIG2, JPEG 2000, colour and QuickJS sandbox builds, with their licences) | about 1.5 MB |
 | `iccs/` (ICC profile and licence) | about 20 KB |
 
 `cmaps/` and `standard_fonts/` are needed to render many forms correctly. Point pdf.js
 at them with `cMapUrl`, `standardFontDataUrl` and `wasmUrl`.
+
+The npm tarball ships licences for the JBIG2, OpenJPEG and QCMS builds in `wasm/` but none
+for `wasm/quickjs-eval.wasm` and `quickjs-eval.js` (the QuickJS sandbox pdf.js uses for form
+scripts). pdf.js's repository at tag `v6.3.289` ships no licence text for them either: its
+`external/quickjs/README.md` says QuickJS and pdf.js.quickjs are MIT, so the build is MIT. The
+two vendored files are byte-identical to `external/quickjs/` at that tag (same git blob ids).
+Added on 2026-10-22, in the same naming as the other `wasm/` licences:
+
+| File | Source |
+| --- | --- |
+| `wasm/LICENSE_QUICKJS` | QuickJS's `LICENSE` at commit `3d5e064e9dd67c70f7962836505a7fa067bf0a4e`, https://raw.githubusercontent.com/bellard/quickjs/3d5e064e9dd67c70f7962836505a7fa067bf0a4e/LICENSE (the revision pdf.js built from: pdf.js commit 7a7e4fd, "Update quickjs to rev 3d5e064e…", the last change to `quickjs-eval.wasm` before `v6.3.289`) |
+| `wasm/LICENSE_PDFJS_QUICKJS` | pdf.js.quickjs's `LICENSE` (MIT, Mozilla Foundation), https://raw.githubusercontent.com/mozilla/pdf.js.quickjs/e2c5bfc8194b16f5973eea5e4e025b67be3c1015/LICENSE |
 
 ## pdf-lib/ (about 0.5 MB)
 
@@ -40,6 +52,11 @@ Licence: `onnxruntime-web/LICENSE`. The npm tarball ships no licence file, so th
 MIT text from the project, with the copyright line taken from the header of
 `ort.webgpu.min.mjs` ("Copyright (c) Microsoft Corporation. Licensed under the MIT License.").
 
+Third-party notices: `onnxruntime-web/ThirdPartyNotices.txt` (338,088 bytes), the project's
+notices for the components built into ONNX Runtime, unmodified from the `v1.30.0` tag:
+https://raw.githubusercontent.com/microsoft/onnxruntime/v1.30.0/ThirdPartyNotices.txt
+(fetched 2026-10-22; SHA-256 `143764b952fdb1a7c69ce653bfba74a7744d6a8a573bfb73e235fba356c83de3`).
+
 The WebGPU build. Its single WebAssembly binary also holds the CPU (WASM) provider, so
 one set of files serves both.
 
@@ -53,4 +70,4 @@ Set `ort.env.wasm.wasmPaths` to this folder so the loader and binary resolve her
 
 ## Total
 
-32.7 MB in 209 files, most of it the ONNX Runtime WebAssembly binary.
+33.0 MB in 212 files, most of it the ONNX Runtime WebAssembly binary.
