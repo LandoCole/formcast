@@ -14,8 +14,8 @@ becomes a 500. A handler turns the ones it expects into answers where it calls t
 records or the documents: ``with missing("template"):`` makes a ``KeyError`` a 404, and
 ``with bad_request():`` makes a ``ValueError`` (a bad template name) a 400.
 
-Routes (see spec 11.2): documents, matches, seed, apply, rebind, fill, smart-pdf, the template store
-and the record source. Everything that touches MuPDF takes ``PYMUPDF_LOCK`` (directly for fills,
+Routes (see spec 11.2): documents, matches, seed, apply, rebind, AI jobs, fill, smart-pdf, the template
+store and the record source. Everything that touches MuPDF takes ``PYMUPDF_LOCK`` (directly for fills,
 smart PDFs and rebinds; inside ``Doc`` for the form map and the match features).
 
 Handlers are small methods registered in ``Api._add_routes``; they return a JSON-able value
@@ -27,6 +27,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import math
 import re
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
@@ -38,6 +39,7 @@ from typing import Any
 import pydantic
 
 from demo.server.documents import MAX_DPI, MIN_DPI, PYMUPDF_LOCK, Doc, Documents
+from demo.server.jobs import KINDS, Jobs, JobsBusy
 from demo.server.records import MultiRecords, RecordSource, RecordSourceError
 from demo.server.settings import Settings
 from demo.server.store import NAME_RE, FolderTemplateStore, StoredTemplateError, TemplateStore
@@ -134,6 +136,7 @@ class Api:
         self.store = store if store is not None else FolderTemplateStore(settings.data_dir / "templates")
         self.records = records if records is not None else _default_records(settings)
         self.documents = documents if documents is not None else Documents()
+        self.jobs = Jobs(secrets=[settings.llm.api_key] if settings.llm is not None else [])
         self._routes: list[tuple[str, re.Pattern[str], Callable[[Request], Any]]] = []
         self._add_routes()
 
@@ -198,6 +201,9 @@ class Api:
         self._add("POST", r"/api/seed", self.seed)
         self._add("POST", r"/api/apply", self.apply_op)
         self._add("POST", r"/api/rebind", self.rebind_template)
+        self._add("POST", r"/api/jobs", self.create_job)
+        self._add("GET", r"/api/jobs/(?P<job>[0-9a-f]{32})", self.get_job)
+        self._add("POST", r"/api/jobs/(?P<job>[0-9a-f]{32})/cancel", self.cancel_job)
         self._add("POST", r"/api/fill", self.fill_pdf)
         self._add("POST", r"/api/smart-pdf", self.smart_pdf)
         self._add("GET", r"/api/templates", self.list_templates)
@@ -276,6 +282,12 @@ class Api:
         """
         payload = _object(req)
         doc = self._doc(payload)
+        schema = self._schema(payload)
+        form_map = doc.form_map()  # takes the MuPDF lock itself
+        return {"template": _dump(new_template(schema, form_map, candidates=True))}
+
+    def _schema(self, payload: dict) -> dict:
+        """``payload["schema"]``: a JSON Schema object, or the name of a schema the record source has."""
         schema = payload.get("schema")
         if isinstance(schema, str):
             with missing("schema"):
@@ -284,8 +296,7 @@ class Api:
             raise ApiError(400, "bad_schema", "send schema as a JSON Schema object or the name of a stored schema")
         if _schema_loops(schema):
             raise ApiError(400, "bad_schema", _SCHEMA_LOOP)
-        form_map = doc.form_map()  # takes the MuPDF lock itself
-        return {"template": _dump(new_template(schema, form_map, candidates=True))}
+        return schema
 
     def apply_op(self, req: Request) -> dict:
         """``{template, op, author, note?, doc?}`` -> ``{template, warnings}``; a rejected op is 422 ``op_rejected``.
@@ -369,6 +380,54 @@ class Api:
         if score >= self.settings.reuse_threshold:
             return "reuse"
         return "adapt" if score >= self.settings.adapt_threshold else "new"
+
+    # ---- AI jobs
+
+    def create_job(self, req: Request) -> dict:
+        """``{kind, doc, schema?, template?, instruction?, region?}`` -> ``{id}``; poll ``GET /api/jobs/{id}``.
+
+        ``build`` takes ``schema`` (an object or a stored schema's name). ``adapt`` takes ``template`` and
+        uses its own schema. ``revise`` takes ``template`` and ``instruction``, and optionally
+        ``region: {page, rect: [x0, y0, x1, y1]}`` in PDF points (origin top-left). A job runs on a thread,
+        two at a time; a third is refused with 429 ``busy``. Every input is checked here, before a thread starts.
+        """
+        if self.provider_factory is None:
+            raise ApiError(400, "ai_not_configured", "AI is not configured. Set the model endpoint, key and name in .env (see the README).")
+        payload = _object(req)
+        kind = payload.get("kind")
+        if kind not in KINDS:
+            raise ApiError(400, "bad_kind", "kind must be build, adapt or revise")
+        doc = self._doc(payload)
+        schema = template = instruction = region = None
+        if kind == "build":
+            schema = self._schema(payload)
+        else:
+            template = _template(payload)
+            if _schema_loops(template.schema_):
+                raise ApiError(400, "bad_schema", _SCHEMA_LOOP)
+        if kind == "revise":
+            instruction = payload.get("instruction")
+            if not isinstance(instruction, str) or not instruction.strip():
+                raise ApiError(400, "bad_instruction", "send instruction as the text of the change to make")
+            region = _region(payload.get("region"), doc)
+        try:
+            job = self.jobs.start(
+                kind, doc=doc, schema=schema, template=template, instruction=instruction, region=region,
+                provider_factory=self.provider_factory,
+            )  # fmt: skip
+        except JobsBusy as exc:
+            raise ApiError(429, "busy", str(exc)) from None
+        return {"id": job.id}
+
+    def get_job(self, req: Request) -> dict:
+        """Status, the steps so far and, once it has ended, the template (see ``demo/server/jobs.py``)."""
+        with missing("job"):
+            return self.jobs.get(req.match["job"]).snapshot()
+
+    def cancel_job(self, req: Request) -> dict:
+        """Ask the job to stop at its next step; returns its state now (still ``running`` until it stops)."""
+        with missing("job"):
+            return self.jobs.cancel(req.match["job"]).snapshot()
 
     # ---- fill
 
@@ -555,6 +614,29 @@ def _template(payload: dict) -> Template:
         first = exc.errors()[0]
         where = ".".join(str(part) for part in first["loc"])
         raise ApiError(400, "bad_template", f"this is not a valid template: {where or 'template'}: {first['msg']}") from None
+
+
+def _region(raw: Any, doc: Doc) -> tuple[int, tuple[float, float, float, float]] | None:
+    """``{page, rect}`` from a request as ``(page, rect)``; ``None`` when absent. A bad one is a 400."""
+    if raw is None:
+        return None
+    shape = 'region must look like {"page": 0, "rect": [x0, y0, x1, y1]} (PDF points)'
+    if not isinstance(raw, dict):
+        raise ApiError(400, "bad_region", shape)
+    page, rect = raw.get("page"), raw.get("rect")
+    if isinstance(page, bool) or not isinstance(page, int):
+        raise ApiError(400, "bad_region", shape)
+    if not 0 <= page < doc.page_count:
+        raise ApiError(400, "bad_region", f"region page must be from 0 to {doc.page_count - 1} (this document has {doc.page_count} pages)")
+    if not (isinstance(rect, list) and len(rect) == 4 and all(type(v) in (int, float) for v in rect)):
+        raise ApiError(400, "bad_region", shape)
+    try:
+        x0, y0, x1, y1 = (float(v) for v in rect)  # OverflowError: an absurd integer
+    except OverflowError:
+        raise ApiError(400, "bad_region", shape) from None
+    if not all(math.isfinite(v) for v in (x0, y0, x1, y1)):
+        raise ApiError(400, "bad_region", shape)
+    return page, (x0, y0, x1, y1)
 
 
 def _dump(template: Template) -> dict:
