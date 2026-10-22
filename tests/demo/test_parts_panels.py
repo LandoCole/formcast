@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 APPLICANT = {"description": "", "enum": None, "item_type": None, "in_table": None}
@@ -305,6 +307,34 @@ def test_style_controls_emit_set_style(panels):
         {"op": "set_style", "id": "name", "style": {"font_size": 14}},
         {"op": "set_style", "id": "name", "style": {"comb": None}},
     ]
+
+
+def test_every_inspector_control_has_an_accessible_name(panels):
+    """Each control is announced by its row's name (or its own label), with a transform step open."""
+    by_id(panels.template, "name")["source"]["transforms"] = [{"op": "date_format", "args": {"format": "%m/%d/%Y"}}]
+    panels.setup()
+    ins = panels.page.locator("#inspector")
+    expected = [
+        ("textbox", "Label"),
+        ("combobox", "Type"),
+        ("combobox", "Data field"),
+        ("combobox", "Auto-fit or fixed font size"),
+        ("spinbutton", "Fixed font size in points"),
+        ("spinbutton", "Smallest"),
+        ("combobox", "Align"),
+        ("spinbutton", "Comb cells"),
+        ("checkbox", "Wrap onto several lines"),
+    ]
+    for role, name in expected:
+        assert ins.get_by_role(role, name=name, exact=True).count() == 1, (role, name)
+    controls = ins.locator("input, select, textarea, button")
+    assert controls.count() > len(expected)
+    for i in range(controls.count()):
+        snapshot = controls.nth(i).aria_snapshot()
+        assert re.match(r"^- '?\w+ \"[^\"]+\"", snapshot), snapshot
+    panels.setup(field_id="items")  # a table: label, type and data field only
+    for role, name in expected[:3]:
+        assert ins.get_by_role(role, name=name, exact=True).count() == 1, (role, name)
 
 
 def test_checkbox_has_no_text_style_controls_and_table_lists_segments(panels):

@@ -186,10 +186,15 @@ export class Inspector {
     }
 
     const dl = el("dl", "fc-ins-dl");
+    // Each row's term names the controls in it that have no name of their own (an aria-label, or a
+    // <label> around them), so a screen reader announces "Label", "Type", "Data field" and so on.
     const row = (name, ...nodes) => {
       const dt = el("dt", "", name);
       const dd = el("dd");
       dd.append(...nodes);
+      for (const c of dd.querySelectorAll("input, select, textarea")) {
+        if (!c.hasAttribute("aria-label") && c.closest("label") === null) c.setAttribute("aria-label", name);
+      }
       dl.append(dt, dd);
     };
 
@@ -252,6 +257,8 @@ export class Inspector {
     const mode = select("font-mode", [["auto", "Auto-fit"], ["fixed", "Fixed"]], style.font_size === "auto" ? "auto" : "fixed");
     const size = numberInput("font-size", style.font_size === "auto" ? "" : style.font_size, { min: 2, step: 0.5 });
     size.disabled = style.font_size === "auto";
+    mode.setAttribute("aria-label", "Auto-fit or fixed font size");
+    size.setAttribute("aria-label", "Fixed font size in points");
     mode.addEventListener("change", () => set("font_size", mode.value === "auto" ? "auto" : DEFAULT_FIXED_SIZE));
     size.addEventListener("change", () => {
       if (size.value !== "") set("font_size", Number(size.value));
