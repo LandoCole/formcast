@@ -187,6 +187,10 @@ committed runs are archived in `eval/results/templates.tar.gz`; extract it with
 `tar -xzf eval/results/templates.tar.gz` from the repo root before `--rescore`.
 Step logs and overlays are local-only.
 
+## Demo
+
+A browser demo that detects fields, links them to a schema and fills the form is in [demo/](demo/); it runs entirely in the page.
+
 ## Spec
 
 Design spec: [docs/superpowers/specs/2026-10-20-form-projection-design.md](docs/superpowers/specs/2026-10-20-form-projection-design.md)
