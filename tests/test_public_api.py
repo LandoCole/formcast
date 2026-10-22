@@ -1,6 +1,9 @@
 """The public API as the spec (section 8) shows it."""
 
 import importlib
+import subprocess
+import sys
+from pathlib import Path
 
 import pytest
 
@@ -86,3 +89,20 @@ def test_fill_exports():
     assert formcast.fill is fill and formcast.to_smart_pdf is to_smart_pdf and formcast.FillReport is FillReport
     render = importlib.import_module("formcast.render")
     assert render.fill is fill and render.FillReport is FillReport
+
+
+def test_match_exports_are_lazy_and_cover_scoring_many_templates(fillable_form_pdf):
+    from formcast.match import PdfFeatures, Similarity, pdf_features, similarity
+
+    for name in ("similarity", "Similarity", "pdf_features", "PdfFeatures", "fingerprint"):
+        assert name in formcast.__all__ and name in dir(formcast)
+    assert formcast.pdf_features is pdf_features and formcast.PdfFeatures is PdfFeatures
+    assert formcast.similarity is similarity and formcast.Similarity is Similarity
+    # spec section 8: read one PDF once and score it against many templates
+    tpl = new_template(SCHEMA, build_form_map(fillable_form_pdf, detectors={}))
+    feats = formcast.pdf_features(fillable_form_pdf)
+    assert isinstance(feats, formcast.PdfFeatures)
+    assert formcast.similarity(tpl, fillable_form_pdf, features=feats) == formcast.similarity(tpl, fillable_form_pdf)
+    # lazy: importing formcast does not import formcast.match
+    code = "import sys, formcast; assert 'formcast.match' not in sys.modules; formcast.pdf_features; assert 'formcast.match' in sys.modules"
+    subprocess.run([sys.executable, "-c", code], check=True, cwd=Path(__file__).resolve().parents[1] / "src")

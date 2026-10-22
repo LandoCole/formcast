@@ -17,6 +17,7 @@ _LAZY = {
     "FormSignature": "formcast.pagemap.model",
     "LLMConfig": "formcast.llm",
     "OpContext": "formcast.template.ops",
+    "PdfFeatures": "formcast.match",
     "SessionBudget": "formcast.agent.session",
     "SessionCancelled": "formcast.errors",
     "SessionResult": "formcast.agent.session",
@@ -29,6 +30,7 @@ _LAZY = {
     "coverage": "formcast.template.coverage",
     "fill": "formcast.render.fill",
     "fingerprint": "formcast.match",
+    "pdf_features": "formcast.match",
     "flatten_schema": "formcast.schema",
     "preview": "formcast.render.preview",
     "rebind": "formcast.template.rebind",
@@ -44,7 +46,7 @@ if TYPE_CHECKING:
     from formcast.agent.session import SessionBudget, SessionResult, StepEvent
     from formcast.errors import SessionCancelled
     from formcast.llm import LLMConfig
-    from formcast.match import Similarity, fingerprint, similarity
+    from formcast.match import PdfFeatures, Similarity, fingerprint, pdf_features, similarity
     from formcast.pagemap.build import build_form_map
     from formcast.pagemap.model import FormSignature
     from formcast.render.fill import fill, to_smart_pdf
@@ -74,8 +76,8 @@ def __dir__() -> list[str]:
 
 
 __all__ = [
-    "FillReport", "FormSignature", "FormcastError", "LLMConfig", "OpContext", "OpError", "SessionBudget",
-    "SessionCancelled", "SessionResult", "Similarity", "StepEvent", "Template", "__version__", "apply",
-    "build_form_map", "build_template", "coverage", "errors", "fill", "fingerprint", "flatten_schema", "ops",
-    "preview", "rebind", "revise", "similarity", "to_smart_pdf",
+    "FillReport", "FormSignature", "FormcastError", "LLMConfig", "OpContext", "OpError", "PdfFeatures",
+    "SessionBudget", "SessionCancelled", "SessionResult", "Similarity", "StepEvent", "Template", "__version__",
+    "apply", "build_form_map", "build_template", "coverage", "errors", "fill", "fingerprint", "flatten_schema",
+    "ops", "pdf_features", "preview", "rebind", "revise", "similarity", "to_smart_pdf",
 ]  # fmt: skip

@@ -285,7 +285,7 @@ The core only computes these. The app decides what to do.
 
 ```python
 from formcast import LLMConfig, build_template, revise, fill, preview, to_smart_pdf, apply, ops, fingerprint, similarity, rebind
-from formcast import StepEvent, SessionCancelled
+from formcast import StepEvent, SessionCancelled, pdf_features, PdfFeatures
 
 llm = LLMConfig(base_url=..., api_key=..., model=..., api_format="responses")
 result = build_template(schema, "intake.pdf", llm)  # SessionResult
@@ -298,6 +298,8 @@ tpl.model_dump_json()                                 # app stores this
 
 # (as built, Plan 3B)
 sim = similarity(tpl, "intake_v2.pdf")                # Similarity: score 0-1, parts, plain-words explanation
+feats = pdf_features("intake_v2.pdf")                 # PdfFeatures: read one PDF once, score it against many templates
+best = max(stored, key=lambda t: similarity(t, "intake_v2.pdf", features=feats).score)
 tpl = rebind(tpl, "intake_v2.pdf")                    # same page count and sizes; takes this PDF's fingerprint, kinds, signature
 def on_step(event: StepEvent): ...                    # step number, summary, counts, token use; raise SessionCancelled to stop
 result = build_template(schema, "intake.pdf", llm, on_step=on_step)   # also accepted by revise()
