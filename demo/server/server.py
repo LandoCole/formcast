@@ -223,7 +223,8 @@ def make_server(
                 if body is None:
                     return
             headers = {k.lower(): v for k, v in self.headers.items()}
-            status, out_headers, out = api.route(self.command, unquote(path), dict(parse_qsl(query)), body, headers)
+            # the raw path: the API decodes each captured part itself, so "%2F" inside a record id is not a separator
+            status, out_headers, out = api.route(self.command, path, dict(parse_qsl(query)), body, headers)
             self._send(status, out_headers, out)
 
         def _handle_static(self, url_path: str) -> None:

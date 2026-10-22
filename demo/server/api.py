@@ -1,7 +1,9 @@
 """The workbench JSON API: a route table over ``Api.route``.
 
 ``Api.route(method, path, query, body, headers)`` returns ``(status, headers, body_bytes)`` and
-never raises: every failure becomes ``{"error": "<code>", "detail": "<plain message>"}``.
+never raises: every failure becomes ``{"error": "<code>", "detail": "<plain message>"}``. ``path`` is the
+path as sent, still percent-encoded: routes match it as it is and each captured part (a template name, a
+record id) is decoded on its own, so an id with an encoded slash (``%2F``) stays one part.
 
     ApiError                       the status and code the handler chose
     StoredTemplateError            422 bad_template_file   (a stored file that is not a template)
@@ -35,6 +37,7 @@ from dataclasses import dataclass, field
 from email import policy
 from email.parser import BytesParser
 from typing import Any
+from urllib.parse import unquote
 
 import pydantic
 
@@ -76,7 +79,7 @@ class Request:
     query: dict[str, str]
     body: bytes
     headers: Mapping[str, str]
-    match: re.Match[str]
+    match: dict[str, str]  # the route's captured parts, percent-decoded
 
     @property
     def content_type(self) -> str:
@@ -185,7 +188,8 @@ class Api:
             if verb != method and not (method == "HEAD" and verb == "GET"):
                 allowed.append(verb)
                 continue
-            result = handler(Request(method, path, query, body, headers, m))
+            parts = {name: unquote(value) for name, value in m.groupdict().items()}
+            result = handler(Request(method, path, query, body, headers, parts))
             return result if isinstance(result, Response) else json_response(result)
         if allowed:
             response = error_response(405, "method_not_allowed", f"use {' or '.join(sorted(set(allowed)))} for this path")

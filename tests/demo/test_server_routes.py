@@ -678,6 +678,21 @@ def test_schemas_and_records(demo_server):
     assert status == 200 and one["record"]["legal_name"] and one["record"]["address"]["city"]
 
 
+def test_a_record_id_with_a_slash_or_a_percent_sign_is_fetched_by_its_encoded_id(start_demo_server):
+    base = start_demo_server()
+    data = start_demo_server.servers[-1].api.settings.data_dir
+    with (data / "records" / "fw9.csv").open("a", encoding="utf-8") as f:
+        f.write("2026/07 batch,Slash Example,,Slash Example LLC\n50% off,Percent Example,,Percent Example LLC\n")
+    ids = {r["id"] for r in get_json(base, "/api/records?schema=fw9")[1]["records"]}
+    assert {"2026/07 batch", "50% off"} <= ids
+    status, one = get_json(base, "/api/records/fw9/" + quote("2026/07 batch", safe=""))  # 2026%2F07%20batch
+    assert status == 200 and one["record"]["legal_name"] == "Slash Example LLC"
+    status, one = get_json(base, "/api/records/fw9/" + quote("50% off", safe=""))  # decoded once: 50%25 -> 50%
+    assert status == 200 and one["record"]["legal_name"] == "Percent Example LLC"
+    assert get_json(base, "/api/records/fw9/2026/07%20batch")[0] == 404  # an unencoded slash is still a separator
+    assert get_json(base, "/api/records/" + quote("fw9", safe="") + "/" + quote("2026/07 batch", safe=""))[0] == 200
+
+
 @pytest.mark.parametrize(
     "path, status",
     [
