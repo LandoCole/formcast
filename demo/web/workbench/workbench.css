@@ -96,7 +96,8 @@ textarea:focus-visible, .text:focus-visible { outline: 2px solid var(--ink); out
 }
 .tb-left, .tb-right { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-width: 0; }
 .ai-note, .notice { margin: 0; padding: 6px 24px; font-size: 15px; line-height: 22px; box-shadow: inset 0 -.5px 0 0 var(--rule); }
-.ai-note { font-style: italic; color: var(--graphite); }
+/* the note wraps at a reading measure (840px) under the toolbar; its rule still runs the full width */
+.ai-note { padding-right: max(24px, calc(100% - 864px)); overflow-wrap: anywhere; font-style: italic; color: var(--graphite); }
 .notice { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-style: italic; }
 .notice #notice-text, .offer #offer-text { flex: 1 1 320px; min-width: 0; overflow-wrap: anywhere; }
 .offer { font-style: normal; box-shadow: inset 2px 0 0 0 var(--ink), inset 0 -.5px 0 0 var(--rule); }
@@ -181,6 +182,7 @@ textarea:focus-visible, .text:focus-visible { outline: 2px solid var(--ink); out
   .col-schema { box-shadow: inset 0 -.5px 0 0 var(--rule); }
   .col-page { padding: 12px 16px 16px; }
   .toolbar, .topbar, .ai-note, .notice { padding-left: 16px; padding-right: 16px; }
+  .ai-note { padding-right: max(16px, calc(100% - 856px)); }
 }
 @media (pointer: coarse) {
   .ib { width: 40px; height: 40px; }

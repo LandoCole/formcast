@@ -608,6 +608,30 @@ def test_without_ai_configured_build_with_ai_is_hidden_and_a_note_says_how_to_tu
     expect(b.page.locator("#ask")).to_be_hidden()  # no area select for the AI
 
 
+@pytest.mark.parametrize("width", [1280, 1440])
+def test_the_ai_off_note_wraps_under_the_toolbar_without_overflow(demo_server, bench, page, width):
+    page.set_viewport_size({"width": width, "height": 900})
+    b = bench(demo_server)
+    b.upload(widget_pdf())
+    b.build_new()
+    expect(page.locator("#ai-note")).to_be_visible()
+    m = page.evaluate(
+        """() => {
+          const note = document.getElementById("ai-note");
+          const range = document.createRange();
+          range.selectNodeContents(note);
+          const text = range.getBoundingClientRect();
+          const lines = new Set([...range.getClientRects()].map((r) => Math.round(r.bottom)));
+          return {doc: document.documentElement.scrollWidth, inner: innerWidth, scroll: note.scrollWidth, client: note.clientWidth,
+                  left: text.left, right: text.right, lines: lines.size,
+                  toolbar: document.querySelector(".tb-right").getBoundingClientRect().right};
+        }"""
+    )
+    assert m["doc"] <= m["inner"] and m["scroll"] <= m["client"], m
+    assert m["right"] <= m["toolbar"] and m["right"] - m["left"] <= 841, m  # inside the toolbar, at a reading measure
+    assert m["lines"] >= 2, m  # it wraps rather than running across the window
+
+
 # ------------------------------------------------------------------ fill, save
 
 
