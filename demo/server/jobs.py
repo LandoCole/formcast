@@ -45,7 +45,7 @@ from collections.abc import Callable, Iterable
 from typing import Literal
 
 from demo.server.documents import Doc
-from formcast import SessionCancelled, StepEvent, Template, build_template, revise
+from formcast import FormcastError, SessionCancelled, StepEvent, Template, build_template, revise
 from formcast.agent.session import SessionResult
 from formcast.geometry import Rect
 from formcast.llm import Provider
@@ -106,11 +106,15 @@ class Job:
     def cancel_requested(self) -> bool:
         return self._cancel.is_set()
 
+    def request_cancel(self) -> None:
+        """Ask the session to stop at its next step."""
+        self._cancel.set()
+
     def _on_step(self, event: StepEvent) -> None:
         """Record the step; stop the session if a cancel was requested, unless this step finished it."""
         with self._lock:
             self.steps.append(dataclasses.asdict(event))
-        if self._cancel.is_set() and not event.finished:
+        if self.cancel_requested and not event.finished:
             raise SessionCancelled("cancelled")
 
 
@@ -163,7 +167,11 @@ class Jobs:
             name=f"job-{job.id[:8]}",
             daemon=True,
         )
-        thread.start()
+        try:
+            thread.start()
+        except BaseException:  # e.g. the process cannot make another thread: do not keep the slot
+            self._finish(job, "error", error=_GENERIC_ERROR)
+            raise
         return job
 
     def get(self, job_id: str) -> Job:
@@ -173,7 +181,7 @@ class Jobs:
     def cancel(self, job_id: str) -> Job:
         """Ask a running job to stop at its next step. A finished job is left as it is."""
         job = self.get(job_id)
-        job._cancel.set()
+        job.request_cancel()
         return job
 
     # ------------------------------------------------------------ the job thread
@@ -183,6 +191,10 @@ class Jobs:
         try:
             try:
                 form_map = doc.form_map()  # cached; the first call may take seconds and takes PYMUPDF_LOCK itself
+                if job.cancel_requested:  # cancelled while the form map was building: no model call at all
+                    start = template.model_dump(by_alias=True, mode="json") if template is not None else None
+                    self._finish(job, "cancelled", template=start, summary="cancelled")
+                    return
                 provider = provider_factory()
                 if job.kind == "build":
                     result = build_template(
@@ -205,6 +217,9 @@ class Jobs:
                     except Exception:  # noqa: BLE001 - closing must not hide the job's own outcome
                         log.warning("job %s: closing the provider failed", job.id[:8])
             self._finish_from(job, result)
+        except FormcastError as exc:  # the library's own plain message (a schema or template it cannot use)
+            log.warning("job %s failed: %s", job.id[:8], self._redact(str(exc)))
+            self._finish(job, "error", error=self._redact(str(exc)))
         except Exception:  # noqa: BLE001 - nothing may escape a job thread; the client gets a generic message
             log.error("job %s failed unexpectedly:\n%s", job.id[:8], self._redact(traceback.format_exc()))
             self._finish(job, "error", error=_GENERIC_ERROR)

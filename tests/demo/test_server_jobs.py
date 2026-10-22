@@ -522,3 +522,82 @@ def test_apply_and_page_images_answer_promptly_while_a_job_is_running(start_demo
     finally:
         gate.release()
     assert wait_ended(base, job_id)["status"] == "done"
+
+
+# ------------------------------------------------------------------ fix round 1
+
+
+@pytest.mark.parametrize(
+    "schema",
+    [{"type": "array"}, {}, {"$ref": "https://example.com/other.json"}],
+    ids=["array root", "empty", "remote ref"],
+)
+def test_a_schema_the_library_cannot_flatten_is_a_400_before_any_job_starts(ai, schema):
+    base, doc, template, factory = ai
+    status, out = post(base, "/api/jobs", {"kind": "build", "doc": doc, "schema": schema})
+    assert (status, out["error"]) == (400, "bad_input"), out
+    for kind in ("adapt", "revise"):  # the same schema inside a template
+        bad = {**template, "schema": schema}
+        status, out = post(base, "/api/jobs", {"kind": kind, "doc": doc, "template": bad, "instruction": "x"})
+        assert (status, out["error"]) == (400, "bad_input"), (kind, out)
+    assert factory.providers == []
+
+
+def test_a_library_error_inside_a_job_shows_its_plain_message(start_demo_server, monkeypatch):
+    from demo.server import jobs as jobs_mod
+    from formcast import FormcastError
+
+    def refuse(*args, **kwargs):
+        raise FormcastError("schema root must be an object schema")
+
+    monkeypatch.setattr(jobs_mod, "build_template", refuse)
+    base = start_demo_server(provider_factory=Factory([finish()]))
+    body = wait_ended(base, start(base, kind="build", doc=open_doc(base), schema=SCHEMA))
+    assert body["status"] == "error" and body["error"] == "schema root must be an object schema"
+
+
+def test_a_thread_that_cannot_start_frees_its_slot(start_demo_server, monkeypatch):
+    base = start_demo_server(provider_factory=Factory([finish("a", [{"path": "name", "reason": "t"}])]))
+    doc = open_doc(base)
+    real_start = threading.Thread.start
+
+    def fail(self):
+        if self.name.startswith("job-"):
+            raise RuntimeError("can't start new thread")
+        return real_start(self)
+
+    monkeypatch.setattr(threading.Thread, "start", fail)
+    for _ in range(3):  # more failures than there are slots
+        status, body = post(base, "/api/jobs", {"kind": "build", "doc": doc, "schema": SCHEMA})
+        assert status == 500 and body["error"] == "internal"
+    monkeypatch.setattr(threading.Thread, "start", real_start)
+    assert wait_ended(base, start(base, kind="build", doc=doc, schema=SCHEMA))["status"] == "done"
+
+
+def test_a_cancel_during_the_form_map_build_ends_cancelled_without_a_model_call(start_demo_server, monkeypatch):
+    building, proceed = threading.Event(), threading.Event()
+
+    def slow(pdf):
+        building.set()
+        assert proceed.wait(30)
+        return build_form_map(pdf, detectors={}, policy=DetectPolicy(digital=(), scanned=()), ocr="never")
+
+    called = []
+    base = start_demo_server(provider_factory=lambda: called.append(1) or FakeProvider([finish()]))
+    doc = open_doc(base)
+    template = seed(base, doc)
+    monkeypatch.setattr(documents_mod, "build_form_map", slow)
+    for kind, extra in (("build", {"schema": SCHEMA}), ("revise", {"template": template, "instruction": "x"})):
+        building.clear()
+        # a fresh document each time, so the form map is built (slowly) during this job
+        job_id = start(base, kind=kind, doc=open_doc(base), **extra)
+        assert building.wait(10)
+        post(base, f"/api/jobs/{job_id}/cancel")
+        proceed.set()
+        body = wait_ended(base, job_id)
+        proceed.clear()
+        assert body["status"] == "cancelled" and body["steps"] == [] and body["error"] is None
+        assert (body["template"] is None) == (kind == "build")
+        if kind == "revise":
+            assert body["template"]["template_id"] == template["template_id"]
+    assert called == []

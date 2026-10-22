@@ -43,7 +43,9 @@ from demo.server.jobs import KINDS, Jobs, JobsBusy
 from demo.server.records import MultiRecords, RecordSource, RecordSourceError
 from demo.server.settings import Settings
 from demo.server.store import NAME_RE, FolderTemplateStore, StoredTemplateError, TemplateStore
-from formcast import FormcastError, OpContext, OpError, Template, apply, fill, rebind, similarity, to_smart_pdf
+from formcast import (
+    FormcastError, OpContext, OpError, Template, apply, fill, flatten_schema, rebind, similarity, to_smart_pdf,
+)
 from formcast.llm import Provider
 from formcast.template.model import new_template
 
@@ -296,6 +298,7 @@ class Api:
             raise ApiError(400, "bad_schema", "send schema as a JSON Schema object or the name of a stored schema")
         if _schema_loops(schema):
             raise ApiError(400, "bad_schema", _SCHEMA_LOOP)
+        flatten_schema(schema)  # a schema the library cannot use is a 400 now (FormcastError), not a failed job later
         return schema
 
     def apply_op(self, req: Request) -> dict:
@@ -405,6 +408,7 @@ class Api:
             template = _template(payload)
             if _schema_loops(template.schema_):
                 raise ApiError(400, "bad_schema", _SCHEMA_LOOP)
+            flatten_schema(template.schema_)
         if kind == "revise":
             instruction = payload.get("instruction")
             if not isinstance(instruction, str) or not instruction.strip():
