@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  area, intersect, iou, normRect, makeView, toScreen, toPage, viewSize, toUserSpace, fromUserSpace,
+  area, intersect, iou, normRect, makeView, toScreen, toPage, viewSize, toUserSpace, fromUserSpace, ptToPx, pxToPt,
 } from '../../demo/web/core/geometry.js';
 
 const close = (a, b, eps = 1e-6) => assert.ok(Math.abs(a - b) < eps, `${a} != ${b}`);
@@ -99,3 +99,14 @@ test('area, intersect and normRect', () => {
   assert.deepEqual(intersect([0, 0, 10, 10], [5, 5, 20, 20]), [5, 5, 10, 10]);
   assert.deepEqual(normRect([10, 8, 2, 3]), [2, 3, 10, 8]);
 });
+
+for (const rotation of [0, 90, 180, 270]) {
+  test(`ptToPx and pxToPt convert lengths at rotation ${rotation}`, () => {
+    const v = makeView({ width: 612, height: 792, rotation, scale: 1.5 });
+    close(ptToPx(10, v), 15);
+    close(pxToPt(15, v), 10);
+    close(pxToPt(ptToPx(3.7, v), v), 3.7);
+    // a length matches the size toScreen gives a rect of that length
+    close(toScreen([10, 10, 10 + 8, 10 + 8], v).width, ptToPx(8, v));
+  });
+}

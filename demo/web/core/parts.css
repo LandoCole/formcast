@@ -191,3 +191,15 @@
 .fc-hd[data-handle="ne"] { right: -12px; top: -12px; cursor: nesw-resize; }
 .fc-hd[data-handle="sw"] { left: -12px; bottom: -12px; cursor: nesw-resize; }
 .fc-hd[data-handle="se"] { right: -12px; bottom: -12px; cursor: nwse-resize; }
+
+/* Small boxes: the handles sit outside the corners (hit area touching the corner from outside),
+   with the visible square still centred on the corner, so the box body stays draggable. */
+.fc-box.is-small .fc-hd[data-handle="nw"] { left: -24px; top: -24px; }
+.fc-box.is-small .fc-hd[data-handle="ne"] { right: -24px; top: -24px; }
+.fc-box.is-small .fc-hd[data-handle="sw"] { left: -24px; bottom: -24px; }
+.fc-box.is-small .fc-hd[data-handle="se"] { right: -24px; bottom: -24px; }
+.fc-box.is-small .fc-hd::before { left: auto; top: auto; margin: 0; }
+.fc-box.is-small .fc-hd[data-handle="nw"]::before { right: -4.5px; bottom: -4.5px; }
+.fc-box.is-small .fc-hd[data-handle="ne"]::before { left: -4.5px; bottom: -4.5px; }
+.fc-box.is-small .fc-hd[data-handle="sw"]::before { right: -4.5px; top: -4.5px; }
+.fc-box.is-small .fc-hd[data-handle="se"]::before { left: -4.5px; top: -4.5px; }

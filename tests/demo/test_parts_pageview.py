@@ -244,6 +244,37 @@ def test_resize_from_the_top_left_handle(pv):
     assert close(op["rect"], [rect[0] + 10, rect[1] + 5, rect[2], rect[3]])
 
 
+def test_small_selected_box_body_stays_draggable(pv):
+    # w0_2 is an 8 pt checkbox: 16 px at 2x, smaller than one 24 px handle
+    rect = field(pv.template, "w0_2")["rect"]
+    pv.box("w0_2").click()
+    assert "is-small" in pv.box("w0_2").get_attribute("class")
+    bb = pv.box("w0_2").bounding_box()
+    cx, cy = bb["x"] + bb["width"] / 2, bb["y"] + bb["height"] / 2
+    assert pv.page.evaluate(
+        "([x, y]) => document.elementFromPoint(x, y).closest('.fc-hd') === null", [cx, cy]
+    )
+    # every handle keeps a 24 px hit area and lies outside the box
+    for corner in ("nw", "ne", "sw", "se"):
+        hb = pv.box("w0_2").locator(f'.fc-hd[data-handle="{corner}"]').bounding_box()
+        assert hb["width"] >= 24 and hb["height"] >= 24
+        overlap_x = min(hb["x"] + hb["width"], bb["x"] + bb["width"]) - max(hb["x"], bb["x"])
+        overlap_y = min(hb["y"] + hb["height"], bb["y"] + bb["height"]) - max(hb["y"], bb["y"])
+        assert overlap_x <= 0.5 or overlap_y <= 0.5, corner
+    pv.drag(pv.box("w0_2"), 20, 10).up()
+    ops = pv.ops()
+    assert len(ops) == 1 and ops[0]["op"] == "move"
+    assert close(ops[0]["rect"], [rect[0] + 10, rect[1] + 5, rect[2] + 10, rect[3] + 5])
+
+
+def test_small_box_still_resizes_from_an_outside_handle(pv):
+    rect = field(pv.template, "w0_2")["rect"]
+    pv.box("w0_2").click()
+    pv.drag(pv.box("w0_2").locator('.fc-hd[data-handle="se"]'), 20, 10).up()
+    (op,) = pv.ops()
+    assert op["op"] == "resize" and close(op["rect"], [rect[0], rect[1], rect[2] + 10, rect[3] + 5])
+
+
 def test_arrow_keys_nudge(pv):
     rect = field(pv.template, "w0_1")["rect"]
     pv.box("w0_1").focus()

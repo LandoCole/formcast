@@ -103,6 +103,26 @@ export function viewSize(view) {
   return { width: w * view.scale, height: h * view.scale };
 }
 
+/**
+ * A length in points as pixels at the view's scale (rotation does not change lengths).
+ * @param {number} pt
+ * @param {View} view
+ * @returns {number}
+ */
+export function ptToPx(pt, view) {
+  return pt * view.scale;
+}
+
+/**
+ * Inverse of {@link ptToPx}: a length in pixels as points.
+ * @param {number} px
+ * @param {View} view
+ * @returns {number}
+ */
+export function pxToPt(px, view) {
+  return px / view.scale;
+}
+
 // Page point -> rotated, unscaled screen point.
 function pointToScreen(x, y, view) {
   switch (view.rotation) {

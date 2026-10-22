@@ -7,7 +7,7 @@
 // view never edits a template: it emits ready-to-apply ops on the bus (once per gesture, on
 // pointerup or keyup) and redraws when the host calls `setTemplate` again.
 
-import { makeView, toPage, toScreen, viewSize } from "./geometry.js";
+import { makeView, ptToPx, toPage, toScreen, viewSize } from "./geometry.js";
 
 /** The `dataTransfer` type a schema list sets when a path is dragged. */
 export const PATH_MIME = "application/x-formcast-path";
@@ -21,6 +21,9 @@ const ARROWS = {
   ArrowDown: [0, 1],
 };
 const CORNERS = ["nw", "ne", "sw", "se"];
+// A selected box with a side under this many pixels gets its handles outside the corners, so the
+// 24 px hit areas never cover the box body and the box stays draggable.
+const SMALL_BOX_PX = 48;
 
 /**
  * @typedef {import("./geometry.js").Rect} Rect
@@ -395,7 +398,10 @@ export class PageView {
       el.classList.toggle("is-selected", on);
       el.setAttribute("aria-pressed", String(on));
       el.querySelectorAll(":scope > .fc-hd").forEach((h) => h.remove());
+      el.classList.remove("is-small");
       if (on && !this.#readOnly) {
+        const shown = this.#shown.get(el);
+        if (shown !== undefined && Math.min(shown.width, shown.height) < SMALL_BOX_PX) el.classList.add("is-small");
         for (const corner of CORNERS) {
           const h = document.createElement("span");
           h.className = "fc-hd";
@@ -466,7 +472,7 @@ export class PageView {
     const base = this.#shown.get(boxEl);
     if (base === undefined) return;
     const { width: pageW, height: pageH } = this.#pageBounds();
-    const minPx = MIN_PT * this.#scale;
+    const minPx = ptToPx(MIN_PT, this.#view);
     const startX = e.clientX;
     const startY = e.clientY;
     let box = base;
@@ -516,6 +522,7 @@ export class PageView {
       if (!moved) return;
       if (commit) {
         this.#shown.set(boxEl, box);
+        if (boxEl.classList.contains("is-selected")) this.#applySelection(this.#selected);
         this.#emitBox(kind, boxEl, box);
       } else {
         this.#place(boxEl, base);
@@ -568,7 +575,8 @@ export class PageView {
       layer.removeEventListener("pointermove", onMove);
       layer.removeEventListener("pointerup", onUp);
       layer.removeEventListener("pointercancel", onUp);
-      const big = box.width >= MIN_PT * this.#scale && box.height >= MIN_PT * this.#scale && ev.type === "pointerup";
+      const minPx = ptToPx(MIN_PT, this.#view);
+      const big = box.width >= minPx && box.height >= minPx && ev.type === "pointerup";
       if (!big) {
         this.#clearMarquee();
         if (kind === "add") this.#userSelect(null);
@@ -624,7 +632,7 @@ export class PageView {
     if (this.#nudge !== null && this.#nudge.el !== el) this.#flushNudge();
     const shown = this.#shown.get(el);
     if (shown === undefined) return;
-    const step = (e.shiftKey ? 10 : 1) * this.#scale;
+    const step = ptToPx(e.shiftKey ? 10 : 1, this.#view);
     const { width: pageW, height: pageH } = this.#pageBounds();
     const from = this.#nudge?.box ?? shown;
     const box = {
