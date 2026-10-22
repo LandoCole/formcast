@@ -30,7 +30,7 @@ SCHEMA_TEXT = '{"type": "object", "properties": {"name": {"type": "string"}, "no
 def no_model_loads(monkeypatch):
     real = documents_mod.build_form_map
     policy = DetectPolicy(digital=(), scanned=())
-    monkeypatch.setattr(documents_mod, "build_form_map", lambda pdf: real(pdf, detectors={}, policy=policy, ocr="never"))
+    monkeypatch.setattr(documents_mod, "build_form_map", lambda pdf, detectors=None: real(pdf, detectors={}, policy=policy, ocr="never"))
 
 
 def widget_pdf(*, width: float = 300, height: float = 200, rect=(20, 120, 120, 140), rotation: int = 0, fill=None) -> bytes:

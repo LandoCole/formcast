@@ -263,6 +263,13 @@ with `forms/`, `schemas/`, `records/`, `records.sqlite` and `templates/`; defaul
 address (`0.0.0.0`) does not make a usable URL: bind your machine's own IP with `--host` if you want
 to reach it from another machine, and know that anyone who can reach that address can use it.
 
+When it starts, the server loads the field detectors (CommonForms FFDNet-L and FFDetr) on a
+background thread and logs its progress. The first time, this downloads their weights from Hugging Face,
+which can take a few minutes; after that they load from the cache in seconds. Pages are served and PDFs
+match while it runs. Reading a PDF that needs detection (one with pages that have no form fields) waits
+for the load; a fully fillable PDF does not. If the download fails (no network), the server logs it and
+tries again when such a PDF is opened.
+
 Settings come from the git-ignored `.env` and the environment. `FORMCAST_DEMO_BASE_URL`,
 `FORMCAST_DEMO_API_KEY` and `FORMCAST_DEMO_MODEL` turn the AI features on, and `FORMCAST_DEMO_API_FORMAT`
 (`chat_completions`, the default, or `responses`) picks the API. `FORMCAST_DEMO_HOST`,
@@ -273,11 +280,11 @@ server and no response contains it.
 The flow:
 
 1. **Start.** Pick a demo form or drop a PDF, then pick a schema. The server starts reading the PDF
-   (its form map: text, widgets and detected boxes) in the background as soon as it opens. The first
-   time you open a PDF that needs detection, this downloads the detector weights from Hugging Face,
-   so it can take a minute or more; after that they are cached. While a reading runs, other PDF work
-   on the server (page images, matching, filling) waits for it.
-2. **Match.** The PDF is scored against every stored template (`formcast.similarity`). The server
+   (its form map: text, widgets and detected boxes) in the background as soon as it opens. While a
+   reading runs, other PDF work on the server (page images, filling) waits for it; matching does not.
+2. **Match.** The PDF is scored against every stored template (`formcast.similarity`). The scores come
+   from the PDF's fingerprint, text and layout, which the server reads first, before the form map, so
+   the match prompt appears at once even while detection runs. The server
    offers *Reuse* at 0.95 or above, *Adapt* at 0.60 or above (an agent job that starts from the stored
    template), or *Build new*. The thresholds are in `demo/server/settings.py` and were calibrated on the
    dev forms only.
@@ -304,12 +311,16 @@ pass them to `make_server(settings, store=..., records=...)` (`demo/server/serve
 `python -m demo.server` command has no flag for this, so write a short script:
 
 ```python
+from demo.server.detectors import DetectorWarmup
 from demo.server.server import make_server
 from demo.server.settings import Settings
 
-httpd = make_server(Settings.from_env(), store=MyTemplateStore(), records=MyRecordSource())
+httpd = make_server(Settings.from_env(), store=MyTemplateStore(), records=MyRecordSource(), detectors=DetectorWarmup())
+httpd.detectors.start()  # load the detectors in the background; without `detectors`, the first reading loads them
 httpd.serve_forever()
 ```
+
+(`DetectorWarmup` is in `demo/server/detectors.py`.)
 
 Settings are one object, built in `Settings.from_env`. Odd records (a bad JSON cell, NULLs, extra columns) come back with
 what could be read, and the fill report says what is wrong.

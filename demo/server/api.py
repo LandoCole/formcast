@@ -18,7 +18,8 @@ records or the documents: ``with missing("template"):`` makes a ``KeyError`` a 4
 
 Routes (see spec 11.2): documents, matches, seed, apply, rebind, AI jobs, fill, smart-pdf, the template
 store and the record source. Everything that touches MuPDF takes ``PYMUPDF_LOCK`` (directly for fills,
-smart PDFs and rebinds; inside ``Doc`` for the form map and the match features).
+smart PDFs and rebinds; inside ``Doc`` for the form map and the match features). Matching takes no lock:
+it scores the document's features, which ``Doc.match_features`` computes in full, so it does not wait for a build.
 
 Handlers are small methods registered in ``Api._add_routes``; they return a JSON-able value
 (sent as 200) or a ``Response``.
@@ -356,12 +357,13 @@ class Api:
     def matches(self, req: Request) -> list[dict]:
         """Every stored template scored against this document, best first, each with a suggested action.
 
-        The PDF is read once (``Doc.features``) and the same features score every template. A stored
-        file that is not a template is left out and logged.
+        The PDF is read once (``Doc.match_features``) and the same features score every template. The features
+        are complete, so scoring does no MuPDF work and does not wait for a form-map build holding
+        ``PYMUPDF_LOCK``. A stored file that is not a template is left out and logged.
         """
         with missing("document"):
             doc = self.documents.get(req.match["doc"])
-        features = doc.features()
+        features = doc.match_features()
         templates: list[tuple[str, Template]] = []
         for entry in self.store.list():
             try:
@@ -371,8 +373,7 @@ class Api:
             except StoredTemplateError as exc:
                 log.warning("matches: skipping %s", exc)
         out = []
-        with PYMUPDF_LOCK:  # the features compute their parts (renders) on first use
-            scored = [(name, template, similarity(template, doc.bytes, features=features)) for name, template in templates]
+        scored = [(name, template, similarity(template, doc.bytes, features=features)) for name, template in templates]
         for name, template, result in scored:
             out.append({
                 "name": name,

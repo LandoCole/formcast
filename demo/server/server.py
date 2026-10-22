@@ -22,6 +22,8 @@ from pathlib import Path
 from urllib.parse import parse_qsl, quote, unquote, urlsplit
 
 from demo.server.api import Api, error_response
+from demo.server.detectors import DetectorWarmup
+from demo.server.documents import Documents
 from demo.server.records import RecordSource
 from demo.server.settings import ROOT, Settings
 from demo.server.store import TemplateStore
@@ -105,18 +107,22 @@ def make_server(
     store: TemplateStore | None = None,
     records: RecordSource | None = None,
     web_root: Path | None = None,
+    detectors: DetectorWarmup | None = None,
 ) -> ThreadingHTTPServer:
     """A server bound to ``settings.host:settings.port`` (port 0 picks a free one); call ``serve_forever``.
 
     ``provider_factory`` builds the model provider for AI jobs. With none given, one is built from
     ``settings.llm`` when that is set; with neither, the AI features are off. ``store`` and
     ``records`` default to the folder store and CSV + SQLite sources under ``settings.data_dir``.
-    The server's ``api`` attribute is the ``Api`` it routes to.
+    ``detectors`` is the warm-up whose detectors every form-map build uses (call its ``start`` when you
+    serve); with none, the library loads its stock detectors inside the first build that needs them,
+    under the MuPDF lock. The server's ``api`` attribute is the ``Api`` it routes to, and its
+    ``detectors`` attribute is ``detectors``.
     """
     if provider_factory is None and settings.llm is not None:
         llm = settings.llm
         provider_factory = lambda: make_provider(llm)  # noqa: E731
-    api = Api(settings, provider_factory=provider_factory, store=store, records=records)
+    api = Api(settings, provider_factory=provider_factory, store=store, records=records, documents=Documents(detectors=detectors))
     root = Path(web_root) if web_root is not None else WEB_ROOT
 
     class Handler(BaseHTTPRequestHandler):
@@ -278,4 +284,5 @@ def make_server(
 
     httpd = _Server((settings.host, settings.port), Handler)
     httpd.api = api  # type: ignore[attr-defined]
+    httpd.detectors = detectors  # type: ignore[attr-defined]
     return httpd
