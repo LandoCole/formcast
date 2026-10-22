@@ -24,6 +24,7 @@ import {
   pyRepr,
   pyRound1,
 } from "./pycompat.js";
+import { WIDGET_FIELD_TYPES } from "./fill/bind.js";
 import { flattenSchema } from "./schema.js";
 import { validateChain } from "./transforms.js";
 
@@ -494,12 +495,19 @@ function linkedCells(template) {
 }
 
 /**
- * What ops are validated against: the template's schema paths and page sizes.
+ * What ops are validated against: the template's schema paths and page sizes, and (when the PDF is
+ * open) the kinds of its widgets by name, which limit the types a widget-backed field may take
+ * (Python's `OpContext.widget_kinds`). Without `widgetKinds` any type may use any widget.
  * @param {object} template
- * @returns {{schemaPaths: object[], pageSizes: number[][]}}
+ * @param {{widgetKinds?: Record<string, string[]> | null}} [opts] widget name -> kinds of every widget with that name
+ * @returns {{schemaPaths: object[], pageSizes: number[][], widgetKinds: Record<string, string[]> | null}}
  */
-export function contextFromTemplate(template) {
-  return { schemaPaths: flattenSchema(template.schema), pageSizes: template.form.page_sizes.map((s) => [...s]) };
+export function contextFromTemplate(template, { widgetKinds = null } = {}) {
+  return {
+    schemaPaths: flattenSchema(template.schema),
+    pageSizes: template.form.page_sizes.map((s) => [...s]),
+    widgetKinds: widgetKinds === null ? null : structuredClone(widgetKinds),
+  };
 }
 
 /**
@@ -533,6 +541,20 @@ class Run {
 
   fail(reason) {
     throw new OpError(this.raw, reason);
+  }
+
+  /** Fail when `fieldType` can't be backed by the kinds of the widget named `widget`. */
+  checkWidgetKind(f, fieldType, widget) {
+    const known = this.ctx.widgetKinds;
+    const kinds = widget !== null && known && Object.hasOwn(known, widget) ? known[widget] : null;
+    if (!kinds || !kinds.length) return;
+    const allowed = [...new Set(kinds.flatMap((k) => WIDGET_FIELD_TYPES[k] ?? []))].sort();
+    if (!allowed.includes(fieldType)) {
+      this.fail(
+        `field ${pyRepr(f.id)} is linked to widget ${pyRepr(widget)} (${[...new Set(kinds)].sort().join(", ")}); ` +
+          `a ${fieldType} field can't use it - allowed types: ${allowed.length ? pyRepr(allowed) : "none"}`,
+      );
+    }
   }
 
   // -- lookups
@@ -1060,6 +1082,7 @@ function setType(run, op) {
   if (f.type === "table") {
     run.fail(`field ${pyRepr(f.id)} is a table and has no page/rect; remove_field(${pyRepr(f.id)}) then add_field instead`);
   }
+  run.checkWidgetKind(f, op.type, f.existing_widget);
   f.type = op.type;
   run.checkSource(f);
   return f;
@@ -1106,11 +1129,12 @@ const HANDLERS = {
  * The op is stored in `history` as Python stores it.
  * @param {object} template a Python-shaped template
  * @param {object} op `{op: "move", id: "f1", dx: 4, ...}`
- * @param {{author: "human" | "agent", note?: string, at?: string}} options `at` defaults to now
+ * @param {{author: "human" | "agent", note?: string, at?: string, context?: object}} options `at` defaults
+ *   to now; `context` (from {@link contextFromTemplate}) defaults to the template's own, without widget kinds
  * @returns {{template: object, warnings: string[]}}
  */
-export function applyOp(template, op, { author, note = "", at } = {}) {
-  const ctx = contextFromTemplate(template);
+export function applyOp(template, op, { author, note = "", at, context } = {}) {
+  const ctx = context ?? contextFromTemplate(template);
   const model = parseOp(op);
   const raw = { ...op };
   if (author !== "agent" && author !== "human") {

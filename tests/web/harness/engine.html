@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Engine harness</title>
+</head>
+<body>
+<p>Test harness for the browser engine. Playwright calls <code>window.runEngine(cmd)</code>.</p>
+<script type="module">
+import { createBrowserEngine, widgetKinds } from "../../../demo/web/engines/browser/engine.js";
+import { Detector } from "../../../demo/web/engines/browser/detect.js";
+import { openPdf } from "../../../demo/web/engines/browser/document.js";
+import { letterbox } from "../../../demo/web/engines/browser/ffdnet.js";
+
+const engine = createBrowserEngine();
+
+function fromBase64(b64) {
+  return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+}
+
+function toBase64(bytes) {
+  let s = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+
+/** PDF bytes from {url} (relative to the repository root) or {base64}. */
+async function pdfBytes(pdf) {
+  if (pdf.base64 !== undefined) return fromBase64(pdf.base64);
+  const res = await fetch(new URL(pdf.url, new URL("../../../", location.href)));
+  return new Uint8Array(await res.arrayBuffer());
+}
+
+const COMMANDS = {
+  // open a PDF: the document summary, or the DocError
+  async open({ pdf }) {
+    try {
+      const doc = await openPdf(await pdfBytes(pdf));
+      const lines = await doc.textLines(0);
+      const out = { pageCount: doc.pageCount, encrypted: doc.encrypted, pages: doc.pages, lines0: lines, widgetKinds: widgetKinds(doc) };
+      await doc.destroy();
+      return out;
+    } catch (e) {
+      return { error: { name: e.name, code: e.code, message: e.message } };
+    }
+  },
+  // open, then seed (optionally with given detections)
+  async seed({ pdf, schema, detections }) {
+    const doc = await engine.open(await pdfBytes(pdf));
+    return engine.seed(doc, schema, { detections: detections ?? {} });
+  },
+  // open, seed, then apply ops in order through the engine (widget kinds from the open PDF)
+  async apply({ pdf, schema, ops }) {
+    const doc = await engine.open(await pdfBytes(pdf));
+    let template = await engine.seed(doc, schema);
+    const results = [];
+    for (const op of ops) {
+      const res = await engine.apply(template, op, "human");
+      results.push(res.error !== undefined ? { error: res.error } : { warnings: res.warnings });
+      if (res.template) template = res.template;
+    }
+    return results;
+  },
+  // open, then fill with a record: the report, or the error message
+  async fill({ pdf, template, record }) {
+    const doc = await engine.open(await pdfBytes(pdf));
+    try {
+      const { report } = await engine.fill(template, doc, record);
+      return { report };
+    } catch (e) {
+      return { error: e.message };
+    }
+  },
+  // detect on pages of a PDF with the real model; candidates and what ran
+  async detect({ pdf, pages, model }) {
+    const doc = await engine.open(await pdfBytes(pdf));
+    const detections = {};
+    for (const p of pages) detections[p] = await engine.detect(doc, p, { model });
+    return { detections, info: engine.detectorInfo(model) };
+  },
+  // load the model in a new detector (the engine's one is left alone): provider and progress calls
+  async freshLoad({ model }) {
+    const d = new Detector({ model });
+    const progress = [];
+    try {
+      await d.load((loaded, total) => progress.push([loaded, total]));
+      return { provider: d.info.provider, progress };
+    } finally {
+      d.dispose();
+    }
+  },
+  // the letterboxed tensor for an RGBA image, as base64 float32 bytes
+  async letterbox({ rgba, width, height, size }) {
+    const { tensor, letterbox: lb } = letterbox(fromBase64(rgba), width, height, size);
+    return { tensor: toBase64(new Uint8Array(tensor.buffer)), letterbox: lb };
+  },
+  // a detector whose worker never answers: the load and detect time limits
+  async timeout({ loadTimeoutMs }) {
+    const d = new Detector({ workerUrl: new URL("./silent-worker.js", location.href), loadTimeoutMs });
+    const started = performance.now();
+    try {
+      await d.load();
+      return { error: null };
+    } catch (e) {
+      return { error: e.message, ms: performance.now() - started, workerStopped: d.worker === null };
+    } finally {
+      d.dispose();
+    }
+  },
+};
+
+window.runEngine = async (cmd) => {
+  const fn = COMMANDS[cmd.op];
+  if (fn === undefined) throw new Error(`unknown command ${cmd.op}`);
+  return fn(cmd);
+};
+window.engineReady = true;
+</script>
+</body>
+</html>

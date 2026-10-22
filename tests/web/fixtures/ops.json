@@ -23638,6 +23638,1533 @@
    }
   },
   {
+   "id": "plain/type/widget-text-to-signature",
+   "kind": "ops",
+   "input": {
+    "template": "plain",
+    "ops": [
+     {
+      "op": "set_type",
+      "id": "w1",
+      "type": "signature"
+     }
+    ],
+    "author": "human",
+    "note": "",
+    "widget_kinds": {
+     "Widget 1": [
+      "text"
+     ]
+    }
+   },
+   "output": {
+    "fields": [
+     {
+      "id": "n1",
+      "type": "text",
+      "label": "Name",
+      "page": 0,
+      "rect": [
+       72.0,
+       100.0,
+       300.0,
+       120.0
+      ],
+      "source": {
+       "paths": [
+        "name"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": null
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "n2",
+      "type": "text",
+      "label": "",
+      "page": 0,
+      "rect": [
+       72.0,
+       140.0,
+       300.0,
+       160.0
+      ],
+      "source": null,
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "c1",
+      "type": "checkbox",
+      "label": "",
+      "page": 0,
+      "rect": [
+       320.0,
+       100.0,
+       332.0,
+       112.0
+      ],
+      "source": {
+       "paths": [
+        "smoker"
+       ],
+       "transforms": [
+        {
+         "op": "bool_to_check",
+         "args": {}
+        }
+       ],
+       "join": null,
+       "when": null
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "c2",
+      "type": "checkbox",
+      "label": "",
+      "page": 0,
+      "rect": [
+       340.0,
+       100.0,
+       352.0,
+       112.0
+      ],
+      "source": null,
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "r1",
+      "type": "radio_option",
+      "label": "",
+      "page": 1,
+      "rect": [
+       40.0,
+       40.0,
+       52.0,
+       52.0
+      ],
+      "source": {
+       "paths": [
+        "sex"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": {
+        "op": "equals",
+        "args": {
+         "value": "F"
+        }
+       }
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "f3",
+      "type": "text",
+      "label": "",
+      "page": 1,
+      "rect": [
+       40.0,
+       80.0,
+       300.0,
+       100.0
+      ],
+      "source": null,
+      "style": {
+       "font_size": 10.0,
+       "min_font_size": 6,
+       "align": "center",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "sig",
+      "type": "signature",
+      "label": "",
+      "page": 1,
+      "rect": [
+       40.0,
+       400.0,
+       300.0,
+       440.0
+      ],
+      "source": null,
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "s1",
+      "type": "text",
+      "label": "",
+      "page": 1,
+      "rect": [
+       40.0,
+       120.0,
+       300.0,
+       140.0
+      ],
+      "source": {
+       "paths": [
+        "gone"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": null
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "w1",
+      "type": "signature",
+      "label": "",
+      "page": 1,
+      "rect": [
+       40.0,
+       160.0,
+       300.0,
+       180.0
+      ],
+      "source": null,
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": "Widget 1",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+     }
+    ],
+    "history": [
+     {
+      "op": {
+       "op": "set_type",
+       "id": "w1",
+       "type": "signature"
+      },
+      "author": "human",
+      "at": "2026-10-21T00:00:00Z",
+      "note": ""
+     }
+    ],
+    "warnings": []
+   }
+  },
+  {
+   "id": "plain/type/widget-mixed-kinds",
+   "kind": "ops",
+   "input": {
+    "template": "plain",
+    "ops": [
+     {
+      "op": "set_type",
+      "id": "w1",
+      "type": "checkbox"
+     }
+    ],
+    "author": "human",
+    "note": "",
+    "widget_kinds": {
+     "Widget 1": [
+      "text",
+      "checkbox",
+      "text"
+     ]
+    }
+   },
+   "output": {
+    "fields": [
+     {
+      "id": "n1",
+      "type": "text",
+      "label": "Name",
+      "page": 0,
+      "rect": [
+       72.0,
+       100.0,
+       300.0,
+       120.0
+      ],
+      "source": {
+       "paths": [
+        "name"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": null
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "n2",
+      "type": "text",
+      "label": "",
+      "page": 0,
+      "rect": [
+       72.0,
+       140.0,
+       300.0,
+       160.0
+      ],
+      "source": null,
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "c1",
+      "type": "checkbox",
+      "label": "",
+      "page": 0,
+      "rect": [
+       320.0,
+       100.0,
+       332.0,
+       112.0
+      ],
+      "source": {
+       "paths": [
+        "smoker"
+       ],
+       "transforms": [
+        {
+         "op": "bool_to_check",
+         "args": {}
+        }
+       ],
+       "join": null,
+       "when": null
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "c2",
+      "type": "checkbox",
+      "label": "",
+      "page": 0,
+      "rect": [
+       340.0,
+       100.0,
+       352.0,
+       112.0
+      ],
+      "source": null,
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "r1",
+      "type": "radio_option",
+      "label": "",
+      "page": 1,
+      "rect": [
+       40.0,
+       40.0,
+       52.0,
+       52.0
+      ],
+      "source": {
+       "paths": [
+        "sex"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": {
+        "op": "equals",
+        "args": {
+         "value": "F"
+        }
+       }
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "f3",
+      "type": "text",
+      "label": "",
+      "page": 1,
+      "rect": [
+       40.0,
+       80.0,
+       300.0,
+       100.0
+      ],
+      "source": null,
+      "style": {
+       "font_size": 10.0,
+       "min_font_size": 6,
+       "align": "center",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "sig",
+      "type": "signature",
+      "label": "",
+      "page": 1,
+      "rect": [
+       40.0,
+       400.0,
+       300.0,
+       440.0
+      ],
+      "source": null,
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "s1",
+      "type": "text",
+      "label": "",
+      "page": 1,
+      "rect": [
+       40.0,
+       120.0,
+       300.0,
+       140.0
+      ],
+      "source": {
+       "paths": [
+        "gone"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": null
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "w1",
+      "type": "checkbox",
+      "label": "",
+      "page": 1,
+      "rect": [
+       40.0,
+       160.0,
+       300.0,
+       180.0
+      ],
+      "source": null,
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": "Widget 1",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+     }
+    ],
+    "history": [
+     {
+      "op": {
+       "op": "set_type",
+       "id": "w1",
+       "type": "checkbox"
+      },
+      "author": "human",
+      "at": "2026-10-21T00:00:00Z",
+      "note": ""
+     }
+    ],
+    "warnings": []
+   }
+  },
+  {
+   "id": "plain/type/widget-kind-not-known",
+   "kind": "ops",
+   "input": {
+    "template": "plain",
+    "ops": [
+     {
+      "op": "set_type",
+      "id": "w1",
+      "type": "checkbox"
+     }
+    ],
+    "author": "human",
+    "note": "",
+    "widget_kinds": {
+     "Other": [
+      "button"
+     ]
+    }
+   },
+   "output": {
+    "fields": [
+     {
+      "id": "n1",
+      "type": "text",
+      "label": "Name",
+      "page": 0,
+      "rect": [
+       72.0,
+       100.0,
+       300.0,
+       120.0
+      ],
+      "source": {
+       "paths": [
+        "name"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": null
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "n2",
+      "type": "text",
+      "label": "",
+      "page": 0,
+      "rect": [
+       72.0,
+       140.0,
+       300.0,
+       160.0
+      ],
+      "source": null,
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "c1",
+      "type": "checkbox",
+      "label": "",
+      "page": 0,
+      "rect": [
+       320.0,
+       100.0,
+       332.0,
+       112.0
+      ],
+      "source": {
+       "paths": [
+        "smoker"
+       ],
+       "transforms": [
+        {
+         "op": "bool_to_check",
+         "args": {}
+        }
+       ],
+       "join": null,
+       "when": null
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "c2",
+      "type": "checkbox",
+      "label": "",
+      "page": 0,
+      "rect": [
+       340.0,
+       100.0,
+       352.0,
+       112.0
+      ],
+      "source": null,
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "r1",
+      "type": "radio_option",
+      "label": "",
+      "page": 1,
+      "rect": [
+       40.0,
+       40.0,
+       52.0,
+       52.0
+      ],
+      "source": {
+       "paths": [
+        "sex"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": {
+        "op": "equals",
+        "args": {
+         "value": "F"
+        }
+       }
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "f3",
+      "type": "text",
+      "label": "",
+      "page": 1,
+      "rect": [
+       40.0,
+       80.0,
+       300.0,
+       100.0
+      ],
+      "source": null,
+      "style": {
+       "font_size": 10.0,
+       "min_font_size": 6,
+       "align": "center",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "sig",
+      "type": "signature",
+      "label": "",
+      "page": 1,
+      "rect": [
+       40.0,
+       400.0,
+       300.0,
+       440.0
+      ],
+      "source": null,
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "s1",
+      "type": "text",
+      "label": "",
+      "page": 1,
+      "rect": [
+       40.0,
+       120.0,
+       300.0,
+       140.0
+      ],
+      "source": {
+       "paths": [
+        "gone"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": null
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "w1",
+      "type": "checkbox",
+      "label": "",
+      "page": 1,
+      "rect": [
+       40.0,
+       160.0,
+       300.0,
+       180.0
+      ],
+      "source": null,
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": "Widget 1",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+     }
+    ],
+    "history": [
+     {
+      "op": {
+       "op": "set_type",
+       "id": "w1",
+       "type": "checkbox"
+      },
+      "author": "human",
+      "at": "2026-10-21T00:00:00Z",
+      "note": ""
+     }
+    ],
+    "warnings": []
+   }
+  },
+  {
+   "id": "plain/type/widget-no-kinds",
+   "kind": "ops",
+   "input": {
+    "template": "plain",
+    "ops": [
+     {
+      "op": "set_type",
+      "id": "w1",
+      "type": "checkbox"
+     }
+    ],
+    "author": "human",
+    "note": "",
+    "widget_kinds": {
+     "Widget 1": []
+    }
+   },
+   "output": {
+    "fields": [
+     {
+      "id": "n1",
+      "type": "text",
+      "label": "Name",
+      "page": 0,
+      "rect": [
+       72.0,
+       100.0,
+       300.0,
+       120.0
+      ],
+      "source": {
+       "paths": [
+        "name"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": null
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "n2",
+      "type": "text",
+      "label": "",
+      "page": 0,
+      "rect": [
+       72.0,
+       140.0,
+       300.0,
+       160.0
+      ],
+      "source": null,
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "c1",
+      "type": "checkbox",
+      "label": "",
+      "page": 0,
+      "rect": [
+       320.0,
+       100.0,
+       332.0,
+       112.0
+      ],
+      "source": {
+       "paths": [
+        "smoker"
+       ],
+       "transforms": [
+        {
+         "op": "bool_to_check",
+         "args": {}
+        }
+       ],
+       "join": null,
+       "when": null
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "c2",
+      "type": "checkbox",
+      "label": "",
+      "page": 0,
+      "rect": [
+       340.0,
+       100.0,
+       352.0,
+       112.0
+      ],
+      "source": null,
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "r1",
+      "type": "radio_option",
+      "label": "",
+      "page": 1,
+      "rect": [
+       40.0,
+       40.0,
+       52.0,
+       52.0
+      ],
+      "source": {
+       "paths": [
+        "sex"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": {
+        "op": "equals",
+        "args": {
+         "value": "F"
+        }
+       }
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "f3",
+      "type": "text",
+      "label": "",
+      "page": 1,
+      "rect": [
+       40.0,
+       80.0,
+       300.0,
+       100.0
+      ],
+      "source": null,
+      "style": {
+       "font_size": 10.0,
+       "min_font_size": 6,
+       "align": "center",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "sig",
+      "type": "signature",
+      "label": "",
+      "page": 1,
+      "rect": [
+       40.0,
+       400.0,
+       300.0,
+       440.0
+      ],
+      "source": null,
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "s1",
+      "type": "text",
+      "label": "",
+      "page": 1,
+      "rect": [
+       40.0,
+       120.0,
+       300.0,
+       140.0
+      ],
+      "source": {
+       "paths": [
+        "gone"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": null
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "w1",
+      "type": "checkbox",
+      "label": "",
+      "page": 1,
+      "rect": [
+       40.0,
+       160.0,
+       300.0,
+       180.0
+      ],
+      "source": null,
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": "Widget 1",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+     }
+    ],
+    "history": [
+     {
+      "op": {
+       "op": "set_type",
+       "id": "w1",
+       "type": "checkbox"
+      },
+      "author": "human",
+      "at": "2026-10-21T00:00:00Z",
+      "note": ""
+     }
+    ],
+    "warnings": []
+   }
+  },
+  {
+   "id": "plain/type/unlinked-field-ignores-kinds",
+   "kind": "ops",
+   "input": {
+    "template": "plain",
+    "ops": [
+     {
+      "op": "set_type",
+      "id": "n2",
+      "type": "checkbox"
+     }
+    ],
+    "author": "human",
+    "note": "",
+    "widget_kinds": {
+     "Widget 1": [
+      "text"
+     ]
+    }
+   },
+   "output": {
+    "fields": [
+     {
+      "id": "n1",
+      "type": "text",
+      "label": "Name",
+      "page": 0,
+      "rect": [
+       72.0,
+       100.0,
+       300.0,
+       120.0
+      ],
+      "source": {
+       "paths": [
+        "name"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": null
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "n2",
+      "type": "checkbox",
+      "label": "",
+      "page": 0,
+      "rect": [
+       72.0,
+       140.0,
+       300.0,
+       160.0
+      ],
+      "source": null,
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "c1",
+      "type": "checkbox",
+      "label": "",
+      "page": 0,
+      "rect": [
+       320.0,
+       100.0,
+       332.0,
+       112.0
+      ],
+      "source": {
+       "paths": [
+        "smoker"
+       ],
+       "transforms": [
+        {
+         "op": "bool_to_check",
+         "args": {}
+        }
+       ],
+       "join": null,
+       "when": null
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "c2",
+      "type": "checkbox",
+      "label": "",
+      "page": 0,
+      "rect": [
+       340.0,
+       100.0,
+       352.0,
+       112.0
+      ],
+      "source": null,
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "r1",
+      "type": "radio_option",
+      "label": "",
+      "page": 1,
+      "rect": [
+       40.0,
+       40.0,
+       52.0,
+       52.0
+      ],
+      "source": {
+       "paths": [
+        "sex"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": {
+        "op": "equals",
+        "args": {
+         "value": "F"
+        }
+       }
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "f3",
+      "type": "text",
+      "label": "",
+      "page": 1,
+      "rect": [
+       40.0,
+       80.0,
+       300.0,
+       100.0
+      ],
+      "source": null,
+      "style": {
+       "font_size": 10.0,
+       "min_font_size": 6,
+       "align": "center",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "sig",
+      "type": "signature",
+      "label": "",
+      "page": 1,
+      "rect": [
+       40.0,
+       400.0,
+       300.0,
+       440.0
+      ],
+      "source": null,
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "s1",
+      "type": "text",
+      "label": "",
+      "page": 1,
+      "rect": [
+       40.0,
+       120.0,
+       300.0,
+       140.0
+      ],
+      "source": {
+       "paths": [
+        "gone"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": null
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "w1",
+      "type": "text",
+      "label": "",
+      "page": 1,
+      "rect": [
+       40.0,
+       160.0,
+       300.0,
+       180.0
+      ],
+      "source": null,
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": "Widget 1",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+     }
+    ],
+    "history": [
+     {
+      "op": {
+       "op": "set_type",
+       "id": "n2",
+       "type": "checkbox"
+      },
+      "author": "human",
+      "at": "2026-10-21T00:00:00Z",
+      "note": ""
+     }
+    ],
+    "warnings": []
+   }
+  },
+  {
+   "id": "plain/type/err-widget-text-to-checkbox",
+   "kind": "ops",
+   "input": {
+    "template": "plain",
+    "ops": [
+     {
+      "op": "set_type",
+      "id": "w1",
+      "type": "checkbox"
+     }
+    ],
+    "author": "human",
+    "note": "",
+    "widget_kinds": {
+     "Widget 1": [
+      "text"
+     ]
+    }
+   },
+   "error": "field 'w1' is linked to widget 'Widget 1' (text); a checkbox field can't use it - allowed types: ['signature', 'text']"
+  },
+  {
+   "id": "plain/type/err-widget-radio-to-choice-mark",
+   "kind": "ops",
+   "input": {
+    "template": "plain",
+    "ops": [
+     {
+      "op": "set_type",
+      "id": "w1",
+      "type": "choice_mark"
+     }
+    ],
+    "author": "human",
+    "note": "",
+    "widget_kinds": {
+     "Widget 1": [
+      "radio",
+      "checkbox"
+     ]
+    }
+   },
+   "error": "field 'w1' is linked to widget 'Widget 1' (checkbox, radio); a choice_mark field can't use it - allowed types: ['checkbox', 'radio_option']"
+  },
+  {
+   "id": "plain/type/err-widget-button",
+   "kind": "ops",
+   "input": {
+    "template": "plain",
+    "ops": [
+     {
+      "op": "set_type",
+      "id": "w1",
+      "type": "text"
+     }
+    ],
+    "author": "human",
+    "note": "",
+    "widget_kinds": {
+     "Widget 1": [
+      "button"
+     ]
+    }
+   },
+   "error": "field 'w1' is linked to widget 'Widget 1' (button); a text field can't use it - allowed types: none"
+  },
+  {
    "id": "plain/source/basic",
    "kind": "ops",
    "input": {

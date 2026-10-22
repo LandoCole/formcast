@@ -191,11 +191,16 @@ def export_ops() -> dict:
     records = []
     for case in cases.OPS_CASES:
         input_ = {"template": case["template"], "ops": case["ops"], "author": case["author"], "note": case["note"]}
+        if "widget_kinds" in case:
+            input_["widget_kinds"] = case["widget_kinds"]
 
         def run(case=case) -> dict:
             t, warnings = templates[case["template"]], []
             for op in case["ops"]:
-                t, warnings = ops_mod.apply(t, op, author=case["author"], note=case["note"], context=None)
+                context = None
+                if "widget_kinds" in case:
+                    context = ops_mod.OpContext.from_template(t).model_copy(update={"widget_kinds": case["widget_kinds"]})
+                t, warnings = ops_mod.apply(t, op, author=case["author"], note=case["note"], context=context)
             dumped = t.model_dump(by_alias=True)
             return {"fields": dumped["fields"], "history": dumped["history"], "warnings": warnings}
 

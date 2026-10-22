@@ -917,9 +917,12 @@ OPS_TEMPLATES: dict[str, dict] = _ops_templates()
 def _ops_cases() -> list[dict]:
     cases: list[dict] = []
 
-    def add(tpl: str, label: str, *ops: dict, author: str = "human", note: str = "") -> None:
-        cases.append({"id": f"{tpl}/{label}", "kind": "ops", "template": tpl, "ops": list(ops),
-                      "author": author, "note": note})
+    def add(tpl: str, label: str, *ops: dict, author: str = "human", note: str = "",
+            widget_kinds: dict[str, list[str]] | None = None) -> None:
+        case = {"id": f"{tpl}/{label}", "kind": "ops", "template": tpl, "ops": list(ops), "author": author, "note": note}
+        if widget_kinds is not None:  # the widget kinds of the open PDF, as OpContext.widget_kinds
+            case["widget_kinds"] = widget_kinds
+        cases.append(case)
 
     def af(**kw: Any) -> dict:
         return {"op": "add_field", **kw}
@@ -1086,6 +1089,22 @@ def _ops_cases() -> list[dict]:
     add("plain", "type/err-unknown", {"op": "set_type", "id": "n9", "type": "text"})
     add("table", "type/err-table", {"op": "set_type", "id": "t1", "type": "text"})
     add("table", "type/linked-cell-no-source", {"op": "set_type", "id": "m1", "type": "checkbox"})
+    # set_type on a widget-backed field (w1 is linked to "Widget 1") against the open PDF's widget kinds
+    add("plain", "type/widget-text-to-signature", {"op": "set_type", "id": "w1", "type": "signature"},
+        widget_kinds={"Widget 1": ["text"]})
+    add("plain", "type/widget-mixed-kinds", {"op": "set_type", "id": "w1", "type": "checkbox"},
+        widget_kinds={"Widget 1": ["text", "checkbox", "text"]})
+    add("plain", "type/widget-kind-not-known", {"op": "set_type", "id": "w1", "type": "checkbox"},
+        widget_kinds={"Other": ["button"]})
+    add("plain", "type/widget-no-kinds", {"op": "set_type", "id": "w1", "type": "checkbox"}, widget_kinds={"Widget 1": []})
+    add("plain", "type/unlinked-field-ignores-kinds", {"op": "set_type", "id": "n2", "type": "checkbox"},
+        widget_kinds={"Widget 1": ["text"]})
+    add("plain", "type/err-widget-text-to-checkbox", {"op": "set_type", "id": "w1", "type": "checkbox"},
+        widget_kinds={"Widget 1": ["text"]})
+    add("plain", "type/err-widget-radio-to-choice-mark", {"op": "set_type", "id": "w1", "type": "choice_mark"},
+        widget_kinds={"Widget 1": ["radio", "checkbox"]})
+    add("plain", "type/err-widget-button", {"op": "set_type", "id": "w1", "type": "text"},
+        widget_kinds={"Widget 1": ["button"]})
 
     # ---- set_source
     add("plain", "source/basic", {"op": "set_source", "id": "n2", "source": _src("address.street")})

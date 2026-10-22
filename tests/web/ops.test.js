@@ -10,15 +10,32 @@ import { getCloseMatches, pyFixed, pyFloorDiv, pyFormatG, pyRound1 } from "../..
 
 const fixture = JSON.parse(readFileSync(new URL("./fixtures/ops.json", import.meta.url), "utf8"));
 
-/** Apply a case's ops in order, as the exporter did. */
+/** Apply a case's ops in order, as the exporter did (with the open PDF's widget kinds when the case has them). */
 function run(c) {
   let template = structuredClone(fixture.templates[c.input.template]);
   let warnings = [];
   for (const op of c.input.ops) {
-    ({ template, warnings } = applyOp(template, op, { author: c.input.author, note: c.input.note, at: fixture.at }));
+    const context = "widget_kinds" in c.input
+      ? contextFromTemplate(template, { widgetKinds: c.input.widget_kinds })
+      : undefined;
+    ({ template, warnings } = applyOp(template, op, { author: c.input.author, note: c.input.note, at: fixture.at, context }));
   }
   return { template, warnings };
 }
+
+test("fixture covers set_type against widget kinds, allowed and refused", () => {
+  const cases = fixture.cases.filter((c) => "widget_kinds" in c.input);
+  assert.ok(cases.some((c) => "output" in c));
+  assert.ok(cases.some((c) => "error" in c && c.error.includes("allowed types: none")));
+  assert.ok(cases.some((c) => "error" in c && c.error.includes("allowed types: ['")));
+});
+
+test("without widget kinds any type may use a widget, as Python without a form map", () => {
+  const t = structuredClone(fixture.templates.plain);
+  const { template } = applyOp(t, { op: "set_type", id: "w1", type: "checkbox" }, { author: "human", at: fixture.at });
+  assert.equal(template.fields.find((f) => f.id === "w1").type, "checkbox");
+  assert.equal(contextFromTemplate(t).widgetKinds, null);
+});
 
 test("fixture covers every browser op, both outcomes, and templates with tables", () => {
   const ids = fixture.cases.map((c) => c.id);
