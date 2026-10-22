@@ -256,15 +256,15 @@
     <h2 class="label" id="l-agent">What the AI agent adds</h2>
     <div class="body">
       <p><b>Here, you do the agent's job.</b> The detector only proposes boxes. In this page you link each box to a schema field, add the boxes it missed, and fix or remove the wrong ones.</p>
-      <p><b>In the library, the agent does it with tools, without vision.</b> It never sees the page image. It reads the page map as text and geometry and works through the edit operations. That is enough to:</p>
+      <p><b>In the library, the agent does it with tools, without vision.</b> It never sees the page image. It reads the page map as text and geometry and works through the edit operations. Its tools are built for:</p>
       <ul class="list">
-        <li>link each box to a schema path, with transforms where the form needs them;</li>
-        <li>add the fields the detector missed, most often checkboxes, signature lines and date lines;</li>
-        <li>read an underline in front of an option as a checkbox to mark;</li>
-        <li>split one long line into parts using the small labels under it, such as street, city, state and ZIP;</li>
-        <li>mark “circle one” choices, group choices, and build tables from rows of cells;</li>
-        <li>leave printed text alone when it only looks like a blank.</li>
+        <li>linking each box to a schema path, with transforms where the form needs them;</li>
+        <li>adding the fields the detector missed, most often checkboxes, signature lines and date lines;</li>
+        <li>reading an underline in front of an option as a checkbox to mark;</li>
+        <li>splitting one long line into parts using the small labels under it, such as street, city, state and ZIP;</li>
+        <li>marking “circle one” choices, grouping choices, and building tables from rows of cells.</li>
       </ul>
+      <p>How well it does these is measured under Results.</p>
       <p><b>It keeps the detector's boxes.</b> Without the image, the agent placed boxes worse than the detector: in earlier runs most of its moves and resizes left a box further from its blank. With the current code it can't move or resize a detected box, and it is told to add a box only where none sits on or next to a blank. Its job is the mapping.</p>
     </div>
   </section>
@@ -273,7 +273,7 @@
     <h2 class="label" id="l-results">Results</h2>
     <div class="body">
       <p class="lead" id="results-lead">Loading the results…</p>
-      <p>Each agent session gets one form, as published or as a fake scan, with its JSON Schema, and its template is scored against an answer key for that form. The development (dev) forms are the ones the agent was tuned on; the held-out forms were kept back to test it. Every figure here is read from the committed eval files when the page loads.</p>
+      <p>Each agent session gets one form, as published or as a fake scan, with its JSON Schema, and its template is scored against an answer key for that form. The development (dev) forms are the ones the agent was tuned on; the held-out forms were kept back to test it. Every figure here is read from results.json when the page loads, and results.json is built from the committed eval files.</p>
       <h3 class="sub">The agent on the dev forms</h3>
       <div class="tablebox" id="agent-table"></div>
       <div id="caveats"></div>
@@ -320,12 +320,12 @@
       <p><b>CommonForms.</b> The detector is FFDNet from CommonForms, by Joe Barrow (<a href="https://arxiv.org/abs/2509.16506">the paper</a>). Its dataset is Apache-2.0. This page loads the model weights from the author's Hugging Face pages, <a href="https://huggingface.co/jbarrow/FFDNet-S-cpu">FFDNet-S</a> and <a href="https://huggingface.co/jbarrow/FFDNet-L-cpu">FFDNet-L</a>, and only when you run the detector.</p>
       <p><b>Libraries.</b> <a href="https://www.npmjs.com/package/pdfjs-dist">pdf.js</a> (Apache-2.0) draws the page, <a href="https://www.npmjs.com/package/onnxruntime-web">ONNX Runtime Web</a> (MIT) runs the model and <a href="https://www.npmjs.com/package/pdf-lib">pdf-lib</a> (MIT) writes the filled PDF. They are copied into the page, not loaded from a CDN.</p>
       <p><b>Sample forms.</b> The W-9, W-4 and I-9 are US federal government forms, in the public domain. The sample records are made up.</p>
-      <p><b>Code.</b> <a href="#" data-todo id="repo-link">The formcast repository</a> holds the library, the eval and this page.</p>
+      <p><b>Code.</b> <span data-todo id="repo-link">The formcast repository</span> holds the library, the eval and this page. It is not public yet.</p>
     </div>
   </section>
 
   <footer class="foot">
-    <span>Code: <a href="#" data-todo>formcast</a></span>
+    <span>Code: <span data-todo>not public yet</span></span>
     <span>Field detection by <a href="https://arxiv.org/abs/2509.16506">CommonForms</a> FFDNet</span>
   </footer>
 </main>

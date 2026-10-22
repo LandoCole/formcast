@@ -150,13 +150,15 @@ def test_credits_link_the_paper_the_models_and_the_pending_repo(parsed):
     assert "https://huggingface.co/jbarrow/FFDNet-S-cpu" in hrefs
     assert "https://huggingface.co/jbarrow/FFDNet-L-cpu" in hrefs
     assert "Joe Barrow" in text_of(credits) and "Apache-2.0" in text_of(credits)
-    repo = [a for a in credits.links if a.get("id") == "repo-link"]
-    assert len(repo) == 1 and repo[0]["href"] == "#" and "data-todo" in repo[0]
-    # the site's rule: an href="#" link is a pending item and carries data-todo
+    # the repository is not public yet: plain text marked data-todo, never a link that goes nowhere
+    assert '<span data-todo id="repo-link">The formcast repository</span>' in HTML
+    assert "It is not public yet." in text_of(credits)
+    assert "Code: not public yet" in " ".join(text_of(parsed.footer).split())
+    assert HTML.count("data-todo") == 2
     for s in [*parsed.sections, parsed.footer]:
         for a in s.links:
-            if a.get("href") == "#":
-                assert "data-todo" in a, (s.label, a)
+            assert a.get("href") not in ("#", ""), (s.label, a)
+            assert "data-todo" not in a, (s.label, a)
 
 
 def test_the_footer_matches_the_other_demo_pages(parsed):
@@ -382,3 +384,16 @@ def test_diagram_labels_stay_near_their_drawn_size(open_page, width):
     assert tall == (width <= 860)
     # 10 px sub-labels: never blown up past 1.25x, never shrunk much below 8 px
     assert 0.8 <= scale <= 1.25, (width, scale)
+
+
+def test_the_agent_section_lists_what_its_tools_are_for_not_results(parsed):
+    """The list is the design's job description (main spec 7.1), so it is not worded as shown results,
+    and it leaves out "printed text that only looks like a blank": the agent judged that wrongly more
+    often than not (main spec 14.3, the not_a_blank round), and that escape was removed."""
+    agent = text_of(parsed.sections[SECTIONS.index("What the AI agent adds")])
+    assert "Its tools are built for:" in agent
+    assert "That is enough to" not in agent
+    assert "looks like a blank" not in agent
+    assert "How well it does these is measured under Results." in agent
+    results = text_of(parsed.sections[SECTIONS.index("Results")])
+    assert "read from results.json when the page loads, and results.json is built from the committed eval files" in results
