@@ -22,3 +22,11 @@
   - **Time: about 2.7 s per page** (2.67 to 2.77 s over fw9, fw4 and i9 page 0), measured from the start of the 144 dpi render to the boxes in points (render, letterbox, inference, decode). The whole slow test, the 38 MB download and the Python side included, took 18 s; a second detector read the model from the cache (one request to the model URL in the session).
   - **Parity with `FFDNetOnnxDetector("FFDNet-S")`** on the widget-stripped page 0 of fw9, fw4 and i9: browser 24/20/50 boxes, library 23/20/50, paired one-to-one with the same kind at IoU >= 0.9: 22/20/50, pooled 92 of 94 (97.9%). The letterbox resize is a port of Pillow's fixed-point bilinear resample and matches PIL byte for byte (a fast test checks the tensor exactly), so the remaining differences come from pdf.js rendering the page slightly differently from MuPDF: on fw9 one box at confidence 0.32 exists only in the browser, and one low-confidence (0.47 vs 0.44) box sits at IoU 0.85. The test pools the 95% pairing over the three pages (one borderline box moves a 23-box page by 4%) and keeps the 5% count check per page and pooled.
   - Detections are the detector's own output (as `FFDNetOnnxDetector` returns them); `detect_page`'s cross-detector merge (class-agnostic IoU 0.5) is not applied, and `seed.js` numbers them in `detect_page`'s reading order.
+
+## Plan 3A summary
+
+- Ruling A: FFDNet ONNX graph facts (input, output, no NMS in the graph, letterbox, NMS IoU 0.1, confidence 0.3); the browser decodes everything after the tensor.
+- Ruling B: the 24 `defer-placement` templates reproduce the committed results exactly and are archived in `eval/results/templates.tar.gz`.
+- Ruling C: pdf-lib 1.17.1 fill findings: comb, custom `choice_mark` appearance, unencodable text kept in the value, rotated pages via `/MK /R`, encrypted PDFs refused, library text widths reproduced (including its under-measuring of accented text), XFA dropped.
+- Ruling D: FFDNet-S in the browser runs on WebAssembly in headless Chromium at about 2.7 s per page, with 97.9% pairing against the library's detector.
+- Final run (Task 16): node suite, full Python suite, slow set and `export_conformance.py --check` all pass; see the Task 16 report for counts.
