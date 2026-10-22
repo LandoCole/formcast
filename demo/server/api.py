@@ -282,6 +282,8 @@ class Api:
                 schema = self.records.schemas()[schema]
         if not isinstance(schema, dict):
             raise ApiError(400, "bad_schema", "send schema as a JSON Schema object or the name of a stored schema")
+        if _schema_loops(schema):
+            raise ApiError(400, "bad_schema", _SCHEMA_LOOP)
         form_map = doc.form_map()  # takes the MuPDF lock itself
         return {"template": _dump(new_template(schema, form_map, candidates=True))}
 
@@ -306,11 +308,16 @@ class Api:
         if payload.get("doc") is not None:
             doc = self._doc(payload)
             if doc.has_fingerprint(template.form.fingerprint):
-                context = OpContext.from_template(template, doc.form_map())
+                try:
+                    context = OpContext.from_template(template, doc.form_map())
+                except Exception:  # e.g. the detection weights cannot be fetched: check against the template alone
+                    log.warning("apply: could not build the form map; checking the edit against the template only", exc_info=True)
         try:
             updated, warnings = apply(template, op, author=author, note=note, context=context)
         except OpError as exc:
             raise ApiError(422, "op_rejected", exc.reason) from None
+        except RecursionError:
+            raise ApiError(422, "bad_schema", _SCHEMA_LOOP) from None
         return {"template": _dump(updated), "warnings": warnings}
 
     def rebind_template(self, req: Request) -> dict:
@@ -335,18 +342,20 @@ class Api:
         with missing("document"):
             doc = self.documents.get(req.match["doc"])
         features = doc.features()
-        out = []
+        templates: list[tuple[str, Template]] = []
         for entry in self.store.list():
             try:
-                template = self.store.get(entry["name"])
+                templates.append((entry["name"], self.store.get(entry["name"])))
             except KeyError:  # deleted since the listing
                 continue
             except StoredTemplateError as exc:
                 log.warning("matches: skipping %s", exc)
-                continue
-            result = similarity(template, doc.bytes, features=features)
+        out = []
+        with PYMUPDF_LOCK:  # the features compute their parts (renders) on first use
+            scored = [(name, template, similarity(template, doc.bytes, features=features)) for name, template in templates]
+        for name, template, result in scored:
             out.append({
-                "name": entry["name"],
+                "name": name,
                 "template_id": template.template_id,
                 "score": result.score,
                 "basis": result.basis,
@@ -369,26 +378,51 @@ class Api:
         template = _template(payload)
         doc = self._doc(payload)
         data = self._record(payload)
-        check = doc.has_fingerprint(template.form.fingerprint)
-        with PYMUPDF_LOCK:
-            pdf, report = fill(template, doc.bytes, data, check_fingerprint=check)
+        check, note = self._fingerprint_gate(template, doc, payload)
+        try:
+            with PYMUPDF_LOCK:
+                pdf, report = fill(template, doc.bytes, data, check_fingerprint=check)
+        except RecursionError:
+            raise ApiError(422, "bad_schema", _SCHEMA_LOOP) from None
         out: dict[str, Any] = {"pdf_base64": base64.b64encode(pdf).decode("ascii"), "report": report.model_dump(mode="json")}
-        if not check:
-            out["fingerprint_note"] = _fingerprint_note(template)
+        if note:
+            out["fingerprint_note"] = note
         return out
 
     def smart_pdf(self, req: Request) -> dict:
-        """``{template, doc}`` -> ``{pdf_base64}``: the PDF with an empty form field for every template field it lacks."""
+        """``{template, doc, check_fingerprint?}`` -> ``{pdf_base64}``: the PDF with an empty field for every template field it lacks.
+
+        The fingerprint rule is the same as for ``fill``.
+        """
         payload = _object(req)
         template = _template(payload)
         doc = self._doc(payload)
-        check = doc.has_fingerprint(template.form.fingerprint)
+        check, note = self._fingerprint_gate(template, doc, payload)
         with PYMUPDF_LOCK:
             pdf = to_smart_pdf(template, doc.bytes, check_fingerprint=check)
         out: dict[str, Any] = {"pdf_base64": base64.b64encode(pdf).decode("ascii")}
-        if not check:
-            out["fingerprint_note"] = _fingerprint_note(template)
+        if note:
+            out["fingerprint_note"] = note
         return out
+
+    def _fingerprint_gate(self, template: Template, doc: Doc, payload: dict) -> tuple[bool, str | None]:
+        """Whether to check the fingerprint, and the note to send back when the check is skipped.
+
+        Equal fingerprints: checked, no note. A template with none (browser or old): unchecked, with
+        a note. A different one: 409 ``fingerprint_mismatch`` unless the body says
+        ``"check_fingerprint": false``, which fills anyway, with a note.
+        """
+        override = payload.get("check_fingerprint")
+        if override is not None and not isinstance(override, bool):
+            raise ApiError(400, "bad_request", "check_fingerprint must be true or false")
+        expected = template.form.fingerprint
+        if expected is None:
+            return False, _fingerprint_note(template)
+        if doc.has_fingerprint(expected):
+            return True, None
+        if override is False:
+            return False, _fingerprint_note(template)
+        raise ApiError(409, "fingerprint_mismatch", "This template was made for a different version of this form. Rebind it to this PDF first.")
 
     def _record(self, payload: dict) -> dict:
         """The record to fill with: ``record`` as sent, or ``record_ref`` read from the record source."""
@@ -449,6 +483,57 @@ class Api:
     def get_record(self, req: Request) -> dict:
         with missing("record"):
             return {"record": self.records.get(req.match["schema"], req.match["id"])}
+
+
+_SCHEMA_LOOP = "This schema refers to itself in a loop ($ref), so it can't be used. Fix the schema and try again."
+_SAME_PLACE = ("allOf", "anyOf", "oneOf")  # keywords whose subschemas apply to the same piece of data
+
+
+def _schema_loops(schema: dict) -> bool:
+    """Whether a local ``$ref`` chain in ``schema`` leads back to itself without consuming any data.
+
+    Checking data against such a schema never ends (a ``RecursionError`` in fill). Recursion through
+    ``properties`` or ``items`` (a tree) is fine, because each step consumes a level of the data.
+    """
+
+    def resolve(ref: str):
+        if not ref.startswith("#"):
+            return None
+        node: Any = schema
+        for part in [p for p in ref[1:].split("/") if p]:
+            part = part.replace("~1", "/").replace("~0", "~")
+            if isinstance(node, dict) and part in node:
+                node = node[part]
+            elif isinstance(node, list) and part.isdigit() and int(part) < len(node):
+                node = node[int(part)]
+            else:
+                return None
+        return node
+
+    def walk(node: Any, trail: tuple[str, ...]) -> bool:
+        """Follow what applies to the same data from ``node``; ``trail`` holds the refs on the way."""
+        if not isinstance(node, dict):
+            return False
+        ref = node.get("$ref")
+        if isinstance(ref, str):
+            if ref in trail:
+                return True
+            if walk(resolve(ref), (*trail, ref)):
+                return True
+        for key in _SAME_PLACE:
+            subs = node.get(key)
+            if isinstance(subs, list) and any(walk(sub, trail) for sub in subs):
+                return True
+        return any(walk(node.get(key), trail) for key in ("not", "if", "then", "else"))
+
+    def every(node: Any) -> bool:
+        if isinstance(node, dict):
+            return walk(node, ()) or any(every(v) for v in node.values())
+        if isinstance(node, list):
+            return any(every(v) for v in node)
+        return False
+
+    return every(schema)
 
 
 def _object(req: Request) -> dict:

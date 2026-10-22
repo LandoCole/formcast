@@ -19,6 +19,7 @@ from test_server_documents import get_json, http_request, upload
 
 from demo.server import api as api_mod
 from demo.server import documents as documents_mod
+from formcast import match as match_mod
 from formcast import Template, apply, fingerprint
 from formcast.errors import OpError
 from formcast.pagemap.build import DetectPolicy, build_form_map
@@ -401,13 +402,56 @@ def test_fill_skips_the_fingerprint_check_for_a_browser_template_and_says_so(dem
     assert status == 200 and "fingerprint_note" not in body
 
 
-def test_fill_of_a_revised_pdf_goes_ahead_with_a_note_and_a_report_warning(demo_server):
+MISMATCH_DETAIL = "This template was made for a different version of this form. Rebind it to this PDF first."
+
+
+def test_fill_of_a_revised_pdf_is_refused_with_409_until_rebound(demo_server):
     doc = open_doc(demo_server, "fw9_rev.pdf", FW9_EDITED)
     template = stored(demo_server, "fw9")
-    status, body = post(demo_server, "/api/fill", {"template": template, "doc": doc, "record_ref": {"schema": "fw9", "id": "fw9-01"}})
+    ask = {"template": template, "doc": doc, "record_ref": {"schema": "fw9", "id": "fw9-01"}}
+    status, body = post(demo_server, "/api/fill", ask)
+    assert (status, body) == (409, {"error": "fingerprint_mismatch", "detail": MISMATCH_DETAIL})
+    # check_fingerprint: true is the same as leaving it out; only an explicit false overrides
+    assert post(demo_server, "/api/fill", {**ask, "check_fingerprint": True})[0] == 409
+    assert post(demo_server, "/api/fill", {**ask, "check_fingerprint": "no"})[0] == 400
+    # after a rebind to the revision, the fill is checked and goes through with no note
+    _, rebound = post(demo_server, "/api/rebind", {"template": template, "doc": doc})
+    status, body = post(demo_server, "/api/fill", {**ask, "template": rebound["template"]})
+    assert status == 200 and "fingerprint_note" not in body and body["report"]["fingerprint_ok"] is True
+
+
+def test_fill_of_a_revised_pdf_goes_ahead_only_when_the_request_says_not_to_check(demo_server):
+    doc = open_doc(demo_server, "fw9_rev.pdf", FW9_EDITED)
+    template = stored(demo_server, "fw9")
+    ask = {"template": template, "doc": doc, "record_ref": {"schema": "fw9", "id": "fw9-01"}, "check_fingerprint": False}
+    status, body = post(demo_server, "/api/fill", ask)
     assert status == 200
+    decode_pdf(body)
     assert "not the exact form" in body["fingerprint_note"]
     assert body["report"]["fingerprint_ok"] is False and body["report"]["counts"]["fingerprint_mismatch"] == 1
+
+
+def test_fill_with_the_matching_fingerprint_is_checked_and_a_null_one_is_unchecked_with_a_note(demo_server):
+    doc = open_doc(demo_server, "fw9.pdf", FW9)
+    template = stored(demo_server, "fw9")
+    status, body = post(demo_server, "/api/fill", {"template": template, "doc": doc, "record": {}, "check_fingerprint": False})
+    assert status == 200 and "fingerprint_note" not in body and body["report"]["fingerprint_ok"] is True  # equal: still checked
+    status, body = post(demo_server, "/api/fill", {"template": browser_style(template), "doc": doc, "record": {}})
+    assert status == 200 and "no fingerprint" in body["fingerprint_note"]
+
+
+def test_smart_pdf_follows_the_same_fingerprint_rule(demo_server):
+    revised = open_doc(demo_server, "fw9_rev.pdf", FW9_EDITED)
+    same = open_doc(demo_server, "fw9.pdf", FW9)
+    template = stored(demo_server, "fw9")
+    status, body = post(demo_server, "/api/smart-pdf", {"template": template, "doc": revised})
+    assert (status, body) == (409, {"error": "fingerprint_mismatch", "detail": MISMATCH_DETAIL})
+    status, body = post(demo_server, "/api/smart-pdf", {"template": template, "doc": revised, "check_fingerprint": False})
+    assert status == 200 and "not the exact form" in body["fingerprint_note"]
+    decode_pdf(body)
+    status, body = post(demo_server, "/api/smart-pdf", {"template": template, "doc": same})
+    assert status == 200 and "fingerprint_note" not in body
+    assert post(demo_server, "/api/smart-pdf", {"template": browser_style(template), "doc": same})[1]["fingerprint_note"]
 
 
 def test_fill_of_a_filled_copy_still_checks_the_fingerprint(demo_server):
@@ -419,9 +463,11 @@ def test_fill_of_a_filled_copy_still_checks_the_fingerprint(demo_server):
     assert status == 200 and "fingerprint_note" not in body and body["report"]["fingerprint_ok"] is True
 
 
-def test_fill_for_a_pdf_with_another_page_count_is_a_plain_400(demo_server):
+def test_fill_for_a_pdf_with_another_page_count_is_a_plain_400_once_the_fingerprint_check_is_waived(demo_server):
     doc = open_doc(demo_server, "wadoc_auth.pdf", WADOC)
-    status, body = post(demo_server, "/api/fill", {"template": stored(demo_server, "fw9"), "doc": doc, "record": {}})
+    ask = {"template": stored(demo_server, "fw9"), "doc": doc, "record": {}}
+    assert post(demo_server, "/api/fill", ask)[0] == 409  # a different form: rebind first
+    status, body = post(demo_server, "/api/fill", {**ask, "check_fingerprint": False})
     assert status == 400 and body["error"] == "bad_input" and "page count mismatch" in body["detail"]
 
 
@@ -489,13 +535,13 @@ def test_smart_pdf_of_a_browser_template_adds_the_note(demo_server):
 
 def test_fill_smart_pdf_rebind_form_map_and_features_run_under_the_mupdf_lock(demo_server, monkeypatch):
     lock = documents_mod.PYMUPDF_LOCK
-    seen: dict[str, bool] = {}
+    seen: dict[str, list[bool]] = {}
 
     def guard(module, name):
         real = getattr(module, name)
 
         def wrapper(*args, **kwargs):
-            seen[name] = lock._is_owned()
+            seen.setdefault(name, []).append(lock._is_owned())
             return real(*args, **kwargs)
 
         monkeypatch.setattr(module, name, wrapper)
@@ -504,13 +550,18 @@ def test_fill_smart_pdf_rebind_form_map_and_features_run_under_the_mupdf_lock(de
         guard(api_mod, name)
     for name in ("build_form_map", "pdf_features"):
         guard(documents_mod, name)
+    for name in ("fingerprint_document", "compute_signature"):  # the features compute these lazily
+        guard(match_mod, name)
     doc = open_doc(demo_server, "fw9.pdf", FW9)
     template = stored(demo_server, "fw9")
     post(demo_server, "/api/seed", {"doc": doc, "schema": "fw9"})
     post(demo_server, "/api/rebind", {"template": template, "doc": doc})
     post(demo_server, "/api/fill", {"template": template, "doc": doc, "record": {}})
     post(demo_server, "/api/smart-pdf", {"template": template, "doc": doc})
-    assert seen == dict.fromkeys(["fill", "to_smart_pdf", "rebind", "build_form_map", "pdf_features"], True)
+    get_json(demo_server, f"/api/documents/{doc}/matches")
+    names = ["fill", "to_smart_pdf", "rebind", "build_form_map", "pdf_features", "fingerprint_document", "compute_signature"]
+    assert set(seen) == set(names)
+    assert all(seen[n] and all(seen[n]) for n in names), seen  # every call, not just the last, held the lock
 
 
 # ------------------------------------------------------------------ template store
@@ -612,3 +663,68 @@ def test_unexpected_errors_in_a_new_route_are_500_with_a_log_and_no_details(demo
         status, body = post(demo_server, "/api/fill", {"template": stored(demo_server, "fw9"), "doc": doc})
     assert status == 500 and body["error"] == "internal" and "secret" not in json.dumps(body)
     assert "secret internals" in caplog.text
+
+
+# ------------------------------------------------------------------ cheap fingerprint checks, fallbacks, schema loops
+
+
+def test_a_fill_with_a_matching_fingerprint_never_computes_the_signature(demo_server, monkeypatch):
+    def boom(*a, **k):
+        raise AssertionError("the signature is not needed to compare fingerprints")
+
+    monkeypatch.setattr(match_mod, "compute_signature", boom)
+    monkeypatch.setattr(match_mod, "_pdf_phrases", boom)
+    doc = open_doc(demo_server, "fw9.pdf", FW9)
+    template = stored(demo_server, "fw9")
+    assert post(demo_server, "/api/fill", {"template": template, "doc": doc, "record": {}})[0] == 200
+    assert post(demo_server, "/api/smart-pdf", {"template": template, "doc": doc})[0] == 200
+    assert post(demo_server, "/api/fill", {"template": template, "doc": open_doc(demo_server, "r.pdf", FW9_EDITED), "record": {}})[0] == 409
+
+
+def test_apply_falls_back_to_template_only_checks_when_the_form_map_cannot_be_built(demo_server, monkeypatch, caplog):
+    doc = open_doc(demo_server, "fw9.pdf", FW9)
+    _, body = post(demo_server, "/api/seed", {"doc": doc, "schema": "fw9"})
+    template = body["template"]
+
+    def offline(pdf):
+        raise OSError("cannot fetch the detection weights")
+
+    monkeypatch.setattr(documents_mod, "build_form_map", offline)
+    other = open_doc(demo_server, "fw9_again.pdf", FW9)  # a new document: its form map was never built
+    field = first_widget(template)
+    link = {"op": "link_widget", "id": field["id"], "widget": "no such widget"}
+    with caplog.at_level(logging.WARNING, logger="demo.server"):
+        status, out = post(demo_server, "/api/apply", {"template": template, "op": link, "author": "human", "doc": other})
+        assert status == 200  # validated against the template alone, as without a doc
+        status, out = post(demo_server, "/api/apply", {"template": template, "op": {"op": "move", "id": "nope", "dx": 1}, "author": "human", "doc": other})
+    assert (status, out["error"]) == (422, "op_rejected")  # real op errors are still reported
+    assert "could not build the form map" in caplog.text
+
+
+LOOP_SCHEMA = {"type": "object", "properties": {"x": {"$ref": "#/definitions/a"}}, "definitions": {"a": {"$ref": "#/definitions/a"}}}
+
+
+def test_seed_refuses_a_schema_whose_refs_loop(demo_server):
+    doc = open_doc(demo_server, "fw9.pdf", FW9)
+    status, body = post(demo_server, "/api/seed", {"doc": doc, "schema": LOOP_SCHEMA})
+    assert (status, body["error"]) == (400, "bad_schema") and "refers to itself" in body["detail"]
+    through_all = {"type": "object", "definitions": {"a": {"allOf": [{"$ref": "#/definitions/b"}]}, "b": {"anyOf": [{"$ref": "#/definitions/a"}]}}}
+    assert post(demo_server, "/api/seed", {"doc": doc, "schema": through_all})[0] == 400
+
+
+def test_a_recursive_tree_schema_is_fine(demo_server):
+    tree = {"type": "object", "properties": {"name": {"type": "string"}, "child": {"$ref": "#/definitions/node"}},
+            "definitions": {"node": {"type": "object", "properties": {"child": {"$ref": "#/definitions/node"}}}}}  # fmt: skip
+    doc = open_doc(demo_server, "fw9.pdf", FW9)
+    assert post(demo_server, "/api/seed", {"doc": doc, "schema": tree})[0] == 200
+
+
+def test_fill_and_apply_answer_a_looping_schema_with_a_plain_422_not_a_500(demo_server):
+    doc = open_doc(demo_server, "fw9.pdf", FW9)
+    _, body = post(demo_server, "/api/seed", {"doc": doc, "schema": "fw9"})
+    looped = body["template"]
+    looped["schema"] = LOOP_SCHEMA  # a template saved or pasted with a bad schema
+    status, out = post(demo_server, "/api/fill", {"template": looped, "doc": doc, "record": {"x": 1}})
+    assert (status, out["error"]) == (422, "bad_schema") and "refers to itself" in out["detail"]
+    status, out = post(demo_server, "/api/apply", {"template": looped, "op": {"op": "move", "id": first_widget(looped)["id"], "dx": 1}, "author": "human"})
+    assert status == 200  # an edit never validates data, so a looping schema does not stop it

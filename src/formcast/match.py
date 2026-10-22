@@ -25,7 +25,6 @@ import hashlib
 import random
 import re
 import unicodedata
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
@@ -33,6 +32,7 @@ import numpy as np
 import pymupdf
 from pydantic import BaseModel
 
+from formcast.errors import FormcastError
 from formcast.pagemap.extract import open_pdf, page_size
 from formcast.pagemap.model import FormSignature
 
@@ -292,38 +292,75 @@ def _pct(x: float) -> int:
     return round(100 * x)
 
 
-@dataclass(frozen=True)
 class PdfFeatures:
-    """What :func:`similarity` reads from a PDF, computed once by :func:`pdf_features`.
+    """What :func:`similarity` reads from a PDF; made by :func:`pdf_features`, computed on first use.
 
-    Comparing one PDF with many templates computes these once and passes them to every call.
-    Treat it as opaque: its fields can change with the scoring.
+    Each part (``fingerprint``, ``fingerprint_blind``, ``page_sizes``, ``signature``, ``phrases``) is
+    computed the first time something asks for it and then kept, so a fingerprint hit never renders
+    for the signature, and comparing one PDF with many templates reads the PDF once. It holds the
+    PDF's bytes and opens them per part; like all MuPDF work, call it from one thread at a time
+    (a first access from two threads at once only repeats work). Treat the attributes as opaque.
     """
 
-    fingerprint: str
-    fingerprint_blind: str  # the fingerprint with field values ignored
-    page_sizes: tuple[tuple[float, float], ...]
-    signature: FormSignature
-    phrases: frozenset[tuple[str, ...]]
+    def __init__(self, data: bytes) -> None:
+        self._data = data
+        self._cache: dict[str, object] = {}
+
+    def _part(self, name: str, compute):
+        if name not in self._cache:
+            doc = open_pdf(self._data)
+            try:
+                self._cache[name] = compute(doc)
+            finally:
+                doc.close()
+        return self._cache[name]
+
+    @property
+    def fingerprint(self) -> str:
+        return self._part("fingerprint", fingerprint_document)  # type: ignore[return-value]
+
+    @property
+    def fingerprint_blind(self) -> str:
+        """The fingerprint with field values ignored (a filled copy matches its blank)."""
+        return self._part("blind", lambda d: fingerprint_document(d, ignore_field_values=True))  # type: ignore[return-value]
+
+    @property
+    def page_sizes(self) -> list[tuple[float, float]]:
+        return self._part("sizes", _sizes)  # type: ignore[return-value]
+
+    @property
+    def signature(self) -> FormSignature:
+        return self._part("signature", compute_signature)  # type: ignore[return-value]
+
+    @property
+    def phrases(self) -> frozenset[tuple[str, ...]]:
+        return self._part("phrases", _pdf_phrases)  # type: ignore[return-value]
+
+    def matches_fingerprint(self, expected: str | None) -> bool:
+        """Whether ``expected`` is this PDF's fingerprint, or its fingerprint with field values ignored.
+
+        Computes only the fingerprint(s), and the second one only when the first does not match.
+        """
+        return expected is not None and (expected == self.fingerprint or expected == self.fingerprint_blind)
 
 
 def pdf_features(pdf: str | Path | bytes) -> PdfFeatures:
     """The parts of ``pdf`` that :func:`similarity` compares, for ``similarity(..., features=...)``.
 
+    The PDF is opened once here to check it can be used; the parts are computed when first needed.
+
     Raises:
         FormcastError: "encrypted PDF" or "cannot open PDF".
     """
-    doc = open_pdf(pdf)
-    try:
-        return PdfFeatures(
-            fingerprint=fingerprint_document(doc),
-            fingerprint_blind=fingerprint_document(doc, ignore_field_values=True),
-            page_sizes=tuple(_sizes(doc)),
-            signature=compute_signature(doc),
-            phrases=_pdf_phrases(doc),
-        )
-    finally:
-        doc.close()
+    if isinstance(pdf, (bytes, bytearray, memoryview)):
+        data = bytes(pdf)
+    else:
+        try:
+            data = Path(pdf).read_bytes()
+        except OSError as exc:
+            raise FormcastError("cannot open PDF") from exc
+    open_pdf(data).close()
+    return PdfFeatures(data)
 
 
 def similarity(template: Template, pdf: str | Path | bytes, *, features: PdfFeatures | None = None) -> Similarity:
@@ -344,8 +381,7 @@ def similarity(template: Template, pdf: str | Path | bytes, *, features: PdfFeat
         FormcastError: "encrypted PDF" or "cannot open PDF".
     """
     f = features if features is not None else pdf_features(pdf)
-    expected = template.form.fingerprint
-    if expected is not None and expected in (f.fingerprint, f.fingerprint_blind):
+    if f.matches_fingerprint(template.form.fingerprint):
         return Similarity(
             score=1.0,
             parts={"fingerprint": 1.0, "pages": 1.0, "text": 1.0, "ink": 1.0},
@@ -353,7 +389,7 @@ def similarity(template: Template, pdf: str | Path | bytes, *, features: PdfFeat
             basis="fingerprint",
         )
     mine = [(float(w), float(h)) for w, h in template.form.page_sizes]
-    sizes = list(f.page_sizes)
+    sizes = f.page_sizes
     pages = _pages_part(mine, sizes)
     pages_phrase = _pages_words(mine, sizes, pages)
     if template.form.signature is None:

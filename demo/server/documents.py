@@ -86,9 +86,10 @@ class Doc:
             return self._form_map
 
     def features(self) -> PdfFeatures:
-        """What ``formcast.similarity`` reads from this PDF (fingerprints, signature, text), computed once.
+        """What ``formcast.similarity`` reads from this PDF, kept: each part is computed on first use and then reused.
 
-        A request that scores this PDF against many templates passes the result to each call.
+        A request that scores this PDF against many templates passes the result to each call. Parts
+        compute MuPDF work lazily, so use them under ``PYMUPDF_LOCK``.
         """
         with self._features_lock:
             if self._features is None:
@@ -97,11 +98,15 @@ class Doc:
             return self._features
 
     def has_fingerprint(self, expected: str | None) -> bool:
-        """Whether a template with this fingerprint was made for this PDF (a filled copy of it counts, as in ``fill``)."""
+        """Whether a template with this fingerprint was made for this PDF (a filled copy of it counts, as in ``fill``).
+
+        Computes only the fingerprint(s), not the signature or text.
+        """
         if expected is None:
             return False
-        f = self.features()
-        return expected in (f.fingerprint, f.fingerprint_blind)
+        features = self.features()
+        with PYMUPDF_LOCK:
+            return features.matches_fingerprint(expected)
 
     def page_png(self, n: int, dpi: int = 110) -> bytes:
         """PNG of page ``n`` (0-based) at ``dpi`` (clamped to 36-200), with the page's /Rotate applied.

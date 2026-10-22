@@ -299,3 +299,53 @@ def test_pdf_features_of_a_bad_pdf_raises_formcast_error():
 
     with pytest.raises(FormcastError):
         pdf_features(b"not a pdf")
+
+
+def test_features_compute_each_part_only_when_asked(monkeypatch, fw9_template, fw9_edited_bytes):
+    import formcast.match as match_mod
+    from formcast.match import pdf_features
+
+    calls = {"signature": 0, "phrases": 0, "fingerprint": 0}
+    for name, key in (("compute_signature", "signature"), ("_pdf_phrases", "phrases"), ("fingerprint_document", "fingerprint")):
+        real = getattr(match_mod, name)
+
+        def counted(*a, _real=real, _key=key, **k):
+            calls[_key] += 1
+            return _real(*a, **k)
+
+        monkeypatch.setattr(match_mod, name, counted)
+
+    # a fingerprint hit needs the fingerprint only
+    assert similarity(fw9_template, FW9).basis == "fingerprint"
+    assert calls == {"signature": 0, "phrases": 0, "fingerprint": 1}
+    # a revision on the signature basis: both fingerprints and the signature, no label phrases
+    calls.update(signature=0, phrases=0, fingerprint=0)
+    assert similarity(fw9_template, fw9_edited_bytes).basis == "signature"
+    assert calls == {"signature": 1, "phrases": 0, "fingerprint": 3}  # plain, field-blind (which recurses once)
+    # the labels basis needs the phrases, not the signature
+    old = fw9_template.model_copy(deep=True)
+    old.form.signature = None
+    calls.update(signature=0, phrases=0, fingerprint=0)
+    assert similarity(old, fw9_edited_bytes).basis == "labels"
+    assert calls["signature"] == 0 and calls["phrases"] == 1
+    # parts are kept: scoring again with the same features computes nothing more
+    features = pdf_features(fw9_edited_bytes)
+    similarity(fw9_template, fw9_edited_bytes, features=features)
+    calls.update(signature=0, phrases=0, fingerprint=0)
+    similarity(fw9_template, fw9_edited_bytes, features=features)
+    similarity(fw9_template, fw9_edited_bytes, features=features)
+    assert calls == {"signature": 0, "phrases": 0, "fingerprint": 0}
+
+
+def test_matches_fingerprint_checks_the_blind_one_only_when_needed(monkeypatch, fw9_template, fw9_filled_bytes):
+    import formcast.match as match_mod
+    from formcast.match import pdf_features
+
+    blind = []
+    real = match_mod.fingerprint_document
+    monkeypatch.setattr(match_mod, "fingerprint_document", lambda d, **k: (blind.append(k.get("ignore_field_values")), real(d, **k))[1])
+    fp = fw9_template.form.fingerprint
+    assert pdf_features(FW9).matches_fingerprint(fp) and blind == [None]  # plain fingerprint hit: one computation
+    blind.clear()
+    assert pdf_features(fw9_filled_bytes).matches_fingerprint(fp) and blind == [None, True, None]  # a filled copy needs the blind one (which recurses once on the hidden-values copy)
+    assert not pdf_features(FW9).matches_fingerprint(None) and not pdf_features(FW9).matches_fingerprint("0" * 16)
