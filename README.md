@@ -191,6 +191,13 @@ Step logs and overlays are local-only.
 
 A browser demo that detects fields, links them to a schema and fills the form is in [demo/](demo/); it runs entirely in the page.
 
+The showcase page (`demo/web/showcase/`) is also published at landonthornton.com/formcast/. That copy is
+made by `tools/sync_formcast.py` in the portfolio repo: edit the page here, then run
+`python3 tools/sync_formcast.py <path to this checkout>` from the portfolio repo's root. The sync copies
+`demo/web/showcase/`, `core/`, `engines/browser/` and `vendor/`, and swaps in the site's licensed font (never
+committed here), so keep the page on EB Garamond. It fails if the font link, the stylesheet and script tags,
+or the "Landon Thornton" link in `showcase/index.html` change; update the script when they do.
+
 ## Spec
 
 Design spec: [docs/superpowers/specs/2026-10-20-form-projection-design.md](docs/superpowers/specs/2026-10-20-form-projection-design.md)
