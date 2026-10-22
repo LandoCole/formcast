@@ -6,8 +6,10 @@ rendered so far. Nothing is written to disk. ``Documents`` keeps the 20 most rec
 drops the rest; a request that holds a ``Doc`` keeps it alive after eviction.
 
 Threads: ``Documents`` has one lock for its table; each ``Doc`` has its own locks for the form
-map and for rendering. Every render opens its own PyMuPDF document from the bytes, so two
-requests never share a PyMuPDF object.
+map and for filling its image cache. MuPDF is not safe to call from several threads at once
+(PyMuPDF runs it single-threaded), so all MuPDF work in the server happens under the
+process-wide ``PYMUPDF_LOCK``: opening, rendering, and (Tasks 6 and 7) fills and form-map
+builds. Every render also opens its own PyMuPDF document from the bytes.
 """
 
 from __future__ import annotations
@@ -21,6 +23,9 @@ import pymupdf
 from formcast.pagemap.build import build_form_map
 from formcast.pagemap.extract import is_image_dominated, open_pdf, page_size
 from formcast.pagemap.model import FormMap
+
+# One at a time, server-wide. Re-entrant, so code holding it may call other code that takes it.
+PYMUPDF_LOCK = threading.RLock()
 
 MAX_DOCUMENTS = 20
 MIN_DPI, MAX_DPI = 36, 200
@@ -36,16 +41,17 @@ class Doc:
 
     def __init__(self, name: str, pdf_bytes: bytes) -> None:
         # open_pdf rejects encrypted, corrupt and empty PDFs with FormcastError.
-        pdf = open_pdf(pdf_bytes)
-        try:
-            self.page_count: int = pdf.page_count
-            self.page_sizes: list[tuple[float, float]] = [page_size(p) for p in pdf]
-            # The same rule build_form_map applies, without detecting or reading any text.
-            self.kinds: list[str] = [
-                "fillable" if p.first_widget else ("scanned" if is_image_dominated(p) else "digital") for p in pdf
-            ]
-        finally:
-            pdf.close()
+        with PYMUPDF_LOCK:
+            pdf = open_pdf(pdf_bytes)
+            try:
+                self.page_count: int = pdf.page_count
+                self.page_sizes: list[tuple[float, float]] = [page_size(p) for p in pdf]
+                # The same rule build_form_map applies, without detecting or reading any text.
+                self.kinds: list[str] = [
+                    "fillable" if p.first_widget else ("scanned" if is_image_dominated(p) else "digital") for p in pdf
+                ]
+            finally:
+                pdf.close()
         self.id: str = uuid.uuid4().hex
         self.name = name
         self.bytes = pdf_bytes
@@ -82,16 +88,17 @@ class Doc:
         if not 0 <= n < self.page_count:
             raise IndexError(n)
         key = (n, clamp_dpi(dpi))
-        with self._image_lock:  # one render at a time per document; repeat requests hit the cache
+        with self._image_lock:  # only so that identical concurrent requests render once; MuPDF is locked below
             png = self._images.get(key)
             if png is not None:
                 self._images.move_to_end(key)
                 return png
-            pdf = pymupdf.open(stream=self.bytes, filetype="pdf")
-            try:
-                png = pdf[n].get_pixmap(dpi=key[1], alpha=False).tobytes("png")
-            finally:
-                pdf.close()
+            with PYMUPDF_LOCK:
+                pdf = pymupdf.open(stream=self.bytes, filetype="pdf")
+                try:
+                    png = pdf[n].get_pixmap(dpi=key[1], alpha=False).tobytes("png")
+                finally:
+                    pdf.close()
             self._images[key] = png
             while len(self._images) > _IMAGES_PER_DOC:
                 self._images.popitem(last=False)

@@ -387,10 +387,10 @@ def test_errors_map_to_statuses_without_leaking_internals(caplog):
         return handler
 
     cases = {
-        "/t/key": (KeyError("template-x"), 404, "not_found"),
+        "/t/key": (KeyError("template-x"), 500, "internal"),  # a stray KeyError is a bug, not a 404
         "/t/api": (ApiError(409, "conflict", "already there"), 409, "conflict"),
         "/t/lib": (FormcastError("cannot open PDF"), 400, "bad_input"),
-        "/t/value": (ValueError("bad template name"), 400, "bad_request"),
+        "/t/value": (ValueError("bad template name"), 500, "internal"),
         "/t/boom": (RuntimeError(secret), 500, "internal"),
     }
     for path, (exc, _, _) in cases.items():
@@ -406,6 +406,39 @@ def test_errors_map_to_statuses_without_leaking_internals(caplog):
     assert json.loads(api.route("GET", "/t/lib")[2])["detail"] == "cannot open PDF"
     assert json.loads(api.route("GET", "/t/boom")[2])["detail"] == "unexpected error; the server log has the details"
     assert secret in caplog.text and "Traceback" in caplog.text  # the log has the traceback
+
+
+def test_expected_key_and_value_errors_are_answered_where_the_handler_calls_the_store(caplog):
+    from demo.server.api import bad_request, missing
+    from demo.server.records import RecordSourceError
+
+    api = _api()
+
+    def lookup(req):
+        with missing("template"):
+            api.store.get(req.query["name"])
+
+    def named(req):
+        with bad_request():
+            api.store.get(req.query["name"])
+
+    def records(req):
+        with bad_request():
+            raise RecordSourceError("person.csv is empty")
+
+    def stray_inside(req):
+        with missing("template"):
+            raise RuntimeError("not a KeyError")
+
+    for path, handler in [("/t/lookup", lookup), ("/t/named", named), ("/t/records", records), ("/t/stray", stray_inside)]:
+        api._add("GET", path, handler)
+    status, _, body = api.route("GET", "/t/lookup", {"name": "absent"})
+    assert (status, json.loads(body)) == (404, {"error": "not_found", "detail": "no such template: absent"})
+    status, _, body = api.route("GET", "/t/named", {"name": "../x"})
+    assert (status, json.loads(body)) == (400, {"error": "bad_request", "detail": "bad template name"})
+    assert api.route("GET", "/t/records")[0] == 422  # still its own answer inside bad_request()
+    with caplog.at_level(logging.ERROR, logger="demo.server"):
+        assert api.route("GET", "/t/stray")[0] == 500
 
 
 def test_stored_template_and_record_source_errors_are_422(caplog):
@@ -548,6 +581,234 @@ def test_the_workbench_page_is_served_once_it_exists(demo_server):
         pytest.skip("demo/web/workbench/ arrives with the workbench page (Plan 3B, Task 10)")
     status, headers, body = http_request(demo_server, "GET", "/workbench/")
     assert status == 200 and headers["content-type"].startswith("text/html") and b"<html" in body.lower()
+
+
+# ------------------------------------------------------------------ browser-facing hardening
+
+
+def raw_exchange(base: str, payload: bytes, wait: float = 1.0) -> bytes:
+    """Send raw bytes on one socket and return everything the server answers until it closes or goes quiet."""
+    import socket
+
+    parts = urlsplit(base)
+    out = b""
+    with socket.create_connection((parts.hostname, parts.port), timeout=wait) as sock:
+        sock.sendall(payload)
+        try:
+            while chunk := sock.recv(65536):
+                out += chunk
+        except socket.timeout:
+            pass
+    return out
+
+
+def test_an_unread_body_cannot_smuggle_a_second_request(start_demo_server):
+    base = start_demo_server()
+    host = base.removeprefix("http://")
+    inner = f"POST /api/documents HTTP/1.1\r\nHost: {host}\r\nContent-Type: application/json\r\nContent-Length: 15\r\n\r\n" + '{"form":"fw9"}'
+    outer = (
+        f"POST /showcase/ HTTP/1.1\r\nHost: {host}\r\nOrigin: http://evil.example\r\n"
+        f"Content-Length: {len(inner)}\r\n\r\n{inner}"
+    ).encode()
+    answer = raw_exchange(base, outer)
+    assert answer.count(b"HTTP/1.1 ") == 1 and b"405" in answer.split(b"\r\n", 1)[0]
+    assert b"connection: close" in answer.lower()
+    assert len(start_demo_server.servers[-1].api.documents) == 0
+
+
+def test_no_early_exit_leaves_a_body_to_be_parsed_as_the_next_request(start_demo_server):
+    base = start_demo_server()
+    api = start_demo_server.servers[-1].api
+    host = base.removeprefix("http://")
+    inner = f"POST /api/documents HTTP/1.1\r\nHost: {host}\r\nContent-Type: application/json\r\nContent-Length: 15\r\n\r\n" + '{"form":"fw9"}'
+    head = lambda line, extra="": f"{line} HTTP/1.1\r\nHost: {host}\r\n{extra}Content-Length: {len(inner)}\r\n\r\n{inner}".encode()  # noqa: E731
+    attempts = [
+        head("POST /showcase/"),  # static 405
+        head("POST /showcase/", "Origin: http://evil.example\r\n"),
+        head("GET /api/capabilities"),  # a GET that carries a body
+        head("GET /showcase/index.html"),
+        head("POST /api/documents", "Origin: http://evil.example\r\n"),  # cross-origin 403
+        head("POST /api/documents", "Transfer-Encoding: chunked\r\n"),  # 411
+    ]
+    for payload in attempts:
+        answer = raw_exchange(base, payload)
+        assert answer.count(b"HTTP/1.1 ") == 1, payload[:40]
+        assert b"connection: close" in answer.lower(), payload[:40]
+    wrong_host = f"POST /showcase/ HTTP/1.1\r\nHost: attacker.example\r\nContent-Length: {len(inner)}\r\n\r\n{inner}".encode()
+    assert raw_exchange(base, wrong_host).count(b"HTTP/1.1 ") == 1
+    assert len(api.documents) == 0
+    # a well-formed pipeline of two requests still works on one connection
+    two = f"GET /api/capabilities HTTP/1.1\r\nHost: {host}\r\n\r\nGET /api/forms HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n".encode()
+    assert raw_exchange(base, two).count(b"HTTP/1.1 200") == 2
+
+
+def test_a_request_under_another_host_name_is_refused(demo_server):
+    port = urlsplit(demo_server).port
+    body = json.dumps({"form": "fw9"}).encode()
+    # DNS rebinding: the attacker's page and the request agree on Host and Origin, so only the Host check can stop it.
+    status, _, out = http_request(
+        demo_server, "POST", "/api/documents", body,
+        {"Host": f"attacker.example:{port}", "Origin": f"http://attacker.example:{port}", "Content-Type": "application/json"},
+    )  # fmt: skip
+    assert (status, json.loads(out)["error"]) == (403, "bad_host")
+    for host in ("attacker.example", f"attacker.example:{port}", f"127.0.0.1:{port + 1}", "127.0.0.1", f"0.0.0.0:{port}", ""):
+        assert http_request(demo_server, "GET", "/api/capabilities", None, {"Host": host})[0] == 403, host
+        assert http_request(demo_server, "GET", "/showcase/index.html", None, {"Host": host})[0] == 403, host
+    for host in (f"127.0.0.1:{port}", f"localhost:{port}", f"LOCALHOST:{port}", f"[::1]:{port}"):
+        assert http_request(demo_server, "GET", "/api/capabilities", None, {"Host": host})[0] == 200, host
+
+
+def test_allowed_hosts_include_the_bind_address_unless_it_is_a_wildcard():
+    from demo.server.server import allowed_hosts
+
+    assert allowed_hosts("127.0.0.1", 8765) == {"127.0.0.1:8765", "localhost:8765", "[::1]:8765"}
+    assert allowed_hosts("0.0.0.0", 8765) == {"127.0.0.1:8765", "localhost:8765", "[::1]:8765"}
+    assert "192.168.1.5:9000" in allowed_hosts("192.168.1.5", 9000)
+    assert "[fe80::1]:9000" in allowed_hosts("fe80::1", 9000)
+
+
+def test_every_response_refuses_to_be_framed(demo_server):
+    for method, path, body in [
+        ("GET", "/api/capabilities", None),
+        ("GET", "/api/nope", None),
+        ("DELETE", "/api/forms", None),
+        ("GET", "/showcase/index.html", None),
+        ("GET", "/showcase", None),
+        ("GET", "/missing.js", None),
+        ("POST", "/showcase/", b"x"),
+        ("GET", "/", None),
+        ("HEAD", "/showcase/index.html", None),
+    ]:
+        status, headers, _ = http_request(demo_server, method, path, body)
+        assert headers["x-frame-options"] == "DENY", (method, path, status)
+        assert headers["content-security-policy"] == "frame-ancestors 'none'", (method, path)
+        assert headers["x-content-type-options"] == "nosniff"
+    _, doc = upload(demo_server, "fw9.pdf", FW9)
+    assert http_request(demo_server, "GET", f"/api/documents/{doc['id']}/pages/0.png")[1]["x-frame-options"] == "DENY"
+    over = http_request(demo_server, "POST", "/api/documents", b"x", {"Host": "evil.example", "Content-Type": "application/json"})
+    assert over[0] == 403 and over[1]["x-frame-options"] == "DENY"
+
+
+@pytest.mark.parametrize(
+    "path", ["/.git/config", "/.env", "/showcase/.hidden", "/.well-known/x", "/%2egit/config", "/showcase/%2E%2E/x", "/vendor/.DS_Store"]
+)
+def test_dot_files_are_never_served(demo_server, path):
+    assert http_request(demo_server, "GET", path)[0] == 404
+
+
+def test_dot_files_in_the_web_root_are_hidden_even_when_present(tmp_path):
+    from demo.server.server import resolve_static
+
+    (tmp_path / ".secret").write_text("x", encoding="utf-8")
+    (tmp_path / ".d").mkdir()
+    (tmp_path / ".d" / "f.txt").write_text("x", encoding="utf-8")
+    (tmp_path / "ok.txt").write_text("x", encoding="utf-8")
+    assert resolve_static(tmp_path, "/.secret") is None and resolve_static(tmp_path, "/.d/f.txt") is None
+    assert resolve_static(tmp_path, "/ok.txt") == (tmp_path / "ok.txt").resolve()
+
+
+def test_a_stalled_connection_is_dropped(start_demo_server):
+    from demo.server.server import REQUEST_TIMEOUT
+
+    assert REQUEST_TIMEOUT == 30
+    base = start_demo_server()
+    handler = start_demo_server.servers[-1].RequestHandlerClass
+    assert handler.timeout == 30
+    handler.timeout = 0.3  # read per connection, so this applies to the next one
+    try:
+        import socket
+
+        parts = urlsplit(base)
+        with socket.create_connection((parts.hostname, parts.port), timeout=10) as sock:
+            sock.sendall(b"GET /api/capabilities HTTP/1.1\r\nHost: x")  # never finishes the request
+            assert sock.recv(1024) == b""  # the server closed the connection
+        assert http_request(base, "GET", "/api/capabilities")[0] == 200  # and still serves others
+    finally:
+        handler.timeout = 30
+
+
+def test_a_client_that_goes_away_is_logged_quietly(start_demo_server, caplog, capsys):
+    start_demo_server()
+    httpd = start_demo_server.servers[-1]
+    with caplog.at_level(logging.INFO, logger="demo.server"):
+        for exc in (ConnectionResetError(54, "reset"), BrokenPipeError(), TimeoutError()):
+            try:
+                raise exc
+            except Exception:
+                httpd.handle_error(None, ("127.0.0.1", 5555))
+    assert "Traceback" not in caplog.text and capsys.readouterr().err == ""
+    assert caplog.text.count("went away") == 3
+    caplog.clear()
+    with caplog.at_level(logging.INFO, logger="demo.server"):
+        try:
+            raise RuntimeError("real bug")
+        except RuntimeError:
+            httpd.handle_error(None, ("127.0.0.1", 5555))
+    assert "Traceback" in caplog.text and "real bug" in caplog.text and capsys.readouterr().err == ""
+
+
+def test_mupdf_work_runs_under_the_process_wide_lock(monkeypatch):
+    held = []
+
+    class Probe:
+        def __init__(self, real):
+            self.real = real
+
+        def __enter__(self):
+            held.append("enter")
+            return self.real.__enter__()
+
+        def __exit__(self, *a):
+            held.append("exit")
+            return self.real.__exit__(*a)
+
+    monkeypatch.setattr(documents_mod, "PYMUPDF_LOCK", Probe(documents_mod.PYMUPDF_LOCK))
+    doc = Documents().add(small_pdf(), "x.pdf")
+    assert held == ["enter", "exit"]  # the light open
+    doc.page_png(0, 72)
+    assert held == ["enter", "exit"] * 2  # the render
+    doc.page_png(0, 72)
+    assert held == ["enter", "exit"] * 2  # a cache hit needs no MuPDF
+    assert hasattr(documents_mod.PYMUPDF_LOCK.real, "acquire")
+
+
+def test_renders_of_different_documents_do_not_overlap_inside_mupdf(monkeypatch):
+    inside, peak = [0], [0]
+    guard = threading.Lock()
+    real_open = documents_mod.pymupdf.open
+
+    class Watched:
+        def __init__(self, doc):
+            self.doc = doc
+
+        def __getitem__(self, n):
+            page = self.doc[n]
+
+            class P:
+                def get_pixmap(_, **kw):
+                    with guard:
+                        inside[0] += 1
+                        peak[0] = max(peak[0], inside[0])
+                    try:
+                        import time
+
+                        time.sleep(0.05)
+                        return page.get_pixmap(**kw)
+                    finally:
+                        with guard:
+                            inside[0] -= 1
+
+            return P()
+
+        def close(self):
+            self.doc.close()
+
+    docs = [Documents().add(small_pdf(text=str(i)), f"{i}.pdf") for i in range(4)]
+    monkeypatch.setattr(documents_mod.pymupdf, "open", lambda *a, **k: Watched(real_open(*a, **k)))
+    threads = [threading.Thread(target=d.page_png, args=(0, 72)) for d in docs]
+    [t.start() for t in threads]
+    [t.join(timeout=20) for t in threads]
+    assert peak[0] == 1
 
 
 # ------------------------------------------------------------------ wiring and startup

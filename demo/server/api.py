@@ -4,12 +4,15 @@
 never raises: every failure becomes ``{"error": "<code>", "detail": "<plain message>"}``.
 
     ApiError                       the status and code the handler chose
-    KeyError                       404 not_found
     StoredTemplateError            422 bad_template_file   (a stored file that is not a template)
     RecordSourceError              422 bad_records         (a record file that cannot be read)
     FormcastError (library)        400 bad_input, with the library's plain message
-    ValueError (e.g. bad name)     400 bad_request, with its message
     anything else                  500 internal; the traceback goes to the server log only
+
+A ``KeyError`` or ``ValueError`` is NOT mapped globally: one that escapes a handler is a bug and
+becomes a 500. A handler turns the ones it expects into answers where it calls the store, the
+records or the documents: ``with missing("template"):`` makes a ``KeyError`` a 404, and
+``with bad_request():`` makes a ``ValueError`` (a bad template name) a 400.
 
 Handlers are small methods registered in ``Api._add_routes``; they return a JSON-able value
 (sent as 200) or a ``Response``.
@@ -20,7 +23,8 @@ from __future__ import annotations
 import json
 import logging
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from email import policy
 from email.parser import BytesParser
@@ -72,6 +76,30 @@ class Request:
             return json.loads(self.body.decode("utf-8"))
         except (ValueError, UnicodeDecodeError):
             raise ApiError(400, "bad_json", "the request body is not valid JSON") from None
+
+
+@contextmanager
+def missing(what: str) -> Iterator[None]:
+    """Inside the block, a ``KeyError`` (unknown template, schema, record, document) is a 404."""
+    try:
+        yield
+    except KeyError as exc:
+        key = exc.args[0] if exc.args and isinstance(exc.args[0], str) else ""
+        raise ApiError(404, "not_found", f"no such {what}" + (f": {key}" if key else "")) from None
+
+
+@contextmanager
+def bad_request() -> Iterator[None]:
+    """Inside the block, a ``ValueError`` (e.g. a bad template name) is a 400 with its message.
+
+    ``RecordSourceError`` is a ``ValueError`` too but keeps its own answer (422).
+    """
+    try:
+        yield
+    except RecordSourceError:
+        raise
+    except ValueError as exc:
+        raise ApiError(400, "bad_request", str(exc)) from None
 
 
 def json_response(value: Any, status: int = 200) -> Response:
@@ -126,13 +154,8 @@ class Api:
             response = error_response(422, "bad_template_file", str(exc))
         except RecordSourceError as exc:
             response = error_response(422, "bad_records", str(exc))
-        except KeyError as exc:
-            key = exc.args[0] if exc.args and isinstance(exc.args[0], str) else ""
-            response = error_response(404, "not_found", f"not found: {key}" if key else "not found")
         except FormcastError as exc:
             response = error_response(400, "bad_input", str(exc))
-        except ValueError as exc:
-            response = error_response(400, "bad_request", str(exc))
         except Exception:  # a bug or a failure we did not foresee: log it, tell the client nothing about it
             log.exception("unexpected error handling %s %s", method, path)
             response = error_response(500, "internal", "unexpected error; the server log has the details")
@@ -200,7 +223,7 @@ class Api:
                 raise ApiError(400, "bad_form", 'send a plain demo form name as {"form": "<name>"}, or upload a file')
             path = self._forms_dir() / f"{form}.pdf"
             if not path.is_file():
-                raise KeyError(form)
+                raise ApiError(404, "not_found", f"no such demo form: {form}")
             name, data = f"{form}.pdf", path.read_bytes()
         try:
             doc = self.documents.add(data, name)
@@ -210,7 +233,8 @@ class Api:
 
     def page_image(self, req: Request) -> Response:
         """``GET /api/documents/{id}/pages/{n}.png?dpi=110`` (n counts from 0). Does not run detection."""
-        doc = self.documents.get(req.match["doc"])
+        with missing("document"):
+            doc = self.documents.get(req.match["doc"])
         raw = req.query.get("dpi", str(DEFAULT_DPI))
         try:
             dpi = int(raw)

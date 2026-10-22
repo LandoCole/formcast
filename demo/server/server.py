@@ -3,12 +3,19 @@
 Standard library only. It is a ``ThreadingHTTPServer``: every request runs in its own thread,
 so handlers share nothing except the ``Api`` object, whose parts (documents, jobs) take locks.
 Run it on your own machine only.
+
+Browser-facing guards, because this server lives on localhost and any web page you have open can
+send it requests: a request whose ``Host`` is not this server's own address is refused (DNS
+rebinding), a state-changing ``/api`` request from another site is refused (``Origin``), pages
+cannot be framed, dot-files are never served, and any request whose body was not read closes the
+connection, so leftover bytes can never be parsed as a second request.
 """
 
 from __future__ import annotations
 
 import logging
 import mimetypes
+import sys
 from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -38,6 +45,12 @@ CONTENT_TYPES = {
     ".map": "application/json; charset=utf-8",
     ".onnx": "application/octet-stream",
 }
+REQUEST_TIMEOUT = 30  # seconds a connection may sit idle or stall mid-request
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Content-Security-Policy": "frame-ancestors 'none'",
+}
 _DRAIN_LIMIT = 64 * 2**20  # an over-limit body is read and thrown away up to this much, so the client gets the 413
 
 
@@ -56,13 +69,33 @@ def resolve_static(web_root: Path, url_path: str) -> Path | None:
     if "\x00" in decoded or "\\" in decoded:
         return None
     parts = [p for p in decoded.split("/") if p not in ("", ".")]
-    if any(p == ".." for p in parts):
+    if any(p.startswith(".") for p in parts):  # "..", .git, .env: never served
         return None
     root = web_root.resolve()
     target = root.joinpath(*parts).resolve()
     if target != root and root not in target.parents:  # a symlink that points outside
         return None
     return target
+
+
+def allowed_hosts(bind_host: str, port: int) -> set[str]:
+    """The ``Host`` header values this server answers to: loopback names plus the bind address."""
+    names = {"127.0.0.1", "localhost", "[::1]"}
+    if bind_host not in ("0.0.0.0", "::", ""):
+        names.add(f"[{bind_host}]" if ":" in bind_host else bind_host)
+    return {f"{name}:{port}" for name in names} | ({*names} if port == 80 else set())
+
+
+class _Server(ThreadingHTTPServer):
+    daemon_threads = True
+
+    def handle_error(self, request, client_address) -> None:
+        """Log a failed request through ``logging``; a client that went away is not worth a traceback."""
+        exc = sys.exc_info()[1]
+        if isinstance(exc, (ConnectionError, TimeoutError)):
+            log.info("client %s went away: %s", client_address[0], type(exc).__name__)
+        else:
+            log.error("error handling a request from %s", client_address[0], exc_info=True)
 
 
 def make_server(
@@ -90,6 +123,7 @@ def make_server(
         protocol_version = "HTTP/1.1"
         server_version = "formcast-workbench"
         sys_version = ""
+        timeout = REQUEST_TIMEOUT
 
         # -------------------------------------------------- plumbing
 
@@ -101,7 +135,8 @@ def make_server(
             self.send_response(status)
             for key, value in headers.items():
                 self.send_header(key, value)
-            self.send_header("X-Content-Type-Options", "nosniff")
+            for key, value in SECURITY_HEADERS.items():
+                self.send_header(key, value)
             self.send_header("Content-Length", str(len(body)))
             if self.close_connection:
                 self.send_header("Connection", "close")
@@ -112,6 +147,11 @@ def make_server(
         def _send_error(self, status: int, code: str, detail: str, extra: dict[str, str] | None = None) -> None:
             r = error_response(status, code, detail)
             self._send(r.status, {**r.headers, **(extra or {})}, r.body)
+
+        def _host_ok(self) -> bool:
+            """A rebinding page reaches us under its own name; only our own address is accepted."""
+            host = (self.headers.get("Host") or "").strip().lower()
+            return host in allowed_hosts(settings.host.lower(), self.server.server_address[1])
 
         def _same_origin(self) -> bool:
             """Browsers send ``Origin`` on cross-site requests; refuse one from another site."""
@@ -151,11 +191,20 @@ def make_server(
 
         def _handle(self) -> None:
             parts = urlsplit(self.path)
-            if parts.path == "/api" or parts.path.startswith("/api/"):
+            is_api = parts.path == "/api" or parts.path.startswith("/api/")
+            reads_body = is_api and self.command in ("POST", "PUT", "PATCH", "DELETE")
+            has_body = self.headers.get("Content-Length", "0").strip() not in ("", "0") or "Transfer-Encoding" in self.headers
+            if has_body and not reads_body:
+                self.close_connection = True  # an unread body would be parsed as the next request
+            if not self._host_ok():
+                self.close_connection = True
+                self._send_error(403, "bad_host", "this server answers only at its own address (127.0.0.1 or localhost)")
+            elif is_api:
                 self._handle_api(parts.path, parts.query)
             elif self.command in ("GET", "HEAD"):
                 self._handle_static(parts.path)
             else:
+                self.close_connection = True
                 self._send_error(405, "method_not_allowed", "this path only serves GET", {"Allow": "GET, HEAD"})
 
         def _handle_api(self, path: str, query: str) -> None:
@@ -169,8 +218,6 @@ def make_server(
                 body = self._read_body(path, content_type)
                 if body is None:
                     return
-            elif self.headers.get("Content-Length", "0").strip() not in ("", "0"):
-                self.close_connection = True  # a GET with a body: do not try to parse it as the next request
             headers = {k.lower(): v for k, v in self.headers.items()}
             status, out_headers, out = api.route(self.command, unquote(path), dict(parse_qsl(query)), body, headers)
             self._send(status, out_headers, out)
@@ -220,7 +267,6 @@ def make_server(
 
         do_GET = do_HEAD = do_POST = do_PUT = do_DELETE = do_PATCH = _run
 
-    httpd = ThreadingHTTPServer((settings.host, settings.port), Handler)
-    httpd.daemon_threads = True
+    httpd = _Server((settings.host, settings.port), Handler)
     httpd.api = api  # type: ignore[attr-defined]
     return httpd
