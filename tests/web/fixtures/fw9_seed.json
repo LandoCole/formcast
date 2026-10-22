@@ -1,0 +1,699 @@
+{
+ "formcast_version": "1",
+ "template_id": "fw9-seed",
+ "schema": {
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/schemas/vendor-tax-profile.json",
+  "title": "Vendor tax profile",
+  "description": "Accounts-payable record of a vendor's taxpayer identification, collected for 1099 reporting.",
+  "type": "object",
+  "properties": {
+   "vendor_id": {
+    "type": "string",
+    "description": "Internal vendor number."
+   },
+   "legal_name": {
+    "type": "string",
+    "description": "Name of the entity or individual as shown on its tax return."
+   },
+   "business_name": {
+    "type": "string",
+    "description": "Business or disregarded-entity name, if different."
+   },
+   "tax_classification": {
+    "type": "string",
+    "enum": [
+     "individual_sole_proprietor",
+     "c_corporation",
+     "s_corporation",
+     "partnership",
+     "trust_estate",
+     "llc",
+     "other"
+    ],
+    "description": "Federal tax classification."
+   },
+   "llc_tax_classification": {
+    "type": "string",
+    "enum": [
+     "c_corporation",
+     "s_corporation",
+     "partnership"
+    ],
+    "description": "How an LLC is taxed; only when tax_classification is llc."
+   },
+   "other_classification": {
+    "type": "string",
+    "description": "Description when tax_classification is other."
+   },
+   "has_foreign_partners": {
+    "type": "boolean",
+    "description": "Flow-through entity with foreign partners, owners or beneficiaries."
+   },
+   "exempt_payee_code": {
+    "type": "string",
+    "description": "Backup-withholding exemption code, if any."
+   },
+   "address": {
+    "$ref": "#/$defs/address"
+   },
+   "ssn": {
+    "type": "string",
+    "pattern": "^\\d{3}-\\d{2}-\\d{4}$",
+    "description": "Individuals only. Formatted NNN-NN-NNNN."
+   },
+   "ein": {
+    "type": "string",
+    "pattern": "^\\d{2}-\\d{7}$",
+    "description": "Entities. Formatted NN-NNNNNNN."
+   },
+   "remit_email": {
+    "type": "string",
+    "format": "email",
+    "description": "Where remittance advice is sent."
+   },
+   "certified_on": {
+    "type": "string",
+    "format": "date",
+    "description": "Date the vendor signed the certification."
+   }
+  },
+  "required": [
+   "legal_name",
+   "tax_classification"
+  ],
+  "$defs": {
+   "address": {
+    "type": "object",
+    "properties": {
+     "street": {
+      "type": "string"
+     },
+     "city": {
+      "type": "string"
+     },
+     "state": {
+      "type": "string",
+      "description": "Two-letter state code."
+     },
+     "postal_code": {
+      "type": "string"
+     }
+    }
+   }
+  }
+ },
+ "form": {
+  "fingerprint": null,
+  "page_count": 6,
+  "page_sizes": [
+   [
+    611.9760131835938,
+    791.968017578125
+   ],
+   [
+    611.9760131835938,
+    791.968017578125
+   ],
+   [
+    611.9760131835938,
+    791.968017578125
+   ],
+   [
+    611.9760131835938,
+    791.968017578125
+   ],
+   [
+    611.9760131835938,
+    791.968017578125
+   ],
+   [
+    611.9760131835938,
+    791.968017578125
+   ]
+  ],
+  "kinds": [
+   "fillable",
+   "digital",
+   "digital",
+   "digital",
+   "digital",
+   "digital"
+  ]
+ },
+ "fields": [
+  {
+   "id": "w0_0",
+   "type": "text",
+   "label": "",
+   "page": 0,
+   "rect": [
+    58.599998474121094,
+    118.00103759765625,
+    576.0,
+    132.00103759765625
+   ],
+   "source": null,
+   "style": {
+    "font_size": "auto",
+    "min_font_size": 6.0,
+    "align": "left",
+    "comb": null,
+    "multiline": false
+   },
+   "existing_widget": "topmostSubform[0].Page1[0].f1_01[0]",
+   "segments": [],
+   "confidence": null,
+   "origin": "widget"
+  },
+  {
+   "id": "w0_1",
+   "type": "text",
+   "label": "",
+   "page": 0,
+   "rect": [
+    58.599998474121094,
+    142.00103759765625,
+    576.0,
+    156.00201416015625
+   ],
+   "source": null,
+   "style": {
+    "font_size": "auto",
+    "min_font_size": 6.0,
+    "align": "left",
+    "comb": null,
+    "multiline": false
+   },
+   "existing_widget": "topmostSubform[0].Page1[0].f1_02[0]",
+   "segments": [],
+   "confidence": null,
+   "origin": "widget"
+  },
+  {
+   "id": "w0_2",
+   "type": "checkbox",
+   "label": "",
+   "page": 0,
+   "rect": [
+    73.0,
+    180.2490234375,
+    81.0,
+    188.2490234375
+   ],
+   "source": null,
+   "style": {
+    "font_size": "auto",
+    "min_font_size": 6.0,
+    "align": "left",
+    "comb": null,
+    "multiline": false
+   },
+   "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[0]",
+   "segments": [],
+   "confidence": null,
+   "origin": "widget"
+  },
+  {
+   "id": "w0_3",
+   "type": "checkbox",
+   "label": "",
+   "page": 0,
+   "rect": [
+    180.0,
+    180.2490234375,
+    188.0,
+    188.2490234375
+   ],
+   "source": null,
+   "style": {
+    "font_size": "auto",
+    "min_font_size": 6.0,
+    "align": "left",
+    "comb": null,
+    "multiline": false
+   },
+   "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[1]",
+   "segments": [],
+   "confidence": null,
+   "origin": "widget"
+  },
+  {
+   "id": "w0_4",
+   "type": "checkbox",
+   "label": "",
+   "page": 0,
+   "rect": [
+    252.0,
+    180.2490234375,
+    260.0,
+    188.2490234375
+   ],
+   "source": null,
+   "style": {
+    "font_size": "auto",
+    "min_font_size": 6.0,
+    "align": "left",
+    "comb": null,
+    "multiline": false
+   },
+   "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[2]",
+   "segments": [],
+   "confidence": null,
+   "origin": "widget"
+  },
+  {
+   "id": "w0_5",
+   "type": "checkbox",
+   "label": "",
+   "page": 0,
+   "rect": [
+    324.0,
+    180.2490234375,
+    332.0,
+    188.2490234375
+   ],
+   "source": null,
+   "style": {
+    "font_size": "auto",
+    "min_font_size": 6.0,
+    "align": "left",
+    "comb": null,
+    "multiline": false
+   },
+   "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[3]",
+   "segments": [],
+   "confidence": null,
+   "origin": "widget"
+  },
+  {
+   "id": "w0_6",
+   "type": "checkbox",
+   "label": "",
+   "page": 0,
+   "rect": [
+    388.79998779296875,
+    180.2490234375,
+    396.79998779296875,
+    188.2490234375
+   ],
+   "source": null,
+   "style": {
+    "font_size": "auto",
+    "min_font_size": 6.0,
+    "align": "left",
+    "comb": null,
+    "multiline": false
+   },
+   "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[4]",
+   "segments": [],
+   "confidence": null,
+   "origin": "widget"
+  },
+  {
+   "id": "w0_8",
+   "type": "text",
+   "label": "",
+   "page": 0,
+   "rect": [
+    417.6000061035156,
+    191.9990234375,
+    446.3999938964844,
+    202.998046875
+   ],
+   "source": null,
+   "style": {
+    "font_size": "auto",
+    "min_font_size": 6.0,
+    "align": "left",
+    "comb": null,
+    "multiline": false
+   },
+   "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].f1_03[0]",
+   "segments": [],
+   "confidence": null,
+   "origin": "widget"
+  },
+  {
+   "id": "w0_12",
+   "type": "text",
+   "label": "",
+   "page": 0,
+   "rect": [
+    543.5999755859375,
+    191.9990234375,
+    576.0,
+    203.998046875
+   ],
+   "source": null,
+   "style": {
+    "font_size": "auto",
+    "min_font_size": 6.0,
+    "align": "left",
+    "comb": null,
+    "multiline": false
+   },
+   "existing_widget": "topmostSubform[0].Page1[0].f1_05[0]",
+   "segments": [],
+   "confidence": null,
+   "origin": "widget"
+  },
+  {
+   "id": "w0_7",
+   "type": "checkbox",
+   "label": "",
+   "page": 0,
+   "rect": [
+    72.9990005493164,
+    193.498046875,
+    80.9990005493164,
+    201.498046875
+   ],
+   "source": null,
+   "style": {
+    "font_size": "auto",
+    "min_font_size": 6.0,
+    "align": "left",
+    "comb": null,
+    "multiline": false
+   },
+   "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[5]",
+   "segments": [],
+   "confidence": null,
+   "origin": "widget"
+  },
+  {
+   "id": "w0_10",
+   "type": "text",
+   "label": "",
+   "page": 0,
+   "rect": [
+    162.39999389648438,
+    227.9990234375,
+    446.3999938964844,
+    239.998046875
+   ],
+   "source": null,
+   "style": {
+    "font_size": "auto",
+    "min_font_size": 6.0,
+    "align": "left",
+    "comb": null,
+    "multiline": false
+   },
+   "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].f1_04[0]",
+   "segments": [],
+   "confidence": null,
+   "origin": "widget"
+  },
+  {
+   "id": "w0_13",
+   "type": "text",
+   "label": "",
+   "page": 0,
+   "rect": [
+    500.6000061035156,
+    227.9990234375,
+    576.0,
+    239.998046875
+   ],
+   "source": null,
+   "style": {
+    "font_size": "auto",
+    "min_font_size": 6.0,
+    "align": "left",
+    "comb": null,
+    "multiline": false
+   },
+   "existing_widget": "topmostSubform[0].Page1[0].f1_06[0]",
+   "segments": [],
+   "confidence": null,
+   "origin": "widget"
+  },
+  {
+   "id": "w0_9",
+   "type": "checkbox",
+   "label": "",
+   "page": 0,
+   "rect": [
+    72.9990005493164,
+    229.998046875,
+    80.9990005493164,
+    237.998046875
+   ],
+   "source": null,
+   "style": {
+    "font_size": "auto",
+    "min_font_size": 6.0,
+    "align": "left",
+    "comb": null,
+    "multiline": false
+   },
+   "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[6]",
+   "segments": [],
+   "confidence": null,
+   "origin": "widget"
+  },
+  {
+   "id": "w0_11",
+   "type": "checkbox",
+   "label": "",
+   "page": 0,
+   "rect": [
+    440.6000061035156,
+    262.99700927734375,
+    448.6000061035156,
+    270.99700927734375
+   ],
+   "source": null,
+   "style": {
+    "font_size": "auto",
+    "min_font_size": 6.0,
+    "align": "left",
+    "comb": null,
+    "multiline": false
+   },
+   "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_2[0]",
+   "segments": [],
+   "confidence": null,
+   "origin": "widget"
+  },
+  {
+   "id": "w0_14",
+   "type": "text",
+   "label": "",
+   "page": 0,
+   "rect": [
+    58.599998474121094,
+    286.0010070800781,
+    388.04998779296875,
+    300.00201416015625
+   ],
+   "source": null,
+   "style": {
+    "font_size": "auto",
+    "min_font_size": 6.0,
+    "align": "left",
+    "comb": null,
+    "multiline": false
+   },
+   "existing_widget": "topmostSubform[0].Page1[0].Address_ReadOrder[0].f1_07[0]",
+   "segments": [],
+   "confidence": null,
+   "origin": "widget"
+  },
+  {
+   "id": "w0_16",
+   "type": "text",
+   "label": "",
+   "page": 0,
+   "rect": [
+    389.79998779296875,
+    286.0010070800781,
+    576.0,
+    324.0000305175781
+   ],
+   "source": null,
+   "style": {
+    "font_size": "auto",
+    "min_font_size": 6.0,
+    "align": "left",
+    "comb": null,
+    "multiline": false
+   },
+   "existing_widget": "topmostSubform[0].Page1[0].f1_09[0]",
+   "segments": [],
+   "confidence": null,
+   "origin": "widget"
+  },
+  {
+   "id": "w0_15",
+   "type": "text",
+   "label": "",
+   "page": 0,
+   "rect": [
+    58.599998474121094,
+    309.9990234375,
+    388.04998779296875,
+    324.0000305175781
+   ],
+   "source": null,
+   "style": {
+    "font_size": "auto",
+    "min_font_size": 6.0,
+    "align": "left",
+    "comb": null,
+    "multiline": false
+   },
+   "existing_widget": "topmostSubform[0].Page1[0].Address_ReadOrder[0].f1_08[0]",
+   "segments": [],
+   "confidence": null,
+   "origin": "widget"
+  },
+  {
+   "id": "w0_17",
+   "type": "text",
+   "label": "",
+   "page": 0,
+   "rect": [
+    58.599998474121094,
+    334.0000305175781,
+    576.0,
+    348.0010070800781
+   ],
+   "source": null,
+   "style": {
+    "font_size": "auto",
+    "min_font_size": 6.0,
+    "align": "left",
+    "comb": null,
+    "multiline": false
+   },
+   "existing_widget": "topmostSubform[0].Page1[0].f1_10[0]",
+   "segments": [],
+   "confidence": null,
+   "origin": "widget"
+  },
+  {
+   "id": "w0_18",
+   "type": "text",
+   "label": "",
+   "page": 0,
+   "rect": [
+    417.6000061035156,
+    371.9990234375,
+    460.79998779296875,
+    396.0000305175781
+   ],
+   "source": null,
+   "style": {
+    "font_size": "auto",
+    "min_font_size": 6.0,
+    "align": "left",
+    "comb": null,
+    "multiline": false
+   },
+   "existing_widget": "topmostSubform[0].Page1[0].f1_11[0]",
+   "segments": [],
+   "confidence": null,
+   "origin": "widget"
+  },
+  {
+   "id": "w0_19",
+   "type": "text",
+   "label": "",
+   "page": 0,
+   "rect": [
+    475.20001220703125,
+    371.9990234375,
+    504.0,
+    396.0000305175781
+   ],
+   "source": null,
+   "style": {
+    "font_size": "auto",
+    "min_font_size": 6.0,
+    "align": "left",
+    "comb": null,
+    "multiline": false
+   },
+   "existing_widget": "topmostSubform[0].Page1[0].f1_12[0]",
+   "segments": [],
+   "confidence": null,
+   "origin": "widget"
+  },
+  {
+   "id": "w0_20",
+   "type": "text",
+   "label": "",
+   "page": 0,
+   "rect": [
+    518.4000244140625,
+    371.9990234375,
+    576.0,
+    396.0000305175781
+   ],
+   "source": null,
+   "style": {
+    "font_size": "auto",
+    "min_font_size": 6.0,
+    "align": "left",
+    "comb": null,
+    "multiline": false
+   },
+   "existing_widget": "topmostSubform[0].Page1[0].f1_13[0]",
+   "segments": [],
+   "confidence": null,
+   "origin": "widget"
+  },
+  {
+   "id": "w0_21",
+   "type": "text",
+   "label": "",
+   "page": 0,
+   "rect": [
+    417.6000061035156,
+    420.0010070800781,
+    446.3999938964844,
+    444.00201416015625
+   ],
+   "source": null,
+   "style": {
+    "font_size": "auto",
+    "min_font_size": 6.0,
+    "align": "left",
+    "comb": null,
+    "multiline": false
+   },
+   "existing_widget": "topmostSubform[0].Page1[0].f1_14[0]",
+   "segments": [],
+   "confidence": null,
+   "origin": "widget"
+  },
+  {
+   "id": "w0_22",
+   "type": "text",
+   "label": "",
+   "page": 0,
+   "rect": [
+    460.79998779296875,
+    420.0010070800781,
+    561.5999755859375,
+    444.00201416015625
+   ],
+   "source": null,
+   "style": {
+    "font_size": "auto",
+    "min_font_size": 6.0,
+    "align": "left",
+    "comb": null,
+    "multiline": false
+   },
+   "existing_widget": "topmostSubform[0].Page1[0].f1_15[0]",
+   "segments": [],
+   "confidence": null,
+   "origin": "widget"
+  }
+ ],
+ "history": []
+}

@@ -278,3 +278,138 @@ export function decimalDigitValue(ch) {
   }
   return offset % 10;
 }
+
+/**
+ * Python's `format(x, "g")` (also what an f-string `{x:g}` gives): six significant digits,
+ * trailing zeros dropped, exponent form below 1e-4 and from 1e6.
+ * @param {number} x
+ * @returns {string}
+ */
+export function pyFormatG(x) {
+  if (Number.isNaN(x)) return "nan";
+  if (!Number.isFinite(x)) return x < 0 ? "-inf" : "inf";
+  if (x === 0) return Object.is(x, -0) ? "-0" : "0";
+  const sign = x < 0 ? "-" : "";
+  const [mantissa, expText] = Math.abs(x).toExponential(5).split("e");
+  const exp = parseInt(expText, 10);
+  const trim = (s) => (s.includes(".") ? s.replace(/0+$/, "").replace(/\.$/, "") : s);
+  if (exp < -4 || exp >= 6) {
+    return `${sign}${trim(mantissa)}e${exp < 0 ? "-" : "+"}${String(Math.abs(exp)).padStart(2, "0")}`;
+  }
+  return sign + trim(Math.abs(x).toFixed(5 - exp));
+}
+
+/**
+ * Python's `format(x, ".<digits>f")`: like toFixed, but an exact tie rounds to even (JavaScript
+ * rounds it up), so 0.125 gives "0.12".
+ * @param {number} x
+ * @param {number} digits
+ * @returns {string}
+ */
+export function pyFixed(x, digits) {
+  if (!Number.isFinite(x)) return pyFormatG(x);
+  const half = Math.abs(x) * 2 ** (digits + 1); // an exact tie has exactly digits + 1 binary decimals
+  if (Number.isInteger(half) && half % 2 === 1) {
+    const lower = Math.floor(Math.abs(x) * 10 ** digits);
+    const even = lower % 2 === 0 ? lower : lower + 1;
+    return (x < 0 ? "-" : "") + (even / 10 ** digits).toFixed(digits);
+  }
+  return x.toFixed(digits);
+}
+
+/**
+ * Python's `round(x, 1)` for a float.
+ * @param {number} x
+ * @returns {number}
+ */
+export function pyRound1(x) {
+  return Number(pyFixed(x, 1));
+}
+
+/**
+ * Python's `a // b` for floats (it can differ from Math.floor(a / b): 1.0 // 0.1 is 9.0).
+ * @param {number} a
+ * @param {number} b
+ * @returns {number}
+ */
+export function pyFloorDiv(a, b) {
+  let mod = a % b;
+  let div = (a - mod) / b;
+  if (mod !== 0 && b < 0 !== mod < 0) div -= 1;
+  if (div === 0) return Math.sign(a / b) < 0 || Object.is(a / b, -0) ? -0 : 0;
+  const floored = Math.floor(div);
+  return div - floored > 0.5 ? floored + 1 : floored;
+}
+
+/**
+ * Python's `difflib.SequenceMatcher(None, a, b).ratio()` for two strings (compared by code point).
+ * @param {string[]} a code points of the first string
+ * @param {string[]} b code points of the second string
+ * @returns {number}
+ */
+function sequenceRatio(a, b) {
+  const b2j = new Map();
+  b.forEach((ch, j) => {
+    if (!b2j.has(ch)) b2j.set(ch, []);
+    b2j.get(ch).push(j);
+  });
+  if (b.length >= 200) {
+    const ntest = Math.floor(b.length / 100) + 1; // autojunk drops very common elements
+    for (const [ch, idxs] of [...b2j]) if (idxs.length > ntest) b2j.delete(ch);
+  }
+
+  const longest = (alo, ahi, blo, bhi) => {
+    let besti = alo;
+    let bestj = blo;
+    let bestsize = 0;
+    let j2len = new Map();
+    for (let i = alo; i < ahi; i++) {
+      const next = new Map();
+      for (const j of b2j.get(a[i]) ?? []) {
+        if (j < blo) continue;
+        if (j >= bhi) break;
+        const k = (j2len.get(j - 1) ?? 0) + 1;
+        next.set(j, k);
+        if (k > bestsize) [besti, bestj, bestsize] = [i - k + 1, j - k + 1, k];
+      }
+      j2len = next;
+    }
+    while (besti > alo && bestj > blo && a[besti - 1] === b[bestj - 1]) [besti, bestj, bestsize] = [besti - 1, bestj - 1, bestsize + 1];
+    while (besti + bestsize < ahi && bestj + bestsize < bhi && a[besti + bestsize] === b[bestj + bestsize]) bestsize += 1;
+    return [besti, bestj, bestsize];
+  };
+
+  let matches = 0;
+  const queue = [[0, a.length, 0, b.length]];
+  while (queue.length) {
+    const [alo, ahi, blo, bhi] = queue.pop();
+    const [i, j, k] = longest(alo, ahi, blo, bhi);
+    if (k) {
+      matches += k;
+      if (alo < i && blo < j) queue.push([alo, i, blo, j]);
+      if (i + k < ahi && j + k < bhi) queue.push([i + k, ahi, j + k, bhi]);
+    }
+  }
+  const length = a.length + b.length;
+  return length ? (2 * matches) / length : 1;
+}
+
+/**
+ * Python's `difflib.get_close_matches(word, possibilities, n, cutoff)`: the best matches, most
+ * similar first (equal scores: the later string first, as Python's tuple ordering does).
+ * @param {string} word
+ * @param {string[]} possibilities
+ * @param {number} [n]
+ * @param {number} [cutoff]
+ * @returns {string[]}
+ */
+export function getCloseMatches(word, possibilities, n = 3, cutoff = 0.6) {
+  const w = codePoints(word);
+  const scored = [];
+  for (const x of possibilities) {
+    const ratio = sequenceRatio(codePoints(x), w);
+    if (ratio >= cutoff) scored.push([ratio, x]);
+  }
+  scored.sort((p, q) => q[0] - p[0] || compareCodePoints(q[1], p[1]));
+  return scored.slice(0, n).map((p) => p[1]);
+}

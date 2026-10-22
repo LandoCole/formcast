@@ -16,9 +16,11 @@ because the order of a schema's ``properties`` decides the order of the flattene
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime
 import json
 import sys
+import types
 from collections.abc import Callable
 from decimal import Decimal
 from pathlib import Path
@@ -33,9 +35,12 @@ from pydantic import BaseModel  # noqa: E402
 
 from formcast import schema as schema_mod  # noqa: E402
 from formcast import transforms as transforms_mod  # noqa: E402
-from formcast.errors import FormcastError  # noqa: E402
+from formcast.errors import FormcastError, OpError  # noqa: E402
+from formcast.template import ops as ops_mod  # noqa: E402
+from formcast.template.model import Template  # noqa: E402
 
 GENERATED_BY = "demo/tools/export_conformance.py"
+OPS_CLOCK = "2026-10-21T00:00:00Z"  # the timestamp every recorded history entry carries
 DEFAULT_OUT_DIR = "tests/web/fixtures"
 
 _MAX_SAFE_INT = 2**53
@@ -156,10 +161,45 @@ def export_schema() -> dict:
     return {"generated_by": GENERATED_BY, "cases": records}
 
 
+@contextlib.contextmanager
+def _fixed_clock():
+    """Make ``ops.apply`` stamp history entries with ``OPS_CLOCK`` (it reads ``datetime.datetime.now``)."""
+    stamp = types.SimpleNamespace(isoformat=lambda: OPS_CLOCK)
+    fake = types.SimpleNamespace(UTC=datetime.UTC, datetime=types.SimpleNamespace(now=lambda tz=None: stamp))
+    real = ops_mod.datetime
+    ops_mod.datetime = fake
+    try:
+        yield
+    finally:
+        ops_mod.datetime = real
+
+
+def export_ops() -> dict:
+    """Fixture for ``ops.js``: the browser edit ops applied to small templates through ``ops.apply``."""
+    _check_unique_ids(cases.OPS_CASES)
+    templates = {name: Template.model_validate(raw) for name, raw in cases.OPS_TEMPLATES.items()}
+    records = []
+    for case in cases.OPS_CASES:
+        input_ = {"template": case["template"], "ops": case["ops"], "author": case["author"], "note": case["note"]}
+
+        def run(case=case) -> dict:
+            t, warnings = templates[case["template"]], []
+            for op in case["ops"]:
+                t, warnings = ops_mod.apply(t, op, author=case["author"], note=case["note"], context=None)
+            dumped = t.model_dump(by_alias=True)
+            return {"fields": dumped["fields"], "history": dumped["history"], "warnings": warnings}
+
+        with _fixed_clock():
+            records.append(_record(case, input_, run, (OpError,)))
+    stored = {name: t.model_dump(by_alias=True) for name, t in templates.items()}
+    return {"generated_by": GENERATED_BY, "at": OPS_CLOCK, "templates": _plain(stored), "cases": records}
+
+
 #: fixture file name -> function that builds its document
 GROUPS: dict[str, Callable[[], dict]] = {
     "transforms.json": export_transforms,
     "schema.json": export_schema,
+    "ops.json": export_ops,
 }
 
 

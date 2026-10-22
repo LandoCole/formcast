@@ -48,6 +48,19 @@ export function iou(a, b) {
 }
 
 /**
+ * Share (0 to 1) of `inner`'s area that lies inside `outer`; 0 for disjoint or empty `inner`.
+ * @param {Rect} inner
+ * @param {Rect} outer
+ * @returns {number}
+ */
+export function containedFraction(inner, outer) {
+  const a = area(inner);
+  const inter = intersect(inner, outer);
+  if (inter === null || a <= 0) return 0;
+  return area(inter) / a;
+}
+
+/**
  * Rect with x0 <= x1 and y0 <= y1.
  * @param {Rect} r
  * @returns {Rect}

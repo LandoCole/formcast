@@ -820,3 +820,388 @@ def dev_schema_cases(repo_root: Path) -> list[dict]:
         schema = json.loads((repo_root / "forms" / "schemas" / f"{form['id']}.json").read_text(encoding="utf-8"))
         out.append({"id": f"flatten/dev-form/{form['id']}", "kind": "flatten", "schema": schema})
     return out
+
+
+# ------------------------------------------------------------------------- ops
+#
+# Edit-op cases run against small templates. A template here is the input to
+# ``Template.model_validate`` (defaults are filled in by the library); the exporter stores the
+# full template it produces. A case is ``{"id", "kind": "ops", "template": name, "ops": [...]}``:
+# the ops are applied one after the other and the case records the template (fields and history)
+# and the warnings after the last, or the error the first failing op raised.
+
+OPS_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "name": {"type": "string"},
+        "age": {"type": "integer"},
+        "smoker": {"type": "boolean"},
+        "sex": {"type": "string", "enum": ["F", "M", "X"]},
+        "dob": {"type": "string", "format": "date"},
+        "address": {
+            "type": "object",
+            "properties": {"street": {"type": "string"}, "city": {"type": "string"}},
+        },
+        "aliases": {"type": "array", "items": {"type": "string"}},
+        "meds": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"name": {"type": "string"}, "dose": {"type": "number"}},
+            },
+        },
+    },
+}
+
+_OPS_FORM = {"fingerprint": None, "page_count": 2, "page_sizes": [[612, 792], [400, 500]], "kinds": ["digital", "digital"]}
+
+
+def _src(*paths: str, **extra: Any) -> dict:
+    return {"paths": list(paths), **extra}
+
+
+def _field(id: str, type: str, page: int, rect: list, **extra: Any) -> dict:
+    return {"id": id, "type": type, "page": page, "rect": rect, "origin": "human", **extra}
+
+
+def _ops_templates() -> dict[str, dict]:
+    plain_fields = [
+        _field("n1", "text", 0, [72, 100, 300, 120], label="Name", source=_src("name")),
+        _field("n2", "text", 0, [72, 140, 300, 160]),
+        _field("c1", "checkbox", 0, [320, 100, 332, 112], source=_src("smoker", transforms=[{"op": "bool_to_check"}])),
+        _field("c2", "checkbox", 0, [340, 100, 352, 112]),
+        _field("r1", "radio_option", 1, [40, 40, 52, 52], source=_src("sex", when={"op": "equals", "args": {"value": "F"}})),
+        _field("f3", "text", 1, [40, 80, 300, 100], style={"font_size": 10, "align": "center"}),
+        _field("sig", "signature", 1, [40, 400, 300, 440]),
+        _field("s1", "text", 1, [40, 120, 300, 140], source=_src("gone")),
+        _field("w1", "text", 1, [40, 160, 300, 180], origin="widget", existing_widget="Widget 1"),
+    ]
+    cols = lambda name_fields, dose_fields, x0, x1, x2, x3: [  # noqa: E731
+        {"key": "name", "x": [x0, x1], "fields": name_fields},
+        {"key": "dose", "x": [x2, x3], "transforms": [{"op": "number_format", "args": {"decimals": 1}}], "fields": dose_fields},
+    ]
+    table = {
+        "id": "t1",
+        "type": "table",
+        "label": "Medications",
+        "source": _src("meds"),
+        "origin": "human",
+        "segments": [
+            {"page": 0, "rect": [50, 300, 550, 420], "row_top": 320, "row_height": 20, "max_rows": 4,
+             "columns": cols(["m1", "m2"], [None, "m3"], 60, 200, 210, 300)},
+            {"page": 1, "rect": [30, 200, 370, 300], "row_top": 210, "row_height": 20, "max_rows": 4,
+             "columns": cols([], [], 40, 180, 190, 280)},
+        ],
+    }
+    table_fields = [
+        _field("n1", "text", 0, [72, 100, 300, 120], label="Name", source=_src("name")),
+        _field("m1", "text", 0, [60, 320, 200, 340]),
+        _field("m2", "text", 0, [60, 340, 200, 360]),
+        _field("m3", "text", 0, [210, 340, 300, 360]),
+        _field("p2", "text", 0, [60, 360, 200, 380]),
+        _field("p3", "text", 0, [60, 380, 110, 400]),
+        _field("p4", "text", 0, [400, 320, 500, 340]),
+        _field("p5", "text", 0, [210, 360, 250, 380]),
+        table,
+    ]
+    return {
+        "empty": {"template_id": "empty", "schema": OPS_SCHEMA, "form": _OPS_FORM, "fields": []},
+        "plain": {"template_id": "plain", "schema": OPS_SCHEMA, "form": _OPS_FORM, "fields": plain_fields},
+        "table": {"template_id": "table", "schema": OPS_SCHEMA, "form": _OPS_FORM, "fields": table_fields},
+    }
+
+
+OPS_TEMPLATES: dict[str, dict] = _ops_templates()
+
+
+def _ops_cases() -> list[dict]:
+    cases: list[dict] = []
+
+    def add(tpl: str, label: str, *ops: dict, author: str = "human", note: str = "") -> None:
+        cases.append({"id": f"{tpl}/{label}", "kind": "ops", "template": tpl, "ops": list(ops),
+                      "author": author, "note": note})
+
+    def af(**kw: Any) -> dict:
+        return {"op": "add_field", **kw}
+
+    box = [100, 200, 220, 220]
+
+    # ---- add_field
+    add("plain", "add/basic", af(type="text", page=0, rect=box, label="City", source=_src("address.city")))
+    add("plain", "add/generated-id-follows-max", af(type="text", page=0, rect=box))
+    add("empty", "add/first-generated-id", af(type="text", page=0, rect=box))
+    add("plain", "add/explicit-id", af(id="my-box_1", type="checkbox", page=1, rect=[10, 10, 22, 22]))
+    add("plain", "add/id-null", af(id=None, type="text", page=0, rect=box))
+    add("plain", "add/no-optional-keys", af(type="signature", page=1, rect=[10, 10, 100, 50]))
+    add("plain", "add/note-kept", af(type="text", page=0, rect=box), note="drawn by hand")
+    add("plain", "add/explicit-null-source-and-style", af(type="text", page=0, rect=box, source=None, style=None))
+    add("plain", "add/float-rect", af(type="text", page=0, rect=[100.5, 200.25, 220.75, 220.125]))
+    add("plain", "add/edge-tolerance", af(type="text", page=0, rect=[-1.5, -1.5, 100, 100]))
+    add("plain", "add/style-partial", af(type="text", page=0, rect=box, style={"font_size": 9.5}))
+    add("plain", "add/style-small-size-lowers-min", af(type="text", page=0, rect=box, style={"font_size": 4}))
+    add("plain", "add/style-all", af(type="text", page=0, rect=box,
+                                     style={"font_size": 8.5, "min_font_size": 5.5, "align": "right", "comb": 10, "multiline": True}))
+    add("plain", "add/style-auto", af(type="text", page=0, rect=box, style={"font_size": "auto", "min_font_size": 4.5}))
+    add("plain", "add/style-empty", af(type="text", page=0, rect=box, style={}))
+    add("plain", "add/style-ignores-unknown-key", af(type="text", page=0, rect=box, style={"align": "center", "color": "red"}))
+    add("plain", "add/source-transforms", af(type="text", page=0, rect=box,
+                                             source=_src("name", transforms=[{"op": "upper"}, {"op": "slice", "args": {"end": 3}}])))
+    add("plain", "add/source-multiple-paths-join", af(type="text", page=0, rect=box,
+                                                      source=_src("address.street", "address.city", transforms=[{"op": "join", "args": {"sep": ", "}}])))
+    add("plain", "add/source-when", af(type="checkbox", page=0, rect=[100, 200, 112, 212],
+                                       source=_src("sex", when={"op": "equals", "args": {"value": "M"}})))
+    add("plain", "add/source-join-key", af(type="text", page=0, rect=box, source=_src("name", join=" ")))
+    add("plain", "add/source-ignores-unknown-key", af(type="text", page=0, rect=box, source=_src("name", junk=1)))
+    add("plain", "add/numeric-strings-are-coerced", af(type="text", page="1", rect=["100", "200", "220.5", "220"]))
+    add("plain", "add/overlap-warning", af(type="text", page=0, rect=[72, 102, 300, 122]))
+    add("plain", "add/no-overlap-on-other-page", af(type="text", page=1, rect=[72, 100, 300, 120]))
+    add("plain", "add/checkbox-string-source-warning", af(type="checkbox", page=0, rect=[100, 200, 112, 212], source=_src("name")))
+    add("plain", "add/checkbox-bool-source-no-warning", af(type="checkbox", page=0, rect=[100, 200, 112, 212], source=_src("smoker")))
+    add("plain", "add/checkbox-with-when-no-warning", af(type="checkbox", page=0, rect=[100, 200, 112, 212],
+                                                         source=_src("name", when={"op": "equals", "args": {"value": "x"}})))
+    add("plain", "add/boolean-on-text-warning", af(type="text", page=0, rect=[360, 100, 440, 112], source=_src("smoker")))
+    add("plain", "add/boolean-on-text-no-box-in-row", af(type="text", page=0, rect=[360, 300, 440, 312], source=_src("smoker")))
+    add("plain", "add/then-duplicate", af(id="dup", type="text", page=0, rect=box), af(id="dup", type="text", page=0, rect=box))
+    add("empty", "add/twice-generated", af(type="text", page=0, rect=box), af(type="text", page=0, rect=[100, 300, 220, 320]))
+    add("plain", "add/then-move-generated", af(type="text", page=0, rect=box), {"op": "move", "id": "f4", "dx": 5})
+
+    # add_field errors
+    add("plain", "add/err-table", af(type="table", page=0, rect=box))
+    add("plain", "add/err-duplicate-id", af(id="n1", type="text", page=0, rect=box))
+    add("plain", "add/err-bad-id-space", af(id="x y", type="text", page=0, rect=box))
+    add("plain", "add/err-bad-id-digit-first", af(id="1abc", type="text", page=0, rect=box))
+    add("plain", "add/err-bad-id-too-long", af(id="a" * 65, type="text", page=0, rect=box))
+    add("plain", "add/err-id-before-rect", af(id="n1", type="text", page=0, rect=[0, 0, 1, 1]))
+    add("plain", "add/err-off-page-right", af(type="text", page=0, rect=[600, 100, 700, 120]))
+    add("plain", "add/err-off-page-negative", af(type="text", page=0, rect=[-3, 100, 50, 120]))
+    add("plain", "add/err-off-small-page", af(type="text", page=1, rect=[100, 100, 450, 120]))
+    add("plain", "add/err-degenerate-width", af(type="text", page=0, rect=[100, 100, 101, 120]))
+    add("plain", "add/err-degenerate-inverted", af(type="text", page=0, rect=[200, 100, 100, 120]))
+    add("plain", "add/err-page-missing", af(type="text", page=2, rect=box))
+    add("plain", "add/err-page-negative", af(type="text", page=-1, rect=box))
+    add("plain", "add/err-path-unknown-close", af(type="text", page=0, rect=box, source=_src("nam")))
+    add("plain", "add/err-path-unknown-far", af(type="text", page=0, rect=box, source=_src("zzzzzz")))
+    add("plain", "add/err-path-second-unknown", af(type="text", page=0, rect=box, source=_src("name", "adress.city")))
+    add("plain", "add/err-paths-empty", af(type="text", page=0, rect=box, source=_src()))
+    add("plain", "add/err-path-object", af(type="text", page=0, rect=box, source=_src("address")))
+    add("plain", "add/err-path-list-of-rows", af(type="text", page=0, rect=box, source=_src("meds")))
+    add("plain", "add/err-path-table-column", af(type="text", page=0, rect=[72.25, 100.05, 190.75, 120], source=_src("meds[].name")))
+    add("plain", "add/err-path-table-column-tie-rounding", af(type="text", page=0, rect=[72.25, 200.25, 190.75, 220], source=_src("meds[].dose")))
+    add("plain", "add/err-chain-unknown", af(type="text", page=0, rect=box, source=_src("name", transforms=[{"op": "shout"}])))
+    add("plain", "add/err-chain-bad-args", af(type="text", page=0, rect=box,
+                                              source=_src("name", transforms=[{"op": "split", "args": {"sep": ""}}, {"op": "upper", "args": {"x": 1}}])))
+    add("plain", "add/err-when-bad-chain", af(type="checkbox", page=0, rect=[100, 200, 112, 212],
+                                              source=_src("sex", when={"op": "equals"})))
+    add("plain", "add/err-when-on-text", af(type="text", page=0, rect=box,
+                                            source=_src("sex", when={"op": "equals", "args": {"value": "F"}})))
+    add("plain", "add/err-when-on-signature", af(type="signature", page=0, rect=box,
+                                                 source=_src("sex", when={"op": "equals", "args": {"value": "F"}})))
+
+    # ---- remove_field
+    add("plain", "remove/basic", {"op": "remove_field", "id": "n2"})
+    add("plain", "remove/source-field", {"op": "remove_field", "id": "n1"})
+    add("plain", "remove/seeded-widget-as-human", {"op": "remove_field", "id": "w1"})
+    add("plain", "remove/err-unknown-similar", {"op": "remove_field", "id": "n3"})
+    add("plain", "remove/err-unknown-far", {"op": "remove_field", "id": "zzzz"})
+    add("empty", "remove/err-no-fields", {"op": "remove_field", "id": "n1"})
+    add("plain", "remove/err-twice", {"op": "remove_field", "id": "n2"}, {"op": "remove_field", "id": "n2"})
+    add("plain", "remove/then-move-says-removed", {"op": "remove_field", "id": "n2"}, {"op": "move", "id": "n2", "dx": 1})
+    add("plain", "remove/then-add-same-id", {"op": "remove_field", "id": "n2"}, af(id="n2", type="text", page=0, rect=[72, 140, 300, 160]))
+    add("plain", "remove/err-unknown-case-sensitive", {"op": "remove_field", "id": "N1"})
+    add("plain", "remove/err-unknown-many-similar", {"op": "remove_field", "id": "c"})
+    add("table", "remove/err-linked-cell", {"op": "remove_field", "id": "m1"})
+    add("table", "remove/err-linked-cell-other-column", {"op": "remove_field", "id": "m3"})
+    add("table", "remove/unlinked-plain", {"op": "remove_field", "id": "p2"})
+    add("table", "remove/table", {"op": "remove_field", "id": "t1"})
+    add("table", "remove/table-then-cell", {"op": "remove_field", "id": "t1"}, {"op": "remove_field", "id": "m1"})
+
+    # ---- move
+    add("plain", "move/dx-dy", {"op": "move", "id": "n1", "dx": 10, "dy": -5.5})
+    add("plain", "move/dx-only", {"op": "move", "id": "n1", "dx": 10})
+    add("plain", "move/dy-only", {"op": "move", "id": "n1", "dy": 4})
+    add("plain", "move/zero-offset", {"op": "move", "id": "n1", "dx": 0, "dy": 0})
+    add("plain", "move/rect", {"op": "move", "id": "n1", "rect": [10, 10, 100, 30]})
+    add("plain", "move/rect-can-resize", {"op": "move", "id": "n1", "rect": [10, 10, 400, 60]})
+    add("plain", "move/dx-string", {"op": "move", "id": "n1", "dx": "2.5"})
+    add("plain", "move/overlap-warning", {"op": "move", "id": "n2", "dy": -38})
+    add("plain", "move/stale-source-warning", {"op": "move", "id": "s1", "dy": 3})
+    add("plain", "move/seeded-widget-as-human", {"op": "move", "id": "w1", "dx": 3})
+    add("plain", "move/checkbox-warning-on-move", {"op": "move", "id": "c2", "dy": 1})
+    add("plain", "move/err-neither", {"op": "move", "id": "n1"})
+    add("plain", "move/err-both", {"op": "move", "id": "n1", "dx": 1, "rect": [1, 2, 30, 40]})
+    add("plain", "move/err-null-dx-null-rect", {"op": "move", "id": "n1", "dx": None, "rect": None})
+    add("plain", "move/err-off-page", {"op": "move", "id": "n1", "dx": 400})
+    add("plain", "move/err-off-page-up", {"op": "move", "id": "n1", "dy": -200})
+    add("plain", "move/err-rect-degenerate", {"op": "move", "id": "n1", "rect": [10, 10, 11, 30]})
+    add("plain", "move/err-segment-on-plain", {"op": "move", "id": "n1", "dx": 1, "segment": 0})
+    add("plain", "move/err-unknown-id", {"op": "move", "id": "nn1", "dx": 1})
+    add("plain", "move/err-dx-not-a-number", {"op": "move", "id": "n1", "dx": "far"})
+    add("plain", "move/err-rect-3-items", {"op": "move", "id": "n1", "rect": [1, 2, 3]})
+    add("table", "move/linked-cell-plain-move", {"op": "move", "id": "m1", "dx": 2})
+    add("table", "move/table-dx-dy-warns", {"op": "move", "id": "t1", "dx": 5, "dy": 0})
+    add("table", "move/table-one-segment", {"op": "move", "id": "t1", "dx": 4, "dy": 6, "segment": 1})
+    add("table", "move/table-rect-segment", {"op": "move", "id": "t1", "rect": [60, 305, 560, 425], "segment": 0})
+    add("table", "move/table-rect-other-size", {"op": "move", "id": "t1", "rect": [50, 300, 500, 440], "segment": 0})
+    add("table", "move/err-table-rect-no-segment", {"op": "move", "id": "t1", "rect": [60, 300, 560, 420]})
+    add("table", "move/err-table-bad-segment", {"op": "move", "id": "t1", "dx": 1, "segment": 5})
+    add("table", "move/err-table-bad-segment-negative", {"op": "move", "id": "t1", "rect": [1, 2, 300, 400], "segment": -1})
+    add("table", "move/err-table-off-page", {"op": "move", "id": "t1", "dx": 200})
+    add("table", "move/err-table-rows-no-longer-fit", {"op": "move", "id": "t1", "rect": [50, 300, 550, 380], "segment": 0})
+    add("table", "move/err-table-column-leaves-rect", {"op": "move", "id": "t1", "rect": [50, 300, 250, 420], "segment": 0})
+    add("table", "move/err-table-second-segment-off-page", {"op": "move", "id": "t1", "dx": 80, "segment": 1})
+
+    # ---- resize
+    add("plain", "resize/basic", {"op": "resize", "id": "n1", "rect": [72, 100, 350, 125]})
+    add("plain", "resize/overlap-warning", {"op": "resize", "id": "n1", "rect": [72, 100, 300, 150]})
+    add("plain", "resize/seeded-widget-as-human", {"op": "resize", "id": "w1", "rect": [40, 160, 200, 175]})
+    add("plain", "resize/err-degenerate", {"op": "resize", "id": "n1", "rect": [72, 100, 73, 120]})
+    add("plain", "resize/err-off-page", {"op": "resize", "id": "n1", "rect": [72, 100, 700, 120]})
+    add("plain", "resize/err-missing-rect", {"op": "resize", "id": "n1"})
+    add("plain", "resize/err-null-rect", {"op": "resize", "id": "n1", "rect": None})
+    add("plain", "resize/err-segment-on-plain", {"op": "resize", "id": "n1", "rect": [72, 100, 300, 120], "segment": 1})
+    add("table", "resize/table-segment", {"op": "resize", "id": "t1", "rect": [50, 300, 560, 430], "segment": 0})
+    add("table", "resize/err-table-no-segment", {"op": "resize", "id": "t1", "rect": [50, 300, 560, 430]})
+    add("table", "resize/err-table-too-short", {"op": "resize", "id": "t1", "rect": [50, 300, 550, 390], "segment": 0})
+    add("table", "resize/err-table-row-top-outside", {"op": "resize", "id": "t1", "rect": [50, 330, 550, 430], "segment": 0})
+
+    # ---- set_label
+    add("plain", "label/basic", {"op": "set_label", "id": "n1", "label": "Full name"})
+    add("plain", "label/empty", {"op": "set_label", "id": "n1", "label": ""})
+    add("plain", "label/non-latin", {"op": "set_label", "id": "n1", "label": "Nombre completo, José, 北京"})
+    add("plain", "label/err-unknown", {"op": "set_label", "id": "x1", "label": "x"})
+    add("plain", "label/err-not-a-string", {"op": "set_label", "id": "n1", "label": 4})
+    add("table", "label/table", {"op": "set_label", "id": "t1", "label": "Drugs"})
+
+    # ---- set_type
+    add("plain", "type/text-to-checkbox-string-source-warns", {"op": "set_type", "id": "n1", "type": "checkbox"})
+    add("plain", "type/text-to-checkbox-no-source", {"op": "set_type", "id": "n2", "type": "checkbox"})
+    add("plain", "type/checkbox-to-text-boolean-warns", {"op": "set_type", "id": "c1", "type": "text"})
+    add("plain", "type/radio-to-choice-mark", {"op": "set_type", "id": "r1", "type": "choice_mark"})
+    add("plain", "type/same-type", {"op": "set_type", "id": "n1", "type": "text"})
+    add("plain", "type/signature", {"op": "set_type", "id": "n2", "type": "signature"})
+    add("plain", "type/err-radio-with-when-to-text", {"op": "set_type", "id": "r1", "type": "text"})
+    add("plain", "type/err-to-table", {"op": "set_type", "id": "n1", "type": "table"})
+    add("plain", "type/err-bad-type", {"op": "set_type", "id": "n1", "type": "dropdown"})
+    add("plain", "type/err-stale-source", {"op": "set_type", "id": "s1", "type": "checkbox"})
+    add("plain", "type/err-unknown", {"op": "set_type", "id": "n9", "type": "text"})
+    add("table", "type/err-table", {"op": "set_type", "id": "t1", "type": "text"})
+    add("table", "type/linked-cell-no-source", {"op": "set_type", "id": "m1", "type": "checkbox"})
+
+    # ---- set_source
+    add("plain", "source/basic", {"op": "set_source", "id": "n2", "source": _src("address.street")})
+    add("plain", "source/replace", {"op": "set_source", "id": "n1", "source": _src("address.city", transforms=[{"op": "title"}])})
+    add("plain", "source/none", {"op": "set_source", "id": "n1", "source": None})
+    add("plain", "source/none-already-unmapped", {"op": "set_source", "id": "n2", "source": None})
+    add("plain", "source/transforms-keep-given-args", {"op": "set_source", "id": "n2",
+                                                       "source": _src("dob", transforms=[{"op": "date_format", "args": {"format": "%m/%d/%Y"}}, {"op": "strip", "args": {}}])})
+    add("plain", "source/when-on-checkbox", {"op": "set_source", "id": "c2",
+                                             "source": _src("sex", when={"op": "contains", "args": {"value": "F"}})})
+    add("plain", "source/checkbox-warns", {"op": "set_source", "id": "c2", "source": _src("age")})
+    add("plain", "source/overlap-warns-for-touched", {"op": "set_source", "id": "c2", "source": _src("smoker")})
+    add("plain", "source/join-and-two-paths", {"op": "set_source", "id": "n2",
+                                               "source": _src("address.street", "address.city", transforms=[{"op": "join", "args": {"sep": " "}}], join=" ")})
+    add("plain", "source/on-aliases-array", {"op": "set_source", "id": "n2", "source": _src("aliases")})
+    add("plain", "source/err-unknown-path", {"op": "set_source", "id": "n2", "source": _src("age_")})
+    add("plain", "source/err-empty-paths", {"op": "set_source", "id": "n2", "source": _src()})
+    add("plain", "source/err-object-path", {"op": "set_source", "id": "n2", "source": _src("address")})
+    add("plain", "source/err-rows-path", {"op": "set_source", "id": "n2", "source": _src("meds")})
+    add("plain", "source/err-table-column-path", {"op": "set_source", "id": "n2", "source": _src("meds[].dose")})
+    add("plain", "source/err-bad-chain", {"op": "set_source", "id": "n2", "source": _src("name", transforms=[{"op": "slice", "args": {"start": "x"}}])})
+    add("plain", "source/err-when-on-text", {"op": "set_source", "id": "n2", "source": _src("sex", when={"op": "equals", "args": {"value": 1}})})
+    add("plain", "source/err-missing-source-key", {"op": "set_source", "id": "n2"})
+    add("plain", "source/err-source-not-a-dict", {"op": "set_source", "id": "n2", "source": "name"})
+    add("plain", "source/err-paths-not-a-list", {"op": "set_source", "id": "n2", "source": {"paths": "name"}})
+    add("plain", "source/err-path-not-a-string", {"op": "set_source", "id": "n2", "source": {"paths": [1]}})
+    add("plain", "source/err-transform-extra-key", {"op": "set_source", "id": "n2", "source": _src("name", transforms=[{"op": "upper", "x": 1}])})
+    add("plain", "source/err-transform-missing-op", {"op": "set_source", "id": "n2", "source": _src("name", transforms=[{"args": {}}])})
+    add("plain", "source/err-transform-args-not-a-dict", {"op": "set_source", "id": "n2", "source": _src("name", transforms=[{"op": "upper", "args": []}])})
+    add("plain", "source/err-transforms-not-a-list", {"op": "set_source", "id": "n2", "source": _src("name", transforms={"op": "upper"})})
+    add("plain", "source/err-join-not-a-string", {"op": "set_source", "id": "n2", "source": _src("name", join=3)})
+    add("plain", "source/err-when-not-a-dict", {"op": "set_source", "id": "n2", "source": _src("name", when=3)})
+    add("plain", "source/err-unknown-id", {"op": "set_source", "id": "q", "source": None})
+    add("table", "source/err-linked-cell", {"op": "set_source", "id": "m1", "source": _src("name")})
+    add("table", "source/err-linked-cell-bad-path-first", {"op": "set_source", "id": "m3", "source": _src("nope")})
+    add("table", "source/linked-cell-none-ok", {"op": "set_source", "id": "m1", "source": None})
+    add("table", "source/unlinked-plain-ok", {"op": "set_source", "id": "p2", "source": _src("address.street")})
+    add("table", "source/err-table-two-paths", {"op": "set_source", "id": "t1", "source": _src("meds", "aliases")})
+    add("table", "source/err-table-not-array", {"op": "set_source", "id": "t1", "source": _src("name")})
+    add("table", "source/err-table-columns-not-in-schema", {"op": "set_source", "id": "t1", "source": _src("aliases")})
+    add("table", "source/err-table-when", {"op": "set_source", "id": "t1", "source": _src("meds", when={"op": "equals", "args": {"value": 1}})})
+    add("table", "source/table-none", {"op": "set_source", "id": "t1", "source": None})
+
+    # ---- set_style
+    add("plain", "style/font-size", {"op": "set_style", "id": "n1", "style": {"font_size": 12}})
+    add("plain", "style/merges-keeps-others", {"op": "set_style", "id": "f3", "style": {"multiline": True}})
+    add("plain", "style/smaller-size-lowers-min", {"op": "set_style", "id": "n1", "style": {"font_size": 4}})
+    add("plain", "style/size-keeps-lower-min", {"op": "set_style", "id": "n1", "style": {"min_font_size": 3}},
+        {"op": "set_style", "id": "n1", "style": {"font_size": 5}})
+    add("plain", "style/auto", {"op": "set_style", "id": "f3", "style": {"font_size": "auto"}})
+    add("plain", "style/comb-and-align", {"op": "set_style", "id": "n1", "style": {"comb": 9, "align": "right"}})
+    add("plain", "style/comb-null", {"op": "set_style", "id": "n1", "style": {"comb": None}})
+    add("plain", "style/empty", {"op": "set_style", "id": "n1", "style": {}})
+    add("plain", "style/fraction-size", {"op": "set_style", "id": "n1", "style": {"font_size": 7.25}})
+    add("plain", "style/string-bool", {"op": "set_style", "id": "n1", "style": {"multiline": "yes"}})
+    add("plain", "style/err-min-over-explicit-size", {"op": "set_style", "id": "f3", "style": {"min_font_size": 20}})
+    add("plain", "style/err-min-over-size-in-same-op", {"op": "set_style", "id": "n1", "style": {"min_font_size": 20, "font_size": 10}})
+    add("plain", "style/err-size-negative", {"op": "set_style", "id": "n1", "style": {"font_size": -1}})
+    add("plain", "style/err-size-zero", {"op": "set_style", "id": "n1", "style": {"font_size": 0}})
+    add("plain", "style/err-size-word", {"op": "set_style", "id": "n1", "style": {"font_size": "big"}})
+    add("plain", "style/err-size-null", {"op": "set_style", "id": "n1", "style": {"font_size": None}})
+    add("plain", "style/err-min-zero", {"op": "set_style", "id": "n1", "style": {"min_font_size": 0}})
+    add("plain", "style/err-align", {"op": "set_style", "id": "n1", "style": {"align": "middle"}})
+    add("plain", "style/err-comb-fraction", {"op": "set_style", "id": "n1", "style": {"comb": 2.5}})
+    add("plain", "style/err-comb-word", {"op": "set_style", "id": "n1", "style": {"comb": "x"}})
+    add("plain", "style/err-multiline-word", {"op": "set_style", "id": "n1", "style": {"multiline": "maybe"}})
+    add("plain", "style/err-multiline-two", {"op": "set_style", "id": "n1", "style": {"multiline": 2}})
+    add("plain", "style/err-multiline-list", {"op": "set_style", "id": "n1", "style": {"multiline": []}})
+    add("plain", "style/err-style-number", {"op": "set_style", "id": "n1", "style": 5})
+    add("plain", "style/err-style-null", {"op": "set_style", "id": "n1", "style": None})
+    add("plain", "style/err-style-missing", {"op": "set_style", "id": "n1"})
+    add("plain", "style/err-several-at-once", {"op": "set_style", "id": "n1", "style": {"align": "x", "comb": "y", "multiline": "z"}})
+    add("plain", "style/err-unknown-id", {"op": "set_style", "id": "q", "style": {"comb": 3}})
+    add("table", "style/on-table", {"op": "set_style", "id": "t1", "style": {"font_size": 8}})
+
+    # ---- op shape
+    add("plain", "shape/err-unknown-op", {"op": "frobnicate", "id": "n1"})
+    add("plain", "shape/err-op-missing", {"id": "n1"})
+    add("plain", "shape/err-op-null", {"op": None})
+    add("plain", "shape/err-op-number", {"op": 5})
+    add("plain", "shape/err-extra-key", {"op": "set_label", "id": "n1", "label": "x", "colour": "red"})
+    add("plain", "shape/err-extra-and-missing", af(type="text", rect=box, zzz=1))
+    add("plain", "shape/err-id-missing", {"op": "remove_field"})
+    add("plain", "shape/err-id-number", {"op": "remove_field", "id": 5})
+    add("plain", "shape/err-id-null", {"op": "remove_field", "id": None})
+    add("plain", "shape/err-type-word", af(type="txt", page=0, rect=box))
+    add("plain", "shape/err-type-null", af(type=None, page=0, rect=box))
+    add("plain", "shape/err-page-word", af(type="text", page="a", rect=box))
+    add("plain", "shape/err-page-fraction", af(type="text", page=0.5, rect=box))
+    add("plain", "shape/err-page-null", af(type="text", page=None, rect=box))
+    add("plain", "shape/err-page-missing", af(type="text", rect=box))
+    add("plain", "shape/err-rect-short", af(type="text", page=0, rect=[1, 2, 3]))
+    add("plain", "shape/err-rect-long", af(type="text", page=0, rect=[1, 2, 3, 4, 5]))
+    add("plain", "shape/err-rect-words", af(type="text", page=0, rect=[1, "b", 3, "c"]))
+    add("plain", "shape/err-rect-null-item", af(type="text", page=0, rect=[1, None, 3, 4]))
+    add("plain", "shape/err-rect-string", af(type="text", page=0, rect="abcd"))
+    add("plain", "shape/err-rect-null", af(type="text", page=0, rect=None))
+    add("plain", "shape/err-label-null", af(type="text", page=0, rect=box, label=None))
+    add("plain", "shape/err-long-got-is-cut", af(type="text", page=0, rect=box, label=["x" * 60, "y" * 60]))
+    add("plain", "shape/err-got-non-latin", af(type="text", page=0, rect=box, label=["José", "北京"]))
+    add("plain", "shape/err-author", {"op": "set_label", "id": "n1", "label": "x"}, author="robot")
+    add("plain", "shape/err-author-after-bad-op", {"op": "set_label", "id": "nope", "label": "x"}, author="robot")
+    add("plain", "shape/err-second-op-fails-first-kept-out", {"op": "set_label", "id": "n1", "label": "A"},
+        {"op": "set_label", "id": "n1", "label": 3})
+    add("plain", "shape/chain-of-edits", af(type="text", page=0, rect=box), {"op": "set_label", "id": "f4", "label": "City"},
+        {"op": "set_source", "id": "f4", "source": _src("address.city")},
+        {"op": "resize", "id": "f4", "rect": [100, 200, 260, 222]}, {"op": "set_type", "id": "f4", "type": "text"},
+        {"op": "set_style", "id": "f4", "style": {"align": "center"}}, {"op": "remove_field", "id": "f4"})
+
+    # ---- templates with tables: warnings from table cover and linked cells
+    add("table", "table/add-field-over-linked-cell-overlaps", af(type="text", page=0, rect=[62, 322, 198, 338]))
+    add("table", "table/err-add-field-in-column-path", af(type="text", page=0, rect=[500, 350, 540, 370], source=_src("meds[].dose")))
+    add("table", "table/move-table-warns-covered-and-mismatched", {"op": "move", "id": "t1", "dx": 0, "dy": 0.5})
+    add("table", "table/move-cell-then-table", {"op": "move", "id": "m1", "dy": 1}, {"op": "move", "id": "t1", "dx": 1, "segment": 0})
+    add("table", "table/err-move-table-away-from-linked-cells", {"op": "move", "id": "t1", "dy": 40, "segment": 0})
+    return cases
+
+
+OPS_CASES: list[dict] = _ops_cases()
