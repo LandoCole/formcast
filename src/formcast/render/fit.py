@@ -7,6 +7,7 @@ Over-long text is never cut here, except where a hard character limit forces it
 
 from __future__ import annotations
 
+import functools
 from dataclasses import dataclass
 from typing import Literal
 
@@ -44,8 +45,41 @@ def unencodable_chars(text: str) -> str:
     return "".join(out)
 
 
+#: Fonts PyMuPDF measures from a per-code table (correctly); every other standard font goes by glyph.
+_TABLE_FONTS = frozenset({"zadb", "symb"})
+
+
+@functools.cache
+def _font(fontname: str) -> pymupdf.Font:
+    return pymupdf.Font(fontname)
+
+
+@functools.cache
+def _char_width(ch: str, fontname: str) -> float:
+    """Width at size 1 of the glyph a standard-font appearance draws for ``ch``.
+
+    The appearance writes the value as cp1252 bytes, so ``ch`` is drawn as its own glyph. As in
+    PyMuPDF's ``get_text_length``, a character cp1252 cannot encode counts as U+00B7 and one the
+    font has no glyph for (a control) as a space.
+    """
+    font = _font(fontname)
+    cp = 0xB7 if unencodable_chars(ch) else ord(ch)
+    if not font.has_glyph(cp):
+        cp = 0x20
+    return font.glyph_advance(cp)
+
+
 def _width(text: str, fontname: str, size: float) -> float:
-    return pymupdf.get_text_length(text, fontname=fontname, fontsize=size)
+    """Width of ``text`` in a standard font.
+
+    Not ``pymupdf.get_text_length``: for these fonts it skips the characters after a non-ASCII one
+    (it steps through the str by UTF-8 length) and measures the cp1252 extras (``€``, ``“`` ...) as
+    missing glyphs.
+    """
+    name = fontname.lower()
+    if name in _TABLE_FONTS:
+        return pymupdf.get_text_length(text, fontname=name, fontsize=size)
+    return sum(_char_width(ch, name) for ch in text) * size
 
 
 def _break_word(word: str, fontname: str, size: float, width: float) -> list[str]:

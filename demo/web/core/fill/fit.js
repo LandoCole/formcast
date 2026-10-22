@@ -40,59 +40,37 @@ export function unencodableChars(text) {
   return out.join("");
 }
 
-/** cp1252 byte of a code point (0x80-0x9F for the extras), or -1 when cp1252 has none. */
-const CP1252_BYTE = new Map(
-  Array.from("€\u0081‚ƒ„…†‡ˆ‰Š‹Œ\u008dŽ\u008f\u0090‘’“”•–—˜™š›œ\u009džŸ", (ch, i) => [ch.codePointAt(0), 0x80 + i]),
-);
-
-function cp1252Byte(cp) {
-  if (cp < 0x80 || (cp >= 0xa0 && cp <= 0xff)) return cp;
-  const b = CP1252_BYTE.get(cp);
-  return b !== undefined && cp1252Encodable(cp) ? b : -1;
-}
-
-function utf8Length(cp) {
-  return cp < 0x80 ? 1 : cp < 0x800 ? 2 : cp < 0x10000 ? 3 : 4;
-}
-
 /**
- * A width function for a pdf-lib standard font that measures exactly like PyMuPDF's
- * `get_text_length` (the library fits text with it), quirks included:
- * - each character is mapped to its cp1252 byte (U+00B7 when cp1252 has none) and that byte is
- *   looked up as a Unicode glyph, so the cp1252 extras (0x80-0x9F) and controls take the font's
- *   missing width (the width of a space in Helvetica, Times and Courier);
- * - PyMuPDF steps through the string by the UTF-8 length of each character, so the one, two or
- *   three characters after a non-ASCII character are skipped ("Zürich" is measured without its "r").
- * Matching it keeps `shrunk` / `overflow` the same as the library's; the second point is a
- * PyMuPDF bug the library inherits.
+ * A width function for a pdf-lib standard font that measures like the library's `_width`
+ * (src/formcast/render/fit.py): the appearance writes the value as cp1252 bytes, so each character
+ * is drawn as its own glyph; a character cp1252 cannot encode counts as U+00B7 and one the font has
+ * no glyph for (a control) as the font's missing width (the width of a space in Helvetica, Times
+ * and Courier).
  * @param {{widthOfTextAtSize: (text: string, size: number) => number}} font
  * @returns {(text: string, size: number) => number}
  */
 export function makeMeasure(font) {
   const missing = font.widthOfTextAtSize(" ", 1000);
-  const widths = new Map(); // glyph code -> width at size 1000
-  const glyphWidth = (code) => {
-    if (!widths.has(code)) {
+  const widths = new Map(); // code point -> width at size 1000
+  const glyphWidth = (cp) => {
+    if (!widths.has(cp)) {
       let w = missing;
-      if ((code >= 0x20 && code < 0x7f) || (code >= 0xa0 && code <= 0xff)) {
+      if ((cp >= 0x20 && cp < 0x7f) || cp >= 0xa0) {
         try {
-          w = font.widthOfTextAtSize(String.fromCodePoint(code), 1000);
+          w = font.widthOfTextAtSize(String.fromCodePoint(cp), 1000);
         } catch {
           w = missing;
         }
       }
-      widths.set(code, w);
+      widths.set(cp, w);
     }
-    return widths.get(code);
+    return widths.get(cp);
   };
   return (text, size) => {
-    const chars = codePoints(text);
     let total = 0;
-    for (let pos = 0; pos < chars.length; ) {
-      const cp = chars[pos].codePointAt(0);
-      pos += utf8Length(cp);
-      const code = cp1252Byte(cp);
-      total += glyphWidth(code < 0 ? 0xb7 : code);
+    for (const ch of codePoints(text)) {
+      const cp = ch.codePointAt(0);
+      total += glyphWidth(cp1252Encodable(cp) ? cp : 0xb7);
     }
     return (total * size) / 1000;
   };
