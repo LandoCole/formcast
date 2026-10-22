@@ -7,7 +7,7 @@
 // sample; the agent's three load when asked for.
 
 import { iou } from "../core/geometry.js";
-import { checkTemplateFits, recall, remember } from "../core/store.js";
+import { checkTemplate, checkTemplateFits, recall, remember } from "../core/store.js";
 
 /**
  * How many of `originals` some box overlaps with IoU >= `threshold`, pairing each box with at most
@@ -38,16 +38,24 @@ export function matchCount(originals, boxes, threshold = 0.5) {
 
 const PROVIDERS = { webgpu: "WebGPU", wasm: "WebAssembly" };
 
-async function getJson(url) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`${url.pathname} could not be loaded (HTTP ${res.status}).`);
-  return res.json();
-}
+const MODEL_MB = { S: 38, L: 102 };
 
-async function getBytes(url) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`${url.pathname} could not be loaded (HTTP ${res.status}).`);
-  return new Uint8Array(await res.arrayBuffer());
+/**
+ * Fetch `url` and read its body with `read`, failing with a plain message on an HTTP error or
+ * when the whole request takes longer than `ms`.
+ */
+async function fetchWithin(url, ms, read) {
+  const name = url.pathname.split("/").pop();
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(ms) });
+    if (!res.ok) throw new Error(`${name} could not be loaded (HTTP ${res.status}).`);
+    return await read(res);
+  } catch (e) {
+    if (e?.name === "TimeoutError" || e?.name === "AbortError") {
+      throw new Error(`${name} took more than ${Math.round(ms / 1000)} seconds to load. Check the connection and try again.`);
+    }
+    throw e;
+  }
 }
 
 /** "FFDNet-S-onnx" -> "FFDNet-S". */
@@ -76,10 +84,21 @@ export function mountDetect(app) {
   const status = (text) => {
     $("detect-status").textContent = text;
   };
+  const getJson = (url) => fetchWithin(url, app.fetchTimeoutMs, (res) => res.json());
+  const getBytes = (url) => fetchWithin(url, app.fetchTimeoutMs, async (res) => new Uint8Array(await res.arrayBuffer()));
   let index = [];
   const cache = new Map(); // sample id -> its files
-  let running = false;
+  let run = null; // the live detection in progress: {token} of the document it runs on
+  let confirmed = false; // the visitor accepted the download where live detection is off
+  let opening = 0; // bumps on every open, so only the latest one is shown
   let restored = false;
+
+  /** True while a live detection runs on the document on screen (a run on an older one doesn't count). */
+  const detecting = () => run !== null && run.token === state.token;
+  /** Show a status line for document `token` only while it is still the one on screen. */
+  const statusFor = (token, text) => {
+    if (token === state.token) status(text);
+  };
 
   // ---------------------------------------------------------------- samples
 
@@ -111,20 +130,34 @@ export function mountDetect(app) {
     return sample.agent;
   }
 
-  /** The remembered template for a sample variant when it still fits the PDF, else null. */
+  /**
+   * The remembered template for a sample variant when it is a template that still fits the PDF,
+   * else null. One that doesn't (say, saved by an older page) is forgotten.
+   */
   function restore(sample, variant, doc) {
-    const t = recall(`${sample.id}/${variant}`);
-    return t !== null && typeof t === "object" && checkTemplateFits(t, doc) === null ? t : null;
+    const key = `${sample.id}/${variant}`;
+    const t = recall(key);
+    if (t === null) return null;
+    try {
+      checkTemplate(t);
+      if (checkTemplateFits(t, doc) === null) return t;
+    } catch {
+      // not a template this page can use
+    }
+    remember(key, null);
+    return null;
   }
 
   /** Open a sample with its fields stripped and the boxes detected ahead of time. */
   async function openSample(id, { fresh = false } = {}) {
+    const mine = ++opening;
     say(msg, "");
     status("Opening the sample…");
     try {
       const sample = await loadSample(id);
       const doc = await engine.open(sample.bytes);
       const seeded = await engine.seed(doc, sample.schema, { detections: sample.detections.pages });
+      if (mine !== opening) return dropLate(doc);
       const kept = fresh ? null : restore(sample, "form", doc);
       restored = kept !== null;
       app.setDocument({
@@ -144,22 +177,36 @@ export function mountDetect(app) {
         : `These boxes were found ahead of time by ${modelName(sample.detections.model)}, the model this page runs. ` +
           "Run it here to watch it work; the model downloads once and is kept for your next visit.");
     } catch (e) {
+      if (mine !== opening) return false;
       say(msg, `This sample couldn't be opened. ${e.message}`);
       status("");
+      return false;
     }
+    return true;
+  }
+
+  /** A document opened after a newer open started: never shown. */
+  function dropLate(doc) {
+    doc.destroy().catch(() => {});
+    return false;
   }
 
   /** Open the sample as published with the AI agent's template for it. */
   async function openAgent({ fresh = false } = {}) {
     const sample = state.sample;
     if (sample === null) return;
+    const mine = ++opening;
     say(msg, "");
     status("Opening the form as published…");
     try {
       const agent = await loadAgent(sample);
       const doc = await engine.open(agent.bytes);
+      if (mine !== opening) return dropLate(doc);
       const misfit = checkTemplateFits(agent.template, doc);
-      if (misfit) throw new Error(misfit);
+      if (misfit) {
+        doc.destroy().catch(() => {});
+        throw new Error(misfit);
+      }
       const kept = fresh ? null : restore(sample, "published", doc);
       restored = kept !== null;
       app.setDocument({
@@ -177,6 +224,7 @@ export function mountDetect(app) {
         ? "Your earlier edits to the agent's template are back."
         : "The form as published, with its own fields, and the template the agent built for it.");
     } catch (e) {
+      if (mine !== opening) return;
       say(msg, `The agent's template couldn't be opened. ${e.message}`);
       status("");
     }
@@ -213,20 +261,25 @@ export function mountDetect(app) {
   // ---------------------------------------------------------------- a visitor's PDF
 
   async function openFile(file) {
+    const mine = ++opening;
     say(msg, "");
-    $("phone-note").hidden = true;
+    $("live-note").hidden = true;
     status(`Opening ${file.name}…`);
+    const schema = app.template?.schema ?? state.sample?.schema ?? { type: "object", properties: {} };
     let doc;
+    let template;
     try {
       doc = await engine.open(new Uint8Array(await file.arrayBuffer()));
+      template = await engine.seed(doc, schema);
     } catch (e) {
+      if (doc) doc.destroy().catch(() => {});
+      if (mine !== opening) return;
       say(msg, e?.name === "DocError" ? e.message : "This file couldn't be opened.");
       status("");
       return;
     }
-    const schema = app.template?.schema ?? state.sample?.schema ?? { type: "object", properties: {} };
+    if (mine !== opening) return dropLate(doc);
     const fillable = doc.pages.some((p) => p.widgets.length > 0);
-    const template = await engine.seed(doc, schema);
     restored = false;
     app.setDocument({
       doc,
@@ -239,9 +292,6 @@ export function mountDetect(app) {
     $("sample").value = "";
     if (fillable) {
       status("This PDF has its own form fields, so they are used as they are; no model needed.");
-    } else if (app.phone) {
-      status("");
-      $("phone-note").hidden = false;
     } else {
       await runLive();
     }
@@ -280,33 +330,57 @@ export function mountDetect(app) {
     return state.doc ? state.doc.pages.filter((p) => p.widgets.length === 0).map((p) => p.index) : [];
   }
 
+  /** Ask before downloading the model where live detection is off (spec §6). */
+  function askFirst() {
+    status("");
+    $("live-note").hidden = false;
+  }
+
   async function runLive() {
-    if (running || state.doc === null) return;
+    if (detecting() || state.doc === null) return;
+    if (app.liveOff && !confirmed) {
+      askFirst();
+      return;
+    }
+    // claimed before any await, so a second click or a drop can't start a parallel run on this document
+    const mine = { token: state.token };
+    run = mine;
     say(msg, "");
-    $("phone-note").hidden = true;
-    if (state.variant === "published") await openSample(state.sample.id);
+    $("live-note").hidden = true;
+    app.render();
+    try {
+      if (state.variant === "published") {
+        // the detector runs on the sample with its fields stripped
+        if (!(await openSample(state.sample.id)) || state.variant !== "form") return;
+        mine.token = state.token;
+        app.render();
+      }
+      await detectNow(mine.token);
+    } finally {
+      if (run === mine) run = null;
+      app.render();
+    }
+  }
+
+  /** Detect the pages of the document on screen (`token`) and replace its boxes with what is found. */
+  async function detectNow(token) {
     const doc = state.doc;
-    const token = state.token;
     const pages = detectPages();
     if (pages.length === 0) {
       status("Every page of this PDF has its own form fields; there is nothing to detect.");
       return;
     }
-    const model = app.phone ? "S" : $("model").value;
-    running = true;
-    app.render();
+    const model = app.touch ? "S" : $("model").value;
     status("Starting the detector…");
     const mb = (n) => (n / (1024 * 1024)).toFixed(1);
     try {
       const detections = {};
       for (const [i, p] of pages.entries()) {
-        status(pages.length > 1 ? `Detecting page ${p + 1} (${i + 1} of ${pages.length})…` : `Detecting page ${p + 1}…`);
+        statusFor(token, pages.length > 1 ? `Detecting page ${p + 1} (${i + 1} of ${pages.length})…` : `Detecting page ${p + 1}…`);
         detections[p] = await engine.detect(doc, p, {
           model,
           onProgress: (loaded, total) => {
-            if (token === state.token) {
-              status(loaded < total ? `Downloading the model: ${mb(loaded)} of ${mb(total)} MB` : "Model ready. Detecting…");
-            }
+            statusFor(token, loaded < total ? `Downloading the model: ${mb(loaded)} of ${mb(total)} MB` : "Model ready. Detecting…");
           },
         });
         if (token !== state.token) return;
@@ -324,15 +398,16 @@ export function mountDetect(app) {
         say(msg, `Live detection didn't finish: ${e.message} The boxes shown are unchanged.`);
         status("");
       }
-    } finally {
-      running = false;
-      app.render();
     }
   }
 
   $("run-live").addEventListener("click", () => runLive());
-  $("try-anyway").addEventListener("click", () => runLive());
+  $("try-anyway").addEventListener("click", () => {
+    confirmed = true;
+    runLive();
+  });
   $("load-agent").addEventListener("click", () => openAgent());
+  $("model").addEventListener("change", () => app.render());
   $("compare").addEventListener("change", (e) => {
     state.compare = e.target.checked;
     app.render();
@@ -343,8 +418,9 @@ export function mountDetect(app) {
   app.onRender(() => {
     const sample = state.sample;
     const t = app.template;
-    $("model-group").hidden = app.phone;
-    $("run-live").disabled = running || state.doc === null;
+    $("model-group").hidden = app.touch;
+    $("run-live").disabled = detecting() || state.doc === null;
+    $("note-size").textContent = `${MODEL_MB[app.touch ? "S" : $("model").value] ?? MODEL_MB.S} MB`;
     $("start-over").hidden = !restored || sample === null;
     $("compare-group").hidden = sample === null;
     $("agent-group").hidden = sample === null;

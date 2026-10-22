@@ -2,8 +2,9 @@
 // engine, mounts the page view, keeps the session (document, template and its undo stack) and hands
 // the three steps to their modules (detect.js, link.js, fill.js), which call back through `app`.
 //
-// Test hooks: `?samples=<dir>/` (the folder holding index.json) and `?worker=<url>` (a stand-in
-// detection worker) are honoured only when the page is served from localhost or 127.0.0.1.
+// Test hooks: `?samples=<dir>/` (the folder holding index.json), `?worker=<url>` (a stand-in
+// detection worker) and `?timeout=<ms>` (the sample fetch time limit) are honoured only when the
+// page is served from localhost or 127.0.0.1.
 
 import { createBus } from "../core/bus.js";
 import { makeView, viewSize } from "../core/geometry.js";
@@ -26,20 +27,28 @@ function override(name) {
   return LOCAL && value ? new URL(value, location.href) : null;
 }
 
-/**
- * Phones (spec §6): a coarse pointer and a narrow viewport, or little memory where the browser
- * reports it. Live detection is off by default there and the small model is used.
- */
-function detectPhone() {
+/** A touch screen on a narrow viewport: tap-to-link, no drag, the small model only. */
+function detectTouch() {
   const coarse = matchMedia("(pointer: coarse)").matches || navigator.maxTouchPoints > 0;
-  const narrow = matchMedia("(max-width: 760px)").matches;
+  return coarse && matchMedia("(max-width: 760px)").matches;
+}
+
+/**
+ * Whether live detection is off until the visitor confirms (spec §6): on touch phones, and where
+ * the browser reports less than 4 GB of memory. Samples work fully either way.
+ */
+function detectLiveOff(touch) {
   const lowMemory = typeof navigator.deviceMemory === "number" && navigator.deviceMemory < 4;
-  return (coarse && narrow) || lowMemory;
+  return touch || lowMemory;
 }
 
 const samplesBase = override("samples") ?? new URL("samples/", location.href);
 if (!samplesBase.pathname.endsWith("/")) samplesBase.pathname += "/";
 const workerUrl = override("worker") ?? undefined;
+const timeoutParam = LOCAL ? Number(params.get("timeout")) : NaN;
+/** Time limit for fetching sample files, in ms. */
+const FETCH_TIMEOUT_MS = timeoutParam > 0 ? timeoutParam : 20_000;
+const touch = detectTouch();
 
 const bus = createBus();
 const engine = createBrowserEngine({ workerUrl });
@@ -76,7 +85,9 @@ const app = {
   view,
   state,
   samplesBase,
-  phone: detectPhone(),
+  touch, // tap to link, no drag, the model choice hidden (FFDNet-S)
+  liveOff: detectLiveOff(touch), // live detection waits for the visitor to confirm the download
+  fetchTimeoutMs: FETCH_TIMEOUT_MS,
   say,
 
   /** The template on screen, or null before a document is open. */

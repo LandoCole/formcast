@@ -88,7 +88,7 @@ def open_tool(server, browser):
     """``open_tool(profile=DESKTOP, worker=FAKE_WORKER, samples=SAMPLES, **context options)`` -> Tool."""
     contexts = []
 
-    def _open(profile=DESKTOP, worker=FAKE_WORKER, samples=SAMPLES, wait=True, **options):
+    def _open(profile=DESKTOP, worker=FAKE_WORKER, samples=SAMPLES, wait=True, timeout=None, init_script=None, **options):
         context = browser.new_context(**profile, accept_downloads=True, **options)
         contexts.append(context)
         context.route(
@@ -99,6 +99,8 @@ def open_tool(server, browser):
         requests: list[str] = []
         errors: list[str] = []
         context.on("request", lambda req: requests.append(req.url))
+        if init_script is not None:
+            context.add_init_script(init_script)
         page = context.new_page()
         page.on("console", lambda msg: errors.append(msg.text) if msg.type == "error" else None)
         page.on("pageerror", lambda exc: errors.append(str(exc)))
@@ -107,6 +109,8 @@ def open_tool(server, browser):
             query.append(f"samples={quote(samples)}")
         if worker is not None:
             query.append(f"worker={quote(worker)}")
+        if timeout is not None:
+            query.append(f"timeout={timeout}")
         page.goto(f"{server}{PAGE}?{'&'.join(query)}")
         tool = Tool(page, requests, errors)
         if wait:
@@ -455,9 +459,10 @@ def test_phone_layout(open_tool):
 def test_phone_flat_pdf_waits_for_try_anyway(open_tool):
     tool = open_tool(PHONE)
     tool.drop("form.pdf", (BUNDLE / "form.pdf").read_bytes())
-    note = tool.page.locator("#phone-note")
+    note = tool.page.locator("#live-note")
     note.wait_for()
-    assert "Live detection runs on desktop" in note.inner_text()
+    assert "Live detection is off on this device" in note.inner_text()
+    assert "38 MB" in note.inner_text()
     assert tool.page.locator("#try-anyway").is_visible()
     tool.page.wait_for_timeout(300)
     assert tool.requested(MODEL) == []
@@ -476,7 +481,7 @@ def test_phone_fillable_pdf_uses_its_own_fields(open_tool):
     doc.close()
     tool.wait_boxes(widgets)
     assert "own form fields" in tool.page.inner_text("#caption")
-    assert tool.page.locator("#phone-note").is_hidden()
+    assert tool.page.locator("#live-note").is_hidden()
     tool.page.wait_for_timeout(300)
     assert tool.requested(MODEL) == []
 
@@ -487,3 +492,102 @@ def test_dark_mode(open_tool):
     assert bg == "rgb(16, 15, 15)"
     light = open_tool(color_scheme="light")
     assert light.page.evaluate("getComputedStyle(document.body).backgroundColor") == "rgb(255, 252, 240)"
+
+
+def test_phone_run_live_asks_before_downloading(open_tool):
+    tool = open_tool(PHONE)
+    before = tool.boxes().count()
+    tool.page.click("#run-live")
+    note = tool.page.locator("#live-note")
+    note.wait_for()
+    tool.page.wait_for_timeout(300)
+    assert tool.requested(MODEL) == []
+    assert tool.boxes().count() == before
+    tool.page.click("#try-anyway")
+    tool.wait_boxes(CANNED_BOXES)
+    assert note.is_hidden()
+    assert tool.requested(re.compile("fake-detect-worker"))
+
+
+LOW_MEMORY = "Object.defineProperty(Navigator.prototype, 'deviceMemory', {get: () => 2, configurable: true});"
+
+
+def test_low_memory_desktop_keeps_mouse_tools_but_asks_before_downloading(open_tool):
+    tool = open_tool(init_script=LOW_MEMORY)
+    page = tool.page
+    assert page.evaluate("navigator.deviceMemory") == 2
+    assert page.locator("#model-group").is_visible()
+    tool.step("link")
+    assert page.locator('.fc-sl-leaf[data-path="legal_name"]').get_attribute("draggable") == "true"
+    assert page.inner_text("#link-hint").startswith("Drag a field onto a box")
+    tool.step("detect")
+    page.select_option("#model", "L")
+    page.click("#run-live")
+    note = page.locator("#live-note")
+    note.wait_for()
+    assert "102 MB" in note.inner_text()
+    page.wait_for_timeout(300)
+    assert tool.requested(MODEL) == []
+    page.select_option("#model", "S")
+    page.click("#try-anyway")
+    tool.wait_boxes(CANNED_BOXES)
+    # once accepted, the next run doesn't ask again
+    page.wait_for_function("document.getElementById('detect-status').textContent.startsWith('Done')")
+    page.click("#run-live")
+    page.wait_for_function("document.getElementById('detect-status').textContent.startsWith('Done')")
+    assert note.is_hidden()
+
+
+def test_pdf_dropped_during_live_detection_is_detected(open_tool):
+    tool = open_tool()
+    tool.page.click("#run-live")  # the fake worker takes 500 ms to load
+    tool.drop("form.pdf", (BUNDLE / "form.pdf").read_bytes())
+    tool.page.wait_for_function("document.getElementById('detect-status').textContent.startsWith('Done')", timeout=15_000)
+    assert "form.pdf" in tool.page.inner_text("#docline")
+    tool.wait_boxes(CANNED_BOXES)
+    assert "Detected live" in tool.page.inner_text("#caption")
+    assert not tool.page.is_disabled("#run-live")
+    assert tool.page.locator("#detect-msg").is_hidden()
+    assert tool.errors == []
+
+
+def test_double_click_on_run_live_in_the_agent_view_runs_once(open_tool):
+    tool = open_tool()
+    tool.page.click("#load-agent")
+    tool.page.wait_for_function("document.getElementById('docline').textContent.includes('as published')")
+    tool.record_status()
+    tool.page.dblclick("#run-live")
+    assert tool.page.is_disabled("#run-live")
+    tool.page.wait_for_function("document.getElementById('detect-status').textContent.startsWith('Done')", timeout=15_000)
+    tool.wait_boxes(CANNED_BOXES)
+    seen = tool.page.evaluate("window.statusSeen")
+    assert seen.count("Opening the sample…") == 1, seen
+    assert sum(s.startswith("Done") for s in seen) == 1, seen
+    assert "fields stripped" in tool.page.inner_text("#docline")
+    assert not tool.page.is_disabled("#run-live")
+
+
+def test_a_broken_remembered_template_is_dropped(open_tool):
+    tool = open_tool()
+    expected = len(bundle_json("detections.json")["pages"]["0"])
+    tool.page.evaluate("""() => {
+        localStorage.setItem('formcast:template:sample-bundle/form', JSON.stringify({formcast_version: '1', fields: 'x'}));
+    }""")
+    tool.page.reload()
+    tool.wait_boxes(expected)
+    assert tool.page.locator("#detect-msg").is_hidden()
+    assert "ahead of time" in tool.page.inner_text("#caption")
+    assert tool.page.evaluate("localStorage.getItem('formcast:template:sample-bundle/form')") == "null"
+
+
+def test_a_hung_sample_file_times_out_and_keeps_the_page(open_tool):
+    tool = open_tool(timeout=500)
+    tool.page.route(re.compile(r"agent-template\.json$"), lambda route: None)  # never answered
+    before = tool.boxes().count()
+    tool.page.click("#load-agent")
+    msg = tool.page.locator("#detect-msg")
+    msg.wait_for(timeout=5000)
+    assert "took more than" in msg.inner_text()
+    assert tool.boxes().count() == before
+    assert "fields stripped" in tool.page.inner_text("#docline")
+    assert tool.page.inner_text("#detect-status") == ""

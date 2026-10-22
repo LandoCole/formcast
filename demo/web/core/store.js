@@ -22,8 +22,33 @@ export function downloadTemplate(template, filename = "template.json") {
 }
 
 /**
- * Read a template from a JSON file. Checks the parts the demo relies on; the full check is
- * Python's `Template.model_validate`, which a template saved by the demo passes.
+ * Check that parsed JSON is a template with the parts the demo relies on (version "1", a form with
+ * a page count and page sizes, a schema, a list of fields); the full check is Python's
+ * `Template.model_validate`, which a template saved by the demo passes. A missing history becomes [].
+ * @param {any} data
+ * @returns {object} `data`
+ * @throws {Error} with a plain message when it is not a template
+ */
+export function checkTemplate(data) {
+  const isObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+  if (!isObject(data) || data.formcast_version === undefined) {
+    throw new Error("This file is not a formcast template.");
+  }
+  if (data.formcast_version !== "1") {
+    throw new Error(`This template is version ${JSON.stringify(data.formcast_version)}; this page reads version "1".`);
+  }
+  if (
+    !Array.isArray(data.fields) || !isObject(data.form) || !Array.isArray(data.form.page_sizes) ||
+    !Number.isInteger(data.form.page_count) || !isObject(data.schema)
+  ) {
+    throw new Error("This file is not a complete template: it needs a form, a schema and a list of fields.");
+  }
+  if (!Array.isArray(data.history)) data.history = [];
+  return data;
+}
+
+/**
+ * Read a template from a JSON file (see `checkTemplate`).
  * @param {{text: () => Promise<string>}} file a File or Blob
  * @returns {Promise<object>}
  * @throws {Error} with a plain message when the file is not a template
@@ -35,18 +60,7 @@ export async function readTemplateFile(file) {
   } catch {
     throw new Error("This file is not a template: it is not valid JSON.");
   }
-  const isObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
-  if (!isObject(data) || data.formcast_version === undefined) {
-    throw new Error("This file is not a formcast template.");
-  }
-  if (data.formcast_version !== "1") {
-    throw new Error(`This template is version ${JSON.stringify(data.formcast_version)}; this page reads version "1".`);
-  }
-  if (!Array.isArray(data.fields) || !isObject(data.form) || !Array.isArray(data.form.page_sizes) || !isObject(data.schema)) {
-    throw new Error("This file is not a complete template: it needs a form, a schema and a list of fields.");
-  }
-  if (!Array.isArray(data.history)) data.history = [];
-  return data;
+  return checkTemplate(data);
 }
 
 const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;

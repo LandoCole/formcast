@@ -9,12 +9,12 @@ import { SchemaList, placementStatus } from "../core/schemalist.js";
 /** @param {object} app see showcase.js */
 export function mountLink(app) {
   const { $, bus, state, say } = app;
-  const schemaList = new SchemaList($("schemalist"), { bus, draggable: !app.phone });
+  const schemaList = new SchemaList($("schemalist"), { bus, draggable: !app.touch });
   const inspector = new Inspector($("inspector"), { bus });
   const history = new HistoryPanel($("history"), { bus });
   const error = $("schema-error");
 
-  $("link-hint").textContent = app.phone
+  $("link-hint").textContent = app.touch
     ? "Tap a box on the page, then pick its data field below."
     : "Drag a field onto a box, or select a box and pick its data field below.";
 
@@ -62,7 +62,7 @@ export function mountLink(app) {
       say($("op-msg"), "");
       app.select(field.id);
     } else {
-      say($("op-msg"), `No box uses ${path} yet. ${app.phone ? "Tap a box and pick it in the inspector." : "Drag it onto a box, or pick it in the inspector."}`);
+      say($("op-msg"), `No box uses ${path} yet. ${app.touch ? "Tap a box and pick it in the inspector." : "Drag it onto a box, or pick it in the inspector."}`);
     }
   });
 

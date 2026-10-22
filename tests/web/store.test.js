@@ -46,6 +46,9 @@ test("readTemplateFile returns the template, and refuses what is not one", async
   await assert.rejects(readTemplateFile(new Blob(["[1]"])), /not a formcast template/);
   await assert.rejects(readTemplateFile(new Blob([JSON.stringify({ formcast_version: "2" })])), /version "1"/);
   await assert.rejects(readTemplateFile(new Blob([JSON.stringify({ formcast_version: "1", fields: [] })])), /not a complete template/);
+  const noCount = structuredClone(t);
+  delete noCount.form.page_count;
+  await assert.rejects(readTemplateFile(new Blob([JSON.stringify(noCount)])), /not a complete template/);
 });
 
 test("remember and recall round-trip through localStorage", () => {
