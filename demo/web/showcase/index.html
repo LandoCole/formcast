@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>formcast · Landon Thornton</title>
+<meta name="description" content="formcast in your browser: a form-field detector finds the blanks on a PDF form, you connect them to your data with a JSON Schema, and the page writes a fillable PDF.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../core/parts.css">
+<link rel="stylesheet" href="showcase.css">
+</head>
+<body>
+<header class="topbar">
+  <a href="https://landonthornton.com/" class="home">Landon Thornton</a>
+  <span>Work · Document AI</span>
+</header>
+
+<main class="wrap">
+  <section class="sec first" aria-labelledby="ttl">
+    <p class="label">Interactive tool</p>
+    <div class="body">
+      <h1 id="ttl">formcast</h1>
+      <p class="lead">A detector finds the blanks on a form and you connect them to your data; in the full library an AI agent does the connecting.</p>
+      <p class="meta"><span>CommonForms FFDNet in your browser</span><span>JSON Schema in, fillable PDF out</span><span>Your file stays in your browser</span></p>
+    </div>
+  </section>
+
+  <section class="tool" aria-label="formcast tool">
+    <figure class="fig" id="fig">
+      <div class="figbar">
+        <p class="docline" id="docline">Loading the sample form…</p>
+        <div class="pager" id="pager" hidden>
+          <button type="button" class="ib" id="prev-page" aria-label="Previous page">‹</button>
+          <span id="page-no">Page 1 of 1</span>
+          <button type="button" class="ib" id="next-page" aria-label="Next page">›</button>
+        </div>
+      </div>
+      <div class="stage" id="stage">
+        <div id="pageview"></div>
+        <p class="empty" id="stage-empty" hidden>Choose a sample form, or drop a PDF here.</p>
+      </div>
+      <figcaption>
+        <span id="caption">Fig. 1 · Loading…</span>
+        <span class="key"><span><i class="sw linked"></i>linked</span><span><i class="sw unlinked"></i>not linked</span><span><i class="sw selected"></i>selected</span></span>
+      </figcaption>
+      <p class="msg" id="op-msg" role="status" aria-live="polite" hidden></p>
+    </figure>
+
+    <aside class="panel" aria-label="Steps">
+      <div class="steps" role="tablist" aria-label="Steps">
+        <button type="button" role="tab" id="tab-detect" aria-controls="step-detect" aria-selected="true"><b>1</b>Detect</button>
+        <button type="button" role="tab" id="tab-link" aria-controls="step-link" aria-selected="false" tabindex="-1"><b>2</b>Link</button>
+        <button type="button" role="tab" id="tab-fill" aria-controls="step-fill" aria-selected="false" tabindex="-1"><b>3</b>Fill</button>
+      </div>
+
+      <div class="step" id="step-detect" role="tabpanel" aria-labelledby="tab-detect">
+        <div class="group">
+          <p class="label"><label for="sample">Sample form</label></p>
+          <select id="sample" disabled><option value="">Loading samples…</option></select>
+          <p class="hint">US federal forms with their form fields taken out, so the detector has to find the blanks.</p>
+        </div>
+        <div class="group">
+          <p class="label">Or your own PDF</p>
+          <label class="btn file">Choose a PDF<input type="file" id="file" accept=".pdf,application/pdf"></label>
+          <p class="hint">Or drop one on the page. It's read in your browser and never uploaded.</p>
+        </div>
+        <p class="msg" id="detect-msg" role="alert" hidden></p>
+        <div class="group" id="model-group">
+          <p class="label"><label for="model">Model</label></p>
+          <select id="model">
+            <option value="S">FFDNet-S · 38 MB download</option>
+            <option value="L">FFDNet-L · 102 MB download</option>
+          </select>
+        </div>
+        <div class="group">
+          <button type="button" class="btn" id="run-live">Run the detector live</button>
+          <p class="readout" id="detect-status" aria-live="polite"></p>
+          <button type="button" class="btn quiet" id="start-over" hidden>Start over</button>
+        </div>
+        <div class="group" id="phone-note" hidden>
+          <p class="note">Live detection runs on desktop. On a phone the 38 MB model is a slow download and can run the tab out of memory. You can still add boxes by hand.</p>
+          <button type="button" class="btn quiet" id="try-anyway">Try anyway</button>
+        </div>
+        <p class="note" id="scanned-note" hidden>This page has no text layer, as on a scan. The detector still finds boxes, but they get no labels; the full library reads scans with OCR.</p>
+        <div class="group" id="compare-group" hidden>
+          <label class="check"><input type="checkbox" id="compare"> Show the form's own fields</label>
+          <p class="readout" id="found"></p>
+        </div>
+        <div class="group" id="agent-group" hidden>
+          <button type="button" class="btn quiet" id="load-agent">Load the AI agent's template</button>
+          <p class="hint">Opens the form as published, with its own fields, and the template an AI agent built for it in the dev eval. On a fillable form the agent maps the form's own fields; on flat and scanned forms it maps detector boxes.</p>
+          <p class="readout" id="agent-scores" hidden></p>
+        </div>
+        <button type="button" class="btn next" data-goto="link">Next: link →</button>
+      </div>
+
+      <div class="step" id="step-link" role="tabpanel" aria-labelledby="tab-link" hidden>
+        <div class="group">
+          <p class="label" id="schema-label">Schema</p>
+          <details class="paste" id="paste">
+            <summary>Paste your own JSON Schema</summary>
+            <textarea id="schema-text" rows="8" spellcheck="false" aria-label="Your JSON Schema" placeholder='{"type": "object", "properties": {...}}'></textarea>
+            <p class="msg" id="schema-error" role="alert" hidden></p>
+            <div class="row">
+              <button type="button" class="btn" id="use-schema">Use this schema</button>
+              <button type="button" class="btn quiet" id="sample-schema">Sample schema</button>
+            </div>
+          </details>
+          <div id="schemalist"></div>
+          <p class="hint" id="link-hint">Drag a field onto a box, or select a box and pick its data field below.</p>
+        </div>
+        <div class="group">
+          <p class="label">Selected box</p>
+          <div id="inspector"></div>
+        </div>
+        <div class="group">
+          <p class="label">History</p>
+          <div id="history"></div>
+        </div>
+        <button type="button" class="btn next" data-goto="fill">Next: fill →</button>
+      </div>
+
+      <div class="step" id="step-fill" role="tabpanel" aria-labelledby="tab-fill" hidden>
+        <div class="group">
+          <p class="label"><label for="record">Record</label></p>
+          <textarea id="record" rows="12" spellcheck="false"></textarea>
+          <p class="hint" id="record-hint">A made-up record for the schema. Edit it or paste your own.</p>
+          <p class="msg" id="record-error" role="alert" hidden></p>
+        </div>
+        <div class="group">
+          <button type="button" class="btn" id="fill">Fill and download the PDF</button>
+          <button type="button" class="btn quiet" id="smart">Download a fillable empty PDF</button>
+          <div class="row">
+            <button type="button" class="btn quiet" id="save-template">Download template</button>
+            <label class="btn quiet file">Load template<input type="file" id="template-file" accept=".json,application/json"></label>
+          </div>
+          <p class="msg" id="fill-msg" role="status" hidden></p>
+        </div>
+        <div id="report"></div>
+      </div>
+    </aside>
+  </section>
+</main>
+
+<script type="module" src="showcase.js"></script>
+</body>
+</html>

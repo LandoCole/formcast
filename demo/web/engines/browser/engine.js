@@ -1,10 +1,11 @@
 // The browser engine: everything runs in the page. pdf.js opens the PDF, FFDNet runs in a worker,
 // ops.js applies edits and pdf-lib fills. No AI, no stores, no records database.
+//
+// The detector and the fill (with pdf-lib) are imported on first use, so a page that only opens
+// PDFs and edits templates never downloads them.
 
 import { assertEngine } from "../../core/engine.js";
-import { fill, smartPdf } from "../../core/fill/index.js";
 import { OpError, applyOp, contextFromTemplate } from "../../core/ops.js";
-import { Detector } from "./detect.js";
 import { openPdf } from "./document.js";
 import { seedTemplate } from "./seed.js";
 
@@ -31,10 +32,22 @@ export function widgetKinds(doc) {
 export function createBrowserEngine({ workerUrl, detectorModel = "S" } = {}) {
   const detectors = new Map();
   let openKinds = null; // widget kinds of the last opened document
+  let fillModule = null;
 
-  function detector(model) {
-    if (!detectors.has(model)) detectors.set(model, new Detector({ model, workerUrl }));
+  async function detector(model) {
+    if (!detectors.has(model)) {
+      const { Detector } = await import("./detect.js");
+      if (!detectors.has(model)) detectors.set(model, new Detector({ model, workerUrl }));
+    }
     return detectors.get(model);
+  }
+
+  function filler() {
+    fillModule ??= import("../../core/fill/index.js").catch((e) => {
+      fillModule = null;
+      throw e;
+    });
+    return fillModule;
   }
 
   const engine = {
@@ -69,7 +82,7 @@ export function createBrowserEngine({ workerUrl, detectorModel = "S" } = {}) {
      * @param {{model?: "S" | "L", onProgress?: (loaded: number, total: number) => void}} [opts]
      */
     async detect(doc, pageIndex, { model = detectorModel, onProgress } = {}) {
-      const d = detector(model);
+      const d = await detector(model);
       await d.load(onProgress);
       return d.detect(doc, pageIndex);
     },
@@ -98,11 +111,13 @@ export function createBrowserEngine({ workerUrl, detectorModel = "S" } = {}) {
 
     /** Fill `doc` with one record (pdf-lib); `{pdfBytes, report}`. */
     async fill(template, doc, record) {
+      const { fill } = await filler();
       return fill(template, doc.bytes, record);
     },
 
     /** The PDF with the template's fields as empty form fields. */
     async smartPdf(template, doc) {
+      const { smartPdf } = await filler();
       return smartPdf(template, doc.bytes);
     },
 
