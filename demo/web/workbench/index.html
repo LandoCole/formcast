@@ -169,12 +169,17 @@
     <button type="button" class="ib" id="fill-close" aria-label="Close">×</button>
   </div>
   <div class="group">
-    <p class="label"><label for="fill-schema">Records for</label></p>
+    <p class="label"><label for="fill-schema">Fill with</label></p>
     <select id="fill-schema"></select>
   </div>
-  <div class="group">
+  <div class="group" id="fill-record-group">
     <p class="label"><label for="fill-record">Record</label></p>
     <select id="fill-record"></select>
+  </div>
+  <div class="group" id="fill-sample-group" hidden>
+    <p class="label"><label for="fill-sample">Record (JSON)</label></p>
+    <textarea id="fill-sample" rows="12" spellcheck="false"></textarea>
+    <p class="hint">Sample values for every field of this template's schema. Edit them as you like.</p>
   </div>
   <div class="row">
     <button type="button" class="btn dark" id="fill-go">Fill</button>

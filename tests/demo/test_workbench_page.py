@@ -8,6 +8,7 @@ in a script holds a job mid-run. Form maps are built without detectors, so a see
 
 from __future__ import annotations
 
+import json
 from functools import partial
 from pathlib import Path
 
@@ -650,6 +651,45 @@ def test_fill_from_a_stored_record_downloads_a_pdf_and_shows_the_report(demo_ser
     expect(b.page.locator("#report .fc-rp-counts")).to_be_visible()
     smart = b.download("#smart-go")
     assert smart.startswith(b"%PDF")
+
+
+def test_a_pasted_schema_fills_from_an_editable_sample_record_never_from_another_schemas_records(demo_server, bench):
+    b = bench(demo_server)
+    b.upload(widget_pdf())  # schema pasted on the start screen: no stored schema is its own
+    b.build_new()
+    b.page.click("#fill-open")
+    expect(b.page.locator("#fill")).to_be_visible()
+    options = b.page.locator("#fill-schema option").evaluate_all("os => os.map((o) => o.value)")
+    assert options == ["__sample__"]  # no stored schema's records on offer
+    expect(b.page.locator("#fill-record-group")).to_be_hidden()
+    expect(b.page.locator("#fill-sample")).to_be_visible()
+    sample = json.loads(b.page.locator("#fill-sample").input_value())
+    assert set(sample) == {"name", "note"} and all(isinstance(v, str) and v for v in sample.values())
+
+    b.page.fill("#fill-sample", "{not json")
+    b.page.click("#fill-go")
+    expect(b.page.locator("#fill-msg")).to_contain_text("isn't valid JSON")
+
+    edited = {"name": "Ada Example", "note": "edited by hand"}
+    b.page.fill("#fill-sample", json.dumps(edited))
+    with b.page.expect_request("**/api/fill") as request:
+        pdf = b.download("#fill-go")
+    assert request.value.post_data_json["record"] == edited and "record_ref" not in request.value.post_data_json
+    assert pdf.startswith(b"%PDF")
+    expect(b.page.locator("#report .fc-rp-counts")).to_be_visible()
+
+    # a stored schema's template offers its own records first, and the sample too
+    b.page.click("#fill-close")
+    b.page.click("#doc-name")
+    b.open_form("fw9")
+    b.page.click("#reuse")
+    b.page.wait_for_function("window.__workbench.template?.form.page_count === 6")
+    b.page.click("#fill-open")
+    options = b.page.locator("#fill-schema option").evaluate_all("os => os.map((o) => o.value)")
+    assert options == ["fw9", "__sample__"]
+    expect(b.page.locator("#fill-schema")).to_have_value("fw9")
+    expect(b.page.locator("#fill-record-group")).to_be_visible()
+    expect(b.page.locator("#fill-sample-group")).to_be_hidden()
 
 
 def test_fill_with_a_template_for_another_revision_offers_rebind_and_fill_anyway(demo_server, bench):

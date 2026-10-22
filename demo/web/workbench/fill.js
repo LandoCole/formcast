@@ -1,42 +1,64 @@
-// The fill drawer: a record from the record source, Fill (downloads the filled PDF and shows the
-// report) and the fillable empty PDF. When the template was made for another version of this PDF
+// The fill drawer: a record from the record source, or a sample record as editable JSON, Fill
+// (downloads the filled PDF and shows the report) and the fillable empty PDF. Stored records are
+// offered only for the stored schema that is exactly the template's own; a template with any other
+// schema (a pasted one, or one changed since) is filled from the sample record, never from records
+// of another schema. When the template was made for another version of this PDF
 // the server refuses (409 fingerprint_mismatch); the drawer then says so and offers to rebind the
 // template to this PDF (one undo step) or to fill anyway. The server's note on a skipped check
 // (a template with no fingerprint, or Fill anyway) is shown with the result.
 
 import { renderReport } from "../core/report.js";
+import { placeholderRecord } from "../core/schema.js";
 import { downloadBytes } from "../core/store.js";
+
+const SAMPLE = "__sample__";
 
 /** @param {object} app see workbench.js */
 export function mountFill(app) {
-  const { $, engine, session, state, say } = app;
+  const { $, engine, session, say } = app;
   const drawer = $("fill");
   const msg = $("fill-msg");
   const mismatch = $("fill-mismatch");
   const records = new Map(); // schema name -> [{id, title}]
   let last = null; // the action the server refused: "fill" or "smart"
   let busy = false;
+  let sampleFor = null; // the schema (as JSON text) the sample record was made for
+
+  const sampling = () => $("fill-schema").value === SAMPLE;
 
   function setBusy(on) {
     busy = on;
     for (const id of ["fill-go", "smart-go", "rebind", "fill-anyway"]) $(id).disabled = on;
-    $("fill-go").disabled = on || !$("fill-record").value;
+    $("fill-go").disabled = on || (!sampling() && !$("fill-record").value);
   }
 
-  /** The stored schema whose JSON is the template's own, else the one picked at the start. */
-  function defaultSchema() {
-    return app.schemaNameOf(app.template?.schema) ?? state.schemaName ?? "";
+  /** A fresh sample record for the template's schema, unless the one in the box was made for it. */
+  function makeSample() {
+    const schema = app.template?.schema;
+    const text = JSON.stringify(schema ?? null);
+    if (text === sampleFor) return;
+    sampleFor = text;
+    let record = {};
+    try {
+      record = placeholderRecord(schema);
+    } catch {
+      record = {}; // a schema that can't be sampled still fills (the report says what is missing)
+    }
+    $("fill-sample").value = JSON.stringify(record, null, 2);
   }
 
   async function showRecords() {
     const name = $("fill-schema").value;
     const select = $("fill-record");
-    select.replaceChildren(new Option("Loading…", ""));
-    setBusy(busy);
-    if (!name) {
-      select.replaceChildren(new Option("No stored schema", ""));
+    $("fill-sample-group").hidden = name !== SAMPLE;
+    $("fill-record-group").hidden = name === SAMPLE;
+    if (name === SAMPLE) {
+      makeSample();
+      setBusy(busy);
       return;
     }
+    select.replaceChildren(new Option("Loading…", ""));
+    setBusy(busy);
     try {
       if (!records.has(name)) {
         // the same record can come from more than one source (CSV and SQLite); the server reads the first
@@ -55,10 +77,11 @@ export function mountFill(app) {
 
   function open() {
     if (app.template === null) return;
-    const names = Object.keys(app.schemas);
-    $("fill-schema").replaceChildren(...names.map((n) => new Option(n, n)));
-    $("fill-schema").value = defaultSchema();
-    if (!$("fill-schema").value && names.length) $("fill-schema").value = names[0];
+    // only the stored schema that is exactly the template's own has records that fit it
+    const own = app.schemaNameOf(app.template.schema);
+    const options = own === null ? [] : [new Option(`Stored records (${own})`, own)];
+    $("fill-schema").replaceChildren(...options, new Option("A sample record", SAMPLE));
+    $("fill-schema").value = own ?? SAMPLE;
     // below the toolbar, so Undo and Redo stay in reach while the drawer is open
     drawer.style.top = `${Math.max(0, $("toolbar").getBoundingClientRect().bottom)}px`;
     drawer.hidden = false;
@@ -76,8 +99,21 @@ export function mountFill(app) {
       const template = session.template;
       const doc = session.doc;
       if (action === "fill") {
-        const recordRef = { schema: $("fill-schema").value, id: $("fill-record").value };
-        const { pdfBytes, report, note } = await engine.fill(template, doc, null, { recordRef, checkFingerprint });
+        let filled;
+        if (sampling()) {
+          let record;
+          try {
+            record = JSON.parse($("fill-sample").value);
+          } catch (e) {
+            say(msg, `The record isn't valid JSON: ${e.message}`);
+            return;
+          }
+          filled = await engine.fill(template, doc, record, { checkFingerprint });
+        } else {
+          const recordRef = { schema: $("fill-schema").value, id: $("fill-record").value };
+          filled = await engine.fill(template, doc, null, { recordRef, checkFingerprint });
+        }
+        const { pdfBytes, report, note } = filled;
         downloadBytes(pdfBytes, `${app.stem()}-filled.pdf`);
         renderReport($("report"), report);
         const n = report.counts?.fields_written ?? 0;
@@ -134,6 +170,7 @@ export function mountFill(app) {
     run(last);
   });
   app.onReset(() => {
+    sampleFor = null;
     drawer.hidden = true;
     mismatch.hidden = true;
     say(msg, "");
