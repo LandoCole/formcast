@@ -270,12 +270,13 @@ test("fitText: auto size from the box height, shrink, overflow, comb truncation"
   assert.deepEqual([over.status, over.fontSize, over.text], ["overflow", 6, "A very long value indeed, far too long"]);
   const comb = fitText("123456", [0, 0, 80, 20], { fontSize: "auto", minFontSize: 6, measure, comb: 4 });
   assert.deepEqual([comb.text, comb.truncated], ["1234", true]);
-  // measured as PyMuPDF does: no cp1252 byte reads as U+00B7, a control as the missing width, and
-  // the characters after a non-ASCII one are skipped by its UTF-8 length
+  // measured as the library does: every character counts (AFM widths), no cp1252 byte reads as
+  // U+00B7, a control as the missing width
   assert.equal(measure("北", 10), measure("\u00b7", 10));
   assert.equal(measure("\u0001", 10), measure(" ", 10));
-  assert.equal(measure("Zürich", 1000), measure("Zü", 1000) + measure("ich", 1000)); // "r" skipped
-  assert.equal(measure("北京 Sí", 1000), measure("北", 1000) + measure("Sí", 1000)); // "京 " skipped
+  assert.equal(measure("Zürich", 1000), 611 + 556 + 333 + 222 + 500 + 556);
+  assert.equal(measure("“q” – €", 1000), 333 + 556 + 333 + 278 + 556 + 278 + 556);
+  assert.equal(measure("北京 Sí", 1000), measure("··", 1000) + measure(" Sí", 1000));
 });
 
 test("bind names: cells read <table>_r<row>_<column>, path punctuation becomes _", () => {

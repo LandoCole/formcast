@@ -1,7 +1,7 @@
 import pymupdf
 import pytest
 
-from formcast.render.fit import Fit, fit_text, unencodable_chars
+from formcast.render.fit import Fit, _width, fit_text, unencodable_chars
 
 R = (0, 0, 100, 14)
 
@@ -92,3 +92,37 @@ def test_fit_is_frozen():
     assert isinstance(f, Fit)
     with pytest.raises(Exception):
         f.font_size = 1  # type: ignore[misc]
+
+
+# Advance widths (1/1000 em) from the Adobe Core 14 AFM files, the glyphs a standard-font
+# appearance draws: the value is written as cp1252 bytes, so each character is its own glyph.
+_AFM = {
+    "helv": {"Z": 611, "ü": 556, "r": 333, "i": 222, "c": 500, "h": 556, "é": 556, "€": 556, "“": 333, "”": 333,
+             "–": 556, "q": 556, " ": 278, "Œ": 1000, "·": 278},
+    "tiro": {"Z": 611, "ü": 500, "r": 333, "i": 278, "c": 444, "h": 500},
+    "cour": {"Z": 600, "ü": 600, "r": 600, "i": 600, "c": 600, "h": 600},
+}
+
+
+@pytest.mark.parametrize(("font", "text"), [
+    ("helv", "Zürich"), ("helv", "üüüüZr"), ("helv", "“q” – €"), ("helv", "Œ é"), ("helv", "éé"),
+    ("tiro", "Zürich"), ("cour", "Zürich"),
+])  # fmt: skip
+def test_width_counts_every_character_of_accented_text(font, text):
+    """PyMuPDF's ``get_text_length`` skips the characters after a non-ASCII one (it steps by UTF-8
+    length through a str) and measures the cp1252 extras (€, “ …) as missing glyphs."""
+    want = sum(_AFM[font][ch] for ch in text) * 10 / 1000
+    assert _width(text, font, 10) == pytest.approx(want, abs=1e-3)
+    assert _width(text, font.capitalize() if font != "tiro" else "TiRo", 10) == pytest.approx(want, abs=1e-3)
+
+
+def test_width_of_unencodable_and_control_characters():
+    assert _width("北", "helv", 10) == pytest.approx(_width("·", "helv", 10))  # no cp1252 byte: U+00B7
+    assert _width("\x01", "helv", 10) == pytest.approx(_width(" ", "helv", 10))  # no glyph: a space
+    assert _width("北京 Sí", "helv", 10) == pytest.approx(_width("··", "helv", 10) + _width(" Sí", "helv", 10))
+
+
+def test_accented_value_shrinks_when_its_true_width_overflows():
+    # "Zürich" is 27.78 pt wide at 10 pt; the box leaves 26 pt (30 minus 2 pt padding each side)
+    f = fit_text("Zürich", (0, 0, 30, 14), font_size=10, min_font_size=6)
+    assert f.status == "shrunk" and f.font_size == 9
