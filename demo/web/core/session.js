@@ -39,6 +39,10 @@ export function createSession({ engine, bus, max }) {
   let generation = 0;
   let fieldWarnings = {};
   let tail = Promise.resolve();
+  let abandon = null; // resolves when the document changes: callers of the old document's calls stop waiting
+  let abandoned = new Promise((resolve) => {
+    abandon = resolve;
+  });
   const sources = new WeakMap(); // template snapshot -> its Source
 
   const stale = () => ({ error: STALE, stale: true });
@@ -48,7 +52,8 @@ export function createSession({ engine, bus, max }) {
     const mine = generation;
     const run = tail.then(() => (mine !== generation ? onStale() : job(mine)));
     tail = run.then(() => {}, () => {});
-    return run;
+    // a call that never settles (a hung request) must not keep its caller waiting once the document is gone
+    return Promise.race([run, abandoned.then(onStale)]);
   }
 
   /** Announce the template on screen. */
@@ -108,6 +113,13 @@ export function createSession({ engine, bus, max }) {
     setDocument(newDoc, template, { source } = {}) {
       if (doc && doc !== newDoc) doc.destroy?.().catch?.(() => {});
       generation += 1;
+      // the new document starts a fresh queue: the old document's calls re-check `generation` when
+      // they return and drop their result, but they no longer hold the new document up
+      tail = Promise.resolve();
+      abandon();
+      abandoned = new Promise((resolve) => {
+        abandon = resolve;
+      });
       doc = newDoc;
       undo = new UndoStack(template, { max });
       if (source) sources.set(undo.current, source);
@@ -131,10 +143,15 @@ export function createSession({ engine, bus, max }) {
           res = { error: String(e?.message ?? e) };
         }
         if (mine !== generation) return stale();
-        if (res.error !== undefined) {
-          bus.emit("error", { message: res.error });
-          return { error: res.error };
+        if (res?.error === undefined && !(Array.isArray(res?.template?.fields))) {
+          res = { error: "The engine's answer couldn't be used." };
         }
+        if (res.error !== undefined) {
+          const message = String(res.error);
+          bus.emit("error", { message });
+          return { error: message };
+        }
+        res.warnings = Array.isArray(res.warnings) ? res.warnings : [];
         const ids = new Set(base.fields.map((f) => f.id));
         const added = res.template.fields.find((f) => !ids.has(f.id))?.id ?? null;
         const touched = op.op === "remove_field" ? null : (added ?? op.id ?? null);
@@ -166,18 +183,28 @@ export function createSession({ engine, bus, max }) {
     /**
      * Put a whole new template on screen (detector boxes, a loaded template, an AI job's result),
      * after the edits ahead of it. One undo step by default.
-     * @param {object} template
+     * @param {object | ((current: object) => object)} template the new template, or a function that
+     *   makes it from the template on screen when its turn comes (for a change built on the current
+     *   template, so edits queued ahead of it are kept)
      * @param {{source?: Source, pushUndo?: boolean}} [options] `source` replaces the caption's
      *   description of the boxes (the old one stays when omitted); `pushUndo: false` swaps the
      *   current state in place, with no step to undo
-     * @returns {Promise<{template: object} | {error: string, stale: true}>}
+     * @returns {Promise<{template: object} | {error: string, stale?: true}>}
      */
     replaceTemplate(template, { source, pushUndo = true } = {}) {
       if (undo === null) return Promise.resolve({ error: "No form is open.", stale: true });
       return enqueue(() => {
         const before = undo.current;
-        if (pushUndo) undo.push(template);
-        else undo.replace(template);
+        let next;
+        try {
+          next = typeof template === "function" ? template(before) : template;
+        } catch (e) {
+          const message = String(e?.message ?? e);
+          bus.emit("error", { message });
+          return { error: message };
+        }
+        if (pushUndo) undo.push(next);
+        else undo.replace(next);
         const kept = source ?? sources.get(before);
         if (kept) sources.set(undo.current, kept);
         fieldWarnings = {};

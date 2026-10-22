@@ -20,10 +20,10 @@ export function mountLink(app) {
 
   /** Swap the template's schema (undoable). Boxes keep their links, flagged when a path is gone. */
   async function useSchema(schema, record) {
-    const t = app.template;
-    if (t === null) return;
-    const res = await session.replaceTemplate({ ...structuredClone(t), schema: structuredClone(schema) });
-    if (!res.stale) app.setRecord(record);
+    if (app.template === null) return;
+    // built from the template when its turn comes, so edits still in flight are kept
+    const res = await session.replaceTemplate((t) => ({ ...structuredClone(t), schema: structuredClone(schema) }));
+    if (res.error === undefined) app.setRecord(record);
   }
 
   $("use-schema").addEventListener("click", () => {

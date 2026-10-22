@@ -20,6 +20,8 @@ function fakeEngine() {
     async apply(template, op, author, opts) {
       calls.push({ base: ids(template), op, author, opts });
       await wait(op.delay ?? 0);
+      if (op.op === "hang") return new Promise(() => {});
+      if (op.op === "junk") return op.value;
       if (op.op === "fail") return { error: `refused ${op.id}` };
       if (op.op === "boom") throw new Error("engine down");
       const t = structuredClone(template);
@@ -195,4 +197,78 @@ test("the undo stack is capped", async () => {
   assert.equal(await session.undo(), true);
   assert.equal(await session.undo(), false);
   assert.deepEqual(ids(session.template), ["a", "b"]); // the oldest state kept: three states back from d
+});
+
+test("an old document's in-flight op does not hold up the new document", async () => {
+  const { session } = setup();
+  const old = session.apply({ op: "add", id: "old", delay: 300 });
+  await wait(5); // the engine call is under way
+  session.setDocument({ destroy: async () => {} }, blank());
+  const started = Date.now();
+  await session.apply({ op: "add", id: "n" });
+  assert.ok(Date.now() - started < 150, `waited ${Date.now() - started} ms behind the old op`);
+  assert.deepEqual(ids(session.template), ["n"]);
+  assert.equal((await old).stale, true);
+  assert.deepEqual(ids(session.template), ["n"]);
+});
+
+test("an old op that never settles does not wedge the new document, and its caller is released", async () => {
+  const { session } = setup();
+  const hung = session.apply({ op: "hang" });
+  await wait(5); // the engine call is under way
+  session.setDocument({ destroy: async () => {} }, blank());
+  await session.apply({ op: "add", id: "a" });
+  await session.apply({ op: "add", id: "b" });
+  assert.equal(await session.undo(), true);
+  assert.deepEqual(ids(session.template), ["a"]);
+  assert.equal((await session.replaceTemplate({ ...blank(), fields: [{ id: "r" }] })).template.fields[0].id, "r");
+  assert.equal((await hung).stale, true);
+  await session.idle();
+});
+
+test("a refused or throwing op from the old document that lands after setDocument emits no error", async () => {
+  const { session, events } = setup();
+  const refused = session.apply({ op: "fail", id: "x", delay: 20 });
+  const threw = session.apply({ op: "boom", delay: 20 });
+  await wait(5); // the engine call is under way
+  session.setDocument({ destroy: async () => {} }, blank());
+  await Promise.all([refused, threw, wait(60)]);
+  assert.deepEqual(events, []);
+});
+
+test("replaceTemplate with a function builds on the template when its turn comes", async () => {
+  const { session } = setup();
+  const applied = session.apply({ op: "add", id: "a", delay: 30 });
+  const replaced = session.replaceTemplate((t) => ({ ...structuredClone(t), schema: { title: "S" } }));
+  await Promise.all([applied, replaced]);
+  assert.deepEqual(ids(session.template), ["a"]);
+  assert.equal(session.template.schema.title, "S");
+  await session.undo();
+  assert.deepEqual(ids(session.template), ["a"]);
+  assert.equal(session.template.schema, undefined);
+});
+
+test("a function given to replaceTemplate that throws is an error result", async () => {
+  const { session, events } = setup();
+  const res = await session.replaceTemplate(() => {
+    throw new Error("nope");
+  });
+  assert.deepEqual(res, { error: "nope" });
+  assert.deepEqual(events, [["error", "nope"]]);
+  assert.equal(session.canUndo, false);
+});
+
+test("a malformed engine answer is an error result, never a rejection", async () => {
+  const { session, events } = setup();
+  for (const value of [undefined, null, 7, "text", {}, { template: {} }, { template: { fields: "no" } }]) {
+    const res = await session.apply({ op: "junk", value });
+    assert.equal(typeof res.error, "string");
+    assert.equal(res.stale, undefined);
+  }
+  assert.equal(events.filter((e) => e[0] === "error").length, 7);
+  assert.deepEqual(ids(session.template), []);
+  assert.equal(session.canUndo, false);
+  const ok = await session.apply({ op: "junk", value: { template: { fields: [{ id: "q" }] } } }); // no warnings given
+  assert.deepEqual(ok.warnings, []);
+  assert.deepEqual(ids(session.template), ["q"]);
 });
