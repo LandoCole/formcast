@@ -38,7 +38,7 @@ export function mountFill(app) {
     const text = JSON.stringify(schema ?? null);
     if (text === sampleFor) return;
     sampleFor = text;
-    let record = {};
+    let record;
     try {
       record = placeholderRecord(schema);
     } catch {
