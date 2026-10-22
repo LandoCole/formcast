@@ -18,8 +18,10 @@ _LAZY = {
     "LLMConfig": "formcast.llm",
     "OpContext": "formcast.template.ops",
     "SessionBudget": "formcast.agent.session",
+    "SessionCancelled": "formcast.errors",
     "SessionResult": "formcast.agent.session",
     "Similarity": "formcast.match",
+    "StepEvent": "formcast.agent.session",
     "Template": "formcast.template.model",
     "apply": "formcast.template.ops",
     "build_form_map": "formcast.pagemap.build",
@@ -39,7 +41,8 @@ _LAZY_MODULES = {"ops": "formcast.template.ops"}
 
 if TYPE_CHECKING:
     from formcast.agent.api import build_template, revise
-    from formcast.agent.session import SessionBudget, SessionResult
+    from formcast.agent.session import SessionBudget, SessionResult, StepEvent
+    from formcast.errors import SessionCancelled
     from formcast.llm import LLMConfig
     from formcast.match import Similarity, fingerprint, similarity
     from formcast.pagemap.build import build_form_map
@@ -72,7 +75,7 @@ def __dir__() -> list[str]:
 
 __all__ = [
     "FillReport", "FormSignature", "FormcastError", "LLMConfig", "OpContext", "OpError", "SessionBudget",
-    "SessionResult", "Similarity", "Template", "__version__", "apply", "build_form_map", "build_template",
-    "coverage", "errors", "fill", "fingerprint", "flatten_schema", "ops", "preview", "rebind", "revise", "similarity",
-    "to_smart_pdf",
+    "SessionCancelled", "SessionResult", "Similarity", "StepEvent", "Template", "__version__", "apply",
+    "build_form_map", "build_template", "coverage", "errors", "fill", "fingerprint", "flatten_schema", "ops",
+    "preview", "rebind", "revise", "similarity", "to_smart_pdf",
 ]  # fmt: skip

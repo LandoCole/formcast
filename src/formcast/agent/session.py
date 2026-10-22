@@ -18,11 +18,12 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field
+from collections.abc import Callable
 from typing import Any, Literal
 
 from formcast.agent import prompts
 from formcast.agent.report import step_report
-from formcast.errors import FormcastError, OpError
+from formcast.errors import FormcastError, OpError, SessionCancelled
 from formcast.geometry import Rect
 from formcast.llm import LLMConfig, LLMResponse, Message, Provider, ToolCall, ToolSpec, Usage, make_provider
 from formcast.pagemap.model import FormMap
@@ -30,7 +31,7 @@ from formcast.pagemap.summarize import summarize
 from formcast.sandbox import ExecResult, Sandbox
 from formcast.sandbox.worker import api_text
 from formcast.schema import flatten_schema
-from formcast.template.coverage import coverage
+from formcast.template.coverage import Coverage, coverage
 from formcast.template.model import Template, new_template
 from formcast.template.ops import OpContext, apply
 
@@ -102,6 +103,21 @@ class StepRecord:
     note: str = ""
 
 
+@dataclass(frozen=True)
+class StepEvent:
+    """What ``on_step`` is told after each model reply (the step report's counts, token use so far)."""
+
+    step: int
+    ops_applied: int
+    ops_rejected: int
+    unmapped_paths: int  # mappable schema paths no field references
+    unfilled_blanks: int  # detector candidates no field covers
+    input_tokens: int  # cumulative, this session
+    output_tokens: int
+    finished: bool  # the model's finish was accepted: this is the last event
+    summary: str  # the model's finish summary on the last event, else ""
+
+
 @dataclass
 class SessionResult:
     template: Template
@@ -109,7 +125,7 @@ class SessionResult:
     summary: str
     steps: list[StepRecord]
     usage: Usage
-    stop_reason: Literal["finish", "budget", "error"]
+    stop_reason: Literal["finish", "budget", "error", "cancelled"]
     unplaceable: list[dict] = field(default_factory=list)
     error: str | None = None  # set when stop_reason == "error"
 
@@ -186,6 +202,11 @@ class Session:
     Up to ``unaccounted_refusals`` times (not for a reviewer instruction) a
     ``finish`` is refused while mappable schema paths are neither mapped nor
     listed in its ``unplaceable``, unless fewer than 2 steps are left.
+
+    ``on_step`` is called with a :class:`StepEvent` after every model reply. It may
+    raise :class:`SessionCancelled` to stop the run: the sandbox is closed and the
+    result has ``finished=False``, ``summary="cancelled"`` and the working template.
+    An exception of another kind propagates (after the sandbox is closed).
     """
 
     def __init__(
@@ -201,6 +222,7 @@ class Session:
         sandbox_factory=Sandbox,
         seed_candidates: bool = True,
         unaccounted_refusals: int = 1,
+        on_step: Callable[[StepEvent], None] | None = None,
     ):
         self.form_map = form_map
         self.schema = schema
@@ -214,6 +236,8 @@ class Session:
         self.region = region
         self.budget = budget
         self.sandbox_factory = sandbox_factory
+        self.on_step = on_step
+        self._cov: Coverage | None = None  # coverage as of the last run_python step
         self.context = OpContext(
             schema_paths=self.schema_paths,
             page_sizes=[(p.width, p.height) for p in sorted(form_map.pages, key=lambda p: p.index)],
@@ -276,9 +300,30 @@ class Session:
                 finished = self._handle(n, response, sandbox)
             except FormcastError as e:  # the sandbox itself failed (not the model's code)
                 return self._result("error", error=f"sandbox: {e}")
+            if self.on_step is not None:
+                try:
+                    self.on_step(self._event(n, finished))
+                except SessionCancelled:
+                    return self._result("cancelled", summary="cancelled")
             if finished is not None:
                 summary, unplaceable = finished
                 return self._result("finish", summary=summary, unplaceable=unplaceable)
+
+    def _event(self, n: int, finished: tuple[str, list[dict]] | None) -> StepEvent:
+        step = self.steps[-1]
+        if self._cov is None:  # no run_python yet: the template is still the starting one
+            self._cov = coverage(self.template, self.form_map, self.schema_paths)
+        return StepEvent(
+            step=n,
+            ops_applied=len(step.applied),
+            ops_rejected=len(step.rejected),
+            unmapped_paths=len(self._cov.unmapped_paths),
+            unfilled_blanks=len(self._cov.unused_candidates),
+            input_tokens=self.usage.input_tokens,
+            output_tokens=self.usage.output_tokens,
+            finished=finished is not None,
+            summary=finished[0] if finished is not None else "",
+        )
 
     def _over_budget(self, started: float) -> bool:
         b = self.budget
@@ -326,7 +371,7 @@ class Session:
                 )
             else:
                 record = self._run_code(n, call.arguments["code"], response, sandbox)  # type: ignore[index]
-                cov = coverage(self.template, self.form_map, self.schema_paths)
+                cov = self._cov = coverage(self.template, self.form_map, self.schema_paths)
                 kwargs = {
                     "template": self.template, "form_map": self.form_map, "budget": (n, self.budget.max_steps),
                 }  # fmt: skip
@@ -438,7 +483,7 @@ class Session:
 
     def _result(
         self,
-        stop_reason: Literal["finish", "budget", "error"],
+        stop_reason: Literal["finish", "budget", "error", "cancelled"],
         *,
         summary: str = "",
         unplaceable: list[dict] | None = None,
