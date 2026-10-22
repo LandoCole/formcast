@@ -1,15 +1,17 @@
 """PDFs the workbench has open: uploaded or picked, held in memory by id.
 
 Each ``Doc`` keeps the PDF bytes, a light summary (page count, page sizes, page kinds) taken when
-it is added, its form map (built on first use, once, by ``form_map()``) and the page images
-rendered so far. Nothing is written to disk. ``Documents`` keeps the 20 most recently used and
+it is added, its form map (built on first use, once, by ``form_map()``), its match features (``features()``, likewise) and
+the page images rendered so far. Nothing is written to disk. ``Documents`` keeps the 20 most recently used and
 drops the rest; a request that holds a ``Doc`` keeps it alive after eviction.
 
 Threads: ``Documents`` has one lock for its table; each ``Doc`` has its own locks for the form
 map and for filling its image cache. MuPDF is not safe to call from several threads at once
 (PyMuPDF runs it single-threaded), so all MuPDF work in the server happens under the
-process-wide ``PYMUPDF_LOCK``: opening, rendering, and (Tasks 6 and 7) fills and form-map
-builds. Every render also opens its own PyMuPDF document from the bytes.
+process-wide ``PYMUPDF_LOCK``: opening, rendering, form-map builds, feature computation, and (in
+``api.py``) fills, smart PDFs and rebinds. Every render also opens its own PyMuPDF document from
+the bytes. Lock order: a ``Doc``'s own lock first, ``PYMUPDF_LOCK`` second; code that holds
+``PYMUPDF_LOCK`` must not call ``form_map()`` or ``features()``.
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ from collections import OrderedDict
 
 import pymupdf
 
+from formcast.match import PdfFeatures, pdf_features
 from formcast.pagemap.build import build_form_map
 from formcast.pagemap.extract import is_image_dominated, open_pdf, page_size
 from formcast.pagemap.model import FormMap
@@ -57,6 +60,8 @@ class Doc:
         self.bytes = pdf_bytes
         self._form_map: FormMap | None = None
         self._map_lock = threading.Lock()
+        self._features: PdfFeatures | None = None
+        self._features_lock = threading.Lock()
         self._images: OrderedDict[tuple[int, int], bytes] = OrderedDict()
         self._image_lock = threading.Lock()
 
@@ -76,8 +81,27 @@ class Doc:
         """
         with self._map_lock:
             if self._form_map is None:
-                self._form_map = build_form_map(self.bytes)
+                with PYMUPDF_LOCK:
+                    self._form_map = build_form_map(self.bytes)
             return self._form_map
+
+    def features(self) -> PdfFeatures:
+        """What ``formcast.similarity`` reads from this PDF (fingerprints, signature, text), computed once.
+
+        A request that scores this PDF against many templates passes the result to each call.
+        """
+        with self._features_lock:
+            if self._features is None:
+                with PYMUPDF_LOCK:
+                    self._features = pdf_features(self.bytes)
+            return self._features
+
+    def has_fingerprint(self, expected: str | None) -> bool:
+        """Whether a template with this fingerprint was made for this PDF (a filled copy of it counts, as in ``fill``)."""
+        if expected is None:
+            return False
+        f = self.features()
+        return expected in (f.fingerprint, f.fingerprint_blind)
 
     def page_png(self, n: int, dpi: int = 110) -> bytes:
         """PNG of page ``n`` (0-based) at ``dpi`` (clamped to 36-200), with the page's /Rotate applied.

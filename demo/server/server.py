@@ -196,7 +196,11 @@ def make_server(
             has_body = self.headers.get("Content-Length", "0").strip() not in ("", "0") or "Transfer-Encoding" in self.headers
             if has_body and not reads_body:
                 self.close_connection = True  # an unread body would be parsed as the next request
-            if not self._host_ok():
+            if len(self.headers.get_all("Content-Length") or []) > 1:
+                # Two lengths can be read two ways by a proxy and by us: refuse rather than guess.
+                self.close_connection = True
+                self._send_error(400, "bad_request", "send one Content-Length header")
+            elif not self._host_ok():
                 self.close_connection = True
                 self._send_error(403, "bad_host", "this server answers only at its own address (127.0.0.1 or localhost)")
             elif is_api:
@@ -257,6 +261,10 @@ def make_server(
                 self._handle()
             except (BrokenPipeError, ConnectionResetError):
                 self.close_connection = True  # the client went away
+            except TimeoutError:
+                # A client that stalled mid-body (REQUEST_TIMEOUT): nothing to answer, nothing to log loudly.
+                self.close_connection = True
+                log.info("client %s stalled while sending a request; closed", self.address_string())
             except Exception:
                 log.exception("unexpected error serving %s", self.path)
                 self.close_connection = True

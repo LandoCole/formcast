@@ -25,6 +25,7 @@ import hashlib
 import random
 import re
 import unicodedata
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
@@ -265,13 +266,17 @@ def _label_phrases(template: Template) -> set[tuple[str, ...]]:
     return phrases
 
 
-def _labels_part(template: Template, doc: pymupdf.Document) -> float | None:
+def _pdf_phrases(doc: pymupdf.Document) -> frozenset[tuple[str, ...]]:
+    """The PDF's text as single words and word pairs (what a label's phrases are looked up in)."""
+    words = _WORDS.findall(_normalize(" ".join(page.get_text("text") for page in doc)).lower())
+    return frozenset(zip(words, words[1:])) | frozenset((w,) for w in words)
+
+
+def _labels_part(template: Template, have: frozenset[tuple[str, ...]]) -> float | None:
     """Share of the template's label phrases found in the PDF's text; None without labels."""
     phrases = _label_phrases(template)
     if not phrases:
         return None
-    words = _WORDS.findall(_normalize(" ".join(page.get_text("text") for page in doc)).lower())
-    have: set[tuple[str, ...]] = set(zip(words, words[1:])) | {(w,) for w in words}
     return len(phrases & have) / len(phrases)
 
 
@@ -287,7 +292,41 @@ def _pct(x: float) -> int:
     return round(100 * x)
 
 
-def similarity(template: Template, pdf: str | Path | bytes) -> Similarity:
+@dataclass(frozen=True)
+class PdfFeatures:
+    """What :func:`similarity` reads from a PDF, computed once by :func:`pdf_features`.
+
+    Comparing one PDF with many templates computes these once and passes them to every call.
+    Treat it as opaque: its fields can change with the scoring.
+    """
+
+    fingerprint: str
+    fingerprint_blind: str  # the fingerprint with field values ignored
+    page_sizes: tuple[tuple[float, float], ...]
+    signature: FormSignature
+    phrases: frozenset[tuple[str, ...]]
+
+
+def pdf_features(pdf: str | Path | bytes) -> PdfFeatures:
+    """The parts of ``pdf`` that :func:`similarity` compares, for ``similarity(..., features=...)``.
+
+    Raises:
+        FormcastError: "encrypted PDF" or "cannot open PDF".
+    """
+    doc = open_pdf(pdf)
+    try:
+        return PdfFeatures(
+            fingerprint=fingerprint_document(doc),
+            fingerprint_blind=fingerprint_document(doc, ignore_field_values=True),
+            page_sizes=tuple(_sizes(doc)),
+            signature=compute_signature(doc),
+            phrases=_pdf_phrases(doc),
+        )
+    finally:
+        doc.close()
+
+
+def similarity(template: Template, pdf: str | Path | bytes, *, features: PdfFeatures | None = None) -> Similarity:
     """How alike ``template``'s form and ``pdf`` are (see :class:`Similarity`).
 
     * The same fingerprint (field values ignored) scores 1.0, ``basis`` "fingerprint".
@@ -298,31 +337,28 @@ def similarity(template: Template, pdf: str | Path | bytes) -> Similarity:
     * A template with no signature (older, or made in the browser) compares its field labels
       with the PDF's text plus page sizes, ``basis`` "labels", and the explanation says so.
 
+    ``features`` (from :func:`pdf_features` on the same PDF) skips reading ``pdf`` again; the
+    result is the same as without it. Use it to score one PDF against many templates.
+
     Raises:
         FormcastError: "encrypted PDF" or "cannot open PDF".
     """
-    doc = open_pdf(pdf)
-    try:
-        expected = template.form.fingerprint
-        if expected is not None and expected in (
-            fingerprint_document(doc),
-            fingerprint_document(doc, ignore_field_values=True),
-        ):
-            return Similarity(
-                score=1.0,
-                parts={"fingerprint": 1.0, "pages": 1.0, "text": 1.0, "ink": 1.0},
-                explanation="same blank form",
-                basis="fingerprint",
-            )
-        mine = [(float(w), float(h)) for w, h in template.form.page_sizes]
-        pages = _pages_part(mine, _sizes(doc))
-        pages_phrase = _pages_words(mine, _sizes(doc), pages)
-        if template.form.signature is None:
-            return _by_labels(template, doc, pages, pages_phrase)
-        sig = compute_signature(doc)
-    finally:
-        doc.close()
-    theirs = template.form.signature
+    f = features if features is not None else pdf_features(pdf)
+    expected = template.form.fingerprint
+    if expected is not None and expected in (f.fingerprint, f.fingerprint_blind):
+        return Similarity(
+            score=1.0,
+            parts={"fingerprint": 1.0, "pages": 1.0, "text": 1.0, "ink": 1.0},
+            explanation="same blank form",
+            basis="fingerprint",
+        )
+    mine = [(float(w), float(h)) for w, h in template.form.page_sizes]
+    sizes = list(f.page_sizes)
+    pages = _pages_part(mine, sizes)
+    pages_phrase = _pages_words(mine, sizes, pages)
+    if template.form.signature is None:
+        return _by_labels(template, f.phrases, pages, pages_phrase)
+    sig, theirs = f.signature, template.form.signature
     text, ink = _text_part(theirs, sig), _ink_part(theirs, sig)
     parts = {"pages": pages, "ink": ink}
     if text is None:
@@ -339,9 +375,9 @@ def similarity(template: Template, pdf: str | Path | bytes) -> Similarity:
     return Similarity(score=round(score, 4), parts=parts, explanation=explanation, basis="signature")
 
 
-def _by_labels(template: Template, doc: pymupdf.Document, pages: float, pages_phrase: str) -> Similarity:
+def _by_labels(template: Template, have: frozenset[tuple[str, ...]], pages: float, pages_phrase: str) -> Similarity:
     prefix = "template has no stored signature, so this compares its field labels and page sizes: "
-    found = _labels_part(template, doc)
+    found = _labels_part(template, have)
     if found is None:
         return Similarity(
             score=round(NO_LABELS_FACTOR * pages, 4),

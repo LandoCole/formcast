@@ -14,12 +14,17 @@ becomes a 500. A handler turns the ones it expects into answers where it calls t
 records or the documents: ``with missing("template"):`` makes a ``KeyError`` a 404, and
 ``with bad_request():`` makes a ``ValueError`` (a bad template name) a 400.
 
+Routes (see spec 11.2): documents, matches, seed, apply, rebind, fill, smart-pdf, the template store
+and the record source. Everything that touches MuPDF takes ``PYMUPDF_LOCK`` (directly for fills,
+smart PDFs and rebinds; inside ``Doc`` for the form map and the match features).
+
 Handlers are small methods registered in ``Api._add_routes``; they return a JSON-able value
 (sent as 200) or a ``Response``.
 """
 
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import re
@@ -30,12 +35,15 @@ from email import policy
 from email.parser import BytesParser
 from typing import Any
 
-from demo.server.documents import MAX_DPI, MIN_DPI, Documents
+import pydantic
+
+from demo.server.documents import MAX_DPI, MIN_DPI, PYMUPDF_LOCK, Doc, Documents
 from demo.server.records import MultiRecords, RecordSource, RecordSourceError
 from demo.server.settings import Settings
 from demo.server.store import NAME_RE, FolderTemplateStore, StoredTemplateError, TemplateStore
-from formcast import FormcastError
+from formcast import FormcastError, OpContext, OpError, Template, apply, fill, rebind, similarity, to_smart_pdf
 from formcast.llm import Provider
+from formcast.template.model import new_template
 
 log = logging.getLogger("demo.server")
 
@@ -186,6 +194,19 @@ class Api:
         self._add("GET", r"/api/forms", self.forms)
         self._add("POST", r"/api/documents", self.create_document)
         self._add("GET", r"/api/documents/(?P<doc>[0-9a-f]{32})/pages/(?P<n>\d{1,6})\.png", self.page_image)
+        self._add("GET", r"/api/documents/(?P<doc>[0-9a-f]{32})/matches", self.matches)
+        self._add("POST", r"/api/seed", self.seed)
+        self._add("POST", r"/api/apply", self.apply_op)
+        self._add("POST", r"/api/rebind", self.rebind_template)
+        self._add("POST", r"/api/fill", self.fill_pdf)
+        self._add("POST", r"/api/smart-pdf", self.smart_pdf)
+        self._add("GET", r"/api/templates", self.list_templates)
+        self._add("GET", r"/api/templates/(?P<name>.+)", self.get_template)
+        self._add("PUT", r"/api/templates/(?P<name>.+)", self.put_template)
+        self._add("DELETE", r"/api/templates/(?P<name>.+)", self.delete_template)
+        self._add("GET", r"/api/schemas", self.schemas)
+        self._add("GET", r"/api/records", self.list_records)
+        self._add("GET", r"/api/records/(?P<schema>[^/]+)/(?P<id>[^/]+)", self.get_record)
 
     # ------------------------------------------------------------ routes
 
@@ -245,6 +266,226 @@ class Api:
         except IndexError:
             raise ApiError(404, "not_found", f"this document has {doc.page_count} pages") from None
         return Response(200, {"Content-Type": "image/png", "Cache-Control": "private, max-age=3600"}, png)
+
+    # ---- templates: seed, edit, rebind, match
+
+    def seed(self, req: Request) -> dict:
+        """``{doc, schema}`` -> ``{template}``: an empty template with a field per widget and per detector candidate.
+
+        ``schema`` is a JSON Schema object, or the name of a schema the record source has.
+        """
+        payload = _object(req)
+        doc = self._doc(payload)
+        schema = payload.get("schema")
+        if isinstance(schema, str):
+            with missing("schema"):
+                schema = self.records.schemas()[schema]
+        if not isinstance(schema, dict):
+            raise ApiError(400, "bad_schema", "send schema as a JSON Schema object or the name of a stored schema")
+        form_map = doc.form_map()  # takes the MuPDF lock itself
+        return {"template": _dump(new_template(schema, form_map, candidates=True))}
+
+    def apply_op(self, req: Request) -> dict:
+        """``{template, op, author, note?, doc?}`` -> ``{template, warnings}``; a rejected op is 422 ``op_rejected``.
+
+        With ``doc`` and a template made for that PDF, widget links are checked against the PDF's
+        widget names and kinds; otherwise only against the template's own schema and page sizes.
+        """
+        payload = _object(req)
+        template = _template(payload)
+        op = payload.get("op")
+        if op is None:
+            raise ApiError(400, "bad_request", "send the edit as op")
+        author = payload.get("author")
+        if author not in ("human", "agent"):
+            raise ApiError(400, "bad_author", 'author must be "human" or "agent"')
+        note = payload.get("note", "")
+        if not isinstance(note, str):
+            raise ApiError(400, "bad_request", "note must be text")
+        context = None
+        if payload.get("doc") is not None:
+            doc = self._doc(payload)
+            if doc.has_fingerprint(template.form.fingerprint):
+                context = OpContext.from_template(template, doc.form_map())
+        try:
+            updated, warnings = apply(template, op, author=author, note=note, context=context)
+        except OpError as exc:
+            raise ApiError(422, "op_rejected", exc.reason) from None
+        return {"template": _dump(updated), "warnings": warnings}
+
+    def rebind_template(self, req: Request) -> dict:
+        """``{template, doc}`` -> ``{template}`` carrying the PDF's fingerprint, page kinds and signature."""
+        payload = _object(req)
+        template = _template(payload)
+        doc = self._doc(payload)
+        form_map = doc.form_map()
+        try:
+            with PYMUPDF_LOCK:
+                rebound = rebind(template, doc.bytes, form_map=form_map)
+        except FormcastError as exc:
+            raise ApiError(422, "cannot_rebind", str(exc)) from None
+        return {"template": _dump(rebound)}
+
+    def matches(self, req: Request) -> list[dict]:
+        """Every stored template scored against this document, best first, each with a suggested action.
+
+        The PDF is read once (``Doc.features``) and the same features score every template. A stored
+        file that is not a template is left out and logged.
+        """
+        with missing("document"):
+            doc = self.documents.get(req.match["doc"])
+        features = doc.features()
+        out = []
+        for entry in self.store.list():
+            try:
+                template = self.store.get(entry["name"])
+            except KeyError:  # deleted since the listing
+                continue
+            except StoredTemplateError as exc:
+                log.warning("matches: skipping %s", exc)
+                continue
+            result = similarity(template, doc.bytes, features=features)
+            out.append({
+                "name": entry["name"],
+                "template_id": template.template_id,
+                "score": result.score,
+                "basis": result.basis,
+                "explanation": result.explanation,
+                "action": self._action(result.score),
+            })  # fmt: skip
+        out.sort(key=lambda m: (-m["score"], m["name"]))
+        return out
+
+    def _action(self, score: float) -> str:
+        if score >= self.settings.reuse_threshold:
+            return "reuse"
+        return "adapt" if score >= self.settings.adapt_threshold else "new"
+
+    # ---- fill
+
+    def fill_pdf(self, req: Request) -> dict:
+        """``{template, doc, record?, record_ref?: {schema, id}}`` -> ``{pdf_base64, report}`` (plus ``fingerprint_note``)."""
+        payload = _object(req)
+        template = _template(payload)
+        doc = self._doc(payload)
+        data = self._record(payload)
+        check = doc.has_fingerprint(template.form.fingerprint)
+        with PYMUPDF_LOCK:
+            pdf, report = fill(template, doc.bytes, data, check_fingerprint=check)
+        out: dict[str, Any] = {"pdf_base64": base64.b64encode(pdf).decode("ascii"), "report": report.model_dump(mode="json")}
+        if not check:
+            out["fingerprint_note"] = _fingerprint_note(template)
+        return out
+
+    def smart_pdf(self, req: Request) -> dict:
+        """``{template, doc}`` -> ``{pdf_base64}``: the PDF with an empty form field for every template field it lacks."""
+        payload = _object(req)
+        template = _template(payload)
+        doc = self._doc(payload)
+        check = doc.has_fingerprint(template.form.fingerprint)
+        with PYMUPDF_LOCK:
+            pdf = to_smart_pdf(template, doc.bytes, check_fingerprint=check)
+        out: dict[str, Any] = {"pdf_base64": base64.b64encode(pdf).decode("ascii")}
+        if not check:
+            out["fingerprint_note"] = _fingerprint_note(template)
+        return out
+
+    def _record(self, payload: dict) -> dict:
+        """The record to fill with: ``record`` as sent, or ``record_ref`` read from the record source."""
+        record, ref = payload.get("record"), payload.get("record_ref")
+        if record is not None and ref is not None:
+            raise ApiError(400, "bad_request", "send record or record_ref, not both")
+        if ref is not None:
+            if not (isinstance(ref, dict) and isinstance(ref.get("schema"), str) and isinstance(ref.get("id"), str)):
+                raise ApiError(400, "bad_request", 'record_ref must look like {"schema": "<name>", "id": "<id>"}')
+            with missing("record"):
+                return self.records.get(ref["schema"], ref["id"])
+        if record is None:
+            return {}
+        if not isinstance(record, dict):
+            raise ApiError(400, "bad_request", "record must be a JSON object")
+        return record
+
+    def _doc(self, payload: dict) -> Doc:
+        doc_id = payload.get("doc")
+        if not isinstance(doc_id, str):
+            raise ApiError(400, "bad_request", "send doc as the document id")
+        with missing("document"):
+            return self.documents.get(doc_id)
+
+    # ---- template store
+
+    def list_templates(self, req: Request) -> dict:
+        return {"templates": self.store.list()}
+
+    def get_template(self, req: Request) -> dict:
+        with missing("template"), bad_request():
+            return {"template": _dump(self.store.get(req.match["name"]))}
+
+    def put_template(self, req: Request) -> dict:
+        """Save the body's ``template`` under this name (replacing any with that name)."""
+        template = _template(_object(req))
+        with bad_request():
+            self.store.put(req.match["name"], template)
+        return {"name": req.match["name"], "template_id": template.template_id}
+
+    def delete_template(self, req: Request) -> dict:
+        with missing("template"), bad_request():
+            self.store.delete(req.match["name"])
+        return {"deleted": req.match["name"]}
+
+    # ---- schemas and records
+
+    def schemas(self, req: Request) -> dict:
+        return {"schemas": self.records.schemas()}
+
+    def list_records(self, req: Request) -> dict:
+        schema = req.query.get("schema")
+        if not schema:
+            raise ApiError(400, "bad_request", "send ?schema=<name>")
+        with missing("schema"):
+            return {"schema": schema, "records": self.records.list(schema)}
+
+    def get_record(self, req: Request) -> dict:
+        with missing("record"):
+            return {"record": self.records.get(req.match["schema"], req.match["id"])}
+
+
+def _object(req: Request) -> dict:
+    """The JSON body, which must be an object."""
+    payload = req.json()
+    if not isinstance(payload, dict):
+        raise ApiError(400, "bad_json", "send a JSON object")
+    return payload
+
+
+def _template(payload: dict) -> Template:
+    """``payload["template"]`` as a ``Template``. A template that doesn't validate is a 400 naming the first problem."""
+    raw = payload.get("template")
+    if not isinstance(raw, dict):
+        raise ApiError(400, "bad_template", "send template as a JSON object")
+    try:
+        return Template.model_validate(raw)
+    except pydantic.ValidationError as exc:
+        first = exc.errors()[0]
+        where = ".".join(str(part) for part in first["loc"])
+        raise ApiError(400, "bad_template", f"this is not a valid template: {where or 'template'}: {first['msg']}") from None
+
+
+def _dump(template: Template) -> dict:
+    return template.model_dump(by_alias=True, mode="json")
+
+
+def _fingerprint_note(template: Template) -> str:
+    if template.form.fingerprint is None:
+        return (
+            "This template has no fingerprint (it was made in the browser or before fingerprints existed), so the "
+            "check that it was made for this PDF was skipped. Rebind it to this PDF to record one."
+        )
+    return (
+        "This PDF is not the exact form the template was built for (its fingerprint differs), so the check was "
+        "skipped and the PDF was filled anyway. Rebind the template to this PDF if it is a new revision."
+    )
 
 
 def _default_records(settings: Settings) -> RecordSource:

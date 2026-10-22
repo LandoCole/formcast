@@ -272,3 +272,30 @@ def test_bad_pdf_raises_formcast_error(fw9_template):
 
     with pytest.raises(FormcastError):
         similarity(fw9_template, b"not a pdf")
+
+
+def test_precomputed_features_give_the_same_result_for_every_template(
+    fw9_template, wadoc_template, fw9_edited_bytes, fw9_filled_bytes, wadoc_fake_scan_bytes
+):
+    from formcast.match import PdfFeatures, pdf_features
+
+    unsigned = labelled(FW9).model_copy(deep=True)
+    unsigned.form.signature = None
+    unsigned.form.fingerprint = None
+    templates = [fw9_template, wadoc_template, unsigned, labelled(WADOC)]
+    for pdf in (FW9.read_bytes(), fw9_edited_bytes, fw9_filled_bytes, wadoc_fake_scan_bytes):
+        features = pdf_features(pdf)  # once for the PDF, reused for every template
+        assert isinstance(features, PdfFeatures)
+        for t in templates:
+            assert similarity(t, pdf, features=features) == similarity(t, pdf)
+    # the features stand in for the PDF: the PDF argument is not read when they are given
+    features = pdf_features(fw9_edited_bytes)
+    assert similarity(fw9_template, b"not a pdf", features=features) == similarity(fw9_template, fw9_edited_bytes)
+
+
+def test_pdf_features_of_a_bad_pdf_raises_formcast_error():
+    from formcast import FormcastError
+    from formcast.match import pdf_features
+
+    with pytest.raises(FormcastError):
+        pdf_features(b"not a pdf")

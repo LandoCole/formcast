@@ -13,6 +13,7 @@ import struct
 import subprocess
 import sys
 import threading
+import time
 import uuid
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -605,7 +606,8 @@ def raw_exchange(base: str, payload: bytes, wait: float = 1.0) -> bytes:
 def test_an_unread_body_cannot_smuggle_a_second_request(start_demo_server):
     base = start_demo_server()
     host = base.removeprefix("http://")
-    inner = f"POST /api/documents HTTP/1.1\r\nHost: {host}\r\nContent-Type: application/json\r\nContent-Length: 15\r\n\r\n" + '{"form":"fw9"}'
+    inner_body = '{"form":"fw9"}'
+    inner = f"POST /api/documents HTTP/1.1\r\nHost: {host}\r\nContent-Type: application/json\r\nContent-Length: {len(inner_body)}\r\n\r\n{inner_body}"
     outer = (
         f"POST /showcase/ HTTP/1.1\r\nHost: {host}\r\nOrigin: http://evil.example\r\n"
         f"Content-Length: {len(inner)}\r\n\r\n{inner}"
@@ -620,7 +622,8 @@ def test_no_early_exit_leaves_a_body_to_be_parsed_as_the_next_request(start_demo
     base = start_demo_server()
     api = start_demo_server.servers[-1].api
     host = base.removeprefix("http://")
-    inner = f"POST /api/documents HTTP/1.1\r\nHost: {host}\r\nContent-Type: application/json\r\nContent-Length: 15\r\n\r\n" + '{"form":"fw9"}'
+    inner_body = '{"form":"fw9"}'
+    inner = f"POST /api/documents HTTP/1.1\r\nHost: {host}\r\nContent-Type: application/json\r\nContent-Length: {len(inner_body)}\r\n\r\n{inner_body}"
     head = lambda line, extra="": f"{line} HTTP/1.1\r\nHost: {host}\r\n{extra}Content-Length: {len(inner)}\r\n\r\n{inner}".encode()  # noqa: E731
     attempts = [
         head("POST /showcase/"),  # static 405
@@ -640,6 +643,61 @@ def test_no_early_exit_leaves_a_body_to_be_parsed_as_the_next_request(start_demo
     # a well-formed pipeline of two requests still works on one connection
     two = f"GET /api/capabilities HTTP/1.1\r\nHost: {host}\r\n\r\nGET /api/forms HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n".encode()
     assert raw_exchange(base, two).count(b"HTTP/1.1 200") == 2
+
+
+def test_the_smuggled_request_in_those_tests_is_complete_and_would_be_served_if_parsed(start_demo_server):
+    # Guards the two tests above: a well-formed inner request really does open a document when sent alone,
+    # so "no document, one response" means the server did not parse it.
+    base = start_demo_server()
+    host = base.removeprefix("http://")
+    inner_body = '{"form":"fw9"}'
+    inner = (
+        f"POST /api/documents HTTP/1.1\r\nHost: {host}\r\nContent-Type: application/json\r\n"
+        f"Content-Length: {len(inner_body)}\r\nConnection: close\r\n\r\n{inner_body}"
+    ).encode()
+    assert raw_exchange(base, inner).startswith(b"HTTP/1.1 200")
+    assert len(start_demo_server.servers[-1].api.documents) == 1
+
+
+def test_a_request_with_two_content_length_headers_is_refused_and_closed(start_demo_server):
+    base = start_demo_server()
+    host = base.removeprefix("http://")
+    body = '{"form":"fw9"}'
+    second = f"POST /api/documents HTTP/1.1\r\nHost: {host}\r\nContent-Length: {len(body)}\r\n\r\n{body}"
+    payload = (
+        f"POST /api/documents HTTP/1.1\r\nHost: {host}\r\nContent-Type: application/json\r\n"
+        f"Content-Length: 0\r\nContent-Length: {len(second)}\r\n\r\n{second}"
+    ).encode()
+    answer = raw_exchange(base, payload)
+    assert answer.count(b"HTTP/1.1 ") == 1 and answer.startswith(b"HTTP/1.1 400")
+    assert b"connection: close" in answer.lower()
+    assert len(start_demo_server.servers[-1].api.documents) == 0
+    # GET with two lengths is refused too
+    answer = raw_exchange(base, f"GET /api/capabilities HTTP/1.1\r\nHost: {host}\r\nContent-Length: 0\r\nContent-Length: 0\r\n\r\n".encode())
+    assert answer.startswith(b"HTTP/1.1 400")
+
+
+def test_a_client_that_stalls_mid_body_is_closed_quietly(start_demo_server, caplog):
+    import socket
+
+    base = start_demo_server()
+    handler = start_demo_server.servers[-1].RequestHandlerClass
+    handler.timeout = 0.3
+    try:
+        parts = urlsplit(base)
+        with caplog.at_level(logging.INFO, logger="demo.server"):
+            with socket.create_connection((parts.hostname, parts.port), timeout=10) as sock:
+                sock.sendall(
+                    f"POST /api/documents HTTP/1.1\r\nHost: {parts.netloc}\r\nContent-Type: application/json\r\n"
+                    "Content-Length: 14\r\n\r\n{\"form\"".encode()
+                )  # promises 14 bytes, sends 7, then goes quiet
+                assert sock.recv(1024) == b""  # closed with no answer
+            time.sleep(0.2)
+    finally:
+        handler.timeout = 30
+    assert not [r for r in caplog.records if r.levelno >= logging.ERROR], caplog.text
+    assert "Traceback" not in caplog.text and "stalled" in caplog.text
+    assert http_request(base, "GET", "/api/capabilities")[0] == 200
 
 
 def test_a_request_under_another_host_name_is_refused(demo_server):
@@ -847,6 +905,29 @@ def test_the_command_line_builds_a_server_from_flags_and_a_mapping(tmp_path):
         assert httpd.api.provider_factory is None
     finally:
         httpd.server_close()
+
+
+def test_a_wildcard_bind_prints_a_url_that_works_and_says_how_to_serve_the_network(tmp_path, capsys, monkeypatch):
+    from demo.server import __main__ as entry
+
+    class Stub:
+        server_address = ("0.0.0.0", 8765)
+
+        def serve_forever(self):
+            raise KeyboardInterrupt
+
+        def server_close(self):
+            pass
+
+    monkeypatch.setattr(entry, "build", lambda argv=None: Stub())
+    assert entry.main(["--host", "0.0.0.0"]) == 0
+    out = capsys.readouterr()
+    assert "http://127.0.0.1:8765/workbench/" in out.out and "0.0.0.0:8765" not in out.out
+    assert "--host" in out.err and "another machine" in out.err
+    Stub.server_address = ("192.168.1.5", 9000)
+    assert entry.main([]) == 0
+    out = capsys.readouterr()
+    assert "http://192.168.1.5:9000/workbench/" in out.out and "--host" not in out.err.split("Warning")[0]
 
 
 def test_python_dash_m_demo_server_runs_without_formcast_installed():

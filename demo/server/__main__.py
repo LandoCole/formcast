@@ -25,6 +25,9 @@ from demo.server.server import make_server
 from demo.server.settings import Settings
 
 
+WILDCARD_HOSTS = ("0.0.0.0", "::", "")
+
+
 def build(argv: Sequence[str] | None = None, env: Mapping[str, str] | None = None) -> ThreadingHTTPServer:
     """The server for these command-line flags. Settings come from ``env`` (default: ``.env`` plus the environment)."""
     parser = argparse.ArgumentParser(prog="python -m demo.server", description="Run the formcast workbench on this machine.")
@@ -50,7 +53,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"Cannot start the workbench: {exc}", file=sys.stderr)
         return 2
     host, port = httpd.server_address[:2]
-    print(f"Workbench: http://{host}:{port}/workbench/", flush=True)
+    if host in WILDCARD_HOSTS:
+        # The server refuses any Host header that is not loopback or its bind address, so the wildcard
+        # address itself is not a URL anyone can open.
+        print(f"Workbench: http://127.0.0.1:{port}/workbench/", flush=True)
+        print(
+            f"Listening on every address ({host}). Only this machine's own URL works; to use the workbench "
+            "from another machine on your network, bind that machine's IP with --host.",
+            file=sys.stderr,
+        )
+    else:
+        print(f"Workbench: http://{host}:{port}/workbench/", flush=True)
     if host not in ("127.0.0.1", "localhost", "::1"):
         print(f"Warning: listening on {host}. Anyone who can reach this machine can use the workbench.", file=sys.stderr)
     try:
