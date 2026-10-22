@@ -2,12 +2,25 @@
 // ops.js applies edits and pdf-lib fills. No AI, no stores, no records database.
 //
 // The detector and the fill (with pdf-lib) are imported on first use, so a page that only opens
-// PDFs and edits templates never downloads them.
+// PDFs and edits templates never downloads them. When that import fails (the connection dropped),
+// the call fails with PART_FAILED, a plain message, rather than the browser's own.
 
 import { assertEngine } from "../../core/engine.js";
 import { OpError, applyOp, contextFromTemplate } from "../../core/ops.js";
 import { openPdf } from "./document.js";
 import { seedTemplate } from "./seed.js";
+
+/** The message when a part of the page loaded on first use (the detector, the fill) can't be fetched. */
+export const PART_FAILED = "Part of the page didn't load. Check the connection and try again.";
+
+/** `import()` that fails with PART_FAILED (the browser's error kept as `cause`). */
+async function importPart(load) {
+  try {
+    return await load();
+  } catch (e) {
+    throw new Error(PART_FAILED, { cause: e });
+  }
+}
 
 /**
  * Widget name -> kinds of every widget with that name, over the whole document (Python's
@@ -36,14 +49,14 @@ export function createBrowserEngine({ workerUrl, detectorModel = "S" } = {}) {
 
   async function detector(model) {
     if (!detectors.has(model)) {
-      const { Detector } = await import("./detect.js");
+      const { Detector } = await importPart(() => import("./detect.js"));
       if (!detectors.has(model)) detectors.set(model, new Detector({ model, workerUrl }));
     }
     return detectors.get(model);
   }
 
   function filler() {
-    fillModule ??= import("../../core/fill/index.js").catch((e) => {
+    fillModule ??= importPart(() => import("../../core/fill/index.js")).catch((e) => {
       fillModule = null;
       throw e;
     });

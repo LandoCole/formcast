@@ -593,6 +593,64 @@ def test_a_hung_sample_file_times_out_and_keeps_the_page(open_tool):
     assert tool.page.inner_text("#detect-status") == ""
 
 
+HANG_OPEN = """(() => {
+  const real = Blob.prototype.arrayBuffer;
+  Blob.prototype.arrayBuffer = function () {
+    return this.name === "hang.pdf" ? new Promise(() => {}) : real.call(this);
+  };
+})();"""
+PART_FAILED = "Part of the page didn't load. Check the connection and try again."
+
+
+def test_a_pdf_that_never_opens_times_out_and_keeps_the_page(open_tool):
+    """A stand-in for a hung pdf.js open: the dropped file's bytes never arrive."""
+    tool = open_tool(timeout=500, init_script=HANG_OPEN)
+    before = tool.boxes().count()
+    tool.drop("hang.pdf", (BUNDLE / "form.pdf").read_bytes())
+    msg = tool.page.locator("#detect-msg")
+    msg.wait_for(timeout=5000)
+    assert msg.inner_text() == "This file took more than 1 second to open. Try again, or try a smaller PDF."
+    assert tool.boxes().count() == before
+    assert "IRS W-9" in tool.page.inner_text("#docline")
+    assert tool.page.inner_text("#detect-status") == ""
+    # the next file opens as usual
+    tool.drop("form.pdf", (BUNDLE / "form.pdf").read_bytes())
+    tool.wait_boxes(CANNED_BOXES)
+    assert msg.is_hidden()
+
+
+def test_a_fill_that_never_finishes_times_out(open_tool):
+    tool = open_tool(timeout=500)
+    tool.page.route(re.compile(r"pdf-lib"), lambda route: None)  # pdf-lib never arrives
+    tool.step("fill")
+    msg = tool.page.locator("#fill-msg")
+    tool.page.click("#fill")
+    tool.page.wait_for_function("document.getElementById('fill-msg').textContent.includes('took more than')", timeout=5000)
+    assert msg.inner_text() == "That didn't work: Filling took more than 1 second. Try again."
+    assert not tool.page.is_disabled("#fill")
+    tool.page.click("#smart")
+    tool.page.wait_for_function("document.getElementById('fill-msg').textContent.includes('fillable PDF took')", timeout=5000)
+    assert msg.inner_text() == "That didn't work: Making the fillable PDF took more than 1 second. Try again."
+
+
+def test_a_part_that_fails_to_load_says_so_plainly(open_tool):
+    tool = open_tool()
+    tool.page.route(re.compile(r"pdf-lib"), lambda route: route.abort())
+    tool.page.route(re.compile(r"engines/browser/detect\.js"), lambda route: route.abort())
+    tool.step("fill")
+    tool.page.click("#fill")
+    tool.page.wait_for_function("document.getElementById('fill-msg').textContent.includes('load')", timeout=5000)
+    assert tool.page.inner_text("#fill-msg") == f"That didn't work: {PART_FAILED}"
+    tool.step("detect")
+    before = tool.boxes().count()
+    tool.page.click("#run-live")
+    msg = tool.page.locator("#detect-msg")
+    msg.wait_for(timeout=5000)
+    assert PART_FAILED in msg.inner_text()
+    assert "dynamically imported" not in msg.inner_text()
+    assert tool.boxes().count() == before
+
+
 # ---------------------------------------------------------------- the real sample bundles
 
 REAL_SAMPLES = ROOT / "demo" / "web" / "showcase" / "samples"
@@ -635,3 +693,17 @@ def test_each_real_sample_loads_by_id_with_boxes_and_the_agent_template(open_too
     assert tool.page.locator("#detect-msg").is_hidden()
     assert tool.requested(MODEL) == []
     assert tool.errors == []
+
+
+def test_a_failed_sample_switch_keeps_the_picker_on_the_open_sample(open_tool):
+    tool = open_tool(samples=None, worker=None, wait=False)
+    index = json.loads((REAL_SAMPLES / "index.json").read_text())
+    first, other = index[0]["id"], index[1]["id"]
+    tool.wait_boxes()
+    tool.page.route(re.compile(rf"/samples/{other}/manifest\.json$"), lambda route: route.abort())
+    tool.page.select_option("#sample", other)
+    msg = tool.page.locator("#detect-msg")
+    msg.wait_for()
+    assert msg.inner_text().startswith("This sample couldn't be opened.")
+    assert tool.page.input_value("#sample") == first
+    assert index[0]["title"] in tool.page.inner_text("#docline")

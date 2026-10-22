@@ -8,6 +8,7 @@
 
 import { iou } from "../core/geometry.js";
 import { checkTemplate, checkTemplateFits, recall, remember } from "../core/store.js";
+import { fetchWithin, seconds, withinTime } from "./limits.js";
 
 /**
  * How many of `originals` some box overlaps with IoU >= `threshold`, pairing each box with at most
@@ -39,24 +40,6 @@ export function matchCount(originals, boxes, threshold = 0.5) {
 const PROVIDERS = { webgpu: "WebGPU", wasm: "WebAssembly" };
 
 const MODEL_MB = { S: 38, L: 102 };
-
-/**
- * Fetch `url` and read its body with `read`, failing with a plain message on an HTTP error or
- * when the whole request takes longer than `ms`.
- */
-async function fetchWithin(url, ms, read) {
-  const name = url.pathname.split("/").pop();
-  try {
-    const res = await fetch(url, { signal: AbortSignal.timeout(ms) });
-    if (!res.ok) throw new Error(`${name} could not be loaded (HTTP ${res.status}).`);
-    return await read(res);
-  } catch (e) {
-    if (e?.name === "TimeoutError" || e?.name === "AbortError") {
-      throw new Error(`${name} took more than ${Math.round(ms / 1000)} seconds to load. Check the connection and try again.`);
-    }
-    throw e;
-  }
-}
 
 /** "FFDNet-S-onnx" -> "FFDNet-S". */
 function modelName(model) {
@@ -180,6 +163,7 @@ export function mountDetect(app) {
       if (mine !== opening) return false;
       say(msg, `This sample couldn't be opened. ${e.message}`);
       status("");
+      $("sample").value = state.sample?.id ?? ""; // the picker shows the form that is still open
       return false;
     }
     return true;
@@ -266,15 +250,23 @@ export function mountDetect(app) {
     $("live-note").hidden = true;
     status(`Opening ${file.name}…`);
     const schema = app.template?.schema ?? state.sample?.schema ?? { type: "object", properties: {} };
+    const work = (async () => {
+      const opened = await engine.open(new Uint8Array(await file.arrayBuffer()));
+      try {
+        return { doc: opened, template: await engine.seed(opened, schema) };
+      } catch (e) {
+        opened.destroy().catch(() => {});
+        throw e;
+      }
+    })();
+    const late = `This file took more than ${seconds(app.openTimeoutMs)} to open. Try again, or try a smaller PDF.`;
     let doc;
     let template;
     try {
-      doc = await engine.open(new Uint8Array(await file.arrayBuffer()));
-      template = await engine.seed(doc, schema);
+      ({ doc, template } = await withinTime(work, app.openTimeoutMs, late, { onLate: (out) => dropLate(out.doc) }));
     } catch (e) {
-      if (doc) doc.destroy().catch(() => {});
       if (mine !== opening) return;
-      say(msg, e?.name === "DocError" ? e.message : "This file couldn't be opened.");
+      say(msg, e?.name === "DocError" || e?.name === "TimeLimitError" ? e.message : "This file couldn't be opened.");
       status("");
       return;
     }

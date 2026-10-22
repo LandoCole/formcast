@@ -1,9 +1,11 @@
 // The Fill step: the record as editable JSON, Fill (downloads the filled PDF and shows the
 // report), a fillable empty PDF, and saving or loading the template JSON. pdf-lib loads on the
-// first fill (the engine imports it then).
+// first fill (the engine imports it then). Filling and making the fillable PDF have a time limit
+// (app.fillTimeoutMs), loading pdf-lib included; a result that comes after it is dropped.
 
 import { renderReport } from "../core/report.js";
 import { checkTemplateFits, downloadTemplate, readTemplateFile } from "../core/store.js";
+import { seconds, withinTime } from "./limits.js";
 
 const PROTECTED =
   "This PDF is protected against changes, so it can't be filled in the browser. The full library can fill it.";
@@ -67,7 +69,8 @@ export function mountFill(app) {
     const parsed = readRecord();
     if (parsed === null) return;
     run("Filling…", async () => {
-      const { pdfBytes, report } = await engine.fill(app.template, state.doc, parsed.record);
+      const late = `Filling took more than ${seconds(app.fillTimeoutMs)}. Try again.`;
+      const { pdfBytes, report } = await withinTime(engine.fill(app.template, state.doc, parsed.record), app.fillTimeoutMs, late);
       downloadBytes(pdfBytes, `${stem()}-filled.pdf`);
       renderReport($("report"), report);
       const n = report.counts?.fields_written ?? 0;
@@ -77,7 +80,8 @@ export function mountFill(app) {
 
   $("smart").addEventListener("click", () => {
     run("Making the fillable PDF…", async () => {
-      const bytes = await engine.smartPdf(app.template, state.doc);
+      const late = `Making the fillable PDF took more than ${seconds(app.fillTimeoutMs)}. Try again.`;
+      const bytes = await withinTime(engine.smartPdf(app.template, state.doc), app.fillTimeoutMs, late);
       downloadBytes(bytes, `${stem()}-fillable.pdf`);
       say(msg, "The fillable empty PDF is downloading: a form field for every box.");
     });

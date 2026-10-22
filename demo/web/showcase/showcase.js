@@ -4,8 +4,8 @@
 // The write-up's Results section renders from results.json (results.js).
 //
 // Test hooks: `?samples=<dir>/` (the folder holding index.json), `?worker=<url>` (a stand-in
-// detection worker) and `?timeout=<ms>` (the sample fetch time limit) are honoured only when the
-// page is served from localhost or 127.0.0.1.
+// detection worker) and `?timeout=<ms>` (every time limit below: fetching sample files, opening a
+// visitor's PDF, filling) are honoured only when the page is served from localhost or 127.0.0.1.
 
 import { createBus } from "../core/bus.js";
 import { makeView, viewSize } from "../core/geometry.js";
@@ -48,8 +48,10 @@ const samplesBase = override("samples") ?? new URL("samples/", location.href);
 if (!samplesBase.pathname.endsWith("/")) samplesBase.pathname += "/";
 const workerUrl = override("worker") ?? undefined;
 const timeoutParam = LOCAL ? Number(params.get("timeout")) : NaN;
-/** Time limit for fetching sample files, in ms. */
+/** Time limits in ms: fetching a sample file, opening a visitor's PDF, filling or making a fillable PDF. */
 const FETCH_TIMEOUT_MS = timeoutParam > 0 ? timeoutParam : 20_000;
+const OPEN_TIMEOUT_MS = timeoutParam > 0 ? timeoutParam : 30_000;
+const FILL_TIMEOUT_MS = timeoutParam > 0 ? timeoutParam : 60_000;
 const touch = detectTouch();
 
 const bus = createBus();
@@ -90,6 +92,8 @@ const app = {
   touch, // tap to link, no drag, the model choice hidden (FFDNet-S)
   liveOff: detectLiveOff(touch), // live detection waits for the visitor to confirm the download
   fetchTimeoutMs: FETCH_TIMEOUT_MS,
+  openTimeoutMs: OPEN_TIMEOUT_MS,
+  fillTimeoutMs: FILL_TIMEOUT_MS,
   say,
 
   /** The template on screen, or null before a document is open. */
