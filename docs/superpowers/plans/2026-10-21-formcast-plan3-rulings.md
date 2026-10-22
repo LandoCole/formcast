@@ -29,4 +29,4 @@
 - Ruling B: the 24 `defer-placement` templates reproduce the committed results exactly and are archived in `eval/results/templates.tar.gz`.
 - Ruling C: pdf-lib 1.17.1 fill findings: comb, custom `choice_mark` appearance, unencodable text kept in the value, rotated pages via `/MK /R`, encrypted PDFs refused, library text widths reproduced (including its under-measuring of accented text), XFA dropped.
 - Ruling D: FFDNet-S in the browser runs on WebAssembly in headless Chromium at about 2.7 s per page, with 97.9% pairing against the library's detector.
-- Final run (Task 16): node suite, full Python suite, slow set and `export_conformance.py --check` all pass; see the Task 16 report for counts.
+- Final run (Task 16): `node --test "tests/web/*.test.js"` 1198 pass, 0 fail; `.venv/bin/python -m pytest -q` 1223 passed, 8 deselected; `-m slow tests/demo tests/pagemap/test_detect_onnx.py` 4 passed; `export_conformance.py --check` clean.
