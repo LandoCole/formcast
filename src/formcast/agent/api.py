@@ -9,7 +9,7 @@ from formcast.geometry import Rect
 from formcast.llm import LLMConfig, Provider
 from formcast.pagemap.build import build_form_map
 from formcast.pagemap.model import FormMap
-from formcast.template.model import Template, new_template
+from formcast.template.model import Template, form_info_for
 
 PdfInput = str | Path | bytes
 
@@ -38,7 +38,7 @@ def build_template(
     if start_from is not None:
         start = start_from.model_copy(deep=True)
         start.schema_ = schema
-        start.form = new_template(schema, fm).form
+        start.form = form_info_for(fm)
     return Session(fm, schema, llm, template=start, budget=budget, seed_candidates=seed_candidates).run()
 
 

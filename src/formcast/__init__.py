@@ -29,6 +29,7 @@ _LAZY = {
     "fingerprint": "formcast.match",
     "flatten_schema": "formcast.schema",
     "preview": "formcast.render.preview",
+    "rebind": "formcast.template.rebind",
     "revise": "formcast.agent.api",
     "similarity": "formcast.match",
     "to_smart_pdf": "formcast.render.fill",
@@ -50,6 +51,7 @@ if TYPE_CHECKING:
     from formcast.template import ops
     from formcast.template.coverage import coverage
     from formcast.template.model import Template
+    from formcast.template.rebind import rebind
     from formcast.template.ops import OpContext, apply
 
 
@@ -71,6 +73,6 @@ def __dir__() -> list[str]:
 __all__ = [
     "FillReport", "FormSignature", "FormcastError", "LLMConfig", "OpContext", "OpError", "SessionBudget",
     "SessionResult", "Similarity", "Template", "__version__", "apply", "build_form_map", "build_template",
-    "coverage", "errors", "fill", "fingerprint", "flatten_schema", "ops", "preview", "revise", "similarity",
+    "coverage", "errors", "fill", "fingerprint", "flatten_schema", "ops", "preview", "rebind", "revise", "similarity",
     "to_smart_pdf",
 ]  # fmt: skip

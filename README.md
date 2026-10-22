@@ -88,6 +88,8 @@ for w in report.warnings:                              # a checklist, sorted by 
 smart = to_smart_pdf(tpl, "intake.pdf")                # same form, empty fields to fill by hand
 ```
 
+Templates made in the browser demo have no fingerprint (`tpl.form.fingerprint is None`), so a checked fill refuses them. Call `tpl = formcast.rebind(tpl, "intake.pdf")` first: it checks the page count and sizes, then stamps this PDF's fingerprint, page kinds and signature onto a copy and leaves the fields alone.
+
 Templates built before 2026-10-21 (before the ink-map fingerprint) no longer match their PDF's fingerprint: fill them with `check_fingerprint=False`, or rebuild them.
 
 `report.warnings` is a flat list sorted by page and position. Record-level warnings
