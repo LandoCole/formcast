@@ -1,0 +1,138 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://example.org/schemas/employee-federal-withholding.json",
+ "title": "Employee federal withholding",
+ "description": "Payroll record of an employee's federal income tax withholding elections.",
+ "type": "object",
+ "properties": {
+  "employee_id": {
+   "type": "string",
+   "description": "Payroll employee number."
+  },
+  "employee": {
+   "type": "object",
+   "properties": {
+    "first_name": {
+     "type": "string"
+    },
+    "middle_name": {
+     "type": "string"
+    },
+    "last_name": {
+     "type": "string"
+    },
+    "ssn": {
+     "type": "string",
+     "pattern": "^\\d{3}-\\d{2}-\\d{4}$",
+     "description": "Formatted NNN-NN-NNNN."
+    },
+    "address": {
+     "$ref": "#/$defs/address"
+    }
+   },
+   "required": [
+    "first_name",
+    "last_name",
+    "ssn"
+   ]
+  },
+  "withholding": {
+   "type": "object",
+   "properties": {
+    "filing_status": {
+     "type": "string",
+     "enum": [
+      "single_or_married_separately",
+      "married_jointly_or_surviving_spouse",
+      "head_of_household"
+     ],
+     "description": "Filing status used for withholding."
+    },
+    "two_jobs_only": {
+     "type": "boolean",
+     "description": "Step 2(c): exactly two jobs in the household, box checked on both."
+    },
+    "dependent_credits": {
+     "type": "number",
+     "minimum": 0,
+     "description": "Step 3 total credit amount, in dollars."
+    },
+    "other_income": {
+     "type": "number",
+     "minimum": 0,
+     "description": "Step 4(a): other annual income not from jobs."
+    },
+    "deductions": {
+     "type": "number",
+     "minimum": 0,
+     "description": "Step 4(b): deductions beyond the standard deduction."
+    },
+    "extra_withholding": {
+     "type": "number",
+     "minimum": 0,
+     "description": "Step 4(c): extra tax withheld each pay period."
+    },
+    "exempt": {
+     "type": "boolean",
+     "description": "Claims exemption from withholding."
+    },
+    "effective_date": {
+     "type": "string",
+     "format": "date",
+     "description": "First payroll the elections apply to."
+    }
+   },
+   "required": [
+    "filing_status"
+   ]
+  },
+  "employer": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string"
+    },
+    "address": {
+     "$ref": "#/$defs/address"
+    },
+    "ein": {
+     "type": "string",
+     "pattern": "^\\d{2}-\\d{7}$",
+     "description": "Formatted NN-NNNNNNN."
+    }
+   }
+  },
+  "hire_date": {
+   "type": "string",
+   "format": "date"
+  },
+  "signed_on": {
+   "type": "string",
+   "format": "date"
+  }
+ },
+ "required": [
+  "employee",
+  "withholding"
+ ],
+ "$defs": {
+  "address": {
+   "type": "object",
+   "properties": {
+    "street": {
+     "type": "string"
+    },
+    "city": {
+     "type": "string"
+    },
+    "state": {
+     "type": "string",
+     "description": "Two-letter state code."
+    },
+    "postal_code": {
+     "type": "string"
+    }
+   }
+  }
+ }
+}

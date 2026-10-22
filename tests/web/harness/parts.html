@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Parts harness</title>
+<link rel="stylesheet" href="../../../demo/web/core/parts.css">
+<style>
+  body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--serif); }
+  #mount { padding: 0; }
+</style>
+</head>
+<body>
+<div id="mount"></div>
+<script type="module">
+// One harness for the shared parts. ?part=<name> picks which part to set up; Playwright then
+// calls window.setup(options). Every bus event is recorded in window.events.
+import { createBus } from "../../../demo/web/core/bus.js";
+
+const part = new URLSearchParams(location.search).get("part");
+const events = [];
+window.events = events;
+
+const PARTS = {
+  async pageview() {
+    const { PageView } = await import("../../../demo/web/core/pageview.js");
+    const bus = createBus();
+    for (const type of ["select", "op", "region", "addmode"]) bus.on(type, (detail) => events.push({ type, detail }));
+    window.setup = ({ readOnly = false, regionSelect = false, page, template, scale, compare, warnings }) => {
+      const mount = document.getElementById("mount");
+      window.view?.destroy();
+      mount.replaceChildren();
+      events.length = 0;
+      const view = new PageView(mount, { bus, readOnly, regionSelect });
+      const render = typeof page.imageUrl === "string" ? () => page.imageUrl : page.render;
+      if (scale !== undefined) view.setScale(scale);
+      view.setPage({ index: page.index ?? 0, width: page.width, height: page.height, rotation: page.rotation ?? 0, render });
+      if (template !== undefined) view.setTemplate(template, { compare, warnings });
+      window.view = view;
+      window.bus = bus;
+    };
+    // time setTemplate, including the layout the new boxes cause
+    window.timeSetTemplate = (template) => {
+      const t0 = performance.now();
+      window.view.setTemplate(template);
+      document.body.getBoundingClientRect();
+      return performance.now() - t0;
+    };
+  },
+  async panels() {
+    const [{ SchemaList }, { Inspector }, { HistoryPanel }, { renderReport }] = await Promise.all([
+      import("../../../demo/web/core/schemalist.js"),
+      import("../../../demo/web/core/inspector.js"),
+      import("../../../demo/web/core/history.js"),
+      import("../../../demo/web/core/report.js"),
+    ]);
+    const bus = createBus();
+    for (const type of ["pick", "op", "undo", "redo"]) bus.on(type, (detail) => events.push({ type, detail }));
+    window.bus = bus;
+    // ?part=panels: window.setup(options) builds each panel that has its options given
+    window.setup = ({ schemaPaths = [], template, field = null, warnings = [], canUndo = false, canRedo = false, report, draggable = true }) => {
+      const mount = document.getElementById("mount");
+      mount.replaceChildren();
+      events.length = 0;
+      const section = (id) => {
+        const d = document.createElement("section");
+        d.id = id;
+        mount.append(d);
+        return d;
+      };
+      window.schemaList = new SchemaList(section("schema"), { bus, draggable });
+      window.schemaList.set(schemaPaths, template);
+      window.inspector = new Inspector(section("inspector"), { bus });
+      window.inspector.show(field, { schemaPaths, warnings });
+      window.history_ = new HistoryPanel(section("history"), { bus });
+      window.history_.set(template, { canUndo, canRedo });
+      const r = section("report");
+      if (report !== undefined) renderReport(r, report);
+    };
+  },
+};
+
+if (!(part in PARTS)) throw new Error(`unknown part ${part}`);
+await PARTS[part]();
+window.partsReady = true;
+</script>
+</body>
+</html>

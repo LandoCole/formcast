@@ -138,9 +138,19 @@ def _check_transforms(template: Template) -> None:
 def _check_fingerprint(doc: pymupdf.Document, template: Template, check: bool) -> list[FillWarning]:
     """``[]`` when the PDF is the template's form, else the ``fingerprint_mismatch`` warning (or raise).
 
+    A template without a fingerprint raises when ``check`` is set, and otherwise has nothing to
+    mismatch.
+
     A filled copy of the form (a refill) matches by its field-blind fingerprint.
     """
     expected = template.form.fingerprint
+    if expected is None:
+        if check:
+            raise FormcastError(
+                "template has no fingerprint (made outside the library, e.g. in the browser demo); "
+                "call formcast.rebind(template, pdf) or pass check_fingerprint=False"
+            )
+        return []
     got = fingerprint_document(doc)
     if got == expected or fingerprint_document(doc, ignore_field_values=True) == expected:
         return []

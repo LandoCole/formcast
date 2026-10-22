@@ -72,7 +72,21 @@ class PageMap(BaseModel):
     notes: list[str] = []
 
 
+class FormSignature(BaseModel):
+    """A form's look and wording as numbers, so two PDFs can be compared without the originals.
+
+    Per page: ``ink`` is the coarse ink map (``formcast.match.ink_bits``, hex) and ``text`` is a
+    64-value MinHash sketch of the page's normalized word 3-shingles (see
+    ``formcast.match.compute_signature``). Stable across runs and machines.
+    """
+
+    ink: list[str]
+    text: list[list[int]]
+    version: Literal[1] = 1
+
+
 class FormMap(BaseModel):
     pages: list[PageMap]
     fingerprint: str = ""
+    signature: FormSignature | None = None
     source_name: str = ""

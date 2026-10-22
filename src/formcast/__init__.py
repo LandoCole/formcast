@@ -14,10 +14,15 @@ __version__ = "0.1.0"
 # worker imports formcast.pagemap.query) does not pull in the whole library.
 _LAZY = {
     "FillReport": "formcast.render.report",
+    "FormSignature": "formcast.pagemap.model",
     "LLMConfig": "formcast.llm",
     "OpContext": "formcast.template.ops",
+    "PdfFeatures": "formcast.match",
     "SessionBudget": "formcast.agent.session",
+    "SessionCancelled": "formcast.errors",
     "SessionResult": "formcast.agent.session",
+    "Similarity": "formcast.match",
+    "StepEvent": "formcast.agent.session",
     "Template": "formcast.template.model",
     "apply": "formcast.template.ops",
     "build_form_map": "formcast.pagemap.build",
@@ -25,9 +30,12 @@ _LAZY = {
     "coverage": "formcast.template.coverage",
     "fill": "formcast.render.fill",
     "fingerprint": "formcast.match",
+    "pdf_features": "formcast.match",
     "flatten_schema": "formcast.schema",
     "preview": "formcast.render.preview",
+    "rebind": "formcast.template.rebind",
     "revise": "formcast.agent.api",
+    "similarity": "formcast.match",
     "to_smart_pdf": "formcast.render.fill",
 }
 # Public submodules, also loaded on first use: ``formcast.ops.Move("f1", dx=4)``.
@@ -35,10 +43,12 @@ _LAZY_MODULES = {"ops": "formcast.template.ops"}
 
 if TYPE_CHECKING:
     from formcast.agent.api import build_template, revise
-    from formcast.agent.session import SessionBudget, SessionResult
+    from formcast.agent.session import SessionBudget, SessionResult, StepEvent
+    from formcast.errors import SessionCancelled
     from formcast.llm import LLMConfig
-    from formcast.match import fingerprint
+    from formcast.match import PdfFeatures, Similarity, fingerprint, pdf_features, similarity
     from formcast.pagemap.build import build_form_map
+    from formcast.pagemap.model import FormSignature
     from formcast.render.fill import fill, to_smart_pdf
     from formcast.render.preview import preview
     from formcast.render.report import FillReport
@@ -46,6 +56,7 @@ if TYPE_CHECKING:
     from formcast.template import ops
     from formcast.template.coverage import coverage
     from formcast.template.model import Template
+    from formcast.template.rebind import rebind
     from formcast.template.ops import OpContext, apply
 
 
@@ -65,7 +76,8 @@ def __dir__() -> list[str]:
 
 
 __all__ = [
-    "FillReport", "FormcastError", "LLMConfig", "OpContext", "OpError", "SessionBudget", "SessionResult",
-    "Template", "__version__", "apply", "build_form_map", "build_template", "coverage", "errors", "fill",
-    "fingerprint", "flatten_schema", "ops", "preview", "revise", "to_smart_pdf",
+    "FillReport", "FormSignature", "FormcastError", "LLMConfig", "OpContext", "OpError", "PdfFeatures",
+    "SessionBudget", "SessionCancelled", "SessionResult", "Similarity", "StepEvent", "Template", "__version__",
+    "apply", "build_form_map", "build_template", "coverage", "errors", "fill", "fingerprint", "flatten_schema",
+    "ops", "pdf_features", "preview", "rebind", "revise", "similarity", "to_smart_pdf",
 ]  # fmt: skip

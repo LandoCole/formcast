@@ -13,3 +13,6 @@ eval/results/templates/
 eval/results/logs/
 forms/gt/drafts/
 eval/results/viewer_check/
+
+# the workbench saves templates here (over the shipped demo/data/templates)
+demo/data/local/

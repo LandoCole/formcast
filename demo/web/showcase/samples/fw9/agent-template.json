@@ -1,0 +1,1643 @@
+{
+  "formcast_version": "1",
+  "template_id": "d136e7be98e74113bcd95dc55b8a2196",
+  "schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.org/schemas/vendor-tax-profile.json",
+    "title": "Vendor tax profile",
+    "description": "Accounts-payable record of a vendor's taxpayer identification, collected for 1099 reporting.",
+    "type": "object",
+    "properties": {
+      "vendor_id": {
+        "type": "string",
+        "description": "Internal vendor number."
+      },
+      "legal_name": {
+        "type": "string",
+        "description": "Name of the entity or individual as shown on its tax return."
+      },
+      "business_name": {
+        "type": "string",
+        "description": "Business or disregarded-entity name, if different."
+      },
+      "tax_classification": {
+        "type": "string",
+        "enum": [
+          "individual_sole_proprietor",
+          "c_corporation",
+          "s_corporation",
+          "partnership",
+          "trust_estate",
+          "llc",
+          "other"
+        ],
+        "description": "Federal tax classification."
+      },
+      "llc_tax_classification": {
+        "type": "string",
+        "enum": [
+          "c_corporation",
+          "s_corporation",
+          "partnership"
+        ],
+        "description": "How an LLC is taxed; only when tax_classification is llc."
+      },
+      "other_classification": {
+        "type": "string",
+        "description": "Description when tax_classification is other."
+      },
+      "has_foreign_partners": {
+        "type": "boolean",
+        "description": "Flow-through entity with foreign partners, owners or beneficiaries."
+      },
+      "exempt_payee_code": {
+        "type": "string",
+        "description": "Backup-withholding exemption code, if any."
+      },
+      "address": {
+        "$ref": "#/$defs/address"
+      },
+      "ssn": {
+        "type": "string",
+        "pattern": "^\\d{3}-\\d{2}-\\d{4}$",
+        "description": "Individuals only. Formatted NNN-NN-NNNN."
+      },
+      "ein": {
+        "type": "string",
+        "pattern": "^\\d{2}-\\d{7}$",
+        "description": "Entities. Formatted NN-NNNNNNN."
+      },
+      "remit_email": {
+        "type": "string",
+        "format": "email",
+        "description": "Where remittance advice is sent."
+      },
+      "certified_on": {
+        "type": "string",
+        "format": "date",
+        "description": "Date the vendor signed the certification."
+      }
+    },
+    "required": [
+      "legal_name",
+      "tax_classification"
+    ],
+    "$defs": {
+      "address": {
+        "type": "object",
+        "properties": {
+          "street": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "description": "Two-letter state code."
+          },
+          "postal_code": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "form": {
+    "fingerprint": "70dea4af2da7b784",
+    "page_count": 6,
+    "page_sizes": [
+      [
+        611.9760131835938,
+        791.968017578125
+      ],
+      [
+        611.9760131835938,
+        791.968017578125
+      ],
+      [
+        611.9760131835938,
+        791.968017578125
+      ],
+      [
+        611.9760131835938,
+        791.968017578125
+      ],
+      [
+        611.9760131835938,
+        791.968017578125
+      ],
+      [
+        611.9760131835938,
+        791.968017578125
+      ]
+    ],
+    "kinds": [
+      "fillable",
+      "digital",
+      "digital",
+      "digital",
+      "digital",
+      "digital"
+    ]
+  },
+  "fields": [
+    {
+      "id": "w0_0",
+      "type": "text",
+      "label": "1 Name of entity/individual",
+      "page": 0,
+      "rect": [
+        58.599998474121094,
+        118.00103759765625,
+        576.0,
+        132.00103759765625
+      ],
+      "source": {
+        "paths": [
+          "legal_name"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].f1_01[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_1",
+      "type": "text",
+      "label": "2 Business name",
+      "page": 0,
+      "rect": [
+        58.599998474121094,
+        142.00103759765625,
+        576.0,
+        156.00201416015625
+      ],
+      "source": {
+        "paths": [
+          "business_name"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].f1_02[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_2",
+      "type": "checkbox",
+      "label": "3a Individual/sole proprietor",
+      "page": 0,
+      "rect": [
+        73.0,
+        180.2490234375,
+        81.0,
+        188.2490234375
+      ],
+      "source": {
+        "paths": [
+          "tax_classification"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": {
+          "op": "equals",
+          "args": {
+            "value": "individual_sole_proprietor"
+          }
+        }
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_3",
+      "type": "checkbox",
+      "label": "3a C corporation",
+      "page": 0,
+      "rect": [
+        180.0,
+        180.2490234375,
+        188.0,
+        188.2490234375
+      ],
+      "source": {
+        "paths": [
+          "tax_classification"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": {
+          "op": "equals",
+          "args": {
+            "value": "c_corporation"
+          }
+        }
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[1]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_4",
+      "type": "checkbox",
+      "label": "3a S corporation",
+      "page": 0,
+      "rect": [
+        252.0,
+        180.2490234375,
+        260.0,
+        188.2490234375
+      ],
+      "source": {
+        "paths": [
+          "tax_classification"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": {
+          "op": "equals",
+          "args": {
+            "value": "s_corporation"
+          }
+        }
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[2]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_5",
+      "type": "checkbox",
+      "label": "3a Partnership",
+      "page": 0,
+      "rect": [
+        324.0,
+        180.2490234375,
+        332.0,
+        188.2490234375
+      ],
+      "source": {
+        "paths": [
+          "tax_classification"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": {
+          "op": "equals",
+          "args": {
+            "value": "partnership"
+          }
+        }
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[3]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_6",
+      "type": "checkbox",
+      "label": "3a Trust/estate",
+      "page": 0,
+      "rect": [
+        388.79998779296875,
+        180.2490234375,
+        396.79998779296875,
+        188.2490234375
+      ],
+      "source": {
+        "paths": [
+          "tax_classification"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": {
+          "op": "equals",
+          "args": {
+            "value": "trust_estate"
+          }
+        }
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[4]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_8",
+      "type": "text",
+      "label": "LLC tax classification code (C/S/P)",
+      "page": 0,
+      "rect": [
+        417.6000061035156,
+        191.9990234375,
+        446.3999938964844,
+        202.998046875
+      ],
+      "source": {
+        "paths": [
+          "llc_tax_classification"
+        ],
+        "transforms": [
+          {
+            "op": "slice",
+            "args": {
+              "start": 0,
+              "end": 1
+            }
+          },
+          {
+            "op": "upper",
+            "args": {}
+          }
+        ],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].f1_03[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_12",
+      "type": "text",
+      "label": "4 Exempt payee code",
+      "page": 0,
+      "rect": [
+        543.5999755859375,
+        191.9990234375,
+        576.0,
+        203.998046875
+      ],
+      "source": {
+        "paths": [
+          "exempt_payee_code"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].f1_05[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_7",
+      "type": "checkbox",
+      "label": "3a LLC",
+      "page": 0,
+      "rect": [
+        72.9990005493164,
+        193.498046875,
+        80.9990005493164,
+        201.498046875
+      ],
+      "source": {
+        "paths": [
+          "tax_classification"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": {
+          "op": "equals",
+          "args": {
+            "value": "llc"
+          }
+        }
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[5]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_10",
+      "type": "text",
+      "label": "Other classification description",
+      "page": 0,
+      "rect": [
+        162.39999389648438,
+        227.9990234375,
+        446.3999938964844,
+        239.998046875
+      ],
+      "source": {
+        "paths": [
+          "other_classification"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].f1_04[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_13",
+      "type": "text",
+      "label": "FATCA exemption code",
+      "page": 0,
+      "rect": [
+        500.6000061035156,
+        227.9990234375,
+        576.0,
+        239.998046875
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].f1_06[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_9",
+      "type": "checkbox",
+      "label": "3a Other",
+      "page": 0,
+      "rect": [
+        72.9990005493164,
+        229.998046875,
+        80.9990005493164,
+        237.998046875
+      ],
+      "source": {
+        "paths": [
+          "tax_classification"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": {
+          "op": "equals",
+          "args": {
+            "value": "other"
+          }
+        }
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[6]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_11",
+      "type": "checkbox",
+      "label": "3b Foreign partners",
+      "page": 0,
+      "rect": [
+        440.6000061035156,
+        262.99700927734375,
+        448.6000061035156,
+        270.99700927734375
+      ],
+      "source": {
+        "paths": [
+          "has_foreign_partners"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": {
+          "op": "equals",
+          "args": {
+            "value": true
+          }
+        }
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_2[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_14",
+      "type": "text",
+      "label": "5 Address",
+      "page": 0,
+      "rect": [
+        58.599998474121094,
+        286.0010070800781,
+        388.04998779296875,
+        300.00201416015625
+      ],
+      "source": {
+        "paths": [
+          "address.street"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].Address_ReadOrder[0].f1_07[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_16",
+      "type": "text",
+      "label": "Requester's name and address",
+      "page": 0,
+      "rect": [
+        389.79998779296875,
+        286.0010070800781,
+        576.0,
+        324.0000305175781
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].f1_09[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_15",
+      "type": "text",
+      "label": "6 City, state, ZIP",
+      "page": 0,
+      "rect": [
+        58.599998474121094,
+        309.9990234375,
+        388.04998779296875,
+        324.0000305175781
+      ],
+      "source": {
+        "paths": [
+          "address.city",
+          "address.state",
+          "address.postal_code"
+        ],
+        "transforms": [],
+        "join": " ",
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].Address_ReadOrder[0].f1_08[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_17",
+      "type": "text",
+      "label": "7 Account numbers",
+      "page": 0,
+      "rect": [
+        58.599998474121094,
+        334.0000305175781,
+        576.0,
+        348.0010070800781
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].f1_10[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_18",
+      "type": "text",
+      "label": "SSN part 1",
+      "page": 0,
+      "rect": [
+        417.6000061035156,
+        371.9990234375,
+        460.79998779296875,
+        396.0000305175781
+      ],
+      "source": {
+        "paths": [
+          "ssn"
+        ],
+        "transforms": [
+          {
+            "op": "slice",
+            "args": {
+              "start": 0,
+              "end": 3
+            }
+          }
+        ],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].f1_11[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_19",
+      "type": "text",
+      "label": "SSN part 2",
+      "page": 0,
+      "rect": [
+        475.20001220703125,
+        371.9990234375,
+        504.0,
+        396.0000305175781
+      ],
+      "source": {
+        "paths": [
+          "ssn"
+        ],
+        "transforms": [
+          {
+            "op": "slice",
+            "args": {
+              "start": 3,
+              "end": 5
+            }
+          }
+        ],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].f1_12[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_20",
+      "type": "text",
+      "label": "SSN part 3",
+      "page": 0,
+      "rect": [
+        518.4000244140625,
+        371.9990234375,
+        576.0,
+        396.0000305175781
+      ],
+      "source": {
+        "paths": [
+          "ssn"
+        ],
+        "transforms": [
+          {
+            "op": "slice",
+            "args": {
+              "start": 5,
+              "end": 9
+            }
+          }
+        ],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].f1_13[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_21",
+      "type": "text",
+      "label": "EIN part 1",
+      "page": 0,
+      "rect": [
+        417.6000061035156,
+        420.0010070800781,
+        446.3999938964844,
+        444.00201416015625
+      ],
+      "source": {
+        "paths": [
+          "ein"
+        ],
+        "transforms": [
+          {
+            "op": "slice",
+            "args": {
+              "start": 0,
+              "end": 2
+            }
+          }
+        ],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].f1_14[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_22",
+      "type": "text",
+      "label": "EIN part 2",
+      "page": 0,
+      "rect": [
+        460.79998779296875,
+        420.0010070800781,
+        561.5999755859375,
+        444.00201416015625
+      ],
+      "source": {
+        "paths": [
+          "ein"
+        ],
+        "transforms": [
+          {
+            "op": "slice",
+            "args": {
+              "start": 2,
+              "end": 9
+            }
+          }
+        ],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].f1_15[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "f1",
+      "type": "text",
+      "label": "Date",
+      "page": 0,
+      "rect": [
+        384.0,
+        578.0,
+        574.0,
+        599.0
+      ],
+      "source": {
+        "paths": [
+          "certified_on"
+        ],
+        "transforms": [
+          {
+            "op": "date_format",
+            "args": {
+              "format": "%m/%d/%Y"
+            }
+          }
+        ],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "agent"
+    }
+  ],
+  "history": [
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_0",
+        "source": {
+          "paths": [
+            "legal_name"
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.294606+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_0",
+        "label": "1 Name of entity/individual"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.295499+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_1",
+        "source": {
+          "paths": [
+            "business_name"
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.296432+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_1",
+        "label": "2 Business name"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.297273+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_2",
+        "source": {
+          "paths": [
+            "tax_classification"
+          ],
+          "transforms": [],
+          "when": {
+            "op": "equals",
+            "args": {
+              "value": "individual_sole_proprietor"
+            }
+          }
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.298332+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_2",
+        "label": "3a Individual/sole proprietor"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.299232+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_3",
+        "source": {
+          "paths": [
+            "tax_classification"
+          ],
+          "transforms": [],
+          "when": {
+            "op": "equals",
+            "args": {
+              "value": "c_corporation"
+            }
+          }
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.300209+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_3",
+        "label": "3a C corporation"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.301215+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_4",
+        "source": {
+          "paths": [
+            "tax_classification"
+          ],
+          "transforms": [],
+          "when": {
+            "op": "equals",
+            "args": {
+              "value": "s_corporation"
+            }
+          }
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.302297+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_4",
+        "label": "3a S corporation"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.302975+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_5",
+        "source": {
+          "paths": [
+            "tax_classification"
+          ],
+          "transforms": [],
+          "when": {
+            "op": "equals",
+            "args": {
+              "value": "partnership"
+            }
+          }
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.303436+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_5",
+        "label": "3a Partnership"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.303824+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_6",
+        "source": {
+          "paths": [
+            "tax_classification"
+          ],
+          "transforms": [],
+          "when": {
+            "op": "equals",
+            "args": {
+              "value": "trust_estate"
+            }
+          }
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.304514+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_6",
+        "label": "3a Trust/estate"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.305665+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_7",
+        "source": {
+          "paths": [
+            "tax_classification"
+          ],
+          "transforms": [],
+          "when": {
+            "op": "equals",
+            "args": {
+              "value": "llc"
+            }
+          }
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.306662+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_7",
+        "label": "3a LLC"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.307133+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_9",
+        "source": {
+          "paths": [
+            "tax_classification"
+          ],
+          "transforms": [],
+          "when": {
+            "op": "equals",
+            "args": {
+              "value": "other"
+            }
+          }
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.307595+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_9",
+        "label": "3a Other"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.308033+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_8",
+        "source": {
+          "paths": [
+            "llc_tax_classification"
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.308478+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_8",
+        "label": "LLC tax classification code (C/S/P)"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.308950+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_10",
+        "source": {
+          "paths": [
+            "other_classification"
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.309958+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_10",
+        "label": "Other classification description"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.310598+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_11",
+        "source": {
+          "paths": [
+            "has_foreign_partners"
+          ],
+          "transforms": [],
+          "when": {
+            "op": "equals",
+            "args": {
+              "value": true
+            }
+          }
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.311249+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_11",
+        "label": "3b Foreign partners"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.311747+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_12",
+        "source": {
+          "paths": [
+            "exempt_payee_code"
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.312260+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_12",
+        "label": "4 Exempt payee code"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.312752+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_13",
+        "label": "FATCA exemption code"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.313734+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_14",
+        "source": {
+          "paths": [
+            "address.street"
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.314370+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_14",
+        "label": "5 Address"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.314913+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_15",
+        "source": {
+          "paths": [
+            "address.city",
+            "address.state",
+            "address.postal_code"
+          ],
+          "join": " "
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.315443+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_15",
+        "label": "6 City, state, ZIP"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.315955+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_16",
+        "label": "Requester's name and address"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.316478+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_17",
+        "label": "7 Account numbers"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.316999+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_18",
+        "source": {
+          "paths": [
+            "ssn"
+          ],
+          "transforms": [
+            {
+              "op": "slice",
+              "args": {
+                "start": 0,
+                "end": 3
+              }
+            }
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.317593+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_18",
+        "label": "SSN part 1"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.318137+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_19",
+        "source": {
+          "paths": [
+            "ssn"
+          ],
+          "transforms": [
+            {
+              "op": "slice",
+              "args": {
+                "start": 3,
+                "end": 5
+              }
+            }
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.318716+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_19",
+        "label": "SSN part 2"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.319274+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_20",
+        "source": {
+          "paths": [
+            "ssn"
+          ],
+          "transforms": [
+            {
+              "op": "slice",
+              "args": {
+                "start": 5,
+                "end": 9
+              }
+            }
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.319869+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_20",
+        "label": "SSN part 3"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.320446+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_21",
+        "source": {
+          "paths": [
+            "ein"
+          ],
+          "transforms": [
+            {
+              "op": "slice",
+              "args": {
+                "start": 0,
+                "end": 2
+              }
+            }
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.321061+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_21",
+        "label": "EIN part 1"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.321655+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_22",
+        "source": {
+          "paths": [
+            "ein"
+          ],
+          "transforms": [
+            {
+              "op": "slice",
+              "args": {
+                "start": 2,
+                "end": 9
+              }
+            }
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.322294+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_22",
+        "label": "EIN part 2"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.322915+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "add_field",
+        "id": "f1",
+        "type": "text",
+        "page": 0,
+        "rect": [
+          384.0,
+          578.0,
+          574.0,
+          599.0
+        ],
+        "label": "Date",
+        "source": {
+          "paths": [
+            "certified_on"
+          ],
+          "transforms": [
+            {
+              "op": "date_format",
+              "args": {
+                "format": "%m/%d/%Y"
+              }
+            }
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:25.323618+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_8",
+        "source": {
+          "paths": [
+            "llc_tax_classification"
+          ],
+          "transforms": [
+            {
+              "op": "slice",
+              "args": {
+                "start": 0,
+                "end": 1
+              }
+            },
+            {
+              "op": "upper"
+            }
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:30:39.591249+00:00",
+      "note": "step 9"
+    }
+  ]
+}

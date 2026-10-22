@@ -13,7 +13,7 @@ import pydantic
 from pydantic import BaseModel, ConfigDict
 
 from formcast.geometry import Rect
-from formcast.pagemap.model import FormMap
+from formcast.pagemap.model import FormMap, FormSignature
 from formcast.transforms import Transform
 
 
@@ -144,10 +144,11 @@ def linked_cells(template: Template) -> dict[str, tuple[str, int, int, str]]:
 
 
 class FormInfo(BaseModel):
-    fingerprint: str
+    fingerprint: str | None  # None for templates made outside the library (browser demo); see rebind
     page_count: int
     page_sizes: list[tuple[float, float]]
     kinds: list[str]
+    signature: FormSignature | None = None  # None for older templates and ones made in the browser
 
 
 class HistoryEntry(BaseModel):
@@ -200,6 +201,17 @@ _CANDIDATE_FIELD_TYPE = {"text": "text", "choice": "checkbox", "signature": "sig
 MAX_SEED_LABEL = 80
 
 
+def form_info_for(form_map: FormMap) -> FormInfo:
+    """The form info (fingerprint, page sizes, page kinds, signature) a template records for ``form_map``."""
+    return FormInfo(
+        fingerprint=form_map.fingerprint,
+        page_count=len(form_map.pages),
+        page_sizes=[(p.width, p.height) for p in form_map.pages],
+        kinds=[p.kind for p in form_map.pages],
+        signature=form_map.signature,
+    )
+
+
 def new_template(schema: dict, form_map: FormMap, *, candidates: bool = False) -> Template:
     """Empty template for ``form_map``, with one unmapped field per existing widget.
 
@@ -244,14 +256,4 @@ def new_template(schema: dict, form_map: FormMap, *, candidates: bool = False) -
                     origin="detector",
                 )
             )
-    return Template(
-        template_id=uuid.uuid4().hex,
-        schema=schema,
-        form=FormInfo(
-            fingerprint=form_map.fingerprint,
-            page_count=len(form_map.pages),
-            page_sizes=[(p.width, p.height) for p in form_map.pages],
-            kinds=[p.kind for p in form_map.pages],
-        ),
-        fields=fields,
-    )
+    return Template(template_id=uuid.uuid4().hex, schema=schema, form=form_info_for(form_map), fields=fields)

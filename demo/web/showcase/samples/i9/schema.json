@@ -1,0 +1,300 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://example.org/schemas/employment-eligibility-record.json",
+ "title": "Employment eligibility record",
+ "description": "HR's record of an employee's I-9 employment eligibility verification, including preparers and reverifications.",
+ "type": "object",
+ "properties": {
+  "employee": {
+   "type": "object",
+   "properties": {
+    "employee_id": {
+     "type": "string",
+     "description": "HR employee number."
+    },
+    "first_name": {
+     "type": "string"
+    },
+    "middle_name": {
+     "type": "string"
+    },
+    "last_name": {
+     "type": "string"
+    },
+    "other_last_names": {
+     "type": "array",
+     "items": {
+      "type": "string"
+     },
+     "description": "Other last names used."
+    },
+    "address": {
+     "type": "object",
+     "properties": {
+      "street": {
+       "type": "string"
+      },
+      "unit": {
+       "type": "string",
+       "description": "Apartment or unit number."
+      },
+      "city": {
+       "type": "string"
+      },
+      "state": {
+       "type": "string",
+       "description": "Two-letter state code."
+      },
+      "postal_code": {
+       "type": "string"
+      }
+     }
+    },
+    "date_of_birth": {
+     "type": "string",
+     "format": "date"
+    },
+    "ssn": {
+     "type": "string",
+     "pattern": "^\\d{9}$",
+     "description": "Nine digits, no dashes."
+    },
+    "email": {
+     "type": "string",
+     "format": "email"
+    },
+    "phone": {
+     "type": "string"
+    },
+    "citizenship_status": {
+     "type": "string",
+     "enum": [
+      "us_citizen",
+      "noncitizen_national",
+      "lawful_permanent_resident",
+      "authorized_alien"
+     ]
+    },
+    "alien_registration_number": {
+     "type": "string",
+     "description": "USCIS number or A-Number."
+    },
+    "i94_admission_number": {
+     "type": "string"
+    },
+    "foreign_passport_number": {
+     "type": "string"
+    },
+    "foreign_passport_country": {
+     "type": "string"
+    },
+    "work_authorization_expires_on": {
+     "type": "string",
+     "format": "date",
+     "description": "For authorized aliens; empty if no expiration."
+    },
+    "attested_on": {
+     "type": "string",
+     "format": "date",
+     "description": "Date the employee signed Section 1."
+    }
+   },
+   "required": [
+    "first_name",
+    "last_name",
+    "citizenship_status"
+   ]
+  },
+  "preparers": {
+   "type": "array",
+   "items": {
+    "$ref": "#/$defs/preparer"
+   },
+   "description": "Preparers or translators who helped with Section 1."
+  },
+  "employer_review": {
+   "type": "object",
+   "properties": {
+    "list_a_documents": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/document"
+     },
+     "maxItems": 3
+    },
+    "list_b_document": {
+     "$ref": "#/$defs/document"
+    },
+    "list_c_document": {
+     "$ref": "#/$defs/document"
+    },
+    "additional_information": {
+     "type": "string"
+    },
+    "alternative_procedure_used": {
+     "type": "boolean",
+     "description": "Documents examined under a DHS-authorized alternative procedure."
+    },
+    "first_day_of_employment": {
+     "type": "string",
+     "format": "date"
+    },
+    "reviewer": {
+     "type": "object",
+     "properties": {
+      "first_name": {
+       "type": "string"
+      },
+      "last_name": {
+       "type": "string"
+      },
+      "title": {
+       "type": "string"
+      }
+     }
+    },
+    "signed_on": {
+     "type": "string",
+     "format": "date"
+    }
+   }
+  },
+  "employer": {
+   "type": "object",
+   "properties": {
+    "name": {
+     "type": "string"
+    },
+    "address": {
+     "$ref": "#/$defs/address"
+    }
+   }
+  },
+  "reverifications": {
+   "type": "array",
+   "items": {
+    "$ref": "#/$defs/reverification"
+   }
+  },
+  "retain_until": {
+   "type": "string",
+   "format": "date",
+   "description": "Date the record may be destroyed."
+  }
+ },
+ "required": [
+  "employee"
+ ],
+ "$defs": {
+  "address": {
+   "type": "object",
+   "properties": {
+    "street": {
+     "type": "string"
+    },
+    "city": {
+     "type": "string"
+    },
+    "state": {
+     "type": "string",
+     "description": "Two-letter state code."
+    },
+    "postal_code": {
+     "type": "string"
+    }
+   }
+  },
+  "document": {
+   "type": "object",
+   "properties": {
+    "title": {
+     "type": "string"
+    },
+    "issuing_authority": {
+     "type": "string"
+    },
+    "number": {
+     "type": "string"
+    },
+    "expiration_date": {
+     "type": "string",
+     "format": "date"
+    }
+   }
+  },
+  "preparer": {
+   "type": "object",
+   "properties": {
+    "last_name": {
+     "type": "string"
+    },
+    "first_name": {
+     "type": "string"
+    },
+    "middle_name": {
+     "type": "string"
+    },
+    "street": {
+     "type": "string"
+    },
+    "city": {
+     "type": "string"
+    },
+    "state": {
+     "type": "string",
+     "description": "Two-letter state code."
+    },
+    "postal_code": {
+     "type": "string"
+    },
+    "signed_on": {
+     "type": "string",
+     "format": "date"
+    }
+   },
+   "required": [
+    "last_name",
+    "first_name"
+   ]
+  },
+  "reverification": {
+   "type": "object",
+   "properties": {
+    "rehire_date": {
+     "type": "string",
+     "format": "date"
+    },
+    "new_last_name": {
+     "type": "string"
+    },
+    "new_first_name": {
+     "type": "string"
+    },
+    "new_middle_name": {
+     "type": "string"
+    },
+    "document_title": {
+     "type": "string"
+    },
+    "document_number": {
+     "type": "string"
+    },
+    "document_expiration_date": {
+     "type": "string",
+     "format": "date"
+    },
+    "reviewer_name": {
+     "type": "string",
+     "description": "Employer or authorized representative."
+    },
+    "signed_on": {
+     "type": "string",
+     "format": "date"
+    },
+    "additional_information": {
+     "type": "string"
+    }
+   }
+  }
+ }
+}

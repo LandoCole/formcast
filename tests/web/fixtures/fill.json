@@ -1,0 +1,2404 @@
+{
+ "generated_by": "demo/tools/export_conformance.py",
+ "skipped_codes": [
+  "adopted",
+  "font_substituted",
+  "invalid"
+ ],
+ "templates": {
+  "fw9_as_published": {
+   "file": "tests/web/fixtures/templates/fw9_as_published.json"
+  },
+  "wadoc_auth_as_published": {
+   "file": "tests/web/fixtures/templates/wadoc_auth_as_published.json"
+  },
+  "hand": {
+   "template": {
+    "formcast_version": "1",
+    "template_id": "hand",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "name": {
+       "type": "string"
+      },
+      "code": {
+       "type": "string"
+      },
+      "answer": {
+       "type": "string",
+       "enum": [
+        "Sí",
+        "No"
+       ]
+      },
+      "city": {
+       "type": "string"
+      },
+      "note": {
+       "type": "string"
+      },
+      "items": {
+       "type": "array",
+       "items": {
+        "type": "object",
+        "properties": {
+         "desc": {
+          "type": "string"
+         },
+         "qty": {
+          "type": "integer"
+         }
+        }
+       }
+      }
+     }
+    },
+    "form": {
+     "fingerprint": null,
+     "page_count": 1,
+     "page_sizes": [
+      [
+       612.0,
+       792.0
+      ]
+     ],
+     "kinds": [
+      "digital"
+     ],
+     "signature": null
+    },
+    "fields": [
+     {
+      "id": "name",
+      "type": "text",
+      "label": "",
+      "page": 0,
+      "rect": [
+       72.0,
+       100.0,
+       300.0,
+       120.0
+      ],
+      "source": {
+       "paths": [
+        "name"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": null
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "code",
+      "type": "text",
+      "label": "",
+      "page": 0,
+      "rect": [
+       72.0,
+       140.0,
+       160.0,
+       160.0
+      ],
+      "source": {
+       "paths": [
+        "code"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": null
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": 4,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "agree",
+      "type": "checkbox",
+      "label": "",
+      "page": 0,
+      "rect": [
+       72.0,
+       180.0,
+       84.0,
+       192.0
+      ],
+      "source": {
+       "paths": [
+        "answer"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": {
+        "op": "equals",
+        "args": {
+         "value": "Sí"
+        }
+       }
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "zurich",
+      "type": "choice_mark",
+      "label": "",
+      "page": 0,
+      "rect": [
+       100.0,
+       178.0,
+       160.0,
+       194.0
+      ],
+      "source": {
+       "paths": [
+        "city"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": {
+        "op": "equals",
+        "args": {
+         "value": "Zürich"
+        }
+       }
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     }
+    ],
+    "history": []
+   }
+  },
+  "hand_crop": {
+   "template": {
+    "formcast_version": "1",
+    "template_id": "hand_crop",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "name": {
+       "type": "string"
+      },
+      "code": {
+       "type": "string"
+      },
+      "answer": {
+       "type": "string",
+       "enum": [
+        "Sí",
+        "No"
+       ]
+      },
+      "city": {
+       "type": "string"
+      },
+      "note": {
+       "type": "string"
+      },
+      "items": {
+       "type": "array",
+       "items": {
+        "type": "object",
+        "properties": {
+         "desc": {
+          "type": "string"
+         },
+         "qty": {
+          "type": "integer"
+         }
+        }
+       }
+      }
+     }
+    },
+    "form": {
+     "fingerprint": null,
+     "page_count": 1,
+     "page_sizes": [
+      [
+       540.0,
+       720.0
+      ]
+     ],
+     "kinds": [
+      "digital"
+     ],
+     "signature": null
+    },
+    "fields": [
+     {
+      "id": "name",
+      "type": "text",
+      "label": "",
+      "page": 0,
+      "rect": [
+       72.0,
+       100.0,
+       300.0,
+       120.0
+      ],
+      "source": {
+       "paths": [
+        "name"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": null
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "code",
+      "type": "text",
+      "label": "",
+      "page": 0,
+      "rect": [
+       72.0,
+       140.0,
+       160.0,
+       160.0
+      ],
+      "source": {
+       "paths": [
+        "code"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": null
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": 4,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "agree",
+      "type": "checkbox",
+      "label": "",
+      "page": 0,
+      "rect": [
+       72.0,
+       180.0,
+       84.0,
+       192.0
+      ],
+      "source": {
+       "paths": [
+        "answer"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": {
+        "op": "equals",
+        "args": {
+         "value": "Sí"
+        }
+       }
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "zurich",
+      "type": "choice_mark",
+      "label": "",
+      "page": 0,
+      "rect": [
+       100.0,
+       178.0,
+       160.0,
+       194.0
+      ],
+      "source": {
+       "paths": [
+        "city"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": {
+        "op": "equals",
+        "args": {
+         "value": "Zürich"
+        }
+       }
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     }
+    ],
+    "history": []
+   }
+  },
+  "table_crop": {
+   "template": {
+    "formcast_version": "1",
+    "template_id": "table_crop",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "name": {
+       "type": "string"
+      },
+      "code": {
+       "type": "string"
+      },
+      "answer": {
+       "type": "string",
+       "enum": [
+        "Sí",
+        "No"
+       ]
+      },
+      "city": {
+       "type": "string"
+      },
+      "note": {
+       "type": "string"
+      },
+      "items": {
+       "type": "array",
+       "items": {
+        "type": "object",
+        "properties": {
+         "desc": {
+          "type": "string"
+         },
+         "qty": {
+          "type": "integer"
+         }
+        }
+       }
+      }
+     }
+    },
+    "form": {
+     "fingerprint": null,
+     "page_count": 1,
+     "page_sizes": [
+      [
+       540.0,
+       720.0
+      ]
+     ],
+     "kinds": [
+      "digital"
+     ],
+     "signature": null
+    },
+    "fields": [
+     {
+      "id": "note",
+      "type": "text",
+      "label": "",
+      "page": 0,
+      "rect": [
+       72.0,
+       400.0,
+       300.0,
+       440.0
+      ],
+      "source": {
+       "paths": [
+        "note"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": null
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": true
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "yes",
+      "type": "radio_option",
+      "label": "",
+      "page": 0,
+      "rect": [
+       320.0,
+       400.0,
+       332.0,
+       412.0
+      ],
+      "source": {
+       "paths": [
+        "answer"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": {
+        "op": "equals",
+        "args": {
+         "value": "Sí"
+        }
+       }
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "unmapped",
+      "type": "text",
+      "label": "",
+      "page": 0,
+      "rect": [
+       320.0,
+       420.0,
+       500.0,
+       436.0
+      ],
+      "source": null,
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "items",
+      "type": "table",
+      "label": "",
+      "page": null,
+      "rect": null,
+      "source": {
+       "paths": [
+        "items"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": null
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [
+       {
+        "page": 0,
+        "rect": [
+         60.0,
+         290.0,
+         400.0,
+         345.0
+        ],
+        "row_top": 300.0,
+        "row_height": 20.0,
+        "max_rows": 2,
+        "columns": [
+         {
+          "key": "desc",
+          "x": [
+           72.0,
+           300.0
+          ],
+          "transforms": [],
+          "wrap": null,
+          "fields": []
+         },
+         {
+          "key": "qty",
+          "x": [
+           310.0,
+           380.0
+          ],
+          "transforms": [
+           {
+            "op": "number_format",
+            "args": {
+             "decimals": 0
+            }
+           }
+          ],
+          "wrap": null,
+          "fields": []
+         }
+        ]
+       }
+      ],
+      "confidence": null,
+      "origin": "human"
+     }
+    ],
+    "history": []
+   }
+  },
+  "fw9_binding": {
+   "template": {
+    "formcast_version": "1",
+    "template_id": "fw9_binding",
+    "schema": {
+     "type": "object",
+     "properties": {
+      "name": {
+       "type": "string"
+      },
+      "code": {
+       "type": "string"
+      },
+      "answer": {
+       "type": "string",
+       "enum": [
+        "Sí",
+        "No"
+       ]
+      },
+      "city": {
+       "type": "string"
+      },
+      "note": {
+       "type": "string"
+      },
+      "items": {
+       "type": "array",
+       "items": {
+        "type": "object",
+        "properties": {
+         "desc": {
+          "type": "string"
+         },
+         "qty": {
+          "type": "integer"
+         }
+        }
+       }
+      }
+     }
+    },
+    "form": {
+     "fingerprint": null,
+     "page_count": 6,
+     "page_sizes": [
+      [
+       611.976,
+       791.968
+      ],
+      [
+       611.976,
+       791.968
+      ],
+      [
+       611.976,
+       791.968
+      ],
+      [
+       611.976,
+       791.968
+      ],
+      [
+       611.976,
+       791.968
+      ],
+      [
+       611.976,
+       791.968
+      ]
+     ],
+     "kinds": [
+      "fillable",
+      "fillable",
+      "fillable",
+      "fillable",
+      "fillable",
+      "fillable"
+     ],
+     "signature": null
+    },
+    "fields": [
+     {
+      "id": "named_text",
+      "type": "text",
+      "label": "",
+      "page": 0,
+      "rect": [
+       58.6,
+       118.0,
+       576.0,
+       132.0
+      ],
+      "source": {
+       "paths": [
+        "name"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": null
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].f1_01[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+     },
+     {
+      "id": "wrong_kind",
+      "type": "text",
+      "label": "",
+      "page": 0,
+      "rect": [
+       73.0,
+       180.2,
+       81.0,
+       188.2
+      ],
+      "source": {
+       "paths": [
+        "code"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": null
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+     },
+     {
+      "id": "no_widget",
+      "type": "checkbox",
+      "label": "",
+      "page": 0,
+      "rect": [
+       180.0,
+       180.2,
+       188.0,
+       188.2
+      ],
+      "source": {
+       "paths": [
+        "answer"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": {
+        "op": "equals",
+        "args": {
+         "value": "Sí"
+        }
+       }
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].nothing_here[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+     },
+     {
+      "id": "named_box",
+      "type": "checkbox",
+      "label": "",
+      "page": 0,
+      "rect": [
+       252.0,
+       180.2,
+       260.0,
+       188.2
+      ],
+      "source": {
+       "paths": [
+        "answer"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": {
+        "op": "equals",
+        "args": {
+         "value": "Sí"
+        }
+       }
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[2]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+     },
+     {
+      "id": "adopt_text",
+      "type": "text",
+      "label": "",
+      "page": 0,
+      "rect": [
+       55.0,
+       140.0,
+       580.0,
+       158.0
+      ],
+      "source": {
+       "paths": [
+        "city"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": null
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "adopt_box",
+      "type": "radio_option",
+      "label": "",
+      "page": 0,
+      "rect": [
+       320.0,
+       178.0,
+       336.0,
+       190.0
+      ],
+      "source": {
+       "paths": [
+        "answer"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": {
+        "op": "equals",
+        "args": {
+         "value": "No"
+        }
+       }
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "human"
+     },
+     {
+      "id": "comb_cut",
+      "type": "text",
+      "label": "",
+      "page": 0,
+      "rect": [
+       417.6,
+       372.0,
+       460.8,
+       396.0
+      ],
+      "source": {
+       "paths": [
+        "code"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": null
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].f1_11[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+     },
+     {
+      "id": "long_note",
+      "type": "text",
+      "label": "",
+      "page": 0,
+      "rect": [
+       58.6,
+       334.0,
+       576.0,
+       348.0
+      ],
+      "source": {
+       "paths": [
+        "note"
+       ],
+       "transforms": [],
+       "join": null,
+       "when": null
+      },
+      "style": {
+       "font_size": "auto",
+       "min_font_size": 6,
+       "align": "left",
+       "comb": null,
+       "multiline": false
+      },
+      "existing_widget": "topmostSubform[0].Page1[0].f1_10[0]",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+     }
+    ],
+    "history": []
+   }
+  }
+ },
+ "cases": [
+  {
+   "id": "fw9/probe",
+   "kind": "fill",
+   "input": {
+    "template": "fw9_as_published",
+    "pdf": "forms/dev/fw9.pdf",
+    "data": {
+     "vendor_id": "V-1042",
+     "legal_name": "Ann Lee",
+     "business_name": "Lee Consulting LLC",
+     "tax_classification": "llc",
+     "llc_tax_classification": "s_corporation",
+     "has_foreign_partners": true,
+     "exempt_payee_code": "5",
+     "address": {
+      "street": "1 Main St",
+      "city": "Springfield",
+      "state": "IL",
+      "postal_code": "62701"
+     },
+     "ssn": "123-45-6789",
+     "ein": "12-3456789",
+     "remit_email": "ap@example.com",
+     "certified_on": "2026-10-01"
+    }
+   },
+   "output": {
+    "fields": [
+     {
+      "id": "w0_0",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_01[0]",
+      "value": "Ann Lee"
+     },
+     {
+      "id": "w0_1",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_02[0]",
+      "value": "Lee Consulting LLC"
+     },
+     {
+      "id": "w0_2",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[0]",
+      "value": false
+     },
+     {
+      "id": "w0_3",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[1]",
+      "value": false
+     },
+     {
+      "id": "w0_4",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[2]",
+      "value": false
+     },
+     {
+      "id": "w0_5",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[3]",
+      "value": false
+     },
+     {
+      "id": "w0_6",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[4]",
+      "value": false
+     },
+     {
+      "id": "w0_8",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].f1_03[0]",
+      "value": "S"
+     },
+     {
+      "id": "w0_12",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_05[0]",
+      "value": "5"
+     },
+     {
+      "id": "w0_7",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[5]",
+      "value": true
+     },
+     {
+      "id": "w0_10",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].f1_04[0]",
+      "value": null
+     },
+     {
+      "id": "w0_13",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_06[0]",
+      "value": null
+     },
+     {
+      "id": "w0_9",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[6]",
+      "value": false
+     },
+     {
+      "id": "w0_11",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_2[0]",
+      "value": true
+     },
+     {
+      "id": "w0_14",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Address_ReadOrder[0].f1_07[0]",
+      "value": "1 Main St"
+     },
+     {
+      "id": "w0_16",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_09[0]",
+      "value": null
+     },
+     {
+      "id": "w0_15",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Address_ReadOrder[0].f1_08[0]",
+      "value": "Springfield IL 62701"
+     },
+     {
+      "id": "w0_17",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_10[0]",
+      "value": null
+     },
+     {
+      "id": "w0_18",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_11[0]",
+      "value": "123"
+     },
+     {
+      "id": "w0_19",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_12[0]",
+      "value": "-4"
+     },
+     {
+      "id": "w0_20",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_13[0]",
+      "value": "5-67"
+     },
+     {
+      "id": "w0_21",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_14[0]",
+      "value": "12"
+     },
+     {
+      "id": "w0_22",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_15[0]",
+      "value": "-345678"
+     },
+     {
+      "id": "f1",
+      "binding": "created",
+      "widget": "f1",
+      "value": "10/01/2026"
+     }
+    ],
+    "cells": [],
+    "codes": {
+     "missing": 1,
+     "unmapped_data": 2
+    }
+   }
+  },
+  {
+   "id": "fw9/long",
+   "kind": "fill",
+   "input": {
+    "template": "fw9_as_published",
+    "pdf": "forms/dev/fw9.pdf",
+    "data": {
+     "legal_name": "Northwind Regional Cooperative of Independent Hardware, Lumber and Building Supply Dealers Northwind Regional Cooperative of Independent Hardware, Lumber and Building Supply Dealers",
+     "tax_classification": "other",
+     "other_classification": "Unincorporated association of members with a very long description",
+     "has_foreign_partners": false,
+     "address": {
+      "street": "4000 Commerce Parkway, Building 7, Suite 1200"
+     }
+    }
+   },
+   "output": {
+    "fields": [
+     {
+      "id": "w0_0",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_01[0]",
+      "value": "Northwind Regional Cooperative of Independent Hardware, Lumber and Building Supply Dealers Northwind Regional Cooperative of Independent Hardware, Lumber and Building Supply Dealers"
+     },
+     {
+      "id": "w0_1",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_02[0]",
+      "value": null
+     },
+     {
+      "id": "w0_2",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[0]",
+      "value": false
+     },
+     {
+      "id": "w0_3",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[1]",
+      "value": false
+     },
+     {
+      "id": "w0_4",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[2]",
+      "value": false
+     },
+     {
+      "id": "w0_5",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[3]",
+      "value": false
+     },
+     {
+      "id": "w0_6",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[4]",
+      "value": false
+     },
+     {
+      "id": "w0_8",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].f1_03[0]",
+      "value": null
+     },
+     {
+      "id": "w0_12",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_05[0]",
+      "value": null
+     },
+     {
+      "id": "w0_7",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[5]",
+      "value": false
+     },
+     {
+      "id": "w0_10",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].f1_04[0]",
+      "value": "Unincorporated association of members with a very long description"
+     },
+     {
+      "id": "w0_13",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_06[0]",
+      "value": null
+     },
+     {
+      "id": "w0_9",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[6]",
+      "value": true
+     },
+     {
+      "id": "w0_11",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_2[0]",
+      "value": false
+     },
+     {
+      "id": "w0_14",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Address_ReadOrder[0].f1_07[0]",
+      "value": "4000 Commerce Parkway, Building 7, Suite 1200"
+     },
+     {
+      "id": "w0_16",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_09[0]",
+      "value": null
+     },
+     {
+      "id": "w0_15",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Address_ReadOrder[0].f1_08[0]",
+      "value": null
+     },
+     {
+      "id": "w0_17",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_10[0]",
+      "value": null
+     },
+     {
+      "id": "w0_18",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_11[0]",
+      "value": null
+     },
+     {
+      "id": "w0_19",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_12[0]",
+      "value": null
+     },
+     {
+      "id": "w0_20",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_13[0]",
+      "value": null
+     },
+     {
+      "id": "w0_21",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_14[0]",
+      "value": null
+     },
+     {
+      "id": "w0_22",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_15[0]",
+      "value": null
+     },
+     {
+      "id": "f1",
+      "binding": "created",
+      "widget": "f1",
+      "value": null
+     }
+    ],
+    "cells": [],
+    "codes": {
+     "missing": 7,
+     "overflow": 1
+    }
+   }
+  },
+  {
+   "id": "fw9/non-latin",
+   "kind": "fill",
+   "input": {
+    "template": "fw9_as_published",
+    "pdf": "forms/dev/fw9.pdf",
+    "data": {
+     "legal_name": "José Núñez",
+     "business_name": "北京 Trading Sí",
+     "tax_classification": "c_corporation",
+     "address": {
+      "street": "Bahnhofstrasse 1",
+      "city": "Zürich",
+      "postal_code": "8001"
+     }
+    }
+   },
+   "output": {
+    "fields": [
+     {
+      "id": "w0_0",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_01[0]",
+      "value": "José Núñez"
+     },
+     {
+      "id": "w0_1",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_02[0]",
+      "value": "北京 Trading Sí"
+     },
+     {
+      "id": "w0_2",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[0]",
+      "value": false
+     },
+     {
+      "id": "w0_3",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[1]",
+      "value": true
+     },
+     {
+      "id": "w0_4",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[2]",
+      "value": false
+     },
+     {
+      "id": "w0_5",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[3]",
+      "value": false
+     },
+     {
+      "id": "w0_6",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[4]",
+      "value": false
+     },
+     {
+      "id": "w0_8",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].f1_03[0]",
+      "value": null
+     },
+     {
+      "id": "w0_12",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_05[0]",
+      "value": null
+     },
+     {
+      "id": "w0_7",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[5]",
+      "value": false
+     },
+     {
+      "id": "w0_10",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].f1_04[0]",
+      "value": null
+     },
+     {
+      "id": "w0_13",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_06[0]",
+      "value": null
+     },
+     {
+      "id": "w0_9",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[6]",
+      "value": false
+     },
+     {
+      "id": "w0_11",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_2[0]",
+      "value": false
+     },
+     {
+      "id": "w0_14",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Address_ReadOrder[0].f1_07[0]",
+      "value": "Bahnhofstrasse 1"
+     },
+     {
+      "id": "w0_16",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_09[0]",
+      "value": null
+     },
+     {
+      "id": "w0_15",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Address_ReadOrder[0].f1_08[0]",
+      "value": "Zürich 8001"
+     },
+     {
+      "id": "w0_17",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_10[0]",
+      "value": null
+     },
+     {
+      "id": "w0_18",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_11[0]",
+      "value": null
+     },
+     {
+      "id": "w0_19",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_12[0]",
+      "value": null
+     },
+     {
+      "id": "w0_20",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_13[0]",
+      "value": null
+     },
+     {
+      "id": "w0_21",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_14[0]",
+      "value": null
+     },
+     {
+      "id": "w0_22",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_15[0]",
+      "value": null
+     },
+     {
+      "id": "f1",
+      "binding": "created",
+      "widget": "f1",
+      "value": null
+     }
+    ],
+    "cells": [],
+    "codes": {
+     "missing": 7,
+     "unencodable": 1
+    }
+   }
+  },
+  {
+   "id": "wadoc/probe",
+   "kind": "fill",
+   "input": {
+    "template": "wadoc_auth_as_published",
+    "pdf": "tests/web/fixtures/pdfs/wadoc_auth_decrypted.pdf",
+    "data": {
+     "individual": {
+      "first_name": "Ann",
+      "middle_name": "Q",
+      "last_name": "Lee",
+      "date_of_birth": "1980-05-17",
+      "doc_number": "998877"
+     },
+     "releasing_organization": {
+      "name": "Riverside Correctional Center",
+      "address": {
+       "street": "200 River Rd",
+       "city": "Olympia",
+       "state": "WA",
+       "postal_code": "98501"
+      },
+      "phone": "360-555-0100"
+     },
+     "recipient_organization": {
+      "name": "Harbor Legal Aid",
+      "address": {
+       "city": "Tacoma",
+       "state": "WA"
+      }
+     },
+     "information_requested": "Medical and education records from 2020 to 2025",
+     "purpose": "Continuity of care",
+     "signed_on": "2026-10-01",
+     "witness": {
+      "name": "Bo Li",
+      "signed_on": "2026-10-01"
+     }
+    }
+   },
+   "output": {
+    "fields": [
+     {
+      "id": "c0_0",
+      "binding": "created",
+      "widget": "c0_0",
+      "value": "Ann Q Lee"
+     },
+     {
+      "id": "c0_1",
+      "binding": "created",
+      "widget": "c0_1",
+      "value": "Riverside Correctional Center"
+     },
+     {
+      "id": "c0_2",
+      "binding": "created",
+      "widget": "c0_2",
+      "value": "200 River Rd"
+     },
+     {
+      "id": "c0_3",
+      "binding": "created",
+      "widget": "c0_3",
+      "value": "Olympia"
+     },
+     {
+      "id": "c0_4",
+      "binding": "created",
+      "widget": "c0_4",
+      "value": "WA"
+     },
+     {
+      "id": "c0_5",
+      "binding": "created",
+      "widget": "c0_5",
+      "value": "98501"
+     },
+     {
+      "id": "c0_6",
+      "binding": "created",
+      "widget": "c0_6",
+      "value": "Harbor Legal Aid"
+     },
+     {
+      "id": "c0_7",
+      "binding": "created",
+      "widget": "c0_7",
+      "value": null
+     },
+     {
+      "id": "c0_8",
+      "binding": "created",
+      "widget": "c0_8",
+      "value": "Tacoma"
+     },
+     {
+      "id": "c0_9",
+      "binding": "created",
+      "widget": "c0_9",
+      "value": "WA"
+     },
+     {
+      "id": "c0_10",
+      "binding": "created",
+      "widget": "c0_10",
+      "value": null
+     },
+     {
+      "id": "c0_11",
+      "binding": "created",
+      "widget": "c0_11",
+      "value": "Medical and education records from 2020 to 2025"
+     },
+     {
+      "id": "c0_12",
+      "binding": "created",
+      "widget": "c0_12",
+      "value": null
+     },
+     {
+      "id": "c0_13",
+      "binding": "created",
+      "widget": "c0_13",
+      "value": null
+     },
+     {
+      "id": "c0_14",
+      "binding": "created",
+      "widget": "c0_14",
+      "value": null
+     },
+     {
+      "id": "c0_15",
+      "binding": "created",
+      "widget": "c0_15",
+      "value": null
+     },
+     {
+      "id": "c0_16",
+      "binding": "created",
+      "widget": "c0_16",
+      "value": "Continuity of care"
+     },
+     {
+      "id": "c0_17",
+      "binding": "created",
+      "widget": "c0_17",
+      "value": null
+     },
+     {
+      "id": "c0_18",
+      "binding": "created",
+      "widget": "c0_18",
+      "value": null
+     },
+     {
+      "id": "c0_19",
+      "binding": "created",
+      "widget": "c0_19",
+      "value": null
+     },
+     {
+      "id": "c0_20",
+      "binding": "created",
+      "widget": "c0_20",
+      "value": null
+     },
+     {
+      "id": "c0_21",
+      "binding": "created",
+      "widget": "c0_21",
+      "value": null
+     },
+     {
+      "id": "c0_22",
+      "binding": "created",
+      "widget": "c0_22",
+      "value": "05/17/1980"
+     },
+     {
+      "id": "c0_23",
+      "binding": "created",
+      "widget": "c0_23",
+      "value": "10/01/2026"
+     },
+     {
+      "id": "c0_24",
+      "binding": "created",
+      "widget": "c0_24",
+      "value": "Bo Li"
+     },
+     {
+      "id": "c0_25",
+      "binding": "created",
+      "widget": "c0_25",
+      "value": null
+     },
+     {
+      "id": "c0_26",
+      "binding": "created",
+      "widget": "c0_26",
+      "value": "10/01/2026"
+     }
+    ],
+    "cells": [],
+    "codes": {
+     "missing": 2,
+     "unmapped_data": 2
+    }
+   }
+  },
+  {
+   "id": "wadoc/required-only",
+   "kind": "fill",
+   "input": {
+    "template": "wadoc_auth_as_published",
+    "pdf": "tests/web/fixtures/pdfs/wadoc_auth_decrypted.pdf",
+    "data": {
+     "individual": {
+      "first_name": "José",
+      "last_name": "Núñez"
+     },
+     "releasing_organization": {
+      "name": "北京 Clinic"
+     },
+     "recipient_organization": {
+      "name": "Zürich Hospital"
+     }
+    }
+   },
+   "output": {
+    "fields": [
+     {
+      "id": "c0_0",
+      "binding": "created",
+      "widget": "c0_0",
+      "value": "José Núñez"
+     },
+     {
+      "id": "c0_1",
+      "binding": "created",
+      "widget": "c0_1",
+      "value": "北京 Clinic"
+     },
+     {
+      "id": "c0_2",
+      "binding": "created",
+      "widget": "c0_2",
+      "value": null
+     },
+     {
+      "id": "c0_3",
+      "binding": "created",
+      "widget": "c0_3",
+      "value": null
+     },
+     {
+      "id": "c0_4",
+      "binding": "created",
+      "widget": "c0_4",
+      "value": null
+     },
+     {
+      "id": "c0_5",
+      "binding": "created",
+      "widget": "c0_5",
+      "value": null
+     },
+     {
+      "id": "c0_6",
+      "binding": "created",
+      "widget": "c0_6",
+      "value": "Zürich Hospital"
+     },
+     {
+      "id": "c0_7",
+      "binding": "created",
+      "widget": "c0_7",
+      "value": null
+     },
+     {
+      "id": "c0_8",
+      "binding": "created",
+      "widget": "c0_8",
+      "value": null
+     },
+     {
+      "id": "c0_9",
+      "binding": "created",
+      "widget": "c0_9",
+      "value": null
+     },
+     {
+      "id": "c0_10",
+      "binding": "created",
+      "widget": "c0_10",
+      "value": null
+     },
+     {
+      "id": "c0_11",
+      "binding": "created",
+      "widget": "c0_11",
+      "value": null
+     },
+     {
+      "id": "c0_12",
+      "binding": "created",
+      "widget": "c0_12",
+      "value": null
+     },
+     {
+      "id": "c0_13",
+      "binding": "created",
+      "widget": "c0_13",
+      "value": null
+     },
+     {
+      "id": "c0_14",
+      "binding": "created",
+      "widget": "c0_14",
+      "value": null
+     },
+     {
+      "id": "c0_15",
+      "binding": "created",
+      "widget": "c0_15",
+      "value": null
+     },
+     {
+      "id": "c0_16",
+      "binding": "created",
+      "widget": "c0_16",
+      "value": null
+     },
+     {
+      "id": "c0_17",
+      "binding": "created",
+      "widget": "c0_17",
+      "value": null
+     },
+     {
+      "id": "c0_18",
+      "binding": "created",
+      "widget": "c0_18",
+      "value": null
+     },
+     {
+      "id": "c0_19",
+      "binding": "created",
+      "widget": "c0_19",
+      "value": null
+     },
+     {
+      "id": "c0_20",
+      "binding": "created",
+      "widget": "c0_20",
+      "value": null
+     },
+     {
+      "id": "c0_21",
+      "binding": "created",
+      "widget": "c0_21",
+      "value": null
+     },
+     {
+      "id": "c0_22",
+      "binding": "created",
+      "widget": "c0_22",
+      "value": null
+     },
+     {
+      "id": "c0_23",
+      "binding": "created",
+      "widget": "c0_23",
+      "value": null
+     },
+     {
+      "id": "c0_24",
+      "binding": "created",
+      "widget": "c0_24",
+      "value": null
+     },
+     {
+      "id": "c0_25",
+      "binding": "created",
+      "widget": "c0_25",
+      "value": null
+     },
+     {
+      "id": "c0_26",
+      "binding": "created",
+      "widget": "c0_26",
+      "value": null
+     }
+    ],
+    "cells": [],
+    "codes": {
+     "missing": 14,
+     "unencodable": 1
+    }
+   }
+  },
+  {
+   "id": "fw9-binding/probe",
+   "kind": "fill",
+   "input": {
+    "template": "fw9_binding",
+    "pdf": "forms/dev/fw9.pdf",
+    "data": {
+     "name": "Ann Lee",
+     "code": "123456",
+     "answer": "No",
+     "city": "Springfield",
+     "note": "Northwind Regional Cooperative of Independent Hardware, Lumber and Building Supply Dealers Northwind Regional Cooperative of Independent Hardware, Lumber and Building Supply Dealers"
+    }
+   },
+   "output": {
+    "fields": [
+     {
+      "id": "named_text",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_01[0]",
+      "value": "Ann Lee"
+     },
+     {
+      "id": "wrong_kind",
+      "binding": "none",
+      "widget": null,
+      "value": null
+     },
+     {
+      "id": "no_widget",
+      "binding": "none",
+      "widget": null,
+      "value": null
+     },
+     {
+      "id": "named_box",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[2]",
+      "value": false
+     },
+     {
+      "id": "adopt_text",
+      "binding": "adopted",
+      "widget": "topmostSubform[0].Page1[0].f1_02[0]",
+      "value": "Springfield"
+     },
+     {
+      "id": "adopt_box",
+      "binding": "adopted",
+      "widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[3]",
+      "value": true
+     },
+     {
+      "id": "comb_cut",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_11[0]",
+      "value": "123"
+     },
+     {
+      "id": "long_note",
+      "binding": "named",
+      "widget": "topmostSubform[0].Page1[0].f1_10[0]",
+      "value": "Northwind Regional Cooperative of Independent Hardware, Lumber and Building Supply Dealers Northwind Regional Cooperative of Independent Hardware, Lumber and Building Supply Dealers"
+     }
+    ],
+    "cells": [],
+    "codes": {
+     "overflow": 1,
+     "truncated": 1,
+     "type_mismatch": 1,
+     "widget_not_found": 1
+    }
+   }
+  },
+  {
+   "id": "rotated90/probe",
+   "kind": "fill",
+   "input": {
+    "template": "hand",
+    "pdf": "tests/web/fixtures/pdfs/rotated90.pdf",
+    "data": {
+     "name": "Ann Lee",
+     "code": "1234",
+     "answer": "Sí",
+     "city": "Zürich"
+    }
+   },
+   "output": {
+    "fields": [
+     {
+      "id": "name",
+      "binding": "created",
+      "widget": "name",
+      "value": "Ann Lee"
+     },
+     {
+      "id": "code",
+      "binding": "created",
+      "widget": "code",
+      "value": "1234"
+     },
+     {
+      "id": "agree",
+      "binding": "created",
+      "widget": "agree",
+      "value": true
+     },
+     {
+      "id": "zurich",
+      "binding": "created",
+      "widget": "zurich",
+      "value": true
+     }
+    ],
+    "cells": [],
+    "codes": {
+     "overflow": 1,
+     "shrunk": 1
+    }
+   }
+  },
+  {
+   "id": "rotated90/latin1",
+   "kind": "fill",
+   "input": {
+    "template": "hand",
+    "pdf": "tests/web/fixtures/pdfs/rotated90.pdf",
+    "data": {
+     "name": "José Núñez",
+     "code": "ÄB12",
+     "answer": "Sí",
+     "city": "Zürich"
+    }
+   },
+   "output": {
+    "fields": [
+     {
+      "id": "name",
+      "binding": "created",
+      "widget": "name",
+      "value": "José Núñez"
+     },
+     {
+      "id": "code",
+      "binding": "created",
+      "widget": "code",
+      "value": "ÄB12"
+     },
+     {
+      "id": "agree",
+      "binding": "created",
+      "widget": "agree",
+      "value": true
+     },
+     {
+      "id": "zurich",
+      "binding": "created",
+      "widget": "zurich",
+      "value": true
+     }
+    ],
+    "cells": [],
+    "codes": {
+     "overflow": 1,
+     "shrunk": 1
+    }
+   }
+  },
+  {
+   "id": "rotated90/non-latin",
+   "kind": "fill",
+   "input": {
+    "template": "hand",
+    "pdf": "tests/web/fixtures/pdfs/rotated90.pdf",
+    "data": {
+     "name": "北京 Sí",
+     "code": "北京12345",
+     "answer": "No",
+     "city": "北京"
+    }
+   },
+   "output": {
+    "fields": [
+     {
+      "id": "name",
+      "binding": "created",
+      "widget": "name",
+      "value": "北京 Sí"
+     },
+     {
+      "id": "code",
+      "binding": "created",
+      "widget": "code",
+      "value": "北京12"
+     },
+     {
+      "id": "agree",
+      "binding": "created",
+      "widget": "agree",
+      "value": false
+     },
+     {
+      "id": "zurich",
+      "binding": "created",
+      "widget": "zurich",
+      "value": false
+     }
+    ],
+    "cells": [],
+    "codes": {
+     "not_shown": 2,
+     "shrunk": 1,
+     "truncated": 1,
+     "unencodable": 2
+    }
+   }
+  },
+  {
+   "id": "cropbox/probe",
+   "kind": "fill",
+   "input": {
+    "template": "hand_crop",
+    "pdf": "tests/web/fixtures/pdfs/cropbox.pdf",
+    "data": {
+     "name": "Ann Lee",
+     "code": "1234",
+     "answer": "Sí",
+     "city": "Zürich"
+    }
+   },
+   "output": {
+    "fields": [
+     {
+      "id": "name",
+      "binding": "created",
+      "widget": "name",
+      "value": "Ann Lee"
+     },
+     {
+      "id": "code",
+      "binding": "created",
+      "widget": "code",
+      "value": "1234"
+     },
+     {
+      "id": "agree",
+      "binding": "created",
+      "widget": "agree",
+      "value": true
+     },
+     {
+      "id": "zurich",
+      "binding": "created",
+      "widget": "zurich",
+      "value": true
+     }
+    ],
+    "cells": [],
+    "codes": {}
+   }
+  },
+  {
+   "id": "cropbox/latin1",
+   "kind": "fill",
+   "input": {
+    "template": "hand_crop",
+    "pdf": "tests/web/fixtures/pdfs/cropbox.pdf",
+    "data": {
+     "name": "José Núñez",
+     "code": "ÄB12",
+     "answer": "Sí",
+     "city": "Zürich"
+    }
+   },
+   "output": {
+    "fields": [
+     {
+      "id": "name",
+      "binding": "created",
+      "widget": "name",
+      "value": "José Núñez"
+     },
+     {
+      "id": "code",
+      "binding": "created",
+      "widget": "code",
+      "value": "ÄB12"
+     },
+     {
+      "id": "agree",
+      "binding": "created",
+      "widget": "agree",
+      "value": true
+     },
+     {
+      "id": "zurich",
+      "binding": "created",
+      "widget": "zurich",
+      "value": true
+     }
+    ],
+    "cells": [],
+    "codes": {}
+   }
+  },
+  {
+   "id": "cropbox/non-latin",
+   "kind": "fill",
+   "input": {
+    "template": "hand_crop",
+    "pdf": "tests/web/fixtures/pdfs/cropbox.pdf",
+    "data": {
+     "name": "北京 Sí",
+     "code": "北京12345",
+     "answer": "No",
+     "city": "北京"
+    }
+   },
+   "output": {
+    "fields": [
+     {
+      "id": "name",
+      "binding": "created",
+      "widget": "name",
+      "value": "北京 Sí"
+     },
+     {
+      "id": "code",
+      "binding": "created",
+      "widget": "code",
+      "value": "北京12"
+     },
+     {
+      "id": "agree",
+      "binding": "created",
+      "widget": "agree",
+      "value": false
+     },
+     {
+      "id": "zurich",
+      "binding": "created",
+      "widget": "zurich",
+      "value": false
+     }
+    ],
+    "cells": [],
+    "codes": {
+     "not_shown": 2,
+     "truncated": 1,
+     "unencodable": 2
+    }
+   }
+  },
+  {
+   "id": "cropbox-table/probe",
+   "kind": "fill",
+   "input": {
+    "template": "table_crop",
+    "pdf": "tests/web/fixtures/pdfs/cropbox.pdf",
+    "data": {
+     "note": "First line of the note\nsecond line",
+     "answer": "Sí",
+     "items": [
+      {
+       "desc": "Bolts",
+       "qty": 40
+      },
+      {
+       "desc": "Washers",
+       "qty": 120
+      }
+     ]
+    }
+   },
+   "output": {
+    "fields": [
+     {
+      "id": "note",
+      "binding": "created",
+      "widget": "note",
+      "value": "First line of the note\nsecond line"
+     },
+     {
+      "id": "yes",
+      "binding": "created",
+      "widget": "yes",
+      "value": true
+     },
+     {
+      "id": "unmapped",
+      "binding": "created",
+      "widget": "unmapped",
+      "value": null
+     }
+    ],
+    "cells": [
+     {
+      "table": "items",
+      "row": 0,
+      "key": "desc",
+      "value": "Bolts"
+     },
+     {
+      "table": "items",
+      "row": 0,
+      "key": "qty",
+      "value": "40"
+     },
+     {
+      "table": "items",
+      "row": 1,
+      "key": "desc",
+      "value": "Washers"
+     },
+     {
+      "table": "items",
+      "row": 1,
+      "key": "qty",
+      "value": "120"
+     }
+    ],
+    "codes": {}
+   }
+  },
+  {
+   "id": "cropbox-table/non-latin",
+   "kind": "fill",
+   "input": {
+    "template": "table_crop",
+    "pdf": "tests/web/fixtures/pdfs/cropbox.pdf",
+    "data": {
+     "note": "北京 long words long words long words long words long words long words long words long words long words long words long words long words long words long words long words long words long words long words long words long words long words long words long words long words long words long words long words long words long words long words ",
+     "answer": "No",
+     "items": [
+      {
+       "desc": "José's 北京 order",
+       "qty": 3
+      },
+      {
+       "desc": "Zürich"
+      },
+      {
+       "desc": "dropped",
+       "qty": 1
+      }
+     ]
+    }
+   },
+   "output": {
+    "fields": [
+     {
+      "id": "note",
+      "binding": "created",
+      "widget": "note",
+      "value": "北京 long words long words long words long words long words long words long words long words long words long words long words long words long words long words long words long words long words long words long words long words long words long words long words long words long words long words long words long words long words long words "
+     },
+     {
+      "id": "yes",
+      "binding": "created",
+      "widget": "yes",
+      "value": false
+     },
+     {
+      "id": "unmapped",
+      "binding": "created",
+      "widget": "unmapped",
+      "value": null
+     }
+    ],
+    "cells": [
+     {
+      "table": "items",
+      "row": 0,
+      "key": "desc",
+      "value": "José's 北京 order"
+     },
+     {
+      "table": "items",
+      "row": 0,
+      "key": "qty",
+      "value": "3"
+     },
+     {
+      "table": "items",
+      "row": 1,
+      "key": "desc",
+      "value": "Zürich"
+     },
+     {
+      "table": "items",
+      "row": 1,
+      "key": "qty",
+      "value": null
+     }
+    ],
+    "codes": {
+     "not_shown": 1,
+     "rows_dropped": 1,
+     "shrunk": 1,
+     "unencodable": 2
+    }
+   }
+  }
+ ]
+}

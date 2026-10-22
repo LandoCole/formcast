@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Server engine harness</title>
+</head>
+<body>
+<p>Test harness for the server engine. Playwright serves this page at an address on the workbench server
+(so the engine's relative URLs reach it) and calls <code>window.runServer(cmd)</code>.</p>
+<script type="module">
+import { EngineError, createServerEngine } from "/engines/server/client.js";
+
+const engine = await createServerEngine({ pollMs: 50 });
+const handles = new Map();
+
+function fromBase64(b64) {
+  return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+}
+
+function toBase64(bytes) {
+  let s = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+
+const docs = new Map();
+const summary = (doc) => ({ id: doc.id, pageCount: doc.pageCount, pages: doc.pages.map(({ index, width, height, rotation, kind }) => ({ index, width, height, rotation, kind })) });
+/** Run `fn`; an EngineError becomes {error: {code, message, status}}. */
+async function guarded(fn) {
+  try {
+    return await fn();
+  } catch (e) {
+    if (e instanceof EngineError) return { error: { code: e.code, message: e.message, status: e.status } };
+    throw e;
+  }
+}
+
+const COMMANDS = {
+  capabilities: async () => engine.capabilities,
+  // open a demo form by name, or uploaded bytes ({base64, name}); the summary, kept as `docKey`
+  open: ({ key, form, base64, name }) => guarded(async () => {
+    const doc = await engine.open(form ?? fromBase64(base64), { name });
+    docs.set(key, doc);
+    return summary(doc);
+  }),
+  // does the first page's image URL load as an image? its natural size
+  async pageImage({ key, index, dpi }) {
+    const url = docs.get(key).pages[index].imageUrl(dpi);
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    return { url, width: img.naturalWidth, height: img.naturalHeight };
+  },
+  seed: ({ key, schema }) => guarded(() => engine.seed(docs.get(key), schema)),
+  // `edit` is the op to apply (`op` names the command)
+  apply: ({ key, template, edit, author }) => engine.apply(template, edit, author ?? "human", { doc: docs.get(key) }),
+  fill: ({ key, template, record, checkFingerprint }) => guarded(async () => {
+    const { pdfBytes, report, note } = await engine.fill(template, docs.get(key), record, { checkFingerprint });
+    return { head: String.fromCharCode(...pdfBytes.subarray(0, 5)), size: pdfBytes.length, report, note };
+  }),
+  smartPdf: ({ key, template, checkFingerprint }) => guarded(async () => {
+    const bytes = await engine.smartPdf(template, docs.get(key), { checkFingerprint });
+    return { head: String.fromCharCode(...bytes.subarray(0, 5)), base64: toBase64(bytes) };
+  }),
+  rebind: ({ key, template }) => guarded(() => engine.rebind(template, docs.get(key))),
+  matches: ({ key }) => guarded(() => engine.matches(docs.get(key))),
+  // start a job; wait for it with `jobDone`, or `jobCancel`
+  startBuild: ({ key, schema, startFrom }) => guarded(async () => {
+    const handle = await engine.build(docs.get(key), schema, { startFrom: startFrom ?? null });
+    handles.set(handle.id, handle);
+    return { id: handle.id, kind: handle.kind };
+  }),
+  startRevise: ({ key, template, instruction, region }) => guarded(async () => {
+    const handle = await engine.revise(template, docs.get(key), instruction, region ?? null);
+    handles.set(handle.id, handle);
+    return { id: handle.id, kind: handle.kind };
+  }),
+  jobDone: ({ id }) => guarded(() => handles.get(id).done),
+  jobPoll: ({ id }) => guarded(() => handles.get(id).poll()),
+  jobCancel: ({ id }) => guarded(() => handles.get(id).cancel()),
+  templates: async ({ action, name, template }) => guarded(() => engine.templates[action](...(action === "list" ? [] : action === "put" ? [name, template] : [name]))),
+  records: async ({ action, args }) => guarded(() => engine.records[action](...args)),
+};
+
+window.runServer = async (cmd) => {
+  const fn = COMMANDS[cmd.op];
+  if (fn === undefined) throw new Error(`unknown command ${cmd.op}`);
+  return fn(cmd);
+};
+window.serverReady = true;
+</script>
+</body>
+</html>

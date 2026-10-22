@@ -1,0 +1,11806 @@
+{
+ "generated_by": "demo/tools/export_conformance.py",
+ "catalogue": [
+  {
+   "name": "split",
+   "args": {
+    "type": "object",
+    "properties": {
+     "sep": {
+      "type": "string",
+      "minLength": 1
+     },
+     "index": {
+      "type": "integer"
+     }
+    },
+    "required": [
+     "sep",
+     "index"
+    ],
+    "additionalProperties": false
+   },
+   "takesList": false,
+   "doc": "Split text on `sep` and take part number `index` (0-based, negative allowed; \"\" if absent)."
+  },
+  {
+   "name": "join",
+   "args": {
+    "type": "object",
+    "properties": {
+     "sep": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "sep"
+    ],
+    "additionalProperties": false
+   },
+   "takesList": true,
+   "doc": "Join all source values with `sep`, skipping missing and empty ones (None if all are)."
+  },
+  {
+   "name": "slice",
+   "args": {
+    "type": "object",
+    "properties": {
+     "start": {
+      "type": "integer",
+      "default": 0
+     },
+     "end": {
+      "type": "integer"
+     }
+    },
+    "required": [],
+    "additionalProperties": false
+   },
+   "takesList": false,
+   "doc": "Take characters (or list items) from `start` up to but not including `end`."
+  },
+  {
+   "name": "char_at",
+   "args": {
+    "type": "object",
+    "properties": {
+     "index": {
+      "type": "integer"
+     }
+    },
+    "required": [
+     "index"
+    ],
+    "additionalProperties": false
+   },
+   "takesList": false,
+   "doc": "Take the single character at `index` (0-based, negative allowed; \"\" if out of range)."
+  },
+  {
+   "name": "upper",
+   "args": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+   },
+   "takesList": false,
+   "doc": "Convert text to UPPER CASE."
+  },
+  {
+   "name": "lower",
+   "args": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+   },
+   "takesList": false,
+   "doc": "Convert text to lower case."
+  },
+  {
+   "name": "title",
+   "args": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+   },
+   "takesList": false,
+   "doc": "Convert text to Title Case (each word and hyphenated part capitalized)."
+  },
+  {
+   "name": "strip",
+   "args": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+   },
+   "takesList": false,
+   "doc": "Remove leading and trailing whitespace."
+  },
+  {
+   "name": "date_format",
+   "args": {
+    "type": "object",
+    "properties": {
+     "format": {
+      "type": "string",
+      "minLength": 1
+     }
+    },
+    "required": [
+     "format"
+    ],
+    "additionalProperties": false
+   },
+   "takesList": false,
+   "doc": "Format an ISO date (YYYY-MM-DD) with a strftime pattern, e.g. \"%m/%d/%Y\"."
+  },
+  {
+   "name": "date_part",
+   "args": {
+    "type": "object",
+    "properties": {
+     "part": {
+      "enum": [
+       "month",
+       "day",
+       "year",
+       "year2"
+      ]
+     },
+     "pad": {
+      "type": "integer",
+      "minimum": 0,
+      "default": 0
+     }
+    },
+    "required": [
+     "part"
+    ],
+    "additionalProperties": false
+   },
+   "takesList": false,
+   "doc": "Take month, day, year (4 digits) or year2 (2 digits) of an ISO date, zero-padded to `pad`."
+  },
+  {
+   "name": "number_format",
+   "args": {
+    "type": "object",
+    "properties": {
+     "decimals": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 12,
+      "default": 2
+     },
+     "thousands": {
+      "type": "string",
+      "default": ","
+     },
+     "prefix": {
+      "type": "string",
+      "default": ""
+     }
+    },
+    "required": [],
+    "additionalProperties": false
+   },
+   "takesList": false,
+   "doc": "Format a number with fixed `decimals` (rounded half up), a thousands separator and a prefix."
+  },
+  {
+   "name": "bool_to_check",
+   "args": {
+    "type": "object",
+    "properties": {},
+    "required": [],
+    "additionalProperties": false
+   },
+   "takesList": false,
+   "doc": "True to tick a checkbox for a truthy value; false, no, 0, empty and missing leave it unticked."
+  },
+  {
+   "name": "equals",
+   "args": {
+    "type": "object",
+    "properties": {
+     "value": {}
+    },
+    "required": [
+     "value"
+    ],
+    "additionalProperties": false
+   },
+   "takesList": false,
+   "doc": "True when the input equals `value` exactly (for ticking a checkbox on a matching option)."
+  },
+  {
+   "name": "contains",
+   "args": {
+    "type": "object",
+    "properties": {
+     "value": {}
+    },
+    "required": [
+     "value"
+    ],
+    "additionalProperties": false
+   },
+   "takesList": false,
+   "doc": "True when `value` is an item of the input list or a substring of the input text."
+  },
+  {
+   "name": "default",
+   "args": {
+    "type": "object",
+    "properties": {
+     "value": {}
+    },
+    "required": [
+     "value"
+    ],
+    "additionalProperties": false
+   },
+   "takesList": false,
+   "doc": "Use `value` when the input is missing or an empty string."
+  },
+  {
+   "name": "prefix",
+   "args": {
+    "type": "object",
+    "properties": {
+     "value": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "value"
+    ],
+    "additionalProperties": false
+   },
+   "takesList": false,
+   "doc": "Put fixed text before the input (blank input stays blank)."
+  },
+  {
+   "name": "suffix",
+   "args": {
+    "type": "object",
+    "properties": {
+     "value": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "value"
+    ],
+    "additionalProperties": false
+   },
+   "takesList": false,
+   "doc": "Put fixed text after the input (blank input stays blank)."
+  }
+ ],
+ "cases": [
+  {
+   "id": "split/0-\"123-45-6789\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "123-45-6789"
+    ],
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": "-",
+       "index": 2
+      }
+     }
+    ]
+   },
+   "output": "6789"
+  },
+  {
+   "id": "split/1-\"a-b\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a-b"
+    ],
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": "-",
+       "index": 2
+      }
+     }
+    ]
+   },
+   "output": ""
+  },
+  {
+   "id": "split/2-\"\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     ""
+    ],
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": "-",
+       "index": 2
+      }
+     }
+    ]
+   },
+   "output": ""
+  },
+  {
+   "id": "split/3-null",
+   "kind": "apply",
+   "input": {
+    "values": [
+     null
+    ],
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": "-",
+       "index": 2
+      }
+     }
+    ]
+   },
+   "output": null
+  },
+  {
+   "id": "split/4-12345",
+   "kind": "apply",
+   "input": {
+    "values": [
+     12345
+    ],
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": "-",
+       "index": 2
+      }
+     }
+    ]
+   },
+   "output": ""
+  },
+  {
+   "id": "split/5-false",
+   "kind": "apply",
+   "input": {
+    "values": [
+     false
+    ],
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": "-",
+       "index": 2
+      }
+     }
+    ]
+   },
+   "output": ""
+  },
+  {
+   "id": "split/6-[\"a-b-c\"]",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      "a-b-c"
+     ]
+    ],
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": "-",
+       "index": 2
+      }
+     }
+    ]
+   },
+   "error": "expected text but got list: ['a-b-c']"
+  },
+  {
+   "id": "split/7-{\"a\": 1}",
+   "kind": "apply",
+   "input": {
+    "values": [
+     {
+      "a": 1
+     }
+    ],
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": "-",
+       "index": 2
+      }
+     }
+    ]
+   },
+   "error": "expected text but got dict: {'a': 1}"
+  },
+  {
+   "id": "split/8-\"--x\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "--x"
+    ],
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": "-",
+       "index": 2
+      }
+     }
+    ]
+   },
+   "output": "x"
+  },
+  {
+   "id": "split/9-\"\\u00e9-\\u00fc-\\u00f1\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "é-ü-ñ"
+    ],
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": "-",
+       "index": 2
+      }
+     }
+    ]
+   },
+   "output": "ñ"
+  },
+  {
+   "id": "split/negative",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "Ada Lovelace"
+    ],
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": " ",
+       "index": -1
+      }
+     }
+    ]
+   },
+   "output": "Lovelace"
+  },
+  {
+   "id": "split/negative-out",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "Ada Lovelace"
+    ],
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": " ",
+       "index": -3
+      }
+     }
+    ]
+   },
+   "output": ""
+  },
+  {
+   "id": "split/out-of-range",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "Ada Lovelace"
+    ],
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": " ",
+       "index": 3
+      }
+     }
+    ]
+   },
+   "output": ""
+  },
+  {
+   "id": "split/multi-char-sep",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a::b::c"
+    ],
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": "::",
+       "index": 1
+      }
+     }
+    ]
+   },
+   "output": "b"
+  },
+  {
+   "id": "split/maps-over-values",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a-b",
+     "c-d"
+    ],
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": "-",
+       "index": 1
+      }
+     }
+    ]
+   },
+   "output": [
+    "b",
+    "d"
+   ]
+  },
+  {
+   "id": "split/empty-sep",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "abc"
+    ],
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": "",
+       "index": 0
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'split' at args['sep']: '' should be non-empty"
+  },
+  {
+   "id": "split/missing-index",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "abc"
+    ],
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": "-"
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'split': 'index' is a required property"
+  },
+  {
+   "id": "split/missing-sep",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "abc"
+    ],
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "index": 0
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'split': 'sep' is a required property"
+  },
+  {
+   "id": "split/index-string",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "abc"
+    ],
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": "-",
+       "index": "1"
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'split' at args['index']: '1' is not of type 'integer'"
+  },
+  {
+   "id": "split/index-float",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "abc"
+    ],
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": "-",
+       "index": 1.5
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'split' at args['index']: 1.5 is not of type 'integer'"
+  },
+  {
+   "id": "split/index-bool",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "abc"
+    ],
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": "-",
+       "index": true
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'split' at args['index']: True is not of type 'integer'"
+  },
+  {
+   "id": "split/sep-number",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "abc"
+    ],
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": 1,
+       "index": 0
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'split' at args['sep']: 1 is not of type 'string'"
+  },
+  {
+   "id": "split/sep-null",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "abc"
+    ],
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": null,
+       "index": 0
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'split' at args['sep']: None is not of type 'string'"
+  },
+  {
+   "id": "split/extra-arg",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "abc"
+    ],
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": "-",
+       "index": 0,
+       "bogus": 1
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'split': Additional properties are not allowed ('bogus' was unexpected)"
+  },
+  {
+   "id": "split/two-extra-args",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "abc"
+    ],
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": "-",
+       "index": 0,
+       "zeta": 1,
+       "alpha": 2
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'split': Additional properties are not allowed ('alpha', 'zeta' were unexpected)"
+  },
+  {
+   "id": "slice/0-\"abcdef\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "abcdef"
+    ],
+    "chain": [
+     {
+      "op": "slice",
+      "args": {
+       "start": 1,
+       "end": 3
+      }
+     }
+    ]
+   },
+   "output": "bc"
+  },
+  {
+   "id": "slice/1-\"\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     ""
+    ],
+    "chain": [
+     {
+      "op": "slice",
+      "args": {
+       "start": 1,
+       "end": 3
+      }
+     }
+    ]
+   },
+   "output": ""
+  },
+  {
+   "id": "slice/2-null",
+   "kind": "apply",
+   "input": {
+    "values": [
+     null
+    ],
+    "chain": [
+     {
+      "op": "slice",
+      "args": {
+       "start": 1,
+       "end": 3
+      }
+     }
+    ]
+   },
+   "output": null
+  },
+  {
+   "id": "slice/3-123456",
+   "kind": "apply",
+   "input": {
+    "values": [
+     123456
+    ],
+    "chain": [
+     {
+      "op": "slice",
+      "args": {
+       "start": 1,
+       "end": 3
+      }
+     }
+    ]
+   },
+   "output": "23"
+  },
+  {
+   "id": "slice/4-\"ab\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "ab"
+    ],
+    "chain": [
+     {
+      "op": "slice",
+      "args": {
+       "start": 1,
+       "end": 3
+      }
+     }
+    ]
+   },
+   "output": "b"
+  },
+  {
+   "id": "slice/5-true",
+   "kind": "apply",
+   "input": {
+    "values": [
+     true
+    ],
+    "chain": [
+     {
+      "op": "slice",
+      "args": {
+       "start": 1,
+       "end": 3
+      }
+     }
+    ]
+   },
+   "output": "ru"
+  },
+  {
+   "id": "slice/6-\"Jos\\u00e9\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "José"
+    ],
+    "chain": [
+     {
+      "op": "slice",
+      "args": {
+       "start": 1,
+       "end": 3
+      }
+     }
+    ]
+   },
+   "output": "os"
+  },
+  {
+   "id": "slice/7-\"a\\ud83d\\ude00b\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a😀b"
+    ],
+    "chain": [
+     {
+      "op": "slice",
+      "args": {
+       "start": 1,
+       "end": 3
+      }
+     }
+    ]
+   },
+   "output": "😀b"
+  },
+  {
+   "id": "slice/start-only",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "abcdef"
+    ],
+    "chain": [
+     {
+      "op": "slice",
+      "args": {
+       "start": 2
+      }
+     }
+    ]
+   },
+   "output": "cdef"
+  },
+  {
+   "id": "slice/end-only",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "abcdef"
+    ],
+    "chain": [
+     {
+      "op": "slice",
+      "args": {
+       "end": 2
+      }
+     }
+    ]
+   },
+   "output": "ab"
+  },
+  {
+   "id": "slice/no-args",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "abcdef"
+    ],
+    "chain": [
+     {
+      "op": "slice",
+      "args": {}
+     }
+    ]
+   },
+   "output": "abcdef"
+  },
+  {
+   "id": "slice/negative-start",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "abcdef"
+    ],
+    "chain": [
+     {
+      "op": "slice",
+      "args": {
+       "start": -2
+      }
+     }
+    ]
+   },
+   "output": "ef"
+  },
+  {
+   "id": "slice/negative-end",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "abcdef"
+    ],
+    "chain": [
+     {
+      "op": "slice",
+      "args": {
+       "start": 0,
+       "end": -1
+      }
+     }
+    ]
+   },
+   "output": "abcde"
+  },
+  {
+   "id": "slice/end-before-start",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "abcdef"
+    ],
+    "chain": [
+     {
+      "op": "slice",
+      "args": {
+       "start": 4,
+       "end": 2
+      }
+     }
+    ]
+   },
+   "output": ""
+  },
+  {
+   "id": "slice/start-past-end",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "abc"
+    ],
+    "chain": [
+     {
+      "op": "slice",
+      "args": {
+       "start": 9
+      }
+     }
+    ]
+   },
+   "output": ""
+  },
+  {
+   "id": "slice/emoji",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a😀b"
+    ],
+    "chain": [
+     {
+      "op": "slice",
+      "args": {
+       "start": 1,
+       "end": 2
+      }
+     }
+    ]
+   },
+   "output": "😀"
+  },
+  {
+   "id": "slice/list",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      "a",
+      "b",
+      "c"
+     ]
+    ],
+    "chain": [
+     {
+      "op": "slice",
+      "args": {
+       "start": 0,
+       "end": 2
+      }
+     }
+    ]
+   },
+   "output": [
+    "a",
+    "b"
+   ]
+  },
+  {
+   "id": "slice/list-negative",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      "a",
+      "b",
+      "c"
+     ]
+    ],
+    "chain": [
+     {
+      "op": "slice",
+      "args": {
+       "start": -2
+      }
+     }
+    ]
+   },
+   "output": [
+    "b",
+    "c"
+   ]
+  },
+  {
+   "id": "slice/list-empty",
+   "kind": "apply",
+   "input": {
+    "values": [
+     []
+    ],
+    "chain": [
+     {
+      "op": "slice",
+      "args": {
+       "start": 1
+      }
+     }
+    ]
+   },
+   "output": []
+  },
+  {
+   "id": "slice/dict-input",
+   "kind": "apply",
+   "input": {
+    "values": [
+     {
+      "a": 1
+     }
+    ],
+    "chain": [
+     {
+      "op": "slice",
+      "args": {
+       "start": 0,
+       "end": 1
+      }
+     }
+    ]
+   },
+   "error": "expected text but got dict: {'a': 1}"
+  },
+  {
+   "id": "slice/start-string",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "abc"
+    ],
+    "chain": [
+     {
+      "op": "slice",
+      "args": {
+       "start": "1"
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'slice' at args['start']: '1' is not of type 'integer'"
+  },
+  {
+   "id": "slice/end-null",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "abc"
+    ],
+    "chain": [
+     {
+      "op": "slice",
+      "args": {
+       "end": null
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'slice' at args['end']: None is not of type 'integer'"
+  },
+  {
+   "id": "slice/maps-over-values",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "abc",
+     "def"
+    ],
+    "chain": [
+     {
+      "op": "slice",
+      "args": {
+       "start": 1
+      }
+     }
+    ]
+   },
+   "output": [
+    "bc",
+    "ef"
+   ]
+  },
+  {
+   "id": "char_at/0-\"abc\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "abc"
+    ],
+    "chain": [
+     {
+      "op": "char_at",
+      "args": {
+       "index": 1
+      }
+     }
+    ]
+   },
+   "output": "b"
+  },
+  {
+   "id": "char_at/1-\"\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     ""
+    ],
+    "chain": [
+     {
+      "op": "char_at",
+      "args": {
+       "index": 1
+      }
+     }
+    ]
+   },
+   "output": ""
+  },
+  {
+   "id": "char_at/2-null",
+   "kind": "apply",
+   "input": {
+    "values": [
+     null
+    ],
+    "chain": [
+     {
+      "op": "char_at",
+      "args": {
+       "index": 1
+      }
+     }
+    ]
+   },
+   "output": null
+  },
+  {
+   "id": "char_at/3-123",
+   "kind": "apply",
+   "input": {
+    "values": [
+     123
+    ],
+    "chain": [
+     {
+      "op": "char_at",
+      "args": {
+       "index": 1
+      }
+     }
+    ]
+   },
+   "output": "2"
+  },
+  {
+   "id": "char_at/4-\"\\u00e9\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "é"
+    ],
+    "chain": [
+     {
+      "op": "char_at",
+      "args": {
+       "index": 1
+      }
+     }
+    ]
+   },
+   "output": ""
+  },
+  {
+   "id": "char_at/5-\"a\\ud83d\\ude00b\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a😀b"
+    ],
+    "chain": [
+     {
+      "op": "char_at",
+      "args": {
+       "index": 1
+      }
+     }
+    ]
+   },
+   "output": "😀"
+  },
+  {
+   "id": "char_at/6-false",
+   "kind": "apply",
+   "input": {
+    "values": [
+     false
+    ],
+    "chain": [
+     {
+      "op": "char_at",
+      "args": {
+       "index": 1
+      }
+     }
+    ]
+   },
+   "output": "a"
+  },
+  {
+   "id": "char_at/7-[\"a\"]",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      "a"
+     ]
+    ],
+    "chain": [
+     {
+      "op": "char_at",
+      "args": {
+       "index": 1
+      }
+     }
+    ]
+   },
+   "error": "expected text but got list: ['a']"
+  },
+  {
+   "id": "char_at/negative",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "abc"
+    ],
+    "chain": [
+     {
+      "op": "char_at",
+      "args": {
+       "index": -1
+      }
+     }
+    ]
+   },
+   "output": "c"
+  },
+  {
+   "id": "char_at/out-of-range",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "abc"
+    ],
+    "chain": [
+     {
+      "op": "char_at",
+      "args": {
+       "index": 9
+      }
+     }
+    ]
+   },
+   "output": ""
+  },
+  {
+   "id": "char_at/negative-out-of-range",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "abc"
+    ],
+    "chain": [
+     {
+      "op": "char_at",
+      "args": {
+       "index": -4
+      }
+     }
+    ]
+   },
+   "output": ""
+  },
+  {
+   "id": "char_at/missing-index",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "abc"
+    ],
+    "chain": [
+     {
+      "op": "char_at",
+      "args": {}
+     }
+    ]
+   },
+   "error": "bad args for transform 'char_at': 'index' is a required property"
+  },
+  {
+   "id": "char_at/index-string",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "abc"
+    ],
+    "chain": [
+     {
+      "op": "char_at",
+      "args": {
+       "index": "0"
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'char_at' at args['index']: '0' is not of type 'integer'"
+  },
+  {
+   "id": "join/names",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "Ada",
+     "Lovelace"
+    ],
+    "chain": [
+     {
+      "op": "join",
+      "args": {
+       "sep": " "
+      }
+     }
+    ]
+   },
+   "output": "Ada Lovelace"
+  },
+  {
+   "id": "join/skips-none-and-empty",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "Ada",
+     null,
+     "",
+     "Lovelace"
+    ],
+    "chain": [
+     {
+      "op": "join",
+      "args": {
+       "sep": " "
+      }
+     }
+    ]
+   },
+   "output": "Ada Lovelace"
+  },
+  {
+   "id": "join/all-missing",
+   "kind": "apply",
+   "input": {
+    "values": [
+     null,
+     ""
+    ],
+    "chain": [
+     {
+      "op": "join",
+      "args": {
+       "sep": " "
+      }
+     }
+    ]
+   },
+   "output": null
+  },
+  {
+   "id": "join/no-values",
+   "kind": "apply",
+   "input": {
+    "values": [],
+    "chain": [
+     {
+      "op": "join",
+      "args": {
+       "sep": " "
+      }
+     }
+    ]
+   },
+   "output": null
+  },
+  {
+   "id": "join/single",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "Ada"
+    ],
+    "chain": [
+     {
+      "op": "join",
+      "args": {
+       "sep": " "
+      }
+     }
+    ]
+   },
+   "output": "Ada"
+  },
+  {
+   "id": "join/single-none",
+   "kind": "apply",
+   "input": {
+    "values": [
+     null
+    ],
+    "chain": [
+     {
+      "op": "join",
+      "args": {
+       "sep": " "
+      }
+     }
+    ]
+   },
+   "output": null
+  },
+  {
+   "id": "join/numbers",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1,
+     2,
+     3
+    ],
+    "chain": [
+     {
+      "op": "join",
+      "args": {
+       "sep": "/"
+      }
+     }
+    ]
+   },
+   "output": "1/2/3"
+  },
+  {
+   "id": "join/bools",
+   "kind": "apply",
+   "input": {
+    "values": [
+     true,
+     false
+    ],
+    "chain": [
+     {
+      "op": "join",
+      "args": {
+       "sep": ","
+      }
+     }
+    ]
+   },
+   "output": "True,False"
+  },
+  {
+   "id": "join/zero-is-kept",
+   "kind": "apply",
+   "input": {
+    "values": [
+     0,
+     "x"
+    ],
+    "chain": [
+     {
+      "op": "join",
+      "args": {
+       "sep": "-"
+      }
+     }
+    ]
+   },
+   "output": "0-x"
+  },
+  {
+   "id": "join/lone-list",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      "a",
+      "b"
+     ]
+    ],
+    "chain": [
+     {
+      "op": "join",
+      "args": {
+       "sep": ", "
+      }
+     }
+    ]
+   },
+   "output": "a, b"
+  },
+  {
+   "id": "join/lone-list-with-missing",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      "a",
+      null,
+      "",
+      "b"
+     ]
+    ],
+    "chain": [
+     {
+      "op": "join",
+      "args": {
+       "sep": "+"
+      }
+     }
+    ]
+   },
+   "output": "a+b"
+  },
+  {
+   "id": "join/lone-empty-list",
+   "kind": "apply",
+   "input": {
+    "values": [
+     []
+    ],
+    "chain": [
+     {
+      "op": "join",
+      "args": {
+       "sep": " "
+      }
+     }
+    ]
+   },
+   "output": null
+  },
+  {
+   "id": "join/two-lists",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      "a"
+     ],
+     [
+      "b"
+     ]
+    ],
+    "chain": [
+     {
+      "op": "join",
+      "args": {
+       "sep": " "
+      }
+     }
+    ]
+   },
+   "error": "expected text but got list: ['a']"
+  },
+  {
+   "id": "join/list-among-scalars",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a",
+     [
+      "b"
+     ]
+    ],
+    "chain": [
+     {
+      "op": "join",
+      "args": {
+       "sep": " "
+      }
+     }
+    ]
+   },
+   "error": "expected text but got list: ['b']"
+  },
+  {
+   "id": "join/dict-among-scalars",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a",
+     {
+      "k": 1
+     }
+    ],
+    "chain": [
+     {
+      "op": "join",
+      "args": {
+       "sep": " "
+      }
+     }
+    ]
+   },
+   "error": "expected text but got dict: {'k': 1}"
+  },
+  {
+   "id": "join/empty-sep",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a",
+     "b",
+     "c"
+    ],
+    "chain": [
+     {
+      "op": "join",
+      "args": {
+       "sep": ""
+      }
+     }
+    ]
+   },
+   "output": "abc"
+  },
+  {
+   "id": "join/unicode",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "José",
+     "Zürich",
+     "北京"
+    ],
+    "chain": [
+     {
+      "op": "join",
+      "args": {
+       "sep": " · "
+      }
+     }
+    ]
+   },
+   "output": "José · Zürich · 北京"
+  },
+  {
+   "id": "join/missing-sep",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a",
+     "b"
+    ],
+    "chain": [
+     {
+      "op": "join",
+      "args": {}
+     }
+    ]
+   },
+   "error": "bad args for transform 'join': 'sep' is a required property"
+  },
+  {
+   "id": "join/sep-number",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a",
+     "b"
+    ],
+    "chain": [
+     {
+      "op": "join",
+      "args": {
+       "sep": 1
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'join' at args['sep']: 1 is not of type 'string'"
+  },
+  {
+   "id": "join/extra-arg",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a",
+     "b"
+    ],
+    "chain": [
+     {
+      "op": "join",
+      "args": {
+       "sep": "-",
+       "bogus": true
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'join': Additional properties are not allowed ('bogus' was unexpected)"
+  },
+  {
+   "id": "upper/0-\"ada Lovelace\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "ada Lovelace"
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "output": "ADA LOVELACE"
+  },
+  {
+   "id": "upper/1-\"\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     ""
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "output": ""
+  },
+  {
+   "id": "upper/2-null",
+   "kind": "apply",
+   "input": {
+    "values": [
+     null
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "output": null
+  },
+  {
+   "id": "upper/3-12",
+   "kind": "apply",
+   "input": {
+    "values": [
+     12
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "output": "12"
+  },
+  {
+   "id": "upper/4-true",
+   "kind": "apply",
+   "input": {
+    "values": [
+     true
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "output": "TRUE"
+  },
+  {
+   "id": "upper/5-\"stra\\u00dfe\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "straße"
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "output": "STRASSE"
+  },
+  {
+   "id": "upper/6-\"\\ufb01sh\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "ﬁsh"
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "output": "FISH"
+  },
+  {
+   "id": "upper/7-\"\\u039f\\u0394\\u03a5\\u03a",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "ΟΔΥΣΣΕΥΣ"
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "output": "ΟΔΥΣΣΕΥΣ"
+  },
+  {
+   "id": "upper/8-\"Jos\\u00e9 Z\\u00fcrich \\",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "José Zürich 北京"
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "output": "JOSÉ ZÜRICH 北京"
+  },
+  {
+   "id": "upper/9-[\"a\"]",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      "a"
+     ]
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "error": "expected text but got list: ['a']"
+  },
+  {
+   "id": "upper/10-{\"a\": 1}",
+   "kind": "apply",
+   "input": {
+    "values": [
+     {
+      "a": 1
+     }
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "error": "expected text but got dict: {'a': 1}"
+  },
+  {
+   "id": "upper/maps-over-values",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "aB",
+     "cD"
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "output": [
+    "AB",
+    "CD"
+   ]
+  },
+  {
+   "id": "upper/extra-arg",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a"
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {
+       "bogus": 1
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'upper': Additional properties are not allowed ('bogus' was unexpected)"
+  },
+  {
+   "id": "lower/0-\"ada Lovelace\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "ada Lovelace"
+    ],
+    "chain": [
+     {
+      "op": "lower",
+      "args": {}
+     }
+    ]
+   },
+   "output": "ada lovelace"
+  },
+  {
+   "id": "lower/1-\"\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     ""
+    ],
+    "chain": [
+     {
+      "op": "lower",
+      "args": {}
+     }
+    ]
+   },
+   "output": ""
+  },
+  {
+   "id": "lower/2-null",
+   "kind": "apply",
+   "input": {
+    "values": [
+     null
+    ],
+    "chain": [
+     {
+      "op": "lower",
+      "args": {}
+     }
+    ]
+   },
+   "output": null
+  },
+  {
+   "id": "lower/3-12",
+   "kind": "apply",
+   "input": {
+    "values": [
+     12
+    ],
+    "chain": [
+     {
+      "op": "lower",
+      "args": {}
+     }
+    ]
+   },
+   "output": "12"
+  },
+  {
+   "id": "lower/4-true",
+   "kind": "apply",
+   "input": {
+    "values": [
+     true
+    ],
+    "chain": [
+     {
+      "op": "lower",
+      "args": {}
+     }
+    ]
+   },
+   "output": "true"
+  },
+  {
+   "id": "lower/5-\"stra\\u00dfe\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "straße"
+    ],
+    "chain": [
+     {
+      "op": "lower",
+      "args": {}
+     }
+    ]
+   },
+   "output": "straße"
+  },
+  {
+   "id": "lower/6-\"\\ufb01sh\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "ﬁsh"
+    ],
+    "chain": [
+     {
+      "op": "lower",
+      "args": {}
+     }
+    ]
+   },
+   "output": "ﬁsh"
+  },
+  {
+   "id": "lower/7-\"\\u039f\\u0394\\u03a5\\u03a",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "ΟΔΥΣΣΕΥΣ"
+    ],
+    "chain": [
+     {
+      "op": "lower",
+      "args": {}
+     }
+    ]
+   },
+   "output": "οδυσσευς"
+  },
+  {
+   "id": "lower/8-\"Jos\\u00e9 Z\\u00fcrich \\",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "José Zürich 北京"
+    ],
+    "chain": [
+     {
+      "op": "lower",
+      "args": {}
+     }
+    ]
+   },
+   "output": "josé zürich 北京"
+  },
+  {
+   "id": "lower/9-[\"a\"]",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      "a"
+     ]
+    ],
+    "chain": [
+     {
+      "op": "lower",
+      "args": {}
+     }
+    ]
+   },
+   "error": "expected text but got list: ['a']"
+  },
+  {
+   "id": "lower/10-{\"a\": 1}",
+   "kind": "apply",
+   "input": {
+    "values": [
+     {
+      "a": 1
+     }
+    ],
+    "chain": [
+     {
+      "op": "lower",
+      "args": {}
+     }
+    ]
+   },
+   "error": "expected text but got dict: {'a': 1}"
+  },
+  {
+   "id": "lower/maps-over-values",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "aB",
+     "cD"
+    ],
+    "chain": [
+     {
+      "op": "lower",
+      "args": {}
+     }
+    ]
+   },
+   "output": [
+    "ab",
+    "cd"
+   ]
+  },
+  {
+   "id": "lower/extra-arg",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a"
+    ],
+    "chain": [
+     {
+      "op": "lower",
+      "args": {
+       "bogus": 1
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'lower': Additional properties are not allowed ('bogus' was unexpected)"
+  },
+  {
+   "id": "title/0-\"ada Lovelace\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "ada Lovelace"
+    ],
+    "chain": [
+     {
+      "op": "title",
+      "args": {}
+     }
+    ]
+   },
+   "output": "Ada Lovelace"
+  },
+  {
+   "id": "title/1-\"\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     ""
+    ],
+    "chain": [
+     {
+      "op": "title",
+      "args": {}
+     }
+    ]
+   },
+   "output": ""
+  },
+  {
+   "id": "title/2-null",
+   "kind": "apply",
+   "input": {
+    "values": [
+     null
+    ],
+    "chain": [
+     {
+      "op": "title",
+      "args": {}
+     }
+    ]
+   },
+   "output": null
+  },
+  {
+   "id": "title/3-12",
+   "kind": "apply",
+   "input": {
+    "values": [
+     12
+    ],
+    "chain": [
+     {
+      "op": "title",
+      "args": {}
+     }
+    ]
+   },
+   "output": "12"
+  },
+  {
+   "id": "title/4-true",
+   "kind": "apply",
+   "input": {
+    "values": [
+     true
+    ],
+    "chain": [
+     {
+      "op": "title",
+      "args": {}
+     }
+    ]
+   },
+   "output": "True"
+  },
+  {
+   "id": "title/5-\"stra\\u00dfe\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "straße"
+    ],
+    "chain": [
+     {
+      "op": "title",
+      "args": {}
+     }
+    ]
+   },
+   "output": "Straße"
+  },
+  {
+   "id": "title/6-\"\\ufb01sh\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "ﬁsh"
+    ],
+    "chain": [
+     {
+      "op": "title",
+      "args": {}
+     }
+    ]
+   },
+   "output": "FIsh"
+  },
+  {
+   "id": "title/7-\"\\u039f\\u0394\\u03a5\\u03a",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "ΟΔΥΣΣΕΥΣ"
+    ],
+    "chain": [
+     {
+      "op": "title",
+      "args": {}
+     }
+    ]
+   },
+   "output": "Οδυσσευς"
+  },
+  {
+   "id": "title/8-\"Jos\\u00e9 Z\\u00fcrich \\",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "José Zürich 北京"
+    ],
+    "chain": [
+     {
+      "op": "title",
+      "args": {}
+     }
+    ]
+   },
+   "output": "José Zürich 北京"
+  },
+  {
+   "id": "title/9-[\"a\"]",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      "a"
+     ]
+    ],
+    "chain": [
+     {
+      "op": "title",
+      "args": {}
+     }
+    ]
+   },
+   "error": "expected text but got list: ['a']"
+  },
+  {
+   "id": "title/10-{\"a\": 1}",
+   "kind": "apply",
+   "input": {
+    "values": [
+     {
+      "a": 1
+     }
+    ],
+    "chain": [
+     {
+      "op": "title",
+      "args": {}
+     }
+    ]
+   },
+   "error": "expected text but got dict: {'a': 1}"
+  },
+  {
+   "id": "title/maps-over-values",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "aB",
+     "cD"
+    ],
+    "chain": [
+     {
+      "op": "title",
+      "args": {}
+     }
+    ]
+   },
+   "output": [
+    "Ab",
+    "Cd"
+   ]
+  },
+  {
+   "id": "title/extra-arg",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a"
+    ],
+    "chain": [
+     {
+      "op": "title",
+      "args": {
+       "bogus": 1
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'title': Additional properties are not allowed ('bogus' was unexpected)"
+  },
+  {
+   "id": "strip/0-\"ada Lovelace\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "ada Lovelace"
+    ],
+    "chain": [
+     {
+      "op": "strip",
+      "args": {}
+     }
+    ]
+   },
+   "output": "ada Lovelace"
+  },
+  {
+   "id": "strip/1-\"\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     ""
+    ],
+    "chain": [
+     {
+      "op": "strip",
+      "args": {}
+     }
+    ]
+   },
+   "output": ""
+  },
+  {
+   "id": "strip/2-null",
+   "kind": "apply",
+   "input": {
+    "values": [
+     null
+    ],
+    "chain": [
+     {
+      "op": "strip",
+      "args": {}
+     }
+    ]
+   },
+   "output": null
+  },
+  {
+   "id": "strip/3-12",
+   "kind": "apply",
+   "input": {
+    "values": [
+     12
+    ],
+    "chain": [
+     {
+      "op": "strip",
+      "args": {}
+     }
+    ]
+   },
+   "output": "12"
+  },
+  {
+   "id": "strip/4-true",
+   "kind": "apply",
+   "input": {
+    "values": [
+     true
+    ],
+    "chain": [
+     {
+      "op": "strip",
+      "args": {}
+     }
+    ]
+   },
+   "output": "True"
+  },
+  {
+   "id": "strip/5-\"stra\\u00dfe\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "straße"
+    ],
+    "chain": [
+     {
+      "op": "strip",
+      "args": {}
+     }
+    ]
+   },
+   "output": "straße"
+  },
+  {
+   "id": "strip/6-\"\\ufb01sh\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "ﬁsh"
+    ],
+    "chain": [
+     {
+      "op": "strip",
+      "args": {}
+     }
+    ]
+   },
+   "output": "ﬁsh"
+  },
+  {
+   "id": "strip/7-\"\\u039f\\u0394\\u03a5\\u03a",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "ΟΔΥΣΣΕΥΣ"
+    ],
+    "chain": [
+     {
+      "op": "strip",
+      "args": {}
+     }
+    ]
+   },
+   "output": "ΟΔΥΣΣΕΥΣ"
+  },
+  {
+   "id": "strip/8-\"Jos\\u00e9 Z\\u00fcrich \\",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "José Zürich 北京"
+    ],
+    "chain": [
+     {
+      "op": "strip",
+      "args": {}
+     }
+    ]
+   },
+   "output": "José Zürich 北京"
+  },
+  {
+   "id": "strip/9-[\"a\"]",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      "a"
+     ]
+    ],
+    "chain": [
+     {
+      "op": "strip",
+      "args": {}
+     }
+    ]
+   },
+   "error": "expected text but got list: ['a']"
+  },
+  {
+   "id": "strip/10-{\"a\": 1}",
+   "kind": "apply",
+   "input": {
+    "values": [
+     {
+      "a": 1
+     }
+    ],
+    "chain": [
+     {
+      "op": "strip",
+      "args": {}
+     }
+    ]
+   },
+   "error": "expected text but got dict: {'a': 1}"
+  },
+  {
+   "id": "strip/maps-over-values",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "aB",
+     "cD"
+    ],
+    "chain": [
+     {
+      "op": "strip",
+      "args": {}
+     }
+    ]
+   },
+   "output": [
+    "aB",
+    "cD"
+   ]
+  },
+  {
+   "id": "strip/extra-arg",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a"
+    ],
+    "chain": [
+     {
+      "op": "strip",
+      "args": {
+       "bogus": 1
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'strip': Additional properties are not allowed ('bogus' was unexpected)"
+  },
+  {
+   "id": "title/mixed",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "ada LOVELACE-king don't"
+    ],
+    "chain": [
+     {
+      "op": "title",
+      "args": {}
+     }
+    ]
+   },
+   "output": "Ada Lovelace-King Don't"
+  },
+  {
+   "id": "title/apostrophes-and-hyphens",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "o'neil mc-donald jr."
+    ],
+    "chain": [
+     {
+      "op": "title",
+      "args": {}
+     }
+    ]
+   },
+   "output": "O'neil Mc-Donald Jr."
+  },
+  {
+   "id": "title/digits",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "3rd place 21ST"
+    ],
+    "chain": [
+     {
+      "op": "title",
+      "args": {}
+     }
+    ]
+   },
+   "output": "3rd Place 21st"
+  },
+  {
+   "id": "title/whitespace",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "  two  spaces\tand\ttabs\nnewline "
+    ],
+    "chain": [
+     {
+      "op": "title",
+      "args": {}
+     }
+    ]
+   },
+   "output": "  Two  Spaces\tAnd\tTabs\nNewline "
+  },
+  {
+   "id": "title/hyphen-edges",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "-a-b-",
+     "--"
+    ],
+    "chain": [
+     {
+      "op": "title",
+      "args": {}
+     }
+    ]
+   },
+   "output": [
+    "-A-B-",
+    "--"
+   ]
+  },
+  {
+   "id": "title/accents",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "élan vital ÉCOLE"
+    ],
+    "chain": [
+     {
+      "op": "title",
+      "args": {}
+     }
+    ]
+   },
+   "output": "Élan Vital École"
+  },
+  {
+   "id": "title/emoji",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "😀abc DEF"
+    ],
+    "chain": [
+     {
+      "op": "title",
+      "args": {}
+     }
+    ]
+   },
+   "output": "😀abc Def"
+  },
+  {
+   "id": "title/nbsp-and-ideographic-space",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a b　c"
+    ],
+    "chain": [
+     {
+      "op": "title",
+      "args": {}
+     }
+    ]
+   },
+   "output": "A B　C"
+  },
+  {
+   "id": "title/control-space",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a\u001fb"
+    ],
+    "chain": [
+     {
+      "op": "title",
+      "args": {}
+     }
+    ]
+   },
+   "output": "A\u001fB"
+  },
+  {
+   "id": "title/zero-width-space",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a​b"
+    ],
+    "chain": [
+     {
+      "op": "title",
+      "args": {}
+     }
+    ]
+   },
+   "output": "A​b"
+  },
+  {
+   "id": "title/bom",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a﻿b"
+    ],
+    "chain": [
+     {
+      "op": "title",
+      "args": {}
+     }
+    ]
+   },
+   "output": "A﻿b"
+  },
+  {
+   "id": "strip/spaces-and-newlines",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "  a b \n"
+    ],
+    "chain": [
+     {
+      "op": "strip",
+      "args": {}
+     }
+    ]
+   },
+   "output": "a b"
+  },
+  {
+   "id": "strip/nbsp-and-ideographic-space",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "  x 　"
+    ],
+    "chain": [
+     {
+      "op": "strip",
+      "args": {}
+     }
+    ]
+   },
+   "output": "x"
+  },
+  {
+   "id": "strip/control-separators",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "\u001fx\u001c"
+    ],
+    "chain": [
+     {
+      "op": "strip",
+      "args": {}
+     }
+    ]
+   },
+   "output": "x"
+  },
+  {
+   "id": "strip/next-line",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "x"
+    ],
+    "chain": [
+     {
+      "op": "strip",
+      "args": {}
+     }
+    ]
+   },
+   "output": "x"
+  },
+  {
+   "id": "strip/bom-is-not-space",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "﻿x"
+    ],
+    "chain": [
+     {
+      "op": "strip",
+      "args": {}
+     }
+    ]
+   },
+   "output": "﻿x"
+  },
+  {
+   "id": "strip/zero-width-space-is-not-space",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "​x​"
+    ],
+    "chain": [
+     {
+      "op": "strip",
+      "args": {}
+     }
+    ]
+   },
+   "output": "​x​"
+  },
+  {
+   "id": "strip/only-spaces",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "   "
+    ],
+    "chain": [
+     {
+      "op": "strip",
+      "args": {}
+     }
+    ]
+   },
+   "output": ""
+  },
+  {
+   "id": "upper/dotted-i",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "i̇ı"
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "output": "İI"
+  },
+  {
+   "id": "float-text/0-1e+16",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1e+16
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "output": "1E+16"
+  },
+  {
+   "id": "float-text/1-1000000000000000.5",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1000000000000000.5
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "output": "1000000000000000.5"
+  },
+  {
+   "id": "float-text/2-1234567890123456.5",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1234567890123456.5
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "output": "1234567890123456.5"
+  },
+  {
+   "id": "float-text/3-1e-05",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1e-05
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "output": "1E-05"
+  },
+  {
+   "id": "float-text/4-0.0001",
+   "kind": "apply",
+   "input": {
+    "values": [
+     0.0001
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "output": "0.0001"
+  },
+  {
+   "id": "float-text/5-0.00012345",
+   "kind": "apply",
+   "input": {
+    "values": [
+     0.00012345
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "output": "0.00012345"
+  },
+  {
+   "id": "float-text/6-1.5e-07",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1.5e-07
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "output": "1.5E-07"
+  },
+  {
+   "id": "float-text/7-123456.789",
+   "kind": "apply",
+   "input": {
+    "values": [
+     123456.789
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "output": "123456.789"
+  },
+  {
+   "id": "float-text/8-2.5",
+   "kind": "apply",
+   "input": {
+    "values": [
+     2.5
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "output": "2.5"
+  },
+  {
+   "id": "float-text/9--0.1",
+   "kind": "apply",
+   "input": {
+    "values": [
+     -0.1
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "output": "-0.1"
+  },
+  {
+   "id": "float-text/10-1e+22",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1e+22
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "output": "1E+22"
+  },
+  {
+   "id": "float-text/11-1.7976931348623157e+308",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1.7976931348623157e+308
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "output": "1.7976931348623157E+308"
+  },
+  {
+   "id": "float-text/12-5e-324",
+   "kind": "apply",
+   "input": {
+    "values": [
+     5e-324
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "output": "5E-324"
+  },
+  {
+   "id": "float-text/13-123456789012345.6",
+   "kind": "apply",
+   "input": {
+    "values": [
+     123456789012345.6
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "output": "123456789012345.6"
+  },
+  {
+   "id": "float-text/14-0.1",
+   "kind": "apply",
+   "input": {
+    "values": [
+     0.1
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "output": "0.1"
+  },
+  {
+   "id": "float-text/15--1e+16",
+   "kind": "apply",
+   "input": {
+    "values": [
+     -1e+16
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "output": "-1E+16"
+  },
+  {
+   "id": "float-text/16-1.2345678901234567e+19",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1.2345678901234567e+19
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "output": "1.2345678901234567E+19"
+  },
+  {
+   "id": "float-text/join",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1e+16,
+     0.0001,
+     1e-05,
+     3,
+     -7,
+     2.5
+    ],
+    "chain": [
+     {
+      "op": "join",
+      "args": {
+       "sep": " "
+      }
+     }
+    ]
+   },
+   "output": "1e+16 0.0001 1e-05 3 -7 2.5"
+  },
+  {
+   "id": "float-text/prefix",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1.5e-10
+    ],
+    "chain": [
+     {
+      "op": "prefix",
+      "args": {
+       "value": "#"
+      }
+     }
+    ]
+   },
+   "output": "#1.5e-10"
+  },
+  {
+   "id": "date_format/0-\"2024-03-07\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%m/%d/%Y"
+      }
+     }
+    ]
+   },
+   "output": "03/07/2024"
+  },
+  {
+   "id": "date_format/1-\"\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     ""
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%m/%d/%Y"
+      }
+     }
+    ]
+   },
+   "output": ""
+  },
+  {
+   "id": "date_format/2-null",
+   "kind": "apply",
+   "input": {
+    "values": [
+     null
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%m/%d/%Y"
+      }
+     }
+    ]
+   },
+   "output": null
+  },
+  {
+   "id": "date_format/3-\"07/03/2024\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "07/03/2024"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%m/%d/%Y"
+      }
+     }
+    ]
+   },
+   "error": "invalid date '07/03/2024': expected an ISO 'YYYY-MM-DD' string or datetime.date"
+  },
+  {
+   "id": "date_format/4-\"2024-3-7\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-3-7"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%m/%d/%Y"
+      }
+     }
+    ]
+   },
+   "error": "invalid date '2024-3-7': expected an ISO 'YYYY-MM-DD' string or datetime.date"
+  },
+  {
+   "id": "date_format/5-\"20240307\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "20240307"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%m/%d/%Y"
+      }
+     }
+    ]
+   },
+   "error": "invalid date '20240307': expected an ISO 'YYYY-MM-DD' string or datetime.date"
+  },
+  {
+   "id": "date_format/6-\"2024-02-30\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-02-30"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%m/%d/%Y"
+      }
+     }
+    ]
+   },
+   "error": "invalid date '2024-02-30': expected an ISO 'YYYY-MM-DD' string or datetime.date"
+  },
+  {
+   "id": "date_format/7-\"2023-02-29\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2023-02-29"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%m/%d/%Y"
+      }
+     }
+    ]
+   },
+   "error": "invalid date '2023-02-29': expected an ISO 'YYYY-MM-DD' string or datetime.date"
+  },
+  {
+   "id": "date_format/8-20240307",
+   "kind": "apply",
+   "input": {
+    "values": [
+     20240307
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%m/%d/%Y"
+      }
+     }
+    ]
+   },
+   "error": "invalid date 20240307: expected an ISO 'YYYY-MM-DD' string or datetime.date"
+  },
+  {
+   "id": "date_format/9-\" \"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     " "
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%m/%d/%Y"
+      }
+     }
+    ]
+   },
+   "error": "invalid date ' ': expected an ISO 'YYYY-MM-DD' string or datetime.date"
+  },
+  {
+   "id": "date_format/10-[\"2024-03-07\"]",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      "2024-03-07"
+     ]
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%m/%d/%Y"
+      }
+     }
+    ]
+   },
+   "error": "invalid date ['2024-03-07']: expected an ISO 'YYYY-MM-DD' string or datetime.date"
+  },
+  {
+   "id": "date_format/11-\"2024-03-07 \"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07 "
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%m/%d/%Y"
+      }
+     }
+    ]
+   },
+   "error": "invalid date '2024-03-07 ': expected an ISO 'YYYY-MM-DD' string or datetime.date"
+  },
+  {
+   "id": "date_format/12-\"0000-01-01\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "0000-01-01"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%m/%d/%Y"
+      }
+     }
+    ]
+   },
+   "error": "invalid date '0000-01-01': expected an ISO 'YYYY-MM-DD' string or datetime.date"
+  },
+  {
+   "id": "date_format/13-\"2024-13-01\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-13-01"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%m/%d/%Y"
+      }
+     }
+    ]
+   },
+   "error": "invalid date '2024-13-01': expected an ISO 'YYYY-MM-DD' string or datetime.date"
+  },
+  {
+   "id": "date_format/14-\"2024-00-10\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-00-10"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%m/%d/%Y"
+      }
+     }
+    ]
+   },
+   "error": "invalid date '2024-00-10': expected an ISO 'YYYY-MM-DD' string or datetime.date"
+  },
+  {
+   "id": "date_format/15-\"abc\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "abc"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%m/%d/%Y"
+      }
+     }
+    ]
+   },
+   "error": "invalid date 'abc': expected an ISO 'YYYY-MM-DD' string or datetime.date"
+  },
+  {
+   "id": "date_format/16-true",
+   "kind": "apply",
+   "input": {
+    "values": [
+     true
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%m/%d/%Y"
+      }
+     }
+    ]
+   },
+   "error": "invalid date True: expected an ISO 'YYYY-MM-DD' string or datetime.date"
+  },
+  {
+   "id": "date_format/17-{\"d\": 1}",
+   "kind": "apply",
+   "input": {
+    "values": [
+     {
+      "d": 1
+     }
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%m/%d/%Y"
+      }
+     }
+    ]
+   },
+   "error": "invalid date {'d': 1}: expected an ISO 'YYYY-MM-DD' string or datetime.date"
+  },
+  {
+   "id": "date_format/18-\"it's\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "it's"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%m/%d/%Y"
+      }
+     }
+    ]
+   },
+   "error": "invalid date \"it's\": expected an ISO 'YYYY-MM-DD' string or datetime.date"
+  },
+  {
+   "id": "date_format/19-\"say \\\"hi\\\"\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "say \"hi\""
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%m/%d/%Y"
+      }
+     }
+    ]
+   },
+   "error": "invalid date 'say \"hi\"': expected an ISO 'YYYY-MM-DD' string or datetime.date"
+  },
+  {
+   "id": "date_format/20-\"tab\\there\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "tab\there"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%m/%d/%Y"
+      }
+     }
+    ]
+   },
+   "error": "invalid date 'tab\\there': expected an ISO 'YYYY-MM-DD' string or datetime.date"
+  },
+  {
+   "id": "date_format/21-\"2024-03-07\\n\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07\n"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%m/%d/%Y"
+      }
+     }
+    ]
+   },
+   "error": "invalid date '2024-03-07\\n': expected an ISO 'YYYY-MM-DD' string or datetime.date"
+  },
+  {
+   "id": "date_format/22-\"\\u200b\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "​"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%m/%d/%Y"
+      }
+     }
+    ]
+   },
+   "error": "invalid date '\\u200b': expected an ISO 'YYYY-MM-DD' string or datetime.date"
+  },
+  {
+   "id": "date_format/23-\"Jos\\u00e9\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "José"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%m/%d/%Y"
+      }
+     }
+    ]
+   },
+   "error": "invalid date 'José': expected an ISO 'YYYY-MM-DD' string or datetime.date"
+  },
+  {
+   "id": "date_format/leap-day",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-02-29"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%d %b %Y"
+      }
+     }
+    ]
+   },
+   "output": "29 Feb 2024"
+  },
+  {
+   "id": "date_format/long",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%A, %B %d, %Y"
+      }
+     }
+    ]
+   },
+   "output": "Thursday, March 07, 2024"
+  },
+  {
+   "id": "date_format/weekday-short",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%a %b %d"
+      }
+     }
+    ]
+   },
+   "output": "Thu Mar 07"
+  },
+  {
+   "id": "date_format/year2",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%y%m%d"
+      }
+     }
+    ]
+   },
+   "output": "240307"
+  },
+  {
+   "id": "date_format/compact",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%Y%m%d"
+      }
+     }
+    ]
+   },
+   "output": "20240307"
+  },
+  {
+   "id": "date_format/day-of-year",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%j"
+      }
+     }
+    ]
+   },
+   "output": "067"
+  },
+  {
+   "id": "date_format/day-of-year-last",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-12-31"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%j"
+      }
+     }
+    ]
+   },
+   "output": "366"
+  },
+  {
+   "id": "date_format/time-parts",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%H:%M:%S %p"
+      }
+     }
+    ]
+   },
+   "output": "00:00:00 AM"
+  },
+  {
+   "id": "date_format/literal-percent",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "100%% on %Y"
+      }
+     }
+    ]
+   },
+   "output": "100% on 2024"
+  },
+  {
+   "id": "date_format/no-directives",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "static text"
+      }
+     }
+    ]
+   },
+   "output": "static text"
+  },
+  {
+   "id": "date_format/unpadded",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%-m/%-d/%Y"
+      }
+     }
+    ]
+   },
+   "output": "3/7/2024"
+  },
+  {
+   "id": "date_format/unpadded-two-digits",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-11-27"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%-m/%-d/%Y"
+      }
+     }
+    ]
+   },
+   "output": "11/27/2024"
+  },
+  {
+   "id": "date_format/month-names",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-09-01"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%B %b"
+      }
+     }
+    ]
+   },
+   "output": "September Sep"
+  },
+  {
+   "id": "date_format/sunday",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-10"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%A %a"
+      }
+     }
+    ]
+   },
+   "output": "Sunday Sun"
+  },
+  {
+   "id": "date_format/first-of-year",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-01-01"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%Y-%m-%d %j"
+      }
+     }
+    ]
+   },
+   "output": "2024-01-01 001"
+  },
+  {
+   "id": "date_format/max-date",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "9999-12-31"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%d.%m.%Y"
+      }
+     }
+    ]
+   },
+   "output": "31.12.9999"
+  },
+  {
+   "id": "date_format/min-date",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "0001-01-01"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%d.%m.%Y"
+      }
+     }
+    ]
+   },
+   "output": "01.01.0001"
+  },
+  {
+   "id": "date_format/unicode-literal",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%d de %B é北"
+      }
+     }
+    ]
+   },
+   "output": "07 de March é北"
+  },
+  {
+   "id": "date_format/year-1000",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "1000-01-01"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%Y"
+      }
+     }
+    ]
+   },
+   "output": "1000"
+  },
+  {
+   "id": "date_format/year-1999",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "1999-12-31"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%Y %y"
+      }
+     }
+    ]
+   },
+   "output": "1999 99"
+  },
+  {
+   "id": "date_format/year-2005",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2005-06-15"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%y"
+      }
+     }
+    ]
+   },
+   "output": "05"
+  },
+  {
+   "id": "date_format/maps-over-values",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07",
+     "2025-12-25"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%d/%m"
+      }
+     }
+    ]
+   },
+   "output": [
+    "07/03",
+    "25/12"
+   ]
+  },
+  {
+   "id": "date_format/empty-format",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": ""
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'date_format' at args['format']: '' should be non-empty"
+  },
+  {
+   "id": "date_format/missing-format",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {}
+     }
+    ]
+   },
+   "error": "bad args for transform 'date_format': 'format' is a required property"
+  },
+  {
+   "id": "date_format/format-number",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": 1
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'date_format' at args['format']: 1 is not of type 'string'"
+  },
+  {
+   "id": "date_part/month-pad0",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "month",
+       "pad": 0
+      }
+     }
+    ]
+   },
+   "output": "3"
+  },
+  {
+   "id": "date_part/month-pad1",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "month",
+       "pad": 1
+      }
+     }
+    ]
+   },
+   "output": "3"
+  },
+  {
+   "id": "date_part/month-pad2",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "month",
+       "pad": 2
+      }
+     }
+    ]
+   },
+   "output": "03"
+  },
+  {
+   "id": "date_part/month-pad6",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "month",
+       "pad": 6
+      }
+     }
+    ]
+   },
+   "output": "000003"
+  },
+  {
+   "id": "date_part/month-default-pad",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "month"
+      }
+     }
+    ]
+   },
+   "output": "3"
+  },
+  {
+   "id": "date_part/day-pad0",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "day",
+       "pad": 0
+      }
+     }
+    ]
+   },
+   "output": "7"
+  },
+  {
+   "id": "date_part/day-pad1",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "day",
+       "pad": 1
+      }
+     }
+    ]
+   },
+   "output": "7"
+  },
+  {
+   "id": "date_part/day-pad2",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "day",
+       "pad": 2
+      }
+     }
+    ]
+   },
+   "output": "07"
+  },
+  {
+   "id": "date_part/day-pad6",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "day",
+       "pad": 6
+      }
+     }
+    ]
+   },
+   "output": "000007"
+  },
+  {
+   "id": "date_part/day-default-pad",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "day"
+      }
+     }
+    ]
+   },
+   "output": "7"
+  },
+  {
+   "id": "date_part/year-pad0",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "year",
+       "pad": 0
+      }
+     }
+    ]
+   },
+   "output": "2024"
+  },
+  {
+   "id": "date_part/year-pad1",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "year",
+       "pad": 1
+      }
+     }
+    ]
+   },
+   "output": "2024"
+  },
+  {
+   "id": "date_part/year-pad2",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "year",
+       "pad": 2
+      }
+     }
+    ]
+   },
+   "output": "2024"
+  },
+  {
+   "id": "date_part/year-pad6",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "year",
+       "pad": 6
+      }
+     }
+    ]
+   },
+   "output": "002024"
+  },
+  {
+   "id": "date_part/year-default-pad",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "year"
+      }
+     }
+    ]
+   },
+   "output": "2024"
+  },
+  {
+   "id": "date_part/year2-pad0",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "year2",
+       "pad": 0
+      }
+     }
+    ]
+   },
+   "output": "24"
+  },
+  {
+   "id": "date_part/year2-pad1",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "year2",
+       "pad": 1
+      }
+     }
+    ]
+   },
+   "output": "24"
+  },
+  {
+   "id": "date_part/year2-pad2",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "year2",
+       "pad": 2
+      }
+     }
+    ]
+   },
+   "output": "24"
+  },
+  {
+   "id": "date_part/year2-pad6",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "year2",
+       "pad": 6
+      }
+     }
+    ]
+   },
+   "output": "000024"
+  },
+  {
+   "id": "date_part/year2-default-pad",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "year2"
+      }
+     }
+    ]
+   },
+   "output": "24"
+  },
+  {
+   "id": "date_part/year2-2005",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2005-01-01"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "year2"
+      }
+     }
+    ]
+   },
+   "output": "05"
+  },
+  {
+   "id": "date_part/year2-2000",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2000-01-01"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "year2"
+      }
+     }
+    ]
+   },
+   "output": "00"
+  },
+  {
+   "id": "date_part/year2-1999-pad4",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "1999-01-01"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "year2",
+       "pad": 4
+      }
+     }
+    ]
+   },
+   "output": "0099"
+  },
+  {
+   "id": "date_part/year-0001",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "0001-01-01"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "year"
+      }
+     }
+    ]
+   },
+   "output": "1"
+  },
+  {
+   "id": "date_part/double-digit-month",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-11-30"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "month",
+       "pad": 2
+      }
+     }
+    ]
+   },
+   "output": "11"
+  },
+  {
+   "id": "date_part/0-\"\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     ""
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "day"
+      }
+     }
+    ]
+   },
+   "output": ""
+  },
+  {
+   "id": "date_part/1-null",
+   "kind": "apply",
+   "input": {
+    "values": [
+     null
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "day"
+      }
+     }
+    ]
+   },
+   "output": null
+  },
+  {
+   "id": "date_part/2-\"07/03/2024\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "07/03/2024"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "day"
+      }
+     }
+    ]
+   },
+   "error": "invalid date '07/03/2024': expected an ISO 'YYYY-MM-DD' string or datetime.date"
+  },
+  {
+   "id": "date_part/3-\"2024-3-7\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-3-7"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "day"
+      }
+     }
+    ]
+   },
+   "error": "invalid date '2024-3-7': expected an ISO 'YYYY-MM-DD' string or datetime.date"
+  },
+  {
+   "id": "date_part/4-\"20240307\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "20240307"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "day"
+      }
+     }
+    ]
+   },
+   "error": "invalid date '20240307': expected an ISO 'YYYY-MM-DD' string or datetime.date"
+  },
+  {
+   "id": "date_part/5-\"2024-02-30\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-02-30"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "day"
+      }
+     }
+    ]
+   },
+   "error": "invalid date '2024-02-30': expected an ISO 'YYYY-MM-DD' string or datetime.date"
+  },
+  {
+   "id": "date_part/6-20240307",
+   "kind": "apply",
+   "input": {
+    "values": [
+     20240307
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "day"
+      }
+     }
+    ]
+   },
+   "error": "invalid date 20240307: expected an ISO 'YYYY-MM-DD' string or datetime.date"
+  },
+  {
+   "id": "date_part/7-\" \"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     " "
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "day"
+      }
+     }
+    ]
+   },
+   "error": "invalid date ' ': expected an ISO 'YYYY-MM-DD' string or datetime.date"
+  },
+  {
+   "id": "date_part/8-[\"2024-03-07\"]",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      "2024-03-07"
+     ]
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "day"
+      }
+     }
+    ]
+   },
+   "error": "invalid date ['2024-03-07']: expected an ISO 'YYYY-MM-DD' string or datetime.date"
+  },
+  {
+   "id": "date_part/9-\"2024-04-31\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-04-31"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "day"
+      }
+     }
+    ]
+   },
+   "error": "invalid date '2024-04-31': expected an ISO 'YYYY-MM-DD' string or datetime.date"
+  },
+  {
+   "id": "date_part/10-\"2100-02-29\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2100-02-29"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "day"
+      }
+     }
+    ]
+   },
+   "error": "invalid date '2100-02-29': expected an ISO 'YYYY-MM-DD' string or datetime.date"
+  },
+  {
+   "id": "date_part/11-\"2000-02-29\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2000-02-29"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "day"
+      }
+     }
+    ]
+   },
+   "output": "29"
+  },
+  {
+   "id": "date_part/maps-over-values",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07",
+     "",
+     null,
+     "2025-01-31"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "day",
+       "pad": 2
+      }
+     }
+    ]
+   },
+   "output": [
+    "07",
+    "",
+    null,
+    "31"
+   ]
+  },
+  {
+   "id": "date_part/bad-part",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "week"
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'date_part' at args['part']: 'week' is not one of ['month', 'day', 'year', 'year2']"
+  },
+  {
+   "id": "date_part/part-number",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": 1
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'date_part' at args['part']: 1 is not one of ['month', 'day', 'year', 'year2']"
+  },
+  {
+   "id": "date_part/missing-part",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {}
+     }
+    ]
+   },
+   "error": "bad args for transform 'date_part': 'part' is a required property"
+  },
+  {
+   "id": "date_part/negative-pad",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "day",
+       "pad": -1
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'date_part' at args['pad']: -1 is less than the minimum of 0"
+  },
+  {
+   "id": "date_part/pad-string",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "day",
+       "pad": "2"
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'date_part' at args['pad']: '2' is not of type 'integer'"
+  },
+  {
+   "id": "date_part/two-errors",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "week",
+       "pad": -1
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'date_part' at args['pad']: -1 is less than the minimum of 0; bad args for transform 'date_part' at args['part']: 'week' is not one of ['month', 'day', 'year', 'year2']"
+  },
+  {
+   "id": "date_part/part-and-pad-and-extra",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "week",
+       "pad": -1,
+       "extra": 1
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'date_part': Additional properties are not allowed ('extra' was unexpected); bad args for transform 'date_part' at args['pad']: -1 is less than the minimum of 0; bad args for transform 'date_part' at args['part']: 'week' is not one of ['month', 'day', 'year', 'year2']"
+  },
+  {
+   "id": "number_format/0-1234.5",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1234.5
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "output": "1,234.50"
+  },
+  {
+   "id": "number_format/1-1234567",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1234567
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "output": "1,234,567.00"
+  },
+  {
+   "id": "number_format/2-\"1234.5\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "1234.5"
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "output": "1,234.50"
+  },
+  {
+   "id": "number_format/3-0",
+   "kind": "apply",
+   "input": {
+    "values": [
+     0
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "output": "0.00"
+  },
+  {
+   "id": "number_format/4-\"0\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "0"
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "output": "0.00"
+  },
+  {
+   "id": "number_format/5--1234.5",
+   "kind": "apply",
+   "input": {
+    "values": [
+     -1234.5
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "output": "-1,234.50"
+  },
+  {
+   "id": "number_format/6--0.001",
+   "kind": "apply",
+   "input": {
+    "values": [
+     -0.001
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "output": "0.00"
+  },
+  {
+   "id": "number_format/7-0.125",
+   "kind": "apply",
+   "input": {
+    "values": [
+     0.125
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "output": "0.13"
+  },
+  {
+   "id": "number_format/8-2.675",
+   "kind": "apply",
+   "input": {
+    "values": [
+     2.675
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "output": "2.68"
+  },
+  {
+   "id": "number_format/9-12",
+   "kind": "apply",
+   "input": {
+    "values": [
+     12
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "output": "12.00"
+  },
+  {
+   "id": "number_format/10-0.30000000000000004",
+   "kind": "apply",
+   "input": {
+    "values": [
+     0.30000000000000004
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "output": "0.30"
+  },
+  {
+   "id": "number_format/11-1e-07",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1e-07
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "output": "0.00"
+  },
+  {
+   "id": "number_format/12-1e+21",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1e+21
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "output": "1,000,000,000,000,000,000,000.00"
+  },
+  {
+   "id": "number_format/13-1e+30",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1e+30
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "error": "cannot format number 1e+30"
+  },
+  {
+   "id": "number_format/14-\"10000000000000000000000",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "1000000000000000000000000000000"
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "output": "1,000,000,000,000,000,000,000,000,000,000"
+  },
+  {
+   "id": "number_format/15-\"  12.5  \"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "  12.5  "
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "output": "12.50"
+  },
+  {
+   "id": "number_format/16-\"+5\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "+5"
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "output": "5.00"
+  },
+  {
+   "id": "number_format/17-\".5\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     ".5"
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "output": "0.50"
+  },
+  {
+   "id": "number_format/18-\"5.\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "5."
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "output": "5.00"
+  },
+  {
+   "id": "number_format/19-\"-.5\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "-.5"
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "output": "-0.50"
+  },
+  {
+   "id": "number_format/20-\"007\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "007"
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "output": "7.00"
+  },
+  {
+   "id": "number_format/21-\"1e5\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "1e5"
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "error": "invalid number '1e5'"
+  },
+  {
+   "id": "number_format/22-\"abc\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "abc"
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "error": "invalid number 'abc'"
+  },
+  {
+   "id": "number_format/23-\" \"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     " "
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "error": "invalid number ' '"
+  },
+  {
+   "id": "number_format/24-\"\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     ""
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "output": ""
+  },
+  {
+   "id": "number_format/25-null",
+   "kind": "apply",
+   "input": {
+    "values": [
+     null
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "output": null
+  },
+  {
+   "id": "number_format/26-\"1,234\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "1,234"
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "error": "invalid number '1,234'"
+  },
+  {
+   "id": "number_format/27-\"nan\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "nan"
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "error": "invalid number 'nan'"
+  },
+  {
+   "id": "number_format/28-\"inf\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "inf"
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "error": "invalid number 'inf'"
+  },
+  {
+   "id": "number_format/29-\"-inf\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "-inf"
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "error": "invalid number '-inf'"
+  },
+  {
+   "id": "number_format/30-\"1_000\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "1_000"
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "error": "invalid number '1_000'"
+  },
+  {
+   "id": "number_format/31-true",
+   "kind": "apply",
+   "input": {
+    "values": [
+     true
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "error": "invalid number True"
+  },
+  {
+   "id": "number_format/32-false",
+   "kind": "apply",
+   "input": {
+    "values": [
+     false
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "error": "invalid number False"
+  },
+  {
+   "id": "number_format/33-[\"1\"]",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      "1"
+     ]
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "error": "invalid number ['1']"
+  },
+  {
+   "id": "number_format/34-{\"n\": 1}",
+   "kind": "apply",
+   "input": {
+    "values": [
+     {
+      "n": 1
+     }
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "error": "invalid number {'n': 1}"
+  },
+  {
+   "id": "number_format/35-123456789.12345679",
+   "kind": "apply",
+   "input": {
+    "values": [
+     123456789.12345679
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "output": "123,456,789.12"
+  },
+  {
+   "id": "number_format/36-5e-324",
+   "kind": "apply",
+   "input": {
+    "values": [
+     5e-324
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "output": "0.00"
+  },
+  {
+   "id": "number_format/37-1.7976931348623157e+308",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1.7976931348623157e+308
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "error": "cannot format number 1.7976931348623157e+308"
+  },
+  {
+   "id": "number_format/38-\"0.005\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "0.005"
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "output": "0.01"
+  },
+  {
+   "id": "number_format/39-\"0.015\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "0.015"
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "output": "0.02"
+  },
+  {
+   "id": "number_format/40-\"-0.005\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "-0.005"
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "output": "-0.01"
+  },
+  {
+   "id": "number_format/41-\"99.995\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "99.995"
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "output": "100.00"
+  },
+  {
+   "id": "number_format/42-\"999999.999\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "999999.999"
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "output": "1,000,000.00"
+  },
+  {
+   "id": "number_format/43-\"\\u0663\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "٣"
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "output": "3.00"
+  },
+  {
+   "id": "number_format/44-\"12\\n\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "12\n"
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "output": "12.00"
+  },
+  {
+   "id": "number_format/45-\"1 2\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "1 2"
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     }
+    ]
+   },
+   "error": "invalid number '1 2'"
+  },
+  {
+   "id": "number_format/half-up-0-5",
+   "kind": "apply",
+   "input": {
+    "values": [
+     0.5
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 0
+      }
+     }
+    ]
+   },
+   "output": "1"
+  },
+  {
+   "id": "number_format/half-up-1-5",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1.5
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 0
+      }
+     }
+    ]
+   },
+   "output": "2"
+  },
+  {
+   "id": "number_format/half-up-2-5",
+   "kind": "apply",
+   "input": {
+    "values": [
+     2.5
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 0
+      }
+     }
+    ]
+   },
+   "output": "3"
+  },
+  {
+   "id": "number_format/half-up-neg-0-5",
+   "kind": "apply",
+   "input": {
+    "values": [
+     -0.5
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 0
+      }
+     }
+    ]
+   },
+   "output": "-1"
+  },
+  {
+   "id": "number_format/half-up-neg-2-5",
+   "kind": "apply",
+   "input": {
+    "values": [
+     -2.5
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 0
+      }
+     }
+    ]
+   },
+   "output": "-3"
+  },
+  {
+   "id": "number_format/negative-rounds-to-zero",
+   "kind": "apply",
+   "input": {
+    "values": [
+     -0.4
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 0
+      }
+     }
+    ]
+   },
+   "output": "0"
+  },
+  {
+   "id": "number_format/negative-string-rounds-to-zero",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "-0.004"
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 2
+      }
+     }
+    ]
+   },
+   "output": "0.00"
+  },
+  {
+   "id": "number_format/decimals-0",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1234567
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 0
+      }
+     }
+    ]
+   },
+   "output": "1,234,567"
+  },
+  {
+   "id": "number_format/decimals-1",
+   "kind": "apply",
+   "input": {
+    "values": [
+     3.14159
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 1
+      }
+     }
+    ]
+   },
+   "output": "3.1"
+  },
+  {
+   "id": "number_format/decimals-12",
+   "kind": "apply",
+   "input": {
+    "values": [
+     0.30000000000000004
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 12
+      }
+     }
+    ]
+   },
+   "output": "0.300000000000"
+  },
+  {
+   "id": "number_format/decimals-12-big",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "123456789012345678901234567890.5"
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 12
+      }
+     }
+    ]
+   },
+   "output": "123,456,789,012,345,678,901,234,567,900"
+  },
+  {
+   "id": "number_format/decimals-13",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 13
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'number_format' at args['decimals']: 13 is greater than the maximum of 12"
+  },
+  {
+   "id": "number_format/decimals-negative",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": -1
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'number_format' at args['decimals']: -1 is less than the minimum of 0"
+  },
+  {
+   "id": "number_format/decimals-float",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 1.5
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'number_format' at args['decimals']: 1.5 is not of type 'integer'"
+  },
+  {
+   "id": "number_format/decimals-string",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": "2"
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'number_format' at args['decimals']: '2' is not of type 'integer'"
+  },
+  {
+   "id": "number_format/thousands-empty",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1234.5
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "thousands": ""
+      }
+     }
+    ]
+   },
+   "output": "1234.50"
+  },
+  {
+   "id": "number_format/thousands-space-prefix",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1234.5
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "thousands": " ",
+       "prefix": "~"
+      }
+     }
+    ]
+   },
+   "output": "~1 234.50"
+  },
+  {
+   "id": "number_format/thousands-multi",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1234567
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "thousands": "'''"
+      }
+     }
+    ]
+   },
+   "output": "1'''234'''567.00"
+  },
+  {
+   "id": "number_format/thousands-dot",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1234567
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "thousands": ".",
+       "decimals": 0
+      }
+     }
+    ]
+   },
+   "output": "1.234.567"
+  },
+  {
+   "id": "number_format/thousands-number",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "thousands": 1
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'number_format' at args['thousands']: 1 is not of type 'string'"
+  },
+  {
+   "id": "number_format/prefix-dollar",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1234.5
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "prefix": "$"
+      }
+     }
+    ]
+   },
+   "output": "$1,234.50"
+  },
+  {
+   "id": "number_format/prefix-negative",
+   "kind": "apply",
+   "input": {
+    "values": [
+     -1234.5
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "prefix": "$"
+      }
+     }
+    ]
+   },
+   "output": "-$1,234.50"
+  },
+  {
+   "id": "number_format/prefix-number",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "prefix": 5
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'number_format' at args['prefix']: 5 is not of type 'string'"
+  },
+  {
+   "id": "number_format/small-seven-places",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1e-07
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 7
+      }
+     }
+    ]
+   },
+   "output": "0.0000001"
+  },
+  {
+   "id": "number_format/tiny-twelve-places",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1e-12
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 12
+      }
+     }
+    ]
+   },
+   "output": "0.000000000001"
+  },
+  {
+   "id": "number_format/huge-no-decimals",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "123456789012345678901234567890123456789"
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 0
+      }
+     }
+    ]
+   },
+   "output": "123,456,789,012,345,678,901,234,567,900,000,000,000"
+  },
+  {
+   "id": "number_format/exact-float-digits",
+   "kind": "apply",
+   "input": {
+    "values": [
+     123456789.12345679
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 12
+      }
+     }
+    ]
+   },
+   "output": "123,456,789.123456790000"
+  },
+  {
+   "id": "number_format/thousand-boundary",
+   "kind": "apply",
+   "input": {
+    "values": [
+     999999.5
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 0
+      }
+     }
+    ]
+   },
+   "output": "1,000,000"
+  },
+  {
+   "id": "number_format/three-digits",
+   "kind": "apply",
+   "input": {
+    "values": [
+     999
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 0
+      }
+     }
+    ]
+   },
+   "output": "999"
+  },
+  {
+   "id": "number_format/four-digits",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1000
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 0
+      }
+     }
+    ]
+   },
+   "output": "1,000"
+  },
+  {
+   "id": "number_format/rounds-up-to-next-group",
+   "kind": "apply",
+   "input": {
+    "values": [
+     999.5
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 0
+      }
+     }
+    ]
+   },
+   "output": "1,000"
+  },
+  {
+   "id": "number_format/extra-arg",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "bogus": 1
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'number_format': Additional properties are not allowed ('bogus' was unexpected)"
+  },
+  {
+   "id": "number_format/float-1e21-no-decimals",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1e+21
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 0
+      }
+     }
+    ]
+   },
+   "output": "1,000,000,000,000,000,000,000"
+  },
+  {
+   "id": "number_format/float-1e30-no-decimals",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1e+30
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 0
+      }
+     }
+    ]
+   },
+   "error": "cannot format number 1e+30"
+  },
+  {
+   "id": "number_format/float-1e16",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1e+16
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 0
+      }
+     }
+    ]
+   },
+   "output": "10,000,000,000,000,000"
+  },
+  {
+   "id": "number_format/float-1e22-two",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1.5e+22
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 2
+      }
+     }
+    ]
+   },
+   "output": "15,000,000,000,000,000,000,000.00"
+  },
+  {
+   "id": "number_format/rounds-to-28-digits-tie-even",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "123456789012345678901234567.85"
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 1
+      }
+     }
+    ]
+   },
+   "output": "123,456,789,012,345,678,901,234,567.9"
+  },
+  {
+   "id": "number_format/rounds-to-28-digits-tie-odd",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "123456789012345678901234567.95"
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 1
+      }
+     }
+    ]
+   },
+   "output": "123,456,789,012,345,678,901,234,568.0"
+  },
+  {
+   "id": "number_format/rounds-to-28-digits-down",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "12345678901234567890123456781234"
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 0
+      }
+     }
+    ]
+   },
+   "output": "12,345,678,901,234,567,890,123,456,780,000"
+  },
+  {
+   "id": "number_format/rounds-to-28-digits-up",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "12345678901234567890123456789999"
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 0
+      }
+     }
+    ]
+   },
+   "output": "12,345,678,901,234,567,890,123,456,790,000"
+  },
+  {
+   "id": "number_format/rounds-to-28-digits-carry",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "99999999999999999999999999995"
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 0
+      }
+     }
+    ]
+   },
+   "output": "100,000,000,000,000,000,000,000,000,000"
+  },
+  {
+   "id": "number_format/rounds-to-28-digits-negative",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "-12345678901234567890123456789.99"
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 2,
+       "prefix": "$"
+      }
+     }
+    ]
+   },
+   "output": "-$12,345,678,901,234,567,890,123,456,790"
+  },
+  {
+   "id": "number_format/rounds-to-28-digits-thousands",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "0.1234567890123456789012345678901"
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 3,
+       "thousands": " "
+      }
+     }
+    ]
+   },
+   "output": "0.123"
+  },
+  {
+   "id": "number_format/maps-over-values",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1,
+     "",
+     null,
+     "2.5",
+     1000
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 1
+      }
+     }
+    ]
+   },
+   "output": [
+    "1.0",
+    "",
+    null,
+    "2.5",
+    "1,000.0"
+   ]
+  },
+  {
+   "id": "bool_to_check/0-true",
+   "kind": "apply",
+   "input": {
+    "values": [
+     true
+    ],
+    "chain": [
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "bool_to_check/1-false",
+   "kind": "apply",
+   "input": {
+    "values": [
+     false
+    ],
+    "chain": [
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "bool_to_check/2-null",
+   "kind": "apply",
+   "input": {
+    "values": [
+     null
+    ],
+    "chain": [
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "bool_to_check/3-1",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1
+    ],
+    "chain": [
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "bool_to_check/4-0",
+   "kind": "apply",
+   "input": {
+    "values": [
+     0
+    ],
+    "chain": [
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "bool_to_check/5-\"yes\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "yes"
+    ],
+    "chain": [
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "bool_to_check/6-\"Y\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "Y"
+    ],
+    "chain": [
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "bool_to_check/7-\"true\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "true"
+    ],
+    "chain": [
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "bool_to_check/8-\"no\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "no"
+    ],
+    "chain": [
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "bool_to_check/9-\"False\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "False"
+    ],
+    "chain": [
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "bool_to_check/10-\"0\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "0"
+    ],
+    "chain": [
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "bool_to_check/11-\"\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     ""
+    ],
+    "chain": [
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "bool_to_check/12-\"anything else\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "anything else"
+    ],
+    "chain": [
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "bool_to_check/13-[]",
+   "kind": "apply",
+   "input": {
+    "values": [
+     []
+    ],
+    "chain": [
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "bool_to_check/14-[\"a\"]",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      "a"
+     ]
+    ],
+    "chain": [
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "bool_to_check/15-{}",
+   "kind": "apply",
+   "input": {
+    "values": [
+     {}
+    ],
+    "chain": [
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "bool_to_check/16-{\"a\": 1}",
+   "kind": "apply",
+   "input": {
+    "values": [
+     {
+      "a": 1
+     }
+    ],
+    "chain": [
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "bool_to_check/17-\" Yes \"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     " Yes "
+    ],
+    "chain": [
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "bool_to_check/18-\"OFF\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "OFF"
+    ],
+    "chain": [
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "bool_to_check/19-\"n\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "n"
+    ],
+    "chain": [
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "bool_to_check/20-\" \"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     " "
+    ],
+    "chain": [
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "bool_to_check/21-\"00\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "00"
+    ],
+    "chain": [
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "bool_to_check/22-\"nope\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "nope"
+    ],
+    "chain": [
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "bool_to_check/23-\" false \"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     " false "
+    ],
+    "chain": [
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "bool_to_check/24-\"NO\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "NO"
+    ],
+    "chain": [
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "bool_to_check/25-\"off\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "off"
+    ],
+    "chain": [
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "bool_to_check/26-\"On\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "On"
+    ],
+    "chain": [
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "bool_to_check/27-\"\\u00a0\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     " "
+    ],
+    "chain": [
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "bool_to_check/28-\"falsey\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "falsey"
+    ],
+    "chain": [
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "bool_to_check/29-2.5",
+   "kind": "apply",
+   "input": {
+    "values": [
+     2.5
+    ],
+    "chain": [
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "bool_to_check/30--1",
+   "kind": "apply",
+   "input": {
+    "values": [
+     -1
+    ],
+    "chain": [
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "bool_to_check/31-1e+30",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1e+30
+    ],
+    "chain": [
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "equals/value-\"a\"-vs-string",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a"
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": "a"
+      }
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "equals/value-\"a\"-vs-1",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": "a"
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-\"a\"-vs-true",
+   "kind": "apply",
+   "input": {
+    "values": [
+     true
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": "a"
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-\"a\"-vs-none",
+   "kind": "apply",
+   "input": {
+    "values": [
+     null
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": "a"
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-\"a\"-vs-list",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      1,
+      2
+     ]
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": "a"
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-\"a\"-vs-dict",
+   "kind": "apply",
+   "input": {
+    "values": [
+     {
+      "a": 1
+     }
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": "a"
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-3-vs-string",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a"
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": 3
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-3-vs-1",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": 3
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-3-vs-true",
+   "kind": "apply",
+   "input": {
+    "values": [
+     true
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": 3
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-3-vs-none",
+   "kind": "apply",
+   "input": {
+    "values": [
+     null
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": 3
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-3-vs-list",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      1,
+      2
+     ]
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": 3
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-3-vs-dict",
+   "kind": "apply",
+   "input": {
+    "values": [
+     {
+      "a": 1
+     }
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": 3
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-true-vs-string",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a"
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": true
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-true-vs-1",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": true
+      }
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "equals/value-true-vs-true",
+   "kind": "apply",
+   "input": {
+    "values": [
+     true
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": true
+      }
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "equals/value-true-vs-none",
+   "kind": "apply",
+   "input": {
+    "values": [
+     null
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": true
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-true-vs-list",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      1,
+      2
+     ]
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": true
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-true-vs-dict",
+   "kind": "apply",
+   "input": {
+    "values": [
+     {
+      "a": 1
+     }
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": true
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-null-vs-string",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a"
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": null
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-null-vs-1",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": null
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-null-vs-true",
+   "kind": "apply",
+   "input": {
+    "values": [
+     true
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": null
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-null-vs-none",
+   "kind": "apply",
+   "input": {
+    "values": [
+     null
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": null
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-null-vs-list",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      1,
+      2
+     ]
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": null
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-null-vs-dict",
+   "kind": "apply",
+   "input": {
+    "values": [
+     {
+      "a": 1
+     }
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": null
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-1-vs-string",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a"
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": 1
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-1-vs-1",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": 1
+      }
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "equals/value-1-vs-true",
+   "kind": "apply",
+   "input": {
+    "values": [
+     true
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": 1
+      }
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "equals/value-1-vs-none",
+   "kind": "apply",
+   "input": {
+    "values": [
+     null
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": 1
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-1-vs-list",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      1,
+      2
+     ]
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": 1
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-1-vs-dict",
+   "kind": "apply",
+   "input": {
+    "values": [
+     {
+      "a": 1
+     }
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": 1
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-[1, 2]-vs-string",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a"
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": [
+        1,
+        2
+       ]
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-[1, 2]-vs-1",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": [
+        1,
+        2
+       ]
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-[1, 2]-vs-true",
+   "kind": "apply",
+   "input": {
+    "values": [
+     true
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": [
+        1,
+        2
+       ]
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-[1, 2]-vs-none",
+   "kind": "apply",
+   "input": {
+    "values": [
+     null
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": [
+        1,
+        2
+       ]
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-[1, 2]-vs-list",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      1,
+      2
+     ]
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": [
+        1,
+        2
+       ]
+      }
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "equals/value-[1, 2]-vs-dict",
+   "kind": "apply",
+   "input": {
+    "values": [
+     {
+      "a": 1
+     }
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": [
+        1,
+        2
+       ]
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-{\"a\": 1}-vs-string",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a"
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": {
+        "a": 1
+       }
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-{\"a\": 1}-vs-1",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": {
+        "a": 1
+       }
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-{\"a\": 1}-vs-true",
+   "kind": "apply",
+   "input": {
+    "values": [
+     true
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": {
+        "a": 1
+       }
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-{\"a\": 1}-vs-none",
+   "kind": "apply",
+   "input": {
+    "values": [
+     null
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": {
+        "a": 1
+       }
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-{\"a\": 1}-vs-list",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      1,
+      2
+     ]
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": {
+        "a": 1
+       }
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-{\"a\": 1}-vs-dict",
+   "kind": "apply",
+   "input": {
+    "values": [
+     {
+      "a": 1
+     }
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": {
+        "a": 1
+       }
+      }
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "equals/value-\"\"-vs-string",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a"
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": ""
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-\"\"-vs-1",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": ""
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-\"\"-vs-true",
+   "kind": "apply",
+   "input": {
+    "values": [
+     true
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": ""
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-\"\"-vs-none",
+   "kind": "apply",
+   "input": {
+    "values": [
+     null
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": ""
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-\"\"-vs-list",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      1,
+      2
+     ]
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": ""
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-\"\"-vs-dict",
+   "kind": "apply",
+   "input": {
+    "values": [
+     {
+      "a": 1
+     }
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": ""
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-2.5-vs-string",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a"
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": 2.5
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-2.5-vs-1",
+   "kind": "apply",
+   "input": {
+    "values": [
+     1
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": 2.5
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-2.5-vs-true",
+   "kind": "apply",
+   "input": {
+    "values": [
+     true
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": 2.5
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-2.5-vs-none",
+   "kind": "apply",
+   "input": {
+    "values": [
+     null
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": 2.5
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-2.5-vs-list",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      1,
+      2
+     ]
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": 2.5
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/value-2.5-vs-dict",
+   "kind": "apply",
+   "input": {
+    "values": [
+     {
+      "a": 1
+     }
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": 2.5
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/zero-vs-false",
+   "kind": "apply",
+   "input": {
+    "values": [
+     0
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": false
+      }
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "equals/nested",
+   "kind": "apply",
+   "input": {
+    "values": [
+     {
+      "a": [
+       1,
+       {
+        "b": true
+       }
+      ]
+     }
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": {
+        "a": [
+         1,
+         {
+          "b": 1
+         }
+        ]
+       }
+      }
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "equals/dict-key-order",
+   "kind": "apply",
+   "input": {
+    "values": [
+     {
+      "a": 1,
+      "b": 2
+     }
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": {
+        "b": 2,
+        "a": 1
+       }
+      }
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "equals/list-order",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      1,
+      2
+     ]
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": [
+        2,
+        1
+       ]
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/string-vs-number",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "1"
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": 1
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "equals/empty-string",
+   "kind": "apply",
+   "input": {
+    "values": [
+     ""
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": ""
+      }
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "equals/unicode",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "José"
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": "José"
+      }
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "equals/missing-value",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a"
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {}
+     }
+    ]
+   },
+   "error": "bad args for transform 'equals': 'value' is a required property"
+  },
+  {
+   "id": "equals/maps-over-values",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a",
+     "b",
+     null
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": "a"
+      }
+     }
+    ]
+   },
+   "output": [
+    true,
+    false,
+    false
+   ]
+  },
+  {
+   "id": "equals/extra-arg",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a"
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": "a",
+       "other": 1
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'equals': Additional properties are not allowed ('other' was unexpected)"
+  },
+  {
+   "id": "contains/list-has",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      "email",
+      "sms"
+     ]
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": "email"
+      }
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "contains/list-lacks",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      "email",
+      "sms"
+     ]
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": "fax"
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "contains/list-number",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      1,
+      2,
+      3
+     ]
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": 2
+      }
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "contains/list-true-is-one",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      1,
+      2
+     ]
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": true
+      }
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "contains/list-one-is-true",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      true
+     ]
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": 1
+      }
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "contains/list-zero-is-false",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      0
+     ]
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": false
+      }
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "contains/list-string-number",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      "1"
+     ]
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": 1
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "contains/list-none",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      null
+     ]
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": null
+      }
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "contains/list-nested",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      [
+       1,
+       2
+      ],
+      [
+       3
+      ]
+     ]
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": [
+        3
+       ]
+      }
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "contains/list-dict",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      {
+       "a": 1
+      }
+     ]
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": {
+        "a": 1
+       }
+      }
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "contains/list-empty",
+   "kind": "apply",
+   "input": {
+    "values": [
+     []
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": "x"
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "contains/text-substring",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "hello"
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": "ell"
+      }
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "contains/text-not-substring",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "hello"
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": "xyz"
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "contains/text-empty-needle",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "hello"
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": ""
+      }
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "contains/text-empty-haystack",
+   "kind": "apply",
+   "input": {
+    "values": [
+     ""
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": "x"
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "contains/text-both-empty",
+   "kind": "apply",
+   "input": {
+    "values": [
+     ""
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": ""
+      }
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "contains/text-number-needle",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "hello"
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": 1
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "contains/text-none-needle",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "hello"
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": null
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "contains/text-list-needle",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "hello"
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": [
+        "h"
+       ]
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "contains/text-case",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "Hello"
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": "hello"
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "contains/text-unicode",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "José Zürich"
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": "ü"
+      }
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "contains/dict-key",
+   "kind": "apply",
+   "input": {
+    "values": [
+     {
+      "k": 1
+     }
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": "k"
+      }
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "contains/dict-missing-key",
+   "kind": "apply",
+   "input": {
+    "values": [
+     {
+      "k": 1
+     }
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": "z"
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "contains/dict-number-key",
+   "kind": "apply",
+   "input": {
+    "values": [
+     {
+      "k": 1
+     }
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": 1
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "contains/dict-none-key",
+   "kind": "apply",
+   "input": {
+    "values": [
+     {
+      "k": 1
+     }
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": null
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "contains/dict-list-key",
+   "kind": "apply",
+   "input": {
+    "values": [
+     {
+      "k": 1
+     }
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": [
+        1
+       ]
+      }
+     }
+    ]
+   },
+   "error": "transform 'contains' failed on {'k': 1}: unhashable type: 'list'"
+  },
+  {
+   "id": "contains/dict-dict-key",
+   "kind": "apply",
+   "input": {
+    "values": [
+     {
+      "k": 1
+     }
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": {
+        "k": 1
+       }
+      }
+     }
+    ]
+   },
+   "error": "transform 'contains' failed on {'k': 1}: unhashable type: 'dict'"
+  },
+  {
+   "id": "contains/dict-empty",
+   "kind": "apply",
+   "input": {
+    "values": [
+     {}
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": "k"
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "contains/none-item",
+   "kind": "apply",
+   "input": {
+    "values": [
+     null
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": "x"
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "contains/number-item",
+   "kind": "apply",
+   "input": {
+    "values": [
+     12
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": 1
+      }
+     }
+    ]
+   },
+   "error": "contains expects a list or text but got int: 12"
+  },
+  {
+   "id": "contains/bool-item",
+   "kind": "apply",
+   "input": {
+    "values": [
+     true
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": true
+      }
+     }
+    ]
+   },
+   "error": "contains expects a list or text but got bool: True"
+  },
+  {
+   "id": "contains/zero-item",
+   "kind": "apply",
+   "input": {
+    "values": [
+     0
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": 0
+      }
+     }
+    ]
+   },
+   "error": "contains expects a list or text but got int: 0"
+  },
+  {
+   "id": "contains/missing-value",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "abc"
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {}
+     }
+    ]
+   },
+   "error": "bad args for transform 'contains': 'value' is a required property"
+  },
+  {
+   "id": "contains/maps-over-values",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "abc",
+     "xyz",
+     null
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": "b"
+      }
+     }
+    ]
+   },
+   "output": [
+    true,
+    false,
+    false
+   ]
+  },
+  {
+   "id": "default/0-null",
+   "kind": "apply",
+   "input": {
+    "values": [
+     null
+    ],
+    "chain": [
+     {
+      "op": "default",
+      "args": {
+       "value": "N/A"
+      }
+     }
+    ]
+   },
+   "output": "N/A"
+  },
+  {
+   "id": "default/1-\"\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     ""
+    ],
+    "chain": [
+     {
+      "op": "default",
+      "args": {
+       "value": "N/A"
+      }
+     }
+    ]
+   },
+   "output": "N/A"
+  },
+  {
+   "id": "default/2-\"x\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "x"
+    ],
+    "chain": [
+     {
+      "op": "default",
+      "args": {
+       "value": "N/A"
+      }
+     }
+    ]
+   },
+   "output": "x"
+  },
+  {
+   "id": "default/3-0",
+   "kind": "apply",
+   "input": {
+    "values": [
+     0
+    ],
+    "chain": [
+     {
+      "op": "default",
+      "args": {
+       "value": "N/A"
+      }
+     }
+    ]
+   },
+   "output": 0
+  },
+  {
+   "id": "default/4-false",
+   "kind": "apply",
+   "input": {
+    "values": [
+     false
+    ],
+    "chain": [
+     {
+      "op": "default",
+      "args": {
+       "value": "N/A"
+      }
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "default/5-[]",
+   "kind": "apply",
+   "input": {
+    "values": [
+     []
+    ],
+    "chain": [
+     {
+      "op": "default",
+      "args": {
+       "value": "N/A"
+      }
+     }
+    ]
+   },
+   "output": []
+  },
+  {
+   "id": "default/6-{}",
+   "kind": "apply",
+   "input": {
+    "values": [
+     {}
+    ],
+    "chain": [
+     {
+      "op": "default",
+      "args": {
+       "value": "N/A"
+      }
+     }
+    ]
+   },
+   "output": {}
+  },
+  {
+   "id": "default/7-\" \"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     " "
+    ],
+    "chain": [
+     {
+      "op": "default",
+      "args": {
+       "value": "N/A"
+      }
+     }
+    ]
+   },
+   "output": " "
+  },
+  {
+   "id": "default/8-\"0\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "0"
+    ],
+    "chain": [
+     {
+      "op": "default",
+      "args": {
+       "value": "N/A"
+      }
+     }
+    ]
+   },
+   "output": "0"
+  },
+  {
+   "id": "default/9-5",
+   "kind": "apply",
+   "input": {
+    "values": [
+     5
+    ],
+    "chain": [
+     {
+      "op": "default",
+      "args": {
+       "value": "N/A"
+      }
+     }
+    ]
+   },
+   "output": 5
+  },
+  {
+   "id": "default/10-[\"a\"]",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      "a"
+     ]
+    ],
+    "chain": [
+     {
+      "op": "default",
+      "args": {
+       "value": "N/A"
+      }
+     }
+    ]
+   },
+   "output": [
+    "a"
+   ]
+  },
+  {
+   "id": "default/list-default",
+   "kind": "apply",
+   "input": {
+    "values": [
+     null
+    ],
+    "chain": [
+     {
+      "op": "default",
+      "args": {
+       "value": [
+        "a",
+        1
+       ]
+      }
+     }
+    ]
+   },
+   "output": [
+    "a",
+    1
+   ]
+  },
+  {
+   "id": "default/dict-default",
+   "kind": "apply",
+   "input": {
+    "values": [
+     ""
+    ],
+    "chain": [
+     {
+      "op": "default",
+      "args": {
+       "value": {
+        "k": [
+         1
+        ]
+       }
+      }
+     }
+    ]
+   },
+   "output": {
+    "k": [
+     1
+    ]
+   }
+  },
+  {
+   "id": "default/none-default",
+   "kind": "apply",
+   "input": {
+    "values": [
+     ""
+    ],
+    "chain": [
+     {
+      "op": "default",
+      "args": {
+       "value": null
+      }
+     }
+    ]
+   },
+   "output": null
+  },
+  {
+   "id": "default/number-default",
+   "kind": "apply",
+   "input": {
+    "values": [
+     null
+    ],
+    "chain": [
+     {
+      "op": "default",
+      "args": {
+       "value": 0
+      }
+     }
+    ]
+   },
+   "output": 0
+  },
+  {
+   "id": "default/maps-over-values",
+   "kind": "apply",
+   "input": {
+    "values": [
+     null,
+     "",
+     "x"
+    ],
+    "chain": [
+     {
+      "op": "default",
+      "args": {
+       "value": "N/A"
+      }
+     }
+    ]
+   },
+   "output": [
+    "N/A",
+    "N/A",
+    "x"
+   ]
+  },
+  {
+   "id": "default/missing-value",
+   "kind": "apply",
+   "input": {
+    "values": [
+     null
+    ],
+    "chain": [
+     {
+      "op": "default",
+      "args": {}
+     }
+    ]
+   },
+   "error": "bad args for transform 'default': 'value' is a required property"
+  },
+  {
+   "id": "prefix/0-\"42\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "42"
+    ],
+    "chain": [
+     {
+      "op": "prefix",
+      "args": {
+       "value": "#"
+      }
+     }
+    ]
+   },
+   "output": "#42"
+  },
+  {
+   "id": "prefix/1-42",
+   "kind": "apply",
+   "input": {
+    "values": [
+     42
+    ],
+    "chain": [
+     {
+      "op": "prefix",
+      "args": {
+       "value": "#"
+      }
+     }
+    ]
+   },
+   "output": "#42"
+  },
+  {
+   "id": "prefix/2-\"\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     ""
+    ],
+    "chain": [
+     {
+      "op": "prefix",
+      "args": {
+       "value": "#"
+      }
+     }
+    ]
+   },
+   "output": ""
+  },
+  {
+   "id": "prefix/3-null",
+   "kind": "apply",
+   "input": {
+    "values": [
+     null
+    ],
+    "chain": [
+     {
+      "op": "prefix",
+      "args": {
+       "value": "#"
+      }
+     }
+    ]
+   },
+   "output": null
+  },
+  {
+   "id": "prefix/4-0",
+   "kind": "apply",
+   "input": {
+    "values": [
+     0
+    ],
+    "chain": [
+     {
+      "op": "prefix",
+      "args": {
+       "value": "#"
+      }
+     }
+    ]
+   },
+   "output": "#0"
+  },
+  {
+   "id": "prefix/5-false",
+   "kind": "apply",
+   "input": {
+    "values": [
+     false
+    ],
+    "chain": [
+     {
+      "op": "prefix",
+      "args": {
+       "value": "#"
+      }
+     }
+    ]
+   },
+   "output": "#False"
+  },
+  {
+   "id": "prefix/6-true",
+   "kind": "apply",
+   "input": {
+    "values": [
+     true
+    ],
+    "chain": [
+     {
+      "op": "prefix",
+      "args": {
+       "value": "#"
+      }
+     }
+    ]
+   },
+   "output": "#True"
+  },
+  {
+   "id": "prefix/7-\"Jos\\u00e9\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "José"
+    ],
+    "chain": [
+     {
+      "op": "prefix",
+      "args": {
+       "value": "#"
+      }
+     }
+    ]
+   },
+   "output": "#José"
+  },
+  {
+   "id": "prefix/8-[]",
+   "kind": "apply",
+   "input": {
+    "values": [
+     []
+    ],
+    "chain": [
+     {
+      "op": "prefix",
+      "args": {
+       "value": "#"
+      }
+     }
+    ]
+   },
+   "error": "expected text but got list: []"
+  },
+  {
+   "id": "prefix/9-[\"a\"]",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      "a"
+     ]
+    ],
+    "chain": [
+     {
+      "op": "prefix",
+      "args": {
+       "value": "#"
+      }
+     }
+    ]
+   },
+   "error": "expected text but got list: ['a']"
+  },
+  {
+   "id": "prefix/10-{\"a\": 1}",
+   "kind": "apply",
+   "input": {
+    "values": [
+     {
+      "a": 1
+     }
+    ],
+    "chain": [
+     {
+      "op": "prefix",
+      "args": {
+       "value": "#"
+      }
+     }
+    ]
+   },
+   "error": "expected text but got dict: {'a': 1}"
+  },
+  {
+   "id": "prefix/11-2.5",
+   "kind": "apply",
+   "input": {
+    "values": [
+     2.5
+    ],
+    "chain": [
+     {
+      "op": "prefix",
+      "args": {
+       "value": "#"
+      }
+     }
+    ]
+   },
+   "output": "#2.5"
+  },
+  {
+   "id": "prefix/maps-over-values",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a",
+     "",
+     null,
+     "b"
+    ],
+    "chain": [
+     {
+      "op": "prefix",
+      "args": {
+       "value": "#"
+      }
+     }
+    ]
+   },
+   "output": [
+    "#a",
+    "",
+    null,
+    "#b"
+   ]
+  },
+  {
+   "id": "prefix/empty-value",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "x"
+    ],
+    "chain": [
+     {
+      "op": "prefix",
+      "args": {
+       "value": ""
+      }
+     }
+    ]
+   },
+   "output": "x"
+  },
+  {
+   "id": "prefix/unicode-value",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "x"
+    ],
+    "chain": [
+     {
+      "op": "prefix",
+      "args": {
+       "value": " · é"
+      }
+     }
+    ]
+   },
+   "output": " · éx"
+  },
+  {
+   "id": "prefix/value-number",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "x"
+    ],
+    "chain": [
+     {
+      "op": "prefix",
+      "args": {
+       "value": 1
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'prefix' at args['value']: 1 is not of type 'string'"
+  },
+  {
+   "id": "prefix/value-null",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "x"
+    ],
+    "chain": [
+     {
+      "op": "prefix",
+      "args": {
+       "value": null
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'prefix' at args['value']: None is not of type 'string'"
+  },
+  {
+   "id": "prefix/missing-value",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "x"
+    ],
+    "chain": [
+     {
+      "op": "prefix",
+      "args": {}
+     }
+    ]
+   },
+   "error": "bad args for transform 'prefix': 'value' is a required property"
+  },
+  {
+   "id": "suffix/0-\"42\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "42"
+    ],
+    "chain": [
+     {
+      "op": "suffix",
+      "args": {
+       "value": "#"
+      }
+     }
+    ]
+   },
+   "output": "42#"
+  },
+  {
+   "id": "suffix/1-42",
+   "kind": "apply",
+   "input": {
+    "values": [
+     42
+    ],
+    "chain": [
+     {
+      "op": "suffix",
+      "args": {
+       "value": "#"
+      }
+     }
+    ]
+   },
+   "output": "42#"
+  },
+  {
+   "id": "suffix/2-\"\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     ""
+    ],
+    "chain": [
+     {
+      "op": "suffix",
+      "args": {
+       "value": "#"
+      }
+     }
+    ]
+   },
+   "output": ""
+  },
+  {
+   "id": "suffix/3-null",
+   "kind": "apply",
+   "input": {
+    "values": [
+     null
+    ],
+    "chain": [
+     {
+      "op": "suffix",
+      "args": {
+       "value": "#"
+      }
+     }
+    ]
+   },
+   "output": null
+  },
+  {
+   "id": "suffix/4-0",
+   "kind": "apply",
+   "input": {
+    "values": [
+     0
+    ],
+    "chain": [
+     {
+      "op": "suffix",
+      "args": {
+       "value": "#"
+      }
+     }
+    ]
+   },
+   "output": "0#"
+  },
+  {
+   "id": "suffix/5-false",
+   "kind": "apply",
+   "input": {
+    "values": [
+     false
+    ],
+    "chain": [
+     {
+      "op": "suffix",
+      "args": {
+       "value": "#"
+      }
+     }
+    ]
+   },
+   "output": "False#"
+  },
+  {
+   "id": "suffix/6-true",
+   "kind": "apply",
+   "input": {
+    "values": [
+     true
+    ],
+    "chain": [
+     {
+      "op": "suffix",
+      "args": {
+       "value": "#"
+      }
+     }
+    ]
+   },
+   "output": "True#"
+  },
+  {
+   "id": "suffix/7-\"Jos\\u00e9\"",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "José"
+    ],
+    "chain": [
+     {
+      "op": "suffix",
+      "args": {
+       "value": "#"
+      }
+     }
+    ]
+   },
+   "output": "José#"
+  },
+  {
+   "id": "suffix/8-[]",
+   "kind": "apply",
+   "input": {
+    "values": [
+     []
+    ],
+    "chain": [
+     {
+      "op": "suffix",
+      "args": {
+       "value": "#"
+      }
+     }
+    ]
+   },
+   "error": "expected text but got list: []"
+  },
+  {
+   "id": "suffix/9-[\"a\"]",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      "a"
+     ]
+    ],
+    "chain": [
+     {
+      "op": "suffix",
+      "args": {
+       "value": "#"
+      }
+     }
+    ]
+   },
+   "error": "expected text but got list: ['a']"
+  },
+  {
+   "id": "suffix/10-{\"a\": 1}",
+   "kind": "apply",
+   "input": {
+    "values": [
+     {
+      "a": 1
+     }
+    ],
+    "chain": [
+     {
+      "op": "suffix",
+      "args": {
+       "value": "#"
+      }
+     }
+    ]
+   },
+   "error": "expected text but got dict: {'a': 1}"
+  },
+  {
+   "id": "suffix/11-2.5",
+   "kind": "apply",
+   "input": {
+    "values": [
+     2.5
+    ],
+    "chain": [
+     {
+      "op": "suffix",
+      "args": {
+       "value": "#"
+      }
+     }
+    ]
+   },
+   "output": "2.5#"
+  },
+  {
+   "id": "suffix/maps-over-values",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a",
+     "",
+     null,
+     "b"
+    ],
+    "chain": [
+     {
+      "op": "suffix",
+      "args": {
+       "value": "#"
+      }
+     }
+    ]
+   },
+   "output": [
+    "a#",
+    "",
+    null,
+    "b#"
+   ]
+  },
+  {
+   "id": "suffix/empty-value",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "x"
+    ],
+    "chain": [
+     {
+      "op": "suffix",
+      "args": {
+       "value": ""
+      }
+     }
+    ]
+   },
+   "output": "x"
+  },
+  {
+   "id": "suffix/unicode-value",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "x"
+    ],
+    "chain": [
+     {
+      "op": "suffix",
+      "args": {
+       "value": " · é"
+      }
+     }
+    ]
+   },
+   "output": "x · é"
+  },
+  {
+   "id": "suffix/value-number",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "x"
+    ],
+    "chain": [
+     {
+      "op": "suffix",
+      "args": {
+       "value": 1
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'suffix' at args['value']: 1 is not of type 'string'"
+  },
+  {
+   "id": "suffix/value-null",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "x"
+    ],
+    "chain": [
+     {
+      "op": "suffix",
+      "args": {
+       "value": null
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'suffix' at args['value']: None is not of type 'string'"
+  },
+  {
+   "id": "suffix/missing-value",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "x"
+    ],
+    "chain": [
+     {
+      "op": "suffix",
+      "args": {}
+     }
+    ]
+   },
+   "error": "bad args for transform 'suffix': 'value' is a required property"
+  },
+  {
+   "id": "chain/empty-single",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "x"
+    ],
+    "chain": []
+   },
+   "output": "x"
+  },
+  {
+   "id": "chain/empty-multi",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "x",
+     "y"
+    ],
+    "chain": []
+   },
+   "output": [
+    "x",
+    "y"
+   ]
+  },
+  {
+   "id": "chain/empty-none",
+   "kind": "apply",
+   "input": {
+    "values": [
+     null
+    ],
+    "chain": []
+   },
+   "output": null
+  },
+  {
+   "id": "chain/empty-no-values",
+   "kind": "apply",
+   "input": {
+    "values": [],
+    "chain": []
+   },
+   "output": null
+  },
+  {
+   "id": "chain/empty-one-list",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      "a",
+      "b"
+     ]
+    ],
+    "chain": []
+   },
+   "output": [
+    "a",
+    "b"
+   ]
+  },
+  {
+   "id": "chain/no-values-op",
+   "kind": "apply",
+   "input": {
+    "values": [],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "output": null
+  },
+  {
+   "id": "chain/map-then-join",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a",
+     "b"
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     },
+     {
+      "op": "join",
+      "args": {
+       "sep": "+"
+      }
+     }
+    ]
+   },
+   "output": "A+B"
+  },
+  {
+   "id": "chain/join-then-upper",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "Ada",
+     "Lovelace"
+    ],
+    "chain": [
+     {
+      "op": "join",
+      "args": {
+       "sep": " "
+      }
+     },
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "output": "ADA LOVELACE"
+  },
+  {
+   "id": "chain/join-after-scalar",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a"
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     },
+     {
+      "op": "join",
+      "args": {
+       "sep": "-"
+      }
+     }
+    ]
+   },
+   "output": "A"
+  },
+  {
+   "id": "chain/join-twice",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a",
+     "b"
+    ],
+    "chain": [
+     {
+      "op": "join",
+      "args": {
+       "sep": "-"
+      }
+     },
+     {
+      "op": "join",
+      "args": {
+       "sep": "+"
+      }
+     }
+    ]
+   },
+   "output": "a-b"
+  },
+  {
+   "id": "chain/join-lone-list-then-map",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      "b",
+      "a"
+     ]
+    ],
+    "chain": [
+     {
+      "op": "join",
+      "args": {
+       "sep": ","
+      }
+     },
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "output": "B,A"
+  },
+  {
+   "id": "chain/map-keeps-list",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a",
+     "b",
+     "c"
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     },
+     {
+      "op": "lower",
+      "args": {}
+     },
+     {
+      "op": "prefix",
+      "args": {
+       "value": "_"
+      }
+     }
+    ]
+   },
+   "output": [
+    "_a",
+    "_b",
+    "_c"
+   ]
+  },
+  {
+   "id": "chain/split-then-title",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "ada-LOVELACE"
+    ],
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": "-",
+       "index": 1
+      }
+     },
+     {
+      "op": "title",
+      "args": {}
+     }
+    ]
+   },
+   "output": "Lovelace"
+  },
+  {
+   "id": "chain/date-part-then-number",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "month",
+       "pad": 2
+      }
+     },
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 0
+      }
+     }
+    ]
+   },
+   "output": "3"
+  },
+  {
+   "id": "chain/three-step",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "  1234.5  "
+    ],
+    "chain": [
+     {
+      "op": "strip",
+      "args": {}
+     },
+     {
+      "op": "number_format",
+      "args": {
+       "prefix": "$"
+      }
+     },
+     {
+      "op": "suffix",
+      "args": {
+       "value": " USD"
+      }
+     }
+    ]
+   },
+   "output": "$1,234.50 USD"
+  },
+  {
+   "id": "chain/blank-then-default",
+   "kind": "apply",
+   "input": {
+    "values": [
+     ""
+    ],
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%Y"
+      }
+     },
+     {
+      "op": "default",
+      "args": {
+       "value": "N/A"
+      }
+     }
+    ]
+   },
+   "output": "N/A"
+  },
+  {
+   "id": "chain/none-then-default",
+   "kind": "apply",
+   "input": {
+    "values": [
+     null
+    ],
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {}
+     },
+     {
+      "op": "default",
+      "args": {
+       "value": "N/A"
+      }
+     }
+    ]
+   },
+   "output": "N/A"
+  },
+  {
+   "id": "chain/multi-names",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "ada",
+     "lovelace",
+     "king"
+    ],
+    "chain": [
+     {
+      "op": "title",
+      "args": {}
+     },
+     {
+      "op": "join",
+      "args": {
+       "sep": " "
+      }
+     },
+     {
+      "op": "prefix",
+      "args": {
+       "value": "Dr. "
+      }
+     }
+    ]
+   },
+   "output": "Dr. Ada Lovelace King"
+  },
+  {
+   "id": "chain/address-lines",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "12 Main St",
+     null,
+     "",
+     "Apt 4",
+     "Zürich"
+    ],
+    "chain": [
+     {
+      "op": "join",
+      "args": {
+       "sep": ", "
+      }
+     },
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "output": "12 MAIN ST, APT 4, ZÜRICH"
+  },
+  {
+   "id": "chain/checkbox-equals",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "married"
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": "married"
+      }
+     },
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "chain/checkbox-contains",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      "email",
+      "sms"
+     ]
+    ],
+    "chain": [
+     {
+      "op": "contains",
+      "args": {
+       "value": "sms"
+      }
+     }
+    ]
+   },
+   "output": true
+  },
+  {
+   "id": "chain/bool-from-equals-none",
+   "kind": "apply",
+   "input": {
+    "values": [
+     null
+    ],
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": "x"
+      }
+     },
+     {
+      "op": "bool_to_check",
+      "args": {}
+     }
+    ]
+   },
+   "output": false
+  },
+  {
+   "id": "chain/slice-then-join",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      "a",
+      "b",
+      "c"
+     ]
+    ],
+    "chain": [
+     {
+      "op": "slice",
+      "args": {
+       "start": 1
+      }
+     },
+     {
+      "op": "join",
+      "args": {
+       "sep": "|"
+      }
+     }
+    ]
+   },
+   "output": "b|c"
+  },
+  {
+   "id": "chain/slice-list-then-upper",
+   "kind": "apply",
+   "input": {
+    "values": [
+     [
+      "a",
+      "b",
+      "c"
+     ]
+    ],
+    "chain": [
+     {
+      "op": "slice",
+      "args": {
+       "start": 1
+      }
+     },
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "error": "expected text but got list: ['b', 'c']"
+  },
+  {
+   "id": "chain/char-at-each",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "Ada",
+     "Bob"
+    ],
+    "chain": [
+     {
+      "op": "char_at",
+      "args": {
+       "index": 0
+      }
+     },
+     {
+      "op": "join",
+      "args": {
+       "sep": ""
+      }
+     }
+    ]
+   },
+   "output": "AB"
+  },
+  {
+   "id": "chain/initials",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "Ada",
+     "",
+     "King",
+     null,
+     "Lovelace"
+    ],
+    "chain": [
+     {
+      "op": "char_at",
+      "args": {
+       "index": 0
+      }
+     },
+     {
+      "op": "join",
+      "args": {
+       "sep": ". "
+      }
+     }
+    ]
+   },
+   "output": "A. K. L"
+  },
+  {
+   "id": "chain/second-step-error",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "a",
+     "b"
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     },
+     {
+      "op": "date_part",
+      "args": {
+       "part": "day"
+      }
+     }
+    ]
+   },
+   "error": "invalid date 'A': expected an ISO 'YYYY-MM-DD' string or datetime.date"
+  },
+  {
+   "id": "chain/error-on-second-value",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "2024-03-07",
+     "bad"
+    ],
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "day"
+      }
+     }
+    ]
+   },
+   "error": "invalid date 'bad': expected an ISO 'YYYY-MM-DD' string or datetime.date"
+  },
+  {
+   "id": "chain/unknown-op",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "x"
+    ],
+    "chain": [
+     {
+      "op": "nope",
+      "args": {}
+     }
+    ]
+   },
+   "error": "unknown transform 'nope'"
+  },
+  {
+   "id": "chain/unknown-op-after-valid",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "x"
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     },
+     {
+      "op": "nope",
+      "args": {}
+     }
+    ]
+   },
+   "error": "unknown transform 'nope'"
+  },
+  {
+   "id": "chain/unknown-op-quote",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "x"
+    ],
+    "chain": [
+     {
+      "op": "it's",
+      "args": {}
+     }
+    ]
+   },
+   "error": "unknown transform \"it's\""
+  },
+  {
+   "id": "chain/unknown-op-case",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "x"
+    ],
+    "chain": [
+     {
+      "op": "UPPER",
+      "args": {}
+     }
+    ]
+   },
+   "error": "unknown transform 'UPPER'"
+  },
+  {
+   "id": "chain/unknown-op-empty-name",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "x"
+    ],
+    "chain": [
+     {
+      "op": "",
+      "args": {}
+     }
+    ]
+   },
+   "error": "unknown transform ''"
+  },
+  {
+   "id": "chain/two-unknown-ops",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "x"
+    ],
+    "chain": [
+     {
+      "op": "nope",
+      "args": {}
+     },
+     {
+      "op": "nada",
+      "args": {}
+     }
+    ]
+   },
+   "error": "unknown transform 'nope'; unknown transform 'nada'"
+  },
+  {
+   "id": "chain/unknown-and-bad-args",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "x"
+    ],
+    "chain": [
+     {
+      "op": "nope",
+      "args": {}
+     },
+     {
+      "op": "split",
+      "args": {
+       "sep": "-"
+      }
+     },
+     {
+      "op": "upper",
+      "args": {}
+     }
+    ]
+   },
+   "error": "unknown transform 'nope'; bad args for transform 'split': 'index' is a required property"
+  },
+  {
+   "id": "chain/all-errors-collected",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "x"
+    ],
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": "",
+       "index": "a"
+      }
+     },
+     {
+      "op": "date_part",
+      "args": {
+       "part": "week"
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'split' at args['index']: 'a' is not of type 'integer'; bad args for transform 'split' at args['sep']: '' should be non-empty; bad args for transform 'date_part' at args['part']: 'week' is not one of ['month', 'day', 'year', 'year2']"
+  },
+  {
+   "id": "chain/bad-args-checked-before-running",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "x"
+    ],
+    "chain": [
+     {
+      "op": "upper",
+      "args": {}
+     },
+     {
+      "op": "date_part",
+      "args": {
+       "part": "week"
+      }
+     }
+    ]
+   },
+   "error": "bad args for transform 'date_part' at args['part']: 'week' is not one of ['month', 'day', 'year', 'year2']"
+  },
+  {
+   "id": "chain/unicode-op-name",
+   "kind": "apply",
+   "input": {
+    "values": [
+     "x"
+    ],
+    "chain": [
+     {
+      "op": "é北",
+      "args": {}
+     }
+    ]
+   },
+   "error": "unknown transform 'é北'"
+  },
+  {
+   "id": "validate/empty",
+   "kind": "validate",
+   "input": {
+    "chain": []
+   },
+   "output": []
+  },
+  {
+   "id": "validate/valid-all",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": "-",
+       "index": 0
+      }
+     },
+     {
+      "op": "join",
+      "args": {
+       "sep": " "
+      }
+     },
+     {
+      "op": "slice",
+      "args": {}
+     },
+     {
+      "op": "upper",
+      "args": {}
+     },
+     {
+      "op": "lower",
+      "args": {}
+     },
+     {
+      "op": "title",
+      "args": {}
+     },
+     {
+      "op": "strip",
+      "args": {}
+     },
+     {
+      "op": "char_at",
+      "args": {
+       "index": -1
+      }
+     },
+     {
+      "op": "bool_to_check",
+      "args": {}
+     },
+     {
+      "op": "equals",
+      "args": {
+       "value": [
+        1
+       ]
+      }
+     },
+     {
+      "op": "contains",
+      "args": {
+       "value": null
+      }
+     },
+     {
+      "op": "default",
+      "args": {
+       "value": {
+        "a": 1
+       }
+      }
+     },
+     {
+      "op": "prefix",
+      "args": {
+       "value": "p"
+      }
+     },
+     {
+      "op": "suffix",
+      "args": {
+       "value": "s"
+      }
+     },
+     {
+      "op": "date_format",
+      "args": {
+       "format": "%Y"
+      }
+     },
+     {
+      "op": "date_part",
+      "args": {
+       "part": "year2",
+       "pad": 3
+      }
+     },
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 12
+      }
+     }
+    ]
+   },
+   "output": []
+  },
+  {
+   "id": "validate/unknown",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "nope",
+      "args": {}
+     }
+    ]
+   },
+   "output": [
+    "unknown transform 'nope'"
+   ]
+  },
+  {
+   "id": "validate/unknown-quote",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "it's",
+      "args": {}
+     }
+    ]
+   },
+   "output": [
+    "unknown transform \"it's\""
+   ]
+  },
+  {
+   "id": "validate/unknown-both-quotes",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "it's \"x\"",
+      "args": {}
+     }
+    ]
+   },
+   "output": [
+    "unknown transform 'it\\'s \"x\"'"
+   ]
+  },
+  {
+   "id": "validate/unknown-unicode",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "naïve",
+      "args": {}
+     }
+    ]
+   },
+   "output": [
+    "unknown transform 'naïve'"
+   ]
+  },
+  {
+   "id": "validate/unknown-newline",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "a\nb",
+      "args": {}
+     }
+    ]
+   },
+   "output": [
+    "unknown transform 'a\\nb'"
+   ]
+  },
+  {
+   "id": "validate/unknown-empty",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "",
+      "args": {}
+     }
+    ]
+   },
+   "output": [
+    "unknown transform ''"
+   ]
+  },
+  {
+   "id": "validate/unknown-long",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "args": {}
+     }
+    ]
+   },
+   "output": [
+    "unknown transform 'xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'"
+   ]
+  },
+  {
+   "id": "validate/required-missing",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "split",
+      "args": {}
+     }
+    ]
+   },
+   "output": [
+    "bad args for transform 'split': 'sep' is a required property",
+    "bad args for transform 'split': 'index' is a required property"
+   ]
+  },
+  {
+   "id": "validate/required-all-missing",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "split",
+      "args": {}
+     },
+     {
+      "op": "char_at",
+      "args": {}
+     },
+     {
+      "op": "date_format",
+      "args": {}
+     },
+     {
+      "op": "equals",
+      "args": {}
+     },
+     {
+      "op": "prefix",
+      "args": {}
+     }
+    ]
+   },
+   "output": [
+    "bad args for transform 'split': 'sep' is a required property",
+    "bad args for transform 'split': 'index' is a required property",
+    "bad args for transform 'char_at': 'index' is a required property",
+    "bad args for transform 'date_format': 'format' is a required property",
+    "bad args for transform 'equals': 'value' is a required property",
+    "bad args for transform 'prefix': 'value' is a required property"
+   ]
+  },
+  {
+   "id": "validate/extra-one",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "upper",
+      "args": {
+       "bogus": 1
+      }
+     }
+    ]
+   },
+   "output": [
+    "bad args for transform 'upper': Additional properties are not allowed ('bogus' was unexpected)"
+   ]
+  },
+  {
+   "id": "validate/extra-many",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "upper",
+      "args": {
+       "zebra": 1,
+       "apple": 2,
+       "mango": 3
+      }
+     }
+    ]
+   },
+   "output": [
+    "bad args for transform 'upper': Additional properties are not allowed ('apple', 'mango', 'zebra' were unexpected)"
+   ]
+  },
+  {
+   "id": "validate/extra-unicode",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "upper",
+      "args": {
+       "é": 1,
+       "a b": 2
+      }
+     }
+    ]
+   },
+   "output": [
+    "bad args for transform 'upper': Additional properties are not allowed ('a b', 'é' were unexpected)"
+   ]
+  },
+  {
+   "id": "validate/extra-and-missing",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": "-",
+       "other": 1
+      }
+     }
+    ]
+   },
+   "output": [
+    "bad args for transform 'split': 'index' is a required property",
+    "bad args for transform 'split': Additional properties are not allowed ('other' was unexpected)"
+   ]
+  },
+  {
+   "id": "validate/type-string",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": 1,
+       "index": 0
+      }
+     }
+    ]
+   },
+   "output": [
+    "bad args for transform 'split' at args['sep']: 1 is not of type 'string'"
+   ]
+  },
+  {
+   "id": "validate/type-integer-string",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": "-",
+       "index": "0"
+      }
+     }
+    ]
+   },
+   "output": [
+    "bad args for transform 'split' at args['index']: '0' is not of type 'integer'"
+   ]
+  },
+  {
+   "id": "validate/type-integer-float",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": "-",
+       "index": 0.5
+      }
+     }
+    ]
+   },
+   "output": [
+    "bad args for transform 'split' at args['index']: 0.5 is not of type 'integer'"
+   ]
+  },
+  {
+   "id": "validate/type-integer-bool",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": "-",
+       "index": false
+      }
+     }
+    ]
+   },
+   "output": [
+    "bad args for transform 'split' at args['index']: False is not of type 'integer'"
+   ]
+  },
+  {
+   "id": "validate/type-integer-null",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": "-",
+       "index": null
+      }
+     }
+    ]
+   },
+   "output": [
+    "bad args for transform 'split' at args['index']: None is not of type 'integer'"
+   ]
+  },
+  {
+   "id": "validate/type-integer-list",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": "-",
+       "index": [
+        1
+       ]
+      }
+     }
+    ]
+   },
+   "output": [
+    "bad args for transform 'split' at args['index']: [1] is not of type 'integer'"
+   ]
+  },
+  {
+   "id": "validate/type-integer-dict",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": "-",
+       "index": {
+        "a": 1
+       }
+      }
+     }
+    ]
+   },
+   "output": [
+    "bad args for transform 'split' at args['index']: {'a': 1} is not of type 'integer'"
+   ]
+  },
+  {
+   "id": "validate/type-string-dict",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "join",
+      "args": {
+       "sep": {
+        "a": [
+         1,
+         "x'y"
+        ]
+       }
+      }
+     }
+    ]
+   },
+   "output": [
+    "bad args for transform 'join' at args['sep']: {'a': [1, \"x'y\"]} is not of type 'string'"
+   ]
+  },
+  {
+   "id": "validate/type-string-long-list",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "join",
+      "args": {
+       "sep": [
+        1,
+        2.5,
+        "a",
+        null,
+        true,
+        {
+         "k": "v"
+        }
+       ]
+      }
+     }
+    ]
+   },
+   "output": [
+    "bad args for transform 'join' at args['sep']: [1, 2.5, 'a', None, True, {'k': 'v'}] is not of type 'string'"
+   ]
+  },
+  {
+   "id": "validate/type-string-unicode",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "join",
+      "args": {
+       "sep": [
+        "é",
+        "北京",
+        "😀",
+        "​",
+        "\t"
+       ]
+      }
+     }
+    ]
+   },
+   "output": [
+    "bad args for transform 'join' at args['sep']: ['é', '北京', '😀', '\\u200b', '\\t'] is not of type 'string'"
+   ]
+  },
+  {
+   "id": "validate/type-string-control-chars",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "join",
+      "args": {
+       "sep": [
+        "\u0000\u0007\u001b ­"
+       ]
+      }
+     }
+    ]
+   },
+   "output": [
+    "bad args for transform 'join' at args['sep']: ['\\x00\\x07\\x1b\\x7f\\x80\\x9f\\xa0\\xad'] is not of type 'string'"
+   ]
+  },
+  {
+   "id": "validate/type-string-escapes",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "join",
+      "args": {
+       "sep": [
+        "a\\b",
+        "q\"q",
+        "s's",
+        "both'\"",
+        "\r\n"
+       ]
+      }
+     }
+    ]
+   },
+   "output": [
+    "bad args for transform 'join' at args['sep']: ['a\\\\b', 'q\"q', \"s's\", 'both\\'\"', '\\r\\n'] is not of type 'string'"
+   ]
+  },
+  {
+   "id": "validate/minlength-empty",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "split",
+      "args": {
+       "sep": "",
+       "index": 0
+      }
+     }
+    ]
+   },
+   "output": [
+    "bad args for transform 'split' at args['sep']: '' should be non-empty"
+   ]
+  },
+  {
+   "id": "validate/minlength-format",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "date_format",
+      "args": {
+       "format": ""
+      }
+     }
+    ]
+   },
+   "output": [
+    "bad args for transform 'date_format' at args['format']: '' should be non-empty"
+   ]
+  },
+  {
+   "id": "validate/enum-bad",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "week"
+      }
+     }
+    ]
+   },
+   "output": [
+    "bad args for transform 'date_part' at args['part']: 'week' is not one of ['month', 'day', 'year', 'year2']"
+   ]
+  },
+  {
+   "id": "validate/enum-bad-quote",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "it's"
+      }
+     }
+    ]
+   },
+   "output": [
+    "bad args for transform 'date_part' at args['part']: \"it's\" is not one of ['month', 'day', 'year', 'year2']"
+   ]
+  },
+  {
+   "id": "validate/enum-number",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": 1
+      }
+     }
+    ]
+   },
+   "output": [
+    "bad args for transform 'date_part' at args['part']: 1 is not one of ['month', 'day', 'year', 'year2']"
+   ]
+  },
+  {
+   "id": "validate/enum-bool",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": true
+      }
+     }
+    ]
+   },
+   "output": [
+    "bad args for transform 'date_part' at args['part']: True is not one of ['month', 'day', 'year', 'year2']"
+   ]
+  },
+  {
+   "id": "validate/enum-null",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": null
+      }
+     }
+    ]
+   },
+   "output": [
+    "bad args for transform 'date_part' at args['part']: None is not one of ['month', 'day', 'year', 'year2']"
+   ]
+  },
+  {
+   "id": "validate/enum-list",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": [
+        "day"
+       ]
+      }
+     }
+    ]
+   },
+   "output": [
+    "bad args for transform 'date_part' at args['part']: ['day'] is not one of ['month', 'day', 'year', 'year2']"
+   ]
+  },
+  {
+   "id": "validate/minimum",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "day",
+       "pad": -1
+      }
+     }
+    ]
+   },
+   "output": [
+    "bad args for transform 'date_part' at args['pad']: -1 is less than the minimum of 0"
+   ]
+  },
+  {
+   "id": "validate/minimum-huge",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "day",
+       "pad": -10000000
+      }
+     }
+    ]
+   },
+   "output": [
+    "bad args for transform 'date_part' at args['pad']: -10000000 is less than the minimum of 0"
+   ]
+  },
+  {
+   "id": "validate/maximum",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 13
+      }
+     }
+    ]
+   },
+   "output": [
+    "bad args for transform 'number_format' at args['decimals']: 13 is greater than the maximum of 12"
+   ]
+  },
+  {
+   "id": "validate/maximum-and-minimum",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 13
+      }
+     },
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": -1
+      }
+     }
+    ]
+   },
+   "output": [
+    "bad args for transform 'number_format' at args['decimals']: 13 is greater than the maximum of 12",
+    "bad args for transform 'number_format' at args['decimals']: -1 is less than the minimum of 0"
+   ]
+  },
+  {
+   "id": "validate/minimum-float",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "day",
+       "pad": -0.5
+      }
+     }
+    ]
+   },
+   "output": [
+    "bad args for transform 'date_part' at args['pad']: -0.5 is not of type 'integer'",
+    "bad args for transform 'date_part' at args['pad']: -0.5 is less than the minimum of 0"
+   ]
+  },
+  {
+   "id": "validate/integer-valued-float-is-integer",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "part": "day",
+       "pad": 1e+16
+      }
+     }
+    ]
+   },
+   "output": []
+  },
+  {
+   "id": "validate/default-ignored",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "slice",
+      "args": {
+       "start": 0,
+       "end": 1
+      }
+     }
+    ]
+   },
+   "output": []
+  },
+  {
+   "id": "validate/order-of-errors",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "date_part",
+      "args": {
+       "pad": -1,
+       "part": "week",
+       "extra": 1
+      }
+     }
+    ]
+   },
+   "output": [
+    "bad args for transform 'date_part': Additional properties are not allowed ('extra' was unexpected)",
+    "bad args for transform 'date_part' at args['pad']: -1 is less than the minimum of 0",
+    "bad args for transform 'date_part' at args['part']: 'week' is not one of ['month', 'day', 'year', 'year2']"
+   ]
+  },
+  {
+   "id": "validate/errors-per-step",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "nope",
+      "args": {}
+     },
+     {
+      "op": "split",
+      "args": {
+       "sep": 1
+      }
+     },
+     {
+      "op": "number_format",
+      "args": {
+       "decimals": 99
+      }
+     },
+     {
+      "op": "upper",
+      "args": {
+       "x": 1
+      }
+     }
+    ]
+   },
+   "output": [
+    "unknown transform 'nope'",
+    "bad args for transform 'split': 'index' is a required property",
+    "bad args for transform 'split' at args['sep']: 1 is not of type 'string'",
+    "bad args for transform 'number_format' at args['decimals']: 99 is greater than the maximum of 12",
+    "bad args for transform 'upper': Additional properties are not allowed ('x' was unexpected)"
+   ]
+  },
+  {
+   "id": "validate/any-value-schema",
+   "kind": "validate",
+   "input": {
+    "chain": [
+     {
+      "op": "equals",
+      "args": {
+       "value": null
+      }
+     },
+     {
+      "op": "contains",
+      "args": {
+       "value": {
+        "a": [
+         1
+        ]
+       }
+      }
+     },
+     {
+      "op": "default",
+      "args": {
+       "value": []
+      }
+     }
+    ]
+   },
+   "output": []
+  }
+ ]
+}

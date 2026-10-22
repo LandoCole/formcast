@@ -1,0 +1,367 @@
+/* Styles for the shared UI parts. Flexoki neutrals, light and dark, no accent colours.
+   Box states are told apart by line style only: linked is solid ink, not linked is dashed
+   graphite, selected is 2px ink with handles. */
+
+/* Tokens. :where() gives them zero specificity, so a page that defines its own wins. */
+:where(:root) {
+  --paper: #FFFCF0;
+  --ink: #100F0F;
+  --graphite: #6F6E69;
+  --panel: #E6E4D9;
+  --rule: rgba(16, 15, 15, .16);
+  --tint: rgba(16, 15, 15, .05);
+  --tint-strong: rgba(16, 15, 15, .1);
+  --tint-unlinked: rgba(255, 252, 240, .2);
+  --page-paper: #fff;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --serif: "EB Garamond", Georgia, serif;
+}
+@media (prefers-color-scheme: dark) {
+  :where(:root:not([data-theme="light"])) {
+    --paper: #100F0F;
+    --ink: #CECDC3;
+    --graphite: #878580;
+    --panel: #282726;
+    --rule: rgba(206, 205, 195, .16);
+    --tint: rgba(206, 205, 195, .07);
+    --tint-strong: rgba(206, 205, 195, .14);
+    --tint-unlinked: rgba(16, 15, 15, .2);
+    --page-paper: #f4f2ea;
+    color-scheme: dark;
+  }
+}
+:where(:root[data-theme="dark"]) {
+  --paper: #100F0F;
+  --ink: #CECDC3;
+  --graphite: #878580;
+  --panel: #282726;
+  --rule: rgba(206, 205, 195, .16);
+  --tint: rgba(206, 205, 195, .07);
+  --tint-strong: rgba(206, 205, 195, .14);
+  --tint-unlinked: rgba(16, 15, 15, .2);
+  --page-paper: #f4f2ea;
+  color-scheme: dark;
+}
+
+/* ---- page view ---- */
+
+.fc-pageview { max-width: 100%; }
+
+.fc-pv-bar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 8px;
+  font-family: var(--mono);
+}
+
+.fc-pv-btn {
+  display: grid;
+  place-items: center;
+  height: 32px;
+  padding: 0 12px;
+  background: var(--paper);
+  color: var(--ink);
+  border: 0;
+  outline: 1px solid var(--ink);
+  outline-offset: -.5px;
+  font: 11px/1 var(--mono);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.fc-pv-btn[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+@media (pointer: coarse) { .fc-pv-btn { height: 40px; } }
+
+.fc-pv-stage { max-width: 100%; }
+
+/* The page image is a light sheet in both themes, so what is drawn on it keeps the light-theme
+   neutrals: dark ink lines on paper. */
+.fc-pv-page {
+  --ink: #100F0F;
+  --graphite: #6F6E69;
+  --paper: #FFFCF0;
+  --tint: rgba(16, 15, 15, .05);
+  --tint-strong: rgba(16, 15, 15, .1);
+  --tint-unlinked: rgba(255, 255, 255, .2);
+  position: relative;
+  background: var(--page-paper);
+  outline: 1px solid var(--rule);
+  max-width: 100%;
+}
+.fc-pv-media { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: block; user-select: none; -webkit-user-select: none; }
+
+.fc-pv-layer { position: absolute; inset: 0; }
+.fc-pv-layer.is-drawing { cursor: crosshair; touch-action: none; }
+
+/* ---- boxes ---- */
+
+.fc-box {
+  position: absolute;
+  box-sizing: border-box;
+  outline: 1px dashed var(--graphite);
+  outline-offset: -.5px;
+  background: var(--tint-unlinked);
+  font-family: var(--mono);
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.fc-box.is-linked { outline: 1px solid var(--ink); background: var(--tint); }
+.fc-box.is-selected { outline: 2px solid var(--ink); background: var(--tint-strong); z-index: 3; touch-action: none; }
+.fc-box.is-drop { outline: 2px dashed var(--ink); background: var(--tint-strong); z-index: 3; }
+.fc-box:focus { outline-offset: -.5px; }
+.fc-box:focus-visible { box-shadow: 0 0 0 3px var(--paper), 0 0 0 4px var(--ink); z-index: 4; }
+.fc-box.is-dragging { cursor: grabbing; }
+.fc-box.fc-table { background: none; }
+.fc-box.fc-table.is-selected { background: var(--tint); }
+
+/* A box's tag is never wider than the box (cut with an ellipsis), so a dense row of small boxes
+   (checkboxes) keeps its tags apart. Hover, focus and selection show the whole tag, above its
+   neighbours. */
+.fc-tag {
+  position: absolute;
+  left: -1px;
+  bottom: 100%;
+  box-sizing: border-box;
+  max-width: min(28ch, calc(100% + 2px));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 3px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 10px;
+  line-height: 14px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.fc-box:hover .fc-tag,
+.fc-box:focus .fc-tag,
+.fc-box.is-selected .fc-tag { max-width: none; z-index: 6; }
+.fc-box.is-unlinked .fc-tag { display: none; background: var(--paper); color: var(--graphite); outline: 1px dashed var(--graphite); }
+.fc-box.is-unlinked:hover .fc-tag,
+.fc-box.is-unlinked:focus .fc-tag,
+.fc-box.is-unlinked.is-selected .fc-tag { display: block; }
+
+.fc-marks {
+  position: absolute;
+  right: -1px;
+  bottom: 100%;
+  display: flex;
+  gap: 2px;
+  pointer-events: none;
+}
+.fc-mark {
+  padding: 0 4px;
+  background: var(--paper);
+  color: var(--ink);
+  outline: 1px solid var(--ink);
+  font-size: 10px;
+  line-height: 14px;
+}
+
+.fc-line { position: absolute; background: var(--graphite); opacity: .6; pointer-events: none; }
+
+.fc-compare {
+  position: absolute;
+  box-sizing: border-box;
+  outline: 1px dotted var(--graphite);
+  outline-offset: -.5px;
+  opacity: .7;
+  pointer-events: none;
+}
+
+.fc-marquee {
+  position: absolute;
+  box-sizing: border-box;
+  outline: 1px dashed var(--ink);
+  outline-offset: -.5px;
+  background: var(--tint);
+  z-index: 5;
+  pointer-events: none;
+}
+
+/* Corner handles: a 24px hit area around a small square. */
+.fc-hd { position: absolute; width: 24px; height: 24px; z-index: 5; touch-action: none; }
+.fc-hd::before {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  margin: -4.5px 0 0 -4.5px;
+  background: var(--paper);
+  outline: 1.5px solid var(--ink);
+}
+.fc-hd[data-handle="nw"] { left: -12px; top: -12px; cursor: nwse-resize; }
+.fc-hd[data-handle="ne"] { right: -12px; top: -12px; cursor: nesw-resize; }
+.fc-hd[data-handle="sw"] { left: -12px; bottom: -12px; cursor: nesw-resize; }
+.fc-hd[data-handle="se"] { right: -12px; bottom: -12px; cursor: nwse-resize; }
+
+/* Small boxes: the handles sit outside the corners (hit area touching the corner from outside),
+   with the visible square still centred on the corner, so the box body stays draggable. */
+.fc-box.is-small .fc-hd[data-handle="nw"] { left: -24px; top: -24px; }
+.fc-box.is-small .fc-hd[data-handle="ne"] { right: -24px; top: -24px; }
+.fc-box.is-small .fc-hd[data-handle="sw"] { left: -24px; bottom: -24px; }
+.fc-box.is-small .fc-hd[data-handle="se"] { right: -24px; bottom: -24px; }
+.fc-box.is-small .fc-hd::before { left: auto; top: auto; margin: 0; }
+.fc-box.is-small .fc-hd[data-handle="nw"]::before { right: -4.5px; bottom: -4.5px; }
+.fc-box.is-small .fc-hd[data-handle="ne"]::before { left: -4.5px; bottom: -4.5px; }
+.fc-box.is-small .fc-hd[data-handle="sw"]::before { right: -4.5px; top: -4.5px; }
+.fc-box.is-small .fc-hd[data-handle="se"]::before { left: -4.5px; top: -4.5px; }
+
+/* ---- shared controls ---- */
+
+.fc-btn {
+  height: 32px;
+  padding: 0 12px;
+  background: var(--paper);
+  color: var(--ink);
+  border: 0;
+  outline: 1px solid var(--ink);
+  outline-offset: -.5px;
+  font: 11px/1 var(--mono);
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.fc-btn:disabled { color: var(--graphite); outline-color: var(--rule); cursor: default; }
+@media (pointer: coarse) { .fc-btn { height: 40px; } }
+
+.fc-in {
+  box-sizing: border-box;
+  width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  background: var(--paper);
+  color: var(--ink);
+  border: 0;
+  outline: 1px solid var(--rule);
+  outline-offset: -.5px;
+  border-radius: 0;
+  font: 12px/28px var(--mono);
+}
+.fc-in:focus-visible, .fc-ib:focus-visible, .fc-btn:focus-visible, .fc-sl-leaf:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -1px;
+}
+.fc-in:disabled { color: var(--graphite); }
+@media (pointer: coarse) { .fc-in { height: 40px; } }
+
+.fc-ib {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: var(--paper);
+  color: var(--ink);
+  border: 0;
+  outline: 1px solid var(--rule);
+  outline-offset: -.5px;
+  font: 12px/1 var(--mono);
+  cursor: pointer;
+}
+.fc-ib:disabled { color: var(--graphite); opacity: .5; cursor: default; }
+@media (pointer: coarse) { .fc-ib { width: 40px; height: 40px; } }
+
+/* ---- schema list ---- */
+
+.fc-sl-list { margin: 0; padding: 0; list-style: none; font: 12px/28px var(--mono); }
+.fc-sl-grp {
+  padding: 0 8px 0 calc(8px + var(--depth, 0) * 14px);
+  color: var(--graphite);
+  font-size: 11px;
+  letter-spacing: .06em;
+}
+.fc-sl-leaf {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  margin-bottom: 4px;
+  padding: 0 8px 0 calc(8px + var(--depth, 0) * 14px);
+  background: var(--paper);
+  outline: 1px solid var(--rule);
+  outline-offset: -.5px;
+  cursor: pointer;
+}
+.fc-sl-leaf[draggable="true"] { cursor: grab; }
+.fc-sl-leaf.is-picked { background: var(--panel); outline: 1px solid var(--ink); }
+.fc-sl-leaf:active[draggable="true"] { cursor: grabbing; }
+.fc-sl-st { width: 14px; text-align: center; color: var(--graphite); flex: none; }
+.fc-sl-leaf[data-status="placed"] .fc-sl-st { color: var(--ink); }
+.fc-sl-leaf[data-status="orphan"] { outline-style: dashed; outline-color: var(--graphite); }
+.fc-sl-leaf[data-status="orphan"] .fc-sl-st { color: var(--ink); }
+.fc-sl-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fc-sl-ty { margin-left: auto; padding-left: 8px; flex: none; color: var(--graphite); font-size: 10px; }
+
+/* ---- inspector ---- */
+
+.fc-inspector { font: 11px/1.4 var(--mono); color: var(--ink); }
+.fc-ins-empty, .fc-ins-hint, .fc-ins-warn { font: italic 14px/20px var(--serif); color: var(--graphite); margin: 6px 0; }
+.fc-ins-hint { font-size: 13px; line-height: 18px; margin: 2px 0 0; }
+.fc-ins-warn { padding-left: 10px; box-shadow: inset 2px 0 0 0 var(--ink); color: var(--ink); }
+.fc-ins-warn code { font: 11px var(--mono); font-style: normal; }
+.fc-ins-dl { display: grid; grid-template-columns: 96px minmax(0, 1fr); margin: 0; }
+.fc-ins-dl dt {
+  color: var(--graphite);
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  font-size: 10px;
+  line-height: 36px;
+}
+.fc-ins-dl dd { margin: 0; padding: 4px 0; box-shadow: inset 0 -.5px 0 0 var(--rule); min-width: 0; }
+.fc-ins-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.fc-ins-check { display: flex; align-items: center; gap: 8px; min-height: 28px; font: 14px var(--serif); }
+.fc-ins-lab {
+  margin: 14px 0 4px;
+  color: var(--graphite);
+  font-size: 11px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+}
+.fc-chain-list { margin: 0 0 8px; padding: 0; list-style: none; }
+.fc-step { padding: 6px 0 8px; box-shadow: inset 0 -.5px 0 0 var(--rule); }
+.fc-step-head { display: flex; gap: 4px; }
+.fc-step-head select { flex: 1; min-width: 0; }
+.fc-arg { display: grid; grid-template-columns: 96px minmax(0, 1fr); align-items: center; gap: 0; margin-top: 4px; }
+.fc-arg-name { color: var(--graphite); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; }
+.fc-arg input[type="checkbox"] { justify-self: start; }
+
+/* ---- history ---- */
+
+.fc-hi-bar { display: flex; gap: 8px; margin-bottom: 8px; }
+.fc-hi-list { margin: 0; padding: 0; list-style: none; max-height: 240px; overflow: auto; font: 11px/24px var(--mono); color: var(--graphite); }
+.fc-hi-list li { display: flex; gap: 8px; align-items: baseline; }
+.fc-hi-list b { color: var(--ink); font-weight: 400; }
+.fc-hi-who { width: 32px; flex: none; }
+.fc-hi-note { font: italic 14px var(--serif); }
+.fc-hi-empty { margin: 0; font: italic 14px/20px var(--serif); color: var(--graphite); }
+
+/* ---- report ---- */
+
+.fc-report { color: var(--ink); }
+.fc-rp-counts { display: flex; flex-wrap: wrap; outline: 1px solid var(--rule); outline-offset: -.5px; margin-bottom: 12px; }
+.fc-rp-stat { padding: 8px 12px; min-width: 96px; box-shadow: inset .5px 0 0 0 var(--rule); }
+.fc-rp-stat[data-severity="info"] { color: var(--graphite); }
+.fc-rp-n { display: block; font: 24px/32px var(--serif); font-variant-numeric: tabular-nums; }
+.fc-rp-k { display: block; font: 9px/20px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--graphite); }
+.fc-rp-table { width: 100%; border-collapse: collapse; font: 11px/1.4 var(--mono); }
+.fc-rp-table th {
+  text-align: left;
+  padding: 6px 8px 6px 0;
+  color: var(--graphite);
+  font-weight: 400;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  font-size: 10px;
+  box-shadow: inset 0 -.5px 0 0 var(--ink);
+}
+.fc-rp-table td { padding: 6px 8px 6px 0; vertical-align: top; box-shadow: inset 0 -.5px 0 0 var(--rule); overflow-wrap: anywhere; }
+.fc-rp-path { display: block; color: var(--graphite); font-size: 10px; }
+.fc-rp-val { font-family: var(--serif); font-size: 15px; }
+.fc-rp-warns { margin: 0; padding: 0; list-style: none; font: 13px/18px var(--serif); }
+.fc-rp-warns li[data-severity="info"] { color: var(--graphite); }
+.fc-rp-code { font: 10px var(--mono); letter-spacing: .06em; margin-right: 4px; }
+.fc-rp-tbl { margin-top: 12px; font: 11px/1.4 var(--mono); }
+.fc-rp-note { margin: 12px 0 0; font: italic 14px/20px var(--serif); color: var(--graphite); }

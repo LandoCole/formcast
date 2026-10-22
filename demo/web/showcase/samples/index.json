@@ -1,0 +1,23 @@
+[
+ {
+  "id": "fw9",
+  "title": "IRS W-9",
+  "revision": "2024-03",
+  "source_url": "https://www.irs.gov/pub/irs-pdf/fw9.pdf",
+  "pages": 6
+ },
+ {
+  "id": "fw4",
+  "title": "IRS W-4",
+  "revision": "2026",
+  "source_url": "https://www.irs.gov/pub/irs-pdf/fw4.pdf",
+  "pages": 5
+ },
+ {
+  "id": "i9",
+  "title": "USCIS I-9",
+  "revision": "2025-03",
+  "source_url": "https://www.uscis.gov/sites/default/files/document/forms/i-9.pdf",
+  "pages": 4
+ }
+]

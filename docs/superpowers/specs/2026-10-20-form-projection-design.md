@@ -284,7 +284,8 @@ The core only computes these. The app decides what to do.
 ## 8. Public API (sketch)
 
 ```python
-from formcast import LLMConfig, build_template, revise, fill, preview, to_smart_pdf, apply, ops, fingerprint, similarity
+from formcast import LLMConfig, build_template, revise, fill, preview, to_smart_pdf, apply, ops, fingerprint, similarity, rebind
+from formcast import StepEvent, SessionCancelled, pdf_features, PdfFeatures
 
 llm = LLMConfig(base_url=..., api_key=..., model=..., api_format="responses")
 result = build_template(schema, "intake.pdf", llm)  # SessionResult
@@ -294,6 +295,14 @@ tpl, warnings = apply(tpl, ops.Move("f_dob_month", dx=4), author="human")  # con
 tpl = revise(tpl, "intake.pdf", "Phone goes on the line under Address", llm, region=(0, [72, 300, 540, 330])).template
 pdf_bytes, report = fill(tpl, "intake.pdf", record)
 tpl.model_dump_json()                                 # app stores this
+
+# (as built, Plan 3B)
+sim = similarity(tpl, "intake_v2.pdf")                # Similarity: score 0-1, parts, plain-words explanation
+feats = pdf_features("intake_v2.pdf")                 # PdfFeatures: read one PDF once, score it against many templates
+best = max(stored, key=lambda t: similarity(t, "intake_v2.pdf", features=feats).score)
+tpl = rebind(tpl, "intake_v2.pdf")                    # same page count and sizes; takes this PDF's fingerprint, kinds, signature
+def on_step(event: StepEvent): ...                    # step number, summary, counts, token use; raise SessionCancelled to stop
+result = build_template(schema, "intake.pdf", llm, on_step=on_step)   # also accepted by revise()
 ```
 
 ## 9. Repo layout (suggested)
@@ -573,6 +582,19 @@ Haiku's fill_acc progression on the dev set, all sessions: round 1 0.47, round 2
 - *Fingerprints.* All archived Plan 1 templates predate commit e2afa94 (2026-10-21), which folded a coarse ink map into the fingerprint. Their stored fingerprints equal the pre-e2afa94 fingerprint of the original PDFs (checked on `wadoc_auth`, `ndguard`, `menomonie_app` and `f8949`: flat, fillable and digital alike), so all 226 fills report `fingerprint_mismatch` and the eval fills with `check_fingerprint=False`. A template built before e2afa94 needs `check_fingerprint=False` or a rebuild. The fingerprint check itself is not exercised by this eval (Ruling M).
 - *Dev numbers are optimistic* in the same way the detection numbers are (four rounds tuned against dev).
 
+#### Browser models (FFDNet-S/L ONNX, single pass) vs the library's FFDNet-L
+
+The browser demo runs the published ONNX exports of FFDNet-S and FFDNet-L, one pass with no test-time augmentation; the library's FFDNet-L is the `.pt` model with augmentation. Run on the 12 dev forms (`eval/results/baseline_detection_2026-10-21_onnx.md`, bare detectors, no merge), micro-averaged over GT fields, recall@.5 / recall@.3 / precision@.3:
+
+| form kind, variant | library FFDNet-L (.pt, augmented) | FFDNet-L ONNX | FFDNet-S ONNX |
+|---|---|---|---|
+| fillable, as published (641 GT) | 0.81 / 0.99 / 0.98 | 0.79 / 0.98 / 0.99 | 0.79 / 0.97 / 0.99 |
+| fillable, fake scan | 0.40 / 0.44 / 0.99 | 0.37 / 0.41 / 1.00 | 0.38 / 0.56 / 0.98 |
+| flat, as published (812 GT) | 0.72 / 0.74 / 0.92 | 0.66 / 0.68 / 0.95 | 0.66 / 0.69 / 0.95 |
+| flat, fake scan | 0.32 / 0.42 / 0.86 | 0.25 / 0.33 / 0.86 | 0.27 / 0.27 / 0.95 |
+
+For the demo: on pages as published S and L single-pass are within 0.01 of each other at IoU .3 on fillable forms and flat forms alike, and both trail the library's augmented L by 0.01 to 0.02 (fillable) and 0.05 to 0.06 (flat) in recall@.3, so the demo can ship the 38 MB S model and let the visitor opt in to L. Neither browser model is reliable on a fake scan (recall@.3 0.27 to 0.56; S is lower than L on flat scans, higher on fillable ones), which is the case the library hands to FFDetr, so the demo should say that scanned pages need the Python pipeline. The ONNX path is `FFDNetOnnxDetector` (`src/formcast/pagemap/detect.py`); its graph facts are Ruling A in `docs/superpowers/plans/2026-10-21-formcast-plan3-rulings.md`.
+
 #### Known scoring caveats
 
 - **Multi-line rule.** A plain text field counts as multi-line if it has `style.multiline` or is at least 1.8 times the page's median GT text-box height. It then also covers unmatched GT text boxes at least 70% inside it, provided at least two such boxes are stacked in one column inside it (horizontal overlap of 50% or more). The field counts once for precision and gets path credit through the GT line box that carries the path. The first version credited any single tall box at any IoU (for example six extra matches at IoU .36–.47 on one fake scan); that is fixed and every result file here was re-scored from the saved templates. Effect on Haiku round3-gen: recall@.5 0.56 → 0.55, as-published path 0.84 → 0.83. The rule can still be gamed by a very large multi-line field over a stacked column; none was seen.
@@ -720,6 +742,7 @@ The causes, in order of size:
 | round 3, defer placement | **0.66** | 0.78 | **0.93** | 0.63 | 0.55 | 0.62 | **18.0** | **411K** |
 
 - **By group** (recall@.5 / path / joint): fillable 1.00 / 0.96 / 0.81, digital 0.74 / 0.66 / 0.62, scanned 0.47 / 0.48 / 0.40. Recall stays at or above the seed in every group, and precision is back at the seed's 0.93.
+- **Fill** (`fill_acc`, from the rescored file; 16,098 units, no model calls): fillable 0.93, digital 0.58, scanned 0.45, overall **0.58** (round3-gen 0.63).
 - **Digital path** recovers from 0.57 to 0.66 (round3-gen 0.71). Sessions are shorter: 18 steps and 411K input tokens on average, against 23 and 517K.
 - **Mapping is still below round3-gen** overall: path 0.63 against 0.70, joint 0.55 against 0.64.
 

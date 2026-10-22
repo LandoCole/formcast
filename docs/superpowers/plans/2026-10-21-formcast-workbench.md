@@ -46,8 +46,9 @@ src/formcast/__init__.py           exports (Tasks 1–3)
 demo/__init__.py, demo/server/{__init__,__main__,settings,store,records,documents,jobs,api,server}.py  (Tasks 4–7)
 demo/data/{forms/,schemas/,records/records.csv,records/records.sqlite,templates/}   (Task 4)
 demo/tools/build_demo_data.py      (Task 4)
-demo/web/engines/server/client.js  (Task 8)
-demo/web/workbench/{index.html,workbench.js,workbench.css}  (Task 9)
+demo/web/core/session.js (Task 8)
+demo/web/engines/server/client.js  (Task 9)
+demo/web/workbench/{index.html,workbench.js,workbench.css}  (Task 10)
 tests/match/test_similarity.py, tests/template/test_rebind.py, tests/agent/test_progress.py  (Tasks 1–3)
 tests/demo/test_server_*.py, tests/demo/test_workbench_page.py, tests/web/server_client.test.js  (Tasks 4–9)
 ```
@@ -167,7 +168,7 @@ Fixtures build templates with `new_template(schema, build_form_map(pdf))` (cache
   - Routes in this task: `GET /api/capabilities` → `{"ai": bool, "matches": true, "store": true, "records": true, "scanned": true, "detectLive": false}`; `GET /api/forms`; `POST /api/documents` (multipart `file`, or JSON `{"form": "<demo form name>"}`) → `{id, name, page_count, page_sizes, kinds}`; `GET /api/documents/{id}/pages/{n}.png?dpi=110`.
   - Error shape everywhere: `{"error": "<code>", "detail": "<plain message>"}`; 404 unknown route/doc, 400 bad input, 413 too large, 500 unexpected (detail without stack traces or secrets; the traceback goes to the server log).
 
-- [ ] **Step 1: Failing tests:** capabilities `ai` false with no LLM settings and true with a fake provider factory; the body never contains the configured API key string (set a sentinel key); upload fw9 → page_count 6; upload a text file → 400 `bad_pdf`; upload > limit (monkeypatch the limit to 1 KB) → 413; pick demo form by name; `../../etc/passwd` as a demo form name → 400; page PNG returns `image/png` with correct size for dpi 72 (612×792 px for page 0); `GET /../pyproject.toml` → 404; two concurrent page requests (threads) both succeed; static `GET /workbench/` returns HTML once Task 9 exists (skip until then via `pytest.importorskip`-style check on the file).
+- [ ] **Step 1: Failing tests:** capabilities `ai` false with no LLM settings and true with a fake provider factory; the body never contains the configured API key string (set a sentinel key); upload fw9 → page_count 6; upload a text file → 400 `bad_pdf`; upload > limit (monkeypatch the limit to 1 KB) → 413; pick demo form by name; `../../etc/passwd` as a demo form name → 400; page PNG returns `image/png` with correct size for dpi 72 (612×792 px for page 0); `GET /../pyproject.toml` → 404; two concurrent page requests (threads) both succeed; static `GET /workbench/` returns HTML once Task 10 exists (skip until then via `pytest.importorskip`-style check on the file).
 - [ ] **Step 2: Run** — FAIL. **Step 3: Implement.** **Step 4: Run** — PASS.
 - [ ] **Step 5: Commit** `git commit -m "demo/server: threaded stdlib server, documents, page images, static files"`
 
@@ -215,7 +216,26 @@ Fixtures build templates with `new_template(schema, build_form_map(pdf))` (cache
 
 ---
 
-### Task 8: Server engine (JS)
+### Task 8: Core session controller (shared by both layouts)
+
+Added by controller Ruling 26 after the Plan 3A final review: session logic (document, template, undo, apply, warnings) lives in `demo/web/showcase/showcase.js`, `app.apply` is not serialized (with the server engine's latency, two ops in flight start from the same base and the second silently drops the first), and the browser engine keeps widget kinds engine-wide (`openKinds`), so a dropped late `open()` overwrites them.
+
+**Files:**
+- Create: `demo/web/core/session.js`
+- Modify: `demo/web/showcase/showcase.js` (and its step modules) to use it; `demo/web/engines/browser/engine.js` (widget kinds from the doc passed to `apply`, not engine state)
+- Test: `tests/web/session.test.js` (Node, with a fake engine whose `apply` resolves after a delay), existing showcase Playwright tests stay green
+
+**Interfaces:**
+- Produces: `createSession({engine, bus}): Session` with `setDocument(doc, template, {source})`, `get doc()`, `get template()`, `apply(op, {author = "human", note}) : Promise<{template, warnings} | {error}>` — ops are queued and applied strictly in order, each against the template produced by the previous one; a failed op leaves the template unchanged and later queued ops still apply; `undo()`, `redo()` (through `UndoStack`, cancelling nothing in flight: they wait for the queue to drain), `replaceTemplate(template, {source, pushUndo = true})` (used for detector results and AI job results), events on the bus: `template {template, warnings, source}`, `error {message}`.
+- Engine contract change: `engine.apply(template, op, author, {doc})` — the browser engine reads widget kinds from `doc` (stored on the BrowserDoc at open), never from engine-wide state.
+
+- [ ] **Step 1: Failing tests:** two `apply` calls issued without awaiting, against a fake engine that resolves the first after 50 ms and the second after 5 ms → the final template contains both edits, in order; an op that errors between two good ops → template has the two good edits, `error` emitted once; `undo` issued while an op is in flight undoes that op after it lands; `replaceTemplate` pushes one undo snapshot; browser engine: opening doc A, then doc B, then applying an op with `{doc: A}` validates against A's widget kinds.
+- [ ] **Step 2: Run** `node --test "tests/web/*.test.js"` — FAIL. **Step 3: Implement**, then move the showcase onto `createSession` (no behaviour change for visitors). **Step 4: Run** node tests and `.venv/bin/python -m pytest tests/demo -q` — PASS.
+- [ ] **Step 5: Commit** `git commit -m "demo/web: core session controller with an ordered op queue; widget kinds per document"`
+
+---
+
+### Task 9: Server engine (JS)
 
 **Files:**
 - Create: `demo/web/engines/server/client.js`
@@ -231,14 +251,14 @@ Fixtures build templates with `new_template(schema, build_form_map(pdf))` (cache
 
 ---
 
-### Task 9: Workbench page (layout B)
+### Task 10: Workbench page (layout B)
 
 **Files:**
 - Create: `demo/web/workbench/{index.html,workbench.js,workbench.css}`
 - Test: `tests/demo/test_workbench_page.py`
 
 **Interfaces:**
-- Consumes: server engine (Task 8); Plan 3A parts `PageView` (with `regionSelect: true`), `SchemaList`, `Inspector`, `HistoryPanel`, `renderReport`, `UndoStack`, `createBus`, `checkTemplateFits`.
+- Consumes: server engine (Task 9); Plan 3A parts `PageView` (with `regionSelect: true`), `SchemaList`, `Inspector`, `HistoryPanel`, `renderReport`, `UndoStack`, `createBus`, `checkTemplateFits`.
 - Produces: the page in spec §7.3 / §11.3 and the mockup option B: toolbar (form name, Undo, Redo, + Box, Build with AI, Save, Fill →), left column schema (240 px), centre page on the panel-coloured dot grid with page navigation and zoom, right column inspector + history (300 px), plus three overlays: **start screen** (pick demo form or upload; pick schema from `/api/schemas` or paste JSON), **match prompt** (top match ≥ adapt threshold: "This looks like *<name>* (0.93): <explanation>" with Reuse / Adapt / Build new), **job panel** (step list from `steps`, Cancel, then "Load result"), and a **fill drawer** (record picker from `/api/records`, Fill, download PDF, download smart PDF, report). AI controls (Build with AI, area-select revise) are hidden when `capabilities.ai` is false, with a one-line note on how to configure `.env`. Same site styling tokens as the showcase (it is the same project), full width. Area-select: drag on empty page space → a small popover with an instruction textarea and Revise → `engine.revise(...)` job. Every applied op (hand or job result) goes through `UndoStack`; loading a job result pushes one snapshot so Undo returns to the pre-AI template.
 
 - [ ] **Step 1: Failing Playwright tests** (server with fake provider and the demo data in a temp copy):
@@ -251,16 +271,16 @@ Fixtures build templates with `new_template(schema, build_form_map(pdf))` (cache
   - Save: PUT to the store; reload page → the template is listed in matches.
   - With AI not configured: Build with AI hidden, note shown.
   - Window 900 px wide: no overlapping columns (columns stack or the side columns collapse to drawers).
-- [ ] **Step 2: Run** `.venv/bin/python -m pytest tests/demo/test_workbench_page.py -v` — FAIL. **Step 3: Implement.** **Step 4: Run** — PASS, plus `node --test tests/web` and the full pytest suite.
+- [ ] **Step 2: Run** `.venv/bin/python -m pytest tests/demo/test_workbench_page.py -v` — FAIL. **Step 3: Implement.** **Step 4: Run** — PASS, plus `node --test "tests/web/*.test.js"` and the full pytest suite.
 - [ ] **Step 5: Commit** `git commit -m "workbench: three-column review app on the server engine"`
 
 ---
 
-### Task 10: README, docs and final checks
+### Task 11: README, docs and final checks
 
 **Files:**
 - Modify: `README.md` (Workbench section: what it is and isn't, `python -m demo.server`, `.env` keys `FORMCAST_DEMO_BASE_URL/API_KEY/MODEL/API_FORMAT`, where the app layer ends and how to swap the store and record sources, "run it on your own machine only; the sandbox is not a security boundary"), `docs/superpowers/specs/2026-10-20-form-projection-design.md` §8 public API sketch (add `similarity`, `rebind`, `on_step`), `docs/superpowers/plans/2026-10-21-formcast-plan3-rulings.md` (closing summary for 3B)
 
-- [ ] **Step 1: Run everything:** `.venv/bin/python -m pytest -q`; `node --test tests/web`; `.venv/bin/python -m pytest -q -m slow tests/match tests/demo`. Expected: all pass.
+- [ ] **Step 1: Run everything:** `.venv/bin/python -m pytest -q`; `node --test "tests/web/*.test.js"`; `.venv/bin/python -m pytest -q -m slow tests/match tests/demo`. Expected: all pass.
 - [ ] **Step 2: Manual smoke** in the built-in browser: `python -m demo.server`, then the start screen → reuse flow → hand edit → fill → download. (Without a real API key the AI path is checked only by the fake-provider tests; say so in the rulings.)
 - [ ] **Step 3: Commit** `git commit -m "docs: workbench how-to; public API sketch; Plan 3B rulings summary"`

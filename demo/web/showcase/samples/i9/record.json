@@ -1,0 +1,66 @@
+{
+ "employee": {
+  "employee_id": "E-20817",
+  "first_name": "Marisol",
+  "middle_name": "Q",
+  "last_name": "Fernsby",
+  "other_last_names": [
+   "Ortiz"
+  ],
+  "address": {
+   "street": "72 Sample Street",
+   "unit": "4B",
+   "city": "Springfield",
+   "state": "OR",
+   "postal_code": "97477"
+  },
+  "date_of_birth": "1991-07-09",
+  "ssn": "000123456",
+  "email": "marisol.fernsby@example.com",
+  "phone": "555-0142",
+  "citizenship_status": "lawful_permanent_resident",
+  "alien_registration_number": "A000000000",
+  "attested_on": "2026-01-20"
+ },
+ "preparers": [
+  {
+   "last_name": "Pemberton",
+   "first_name": "Ansel",
+   "street": "5 Example Court",
+   "city": "Springfield",
+   "state": "OR",
+   "postal_code": "97477",
+   "signed_on": "2026-01-20"
+  }
+ ],
+ "employer_review": {
+  "list_a_documents": [
+   {
+    "title": "Permanent Resident Card",
+    "issuing_authority": "Example Agency",
+    "number": "000000000",
+    "expiration_date": "2033-05-31"
+   }
+  ],
+  "additional_information": "Sample record for the formcast demo.",
+  "alternative_procedure_used": false,
+  "first_day_of_employment": "2026-01-20",
+  "reviewer": {
+   "first_name": "Delphine",
+   "last_name": "Okafor-Example",
+   "title": "HR Coordinator"
+  },
+  "signed_on": "2026-01-21"
+ },
+ "employer": {
+  "name": "Brightwater Example Foods Inc.",
+  "address": {
+   "street": "9 Placeholder Road",
+   "city": "Eugene",
+   "state": "OR",
+   "postal_code": "97401"
+  }
+ },
+ "reverifications": [],
+ "retain_until": "2029-01-20"
+}

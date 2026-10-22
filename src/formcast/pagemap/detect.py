@@ -12,8 +12,9 @@ from __future__ import annotations
 
 import functools
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Literal, NamedTuple, Protocol
 
+import numpy as np
 import pymupdf
 from PIL import Image
 
@@ -28,6 +29,18 @@ from formcast.pagemap.ocr import render, straighten, unrotate_box
 ROW_BUCKET = 0.01
 # NMS threshold the detectors apply to their own raw output.
 DETECTOR_NMS_IOU = 0.1
+
+# The browser-sized ONNX exports of FFDNet take a fixed 1216 x 1216 input.
+ONNX_IMAGE_SIZE = 1216
+# Where the exports live (the demo loads the same files). Never re-hosted or re-exported.
+ONNX_URLS = {
+    "FFDNet-S": "https://huggingface.co/jbarrow/FFDNet-S-cpu/resolve/main/FFDNet-S.onnx",
+    "FFDNet-L": "https://huggingface.co/jbarrow/FFDNet-L-cpu/resolve/main/FFDNet-L.onnx",
+}
+# Colour ultralytics pads a letterboxed image with.
+_ONNX_PAD_VALUE = 114
+# Ultralytics' default cap on boxes kept per image.
+_ONNX_MAX_DET = 300
 
 # Both models use the CommonForms class ids.
 _CLASS_KINDS = {0: "text", 1: "choice", 2: "signature"}
@@ -81,6 +94,122 @@ class FFDNetDetector:
             )
             for cls, conf, xyxyn in zip(boxes.cls, boxes.conf, boxes.xyxyn)
         ]
+
+
+class _Letterbox(NamedTuple):
+    """How an image of ``width`` x ``height`` sits in the square model input: scaled, then offset."""
+
+    scale: float
+    left: int
+    top: int
+    width: int
+    height: int
+
+
+def _letterbox(image: Image.Image, size: int = ONNX_IMAGE_SIZE) -> tuple[np.ndarray, _Letterbox]:
+    """Scale ``image`` to fit a ``size`` square, centred on grey; the NCHW float tensor and the placement.
+
+    Mirrors ultralytics' ``LetterBox`` for a non-``.pt`` model (``auto=False``, centred, pad 114).
+    """
+    width, height = image.size
+    scale = min(size / width, size / height)
+    new_w, new_h = max(round(width * scale), 1), max(round(height * scale), 1)
+    pad_w, pad_h = (size - new_w) / 2, (size - new_h) / 2
+    left, top = round(pad_w - 0.1), round(pad_h - 0.1)
+    canvas = Image.new("RGB", (size, size), (_ONNX_PAD_VALUE,) * 3)
+    canvas.paste(image.convert("RGB").resize((new_w, new_h), Image.Resampling.BILINEAR), (left, top))
+    tensor = np.asarray(canvas, dtype=np.float32).transpose(2, 0, 1)[None] / 255.0
+    return np.ascontiguousarray(tensor), _Letterbox(scale, left, top, width, height)
+
+
+def _nms(boxes: np.ndarray, scores: np.ndarray, iou_threshold: float) -> list[int]:
+    """Indices kept by greedy non-maximum suppression over xyxy ``boxes``, best score first."""
+    order = np.argsort(-scores, kind="stable")
+    keep: list[int] = []
+    while order.size:
+        best = int(order[0])
+        keep.append(best)
+        rest = order[1:]
+        if not rest.size:
+            break
+        x0 = np.maximum(boxes[best, 0], boxes[rest, 0])
+        y0 = np.maximum(boxes[best, 1], boxes[rest, 1])
+        x1 = np.minimum(boxes[best, 2], boxes[rest, 2])
+        y1 = np.minimum(boxes[best, 3], boxes[rest, 3])
+        inter = np.clip(x1 - x0, 0, None) * np.clip(y1 - y0, 0, None)
+        area = (boxes[:, 2] - boxes[:, 0]) * (boxes[:, 3] - boxes[:, 1])
+        overlap = inter / (area[best] + area[rest] - inter)
+        order = rest[overlap <= iou_threshold]
+    return keep
+
+
+def _decode(raw: np.ndarray, confidence: float, iou_threshold: float, letterbox: _Letterbox) -> list[Detection]:
+    """Detections from the raw ONNX output ``[1, 4 + classes, anchors]``.
+
+    Rows 0-3 are centre x, centre y, width, height in input pixels; the rest are per-class
+    scores (already sigmoided). Each anchor takes its best class, anchors under ``confidence``
+    go, greedy NMS runs per class at ``iou_threshold`` (ultralytics' default class-aware NMS),
+    at most 300 boxes survive, and boxes are mapped back through ``letterbox`` to the
+    original image, normalized to it.
+    """
+    anchors = raw[0].T
+    scores = anchors[:, 4:]
+    classes = scores.argmax(axis=1)
+    best = scores[np.arange(len(anchors)), classes]
+    keep = best >= confidence
+    anchors, classes, best = anchors[keep], classes[keep], best[keep]
+    if not len(anchors):
+        return []
+    cx, cy, w, h = anchors[:, 0], anchors[:, 1], anchors[:, 2], anchors[:, 3]
+    xyxy = np.stack([cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2], axis=1)
+    # Offsetting each class far apart makes one NMS pass per-class (ultralytics' trick).
+    kept = _nms(xyxy + classes[:, None] * 2 * ONNX_IMAGE_SIZE, best, iou_threshold)[:_ONNX_MAX_DET]
+    lb = letterbox
+    out: list[Detection] = []
+    for i in kept:
+        x0 = (xyxy[i, 0] - lb.left) / lb.scale / lb.width
+        y0 = (xyxy[i, 1] - lb.top) / lb.scale / lb.height
+        x1 = (xyxy[i, 2] - lb.left) / lb.scale / lb.width
+        y1 = (xyxy[i, 3] - lb.top) / lb.scale / lb.height
+        box = tuple(float(min(1.0, max(0.0, v))) for v in (x0, y0, x1, y1))
+        out.append((_CLASS_KINDS[int(classes[i])], box, float(best[i])))
+    return out
+
+
+class FFDNetOnnxDetector:
+    """CommonForms FFDNet as the browser demo runs it: the ONNX export, one pass, no augmentation.
+
+    The session loads on the first ``detect`` call (weights download from Hugging Face on first
+    use). Not part of the library's default policy; ``name`` is ``"<model>-onnx"``.
+    """
+
+    def __init__(
+        self,
+        model: Literal["FFDNet-S", "FFDNet-L"] = "FFDNet-S",
+        confidence: float = 0.3,
+    ):
+        if model not in ONNX_URLS:
+            raise FormcastError(f"no ONNX export of {model!r}; have {sorted(ONNX_URLS)}")
+        self.model = model
+        self.name = f"{model}-onnx"
+        self.confidence = confidence
+        self._session = None
+
+    def _load(self):
+        import onnxruntime
+        from huggingface_hub import hf_hub_download
+
+        # https://huggingface.co/<owner>/<repo>/resolve/main/<file>
+        repo, _, filename = ONNX_URLS[self.model].removeprefix("https://huggingface.co/").partition("/resolve/main/")
+        path = hf_hub_download(repo_id=repo, filename=filename)
+        return onnxruntime.InferenceSession(path, providers=["CPUExecutionProvider"])
+
+    def detect(self, image: Image.Image) -> list[Detection]:
+        if self._session is None:
+            self._session = self._load()
+        tensor, letterbox = _letterbox(image)
+        (raw,) = self._session.run(None, {self._session.get_inputs()[0].name: tensor})
+        return _decode(raw, self.confidence, DETECTOR_NMS_IOU, letterbox)
 
 
 class FFDetrDetector:

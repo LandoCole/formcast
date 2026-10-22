@@ -1,0 +1,78 @@
+{
+ "run": "2026-10-21_defer-placement",
+ "model_label": "Haiku 5.5",
+ "form": "fw4",
+ "variant": "as_published",
+ "model": "claude-haiku-5-5",
+ "detection": {
+  "iou0.3": {
+   "gt": 48,
+   "pred": 49,
+   "matched": 48,
+   "pred_matched": 48,
+   "recall": 1.0,
+   "precision": 0.9796,
+   "type_ok": 48,
+   "type_acc": 1.0,
+   "missed_by_type": {
+    "text": 0,
+    "choice": 0,
+    "signature": 0
+   }
+  },
+  "iou0.5": {
+   "gt": 48,
+   "pred": 49,
+   "matched": 48,
+   "pred_matched": 48,
+   "recall": 1.0,
+   "precision": 0.9796,
+   "type_ok": 48,
+   "type_acc": 1.0,
+   "missed_by_type": {
+    "text": 0,
+    "choice": 0,
+    "signature": 0
+   }
+  }
+ },
+ "mapping": {
+  "n_path": 17,
+  "n_transform": 9,
+  "matched": 17,
+  "path_ok": 17,
+  "transform_ok": 9,
+  "joint_ok": 17,
+  "exact_ok": 17,
+  "matched_rate": 1.0,
+  "path_acc": 1.0,
+  "transform_acc": 1.0,
+  "joint_acc": 1.0,
+  "exact_path_set_acc": 1.0
+ },
+ "fill": {
+  "units": 41,
+  "correct": 41,
+  "fill_acc": 1.0,
+  "text": {
+   "units": 36,
+   "correct": 36
+  },
+  "choice": {
+   "units": 5,
+   "correct": 5
+  },
+  "cell": {
+   "units": 0,
+   "correct": 0
+  },
+  "static_choice": 0,
+  "rows_dropped_ok": null,
+  "fill_errors": []
+ },
+ "steps": 11,
+ "input_tokens": 209022,
+ "output_tokens": 19180,
+ "wall_s": 99.4,
+ "finished": true
+}

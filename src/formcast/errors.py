@@ -20,3 +20,7 @@ class OpError(FormcastError):
 
     def __str__(self) -> str:
         return self.reason
+
+
+class SessionCancelled(FormcastError):
+    """Raised from an agent session's ``on_step`` callback to stop the session cleanly."""
