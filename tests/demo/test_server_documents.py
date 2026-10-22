@@ -979,6 +979,25 @@ def test_the_command_line_builds_a_server_from_flags_and_a_mapping(tmp_path):
         httpd.server_close()
 
 
+@pytest.mark.parametrize("port", ["70000", "-1", "eighty", "65536"])
+def test_a_port_out_of_range_is_a_plain_usage_error_not_a_traceback(port, capsys):
+    from demo.server.__main__ import build
+
+    with pytest.raises(SystemExit) as exit_info:
+        build(["--port", port], env={})  # never binds: the flag is refused while parsing
+    assert exit_info.value.code == 2
+    err = capsys.readouterr().err
+    assert "argument --port: must be a whole number from 1 to 65535 (0 picks a free port)" in err
+    assert "Traceback" not in err and "OverflowError" not in err
+
+
+def test_a_port_out_of_range_in_the_settings_is_refused_by_name():
+    with pytest.raises(ValueError, match="FORMCAST_DEMO_PORT must be a whole number from 1 to 65535") as e:
+        Settings.from_env({"FORMCAST_DEMO_PORT": "70000"})
+    assert "70000" not in str(e.value)
+    assert Settings.from_env({"FORMCAST_DEMO_PORT": "0"}).port == 0
+
+
 def test_a_wildcard_bind_prints_a_url_that_works_and_says_how_to_serve_the_network(tmp_path, capsys, monkeypatch):
     from demo.server import __main__ as entry
 

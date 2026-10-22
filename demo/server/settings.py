@@ -54,10 +54,7 @@ class Settings:
         out = cls()
         out.host = get("HOST") or out.host
         if (port := get("PORT")) is not None:
-            try:
-                out.port = int(port)
-            except ValueError:
-                raise ValueError(f"{PREFIX}PORT must be a whole number") from None
+            out.port = parse_port(port, f"{PREFIX}PORT")
         if (data_dir := get("DATA_DIR")) is not None:
             out.data_dir = Path(data_dir).expanduser().resolve()
         base_url, api_key, model = get("BASE_URL"), get("API_KEY"), get("MODEL")
@@ -67,6 +64,20 @@ class Settings:
                 api_format=get("API_FORMAT") or "chat_completions",  # type: ignore[arg-type]
             )  # fmt: skip
         return out
+
+
+PORT_RANGE = "a whole number from 1 to 65535 (0 picks a free port)"
+
+
+def parse_port(text: str, what: str = "the port") -> int:
+    """``text`` as a TCP port (0-65535). Raises ``ValueError`` naming ``what`` but not the value."""
+    try:
+        port = int(text)
+    except ValueError:
+        port = -1
+    if not 0 <= port <= 65535:
+        raise ValueError(f"{what} must be {PORT_RANGE}")
+    return port
 
 
 def read_dotenv(path: Path) -> dict[str, str]:
