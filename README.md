@@ -204,6 +204,11 @@ To open it locally, serve `demo/web` and visit the showcase:
 cd demo/web && python -m http.server 8000   # then open http://localhost:8000/showcase/
 ```
 
+The workbench server (`demo/server/`, standard library only) serves the same files and a JSON API. Run
+it on your own machine only; the agent's sandbox is not a security boundary. After `pip install -e .`
+(the normal way), start it from the repository root with `python -m demo.server`. It also starts from a
+plain checkout, using `src/`.
+
 Tests:
 
 ```sh

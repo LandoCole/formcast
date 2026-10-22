@@ -14,9 +14,9 @@ import jsonschema
 import pytest
 
 from demo.server import settings as settings_mod
-from demo.server.records import CsvRecords, MultiRecords, SqliteRecords
+from demo.server.records import CsvRecords, MultiRecords, RecordSourceError, SqliteRecords
 from demo.server.settings import Settings, read_dotenv
-from demo.server.store import FolderTemplateStore
+from demo.server.store import FolderTemplateStore, StoredTemplateError
 from formcast import Template, fill
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -152,6 +152,21 @@ def test_listing_skips_files_that_are_not_templates(tmp_path, template):
     (tmp_path / ".tmp-x.part").write_text("partial", encoding="utf-8")
     (tmp_path / "bad..name!.json").write_text(template.to_json(), encoding="utf-8")
     assert [t["name"] for t in store.list()] == ["good"]
+
+
+def test_an_invalid_stored_file_raises_its_own_error_not_value_error(tmp_path, template):
+    store = FolderTemplateStore(tmp_path)
+    (tmp_path / "broken.json").write_text("{not json", encoding="utf-8")
+    (tmp_path / "other.json").write_text('{"hello": 1}', encoding="utf-8")
+    (tmp_path / "latin.json").write_bytes("caf\xe9".encode("cp1252"))
+    for name in ("broken", "other", "latin"):
+        with pytest.raises(StoredTemplateError, match=name) as e:
+            store.get(name)
+        assert not isinstance(e.value, ValueError)
+    with pytest.raises(ValueError, match="bad template name"):  # a bad name is still a bad request
+        store.get("../broken")
+    with pytest.raises(KeyError):
+        store.get("absent")
 
 
 # ------------------------------------------------------------------ record sources
@@ -312,6 +327,61 @@ def test_multi_records_concatenates(data_dir):
         multi.get("person", "zz")
     with pytest.raises(KeyError):
         multi.list("nope")
+
+
+def test_unreadable_csv_files_raise_record_source_error(data_dir):
+    cases = {
+        "cp1252": "id,name\np1,Jos\xe9\n".encode("cp1252"),
+        "empty": b"",
+    }
+    for raw in cases.values():
+        (data_dir / "records" / "person.csv").write_bytes(raw)
+        with pytest.raises(RecordSourceError, match="person.csv"):
+            CsvRecords(data_dir).list("person")
+        with pytest.raises(RecordSourceError):
+            CsvRecords(data_dir).get("person", "p1")
+
+
+def test_csv_parser_errors_become_record_source_errors(data_dir, monkeypatch):
+    import csv as csv_mod
+
+    write_csv(data_dir, "id,name\np1,Ada\n")
+
+    class Boom:
+        fieldnames = ["id"]
+
+        def __init__(self, *a, **k):
+            pass
+
+        def __iter__(self):
+            raise csv_mod.Error("field larger than field limit (131072)")
+
+    monkeypatch.setattr(csv_mod, "DictReader", Boom)
+    with pytest.raises(RecordSourceError, match="not valid CSV"):
+        CsvRecords(data_dir).list("person")
+
+
+def test_a_non_sqlite_file_raises_record_source_error(data_dir):
+    (data_dir / "records.sqlite").write_bytes(b"this is not a database" * 50)
+    with pytest.raises(RecordSourceError, match="records.sqlite"):
+        SqliteRecords(data_dir / "records.sqlite", data_dir / "schemas").list("person")
+
+
+def test_multi_records_isolates_a_failing_source_and_reports_it(data_dir):
+    make_db(data_dir / "records.sqlite", [("s1", None, "Sql One", None, None, None, None, None, None, None)])
+    (data_dir / "records" / "person.csv").write_bytes("id,name\np1,Jos\xe9\n".encode("cp1252"))
+    multi = MultiRecords(CsvRecords(data_dir), SqliteRecords(data_dir / "records.sqlite", data_dir / "schemas"))
+    assert multi.problems() == []
+    assert [r["id"] for r in multi.list("person")] == ["s1"]  # the CSV is skipped, the database answers
+    assert multi.get("person", "s1") == {"name": "Sql One"}
+    problems = multi.problems()
+    assert [(p["schema"], p["source"]) for p in problems] == [("person", "CsvRecords")]
+    assert "person.csv" in problems[0]["detail"]
+    with pytest.raises(RecordSourceError, match="person.csv"):  # the id might be in the broken file
+        multi.get("person", "p1")
+    write_csv(data_dir, "id,name\np1,Ada\n")  # fixed on disk: the problem clears on the next read
+    assert [r["id"] for r in multi.list("person")] == ["p1", "s1"]
+    assert multi.problems() == []
 
 
 # ------------------------------------------------------------------ the committed demo data

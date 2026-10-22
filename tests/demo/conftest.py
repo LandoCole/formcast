@@ -3,10 +3,15 @@
 ``server`` serves the repository root over HTTP on an ephemeral port, so ``demo/web/...``
 is reachable as ``{server}/demo/web/...`` exactly as the demo is served in use. ``browser`` and
 ``page`` skip the test with a clear reason when Playwright or Chromium is not installed.
+
+``demo_server`` is the workbench server (``demo.server``) on an ephemeral port, over a throwaway copy of
+``demo/data`` so nothing a test saves reaches the repository. ``start_demo_server(**kw)`` starts another
+one with different settings, a provider factory, a store or records.
 """
 
 from __future__ import annotations
 
+import shutil
 import threading
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -15,6 +20,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
+DEMO_DATA = ROOT / "demo" / "data"
 
 
 class _QuietHandler(SimpleHTTPRequestHandler):
@@ -41,6 +47,54 @@ def server():
         httpd.shutdown()
         httpd.server_close()
         thread.join(timeout=5)
+
+
+@pytest.fixture
+def start_demo_server(tmp_path):
+    """Factory: ``start_demo_server(provider_factory=None, store=None, records=None, **settings)`` -> base URL.
+
+    Keyword arguments other than those three set attributes of the ``Settings`` (built from an empty mapping, so the
+    real ``.env`` is never read), e.g. ``max_upload_bytes=1024`` or ``llm=LLMConfig(...)``. Every server is shut
+    down at teardown. ``start_demo_server.servers`` lists them, so a test can reach ``servers[-1].api``.
+    """
+    from demo.server.server import make_server
+    from demo.server.settings import Settings
+
+    servers: list[ThreadingHTTPServer] = []
+    threads: list[threading.Thread] = []
+    data_dir = tmp_path / "data"
+    if not data_dir.exists():
+        shutil.copytree(DEMO_DATA, data_dir)
+
+    def start(*, provider_factory=None, store=None, records=None, **settings_overrides) -> str:
+        settings = Settings.from_env({})
+        settings.host, settings.port, settings.data_dir = "127.0.0.1", 0, data_dir
+        for key, value in settings_overrides.items():
+            if not hasattr(settings, key):
+                raise AttributeError(key)
+            setattr(settings, key, value)
+        httpd = make_server(settings, provider_factory=provider_factory, store=store, records=records)
+        thread = threading.Thread(target=httpd.serve_forever, kwargs={"poll_interval": 0.02}, daemon=True)
+        thread.start()
+        servers.append(httpd)
+        threads.append(thread)
+        return f"http://127.0.0.1:{httpd.server_address[1]}"
+
+    start.servers = servers  # type: ignore[attr-defined]
+    try:
+        yield start
+    finally:
+        for httpd in servers:
+            httpd.shutdown()
+            httpd.server_close()
+        for thread in threads:
+            thread.join(timeout=5)
+
+
+@pytest.fixture
+def demo_server(start_demo_server):
+    """Base URL (no trailing slash) of a workbench server with default settings and no AI provider."""
+    return start_demo_server()
 
 
 @pytest.fixture(scope="session")

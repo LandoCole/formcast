@@ -21,6 +21,11 @@ so the row becomes a nested record. Rules, kept simple on purpose:
   value that is not an object) keeps its dotted name as a top-level key (a plain value
   for a path that already holds an object is dropped). ``fill`` then reports ``invalid`` and
   ``unknown_keys``.
+
+What can't be read at all (a CSV that isn't UTF-8, an empty CSV, a CSV the parser rejects, a
+table or file without an ``id`` column, a database file that isn't SQLite) raises one error,
+``RecordSourceError``, with a plain message naming the file. ``MultiRecords`` isolates such a
+source: its records are skipped, the rest still answer, and ``problems()`` says what was skipped.
 """
 
 from __future__ import annotations
@@ -28,6 +33,7 @@ from __future__ import annotations
 import csv
 import json
 import sqlite3
+import threading
 from contextlib import closing
 from pathlib import Path
 from typing import Any, Protocol, TypedDict
@@ -35,6 +41,14 @@ from typing import Any, Protocol, TypedDict
 from formcast import flatten_schema
 
 from demo.server.store import NAME_RE
+
+class RecordSourceError(ValueError):
+    """A record file or table could not be read at all; the message says which and why.
+
+    A ``ValueError`` so that callers that only know about bad data still treat it as input
+    trouble; routes map it to a plain 4xx.
+    """
+
 
 RESERVED = ("id", "title")
 _SCALARS = {"string", "integer", "number", "boolean", "date", "enum"}
@@ -169,12 +183,20 @@ class CsvRecords(_Tabular):
         path = self.folder / "records" / f"{schema}.csv"
         if not path.exists():
             return []
-        with path.open(newline="", encoding="utf-8-sig") as f:
-            reader = csv.DictReader(f)
-            if "id" not in (reader.fieldnames or []):
-                raise ValueError(f"{path.name} has no id column")
-            # A row longer than the header files its extra cells under None; drop them.
-            return [{k: v for k, v in row.items() if k is not None} for row in reader]
+        try:
+            with path.open(newline="", encoding="utf-8-sig") as f:
+                reader = csv.DictReader(f)
+                fieldnames = reader.fieldnames or []
+                if not fieldnames:
+                    raise RecordSourceError(f"{path.name} is empty")
+                if "id" not in fieldnames:
+                    raise RecordSourceError(f"{path.name} has no id column")
+                # A row longer than the header files its extra cells under None; drop them.
+                return [{k: v for k, v in row.items() if k is not None} for row in reader]
+        except UnicodeDecodeError:
+            raise RecordSourceError(f"{path.name} is not UTF-8 text (save it as CSV UTF-8)") from None
+        except csv.Error as exc:
+            raise RecordSourceError(f"{path.name} is not valid CSV: {exc}") from None
 
 
 class SqliteRecords(_Tabular):
@@ -189,19 +211,49 @@ class SqliteRecords(_Tabular):
         with closing(sqlite3.connect(f"{self.db_path.resolve().as_uri()}?mode=ro", uri=True)) as db:
             db.row_factory = sqlite3.Row
             try:
-                cursor = db.execute(f'SELECT * FROM "{schema}"')  # schema is a known schema name
-            except sqlite3.OperationalError:  # no table for this schema
-                return []
-            if "id" not in [d[0] for d in cursor.description]:
-                raise ValueError(f"table {schema} has no id column")
-            return [dict(row) for row in cursor]
+                try:
+                    cursor = db.execute(f'SELECT * FROM "{schema}"')  # schema is a known schema name
+                except sqlite3.OperationalError as exc:
+                    if "no such table" in str(exc):
+                        return []
+                    raise
+                if "id" not in [d[0] for d in cursor.description]:
+                    raise RecordSourceError(f"table {schema} in {self.db_path.name} has no id column")
+                return [dict(row) for row in cursor]
+            except sqlite3.DatabaseError as exc:  # not a database, locked, damaged
+                raise RecordSourceError(f"{self.db_path.name} cannot be read as SQLite: {exc}") from None
 
 
 class MultiRecords:
-    """Several sources as one: schemas merged, lists joined, ``get`` from the first that has the id."""
+    """Several sources as one: schemas merged, lists joined, ``get`` from the first that has the id.
+
+    A source that raises ``RecordSourceError`` is skipped for that call and remembered:
+    ``problems()`` lists what is currently unreadable (``schema``, ``source``, ``detail``), and
+    an entry clears when the same source reads that schema again. ``get`` raises
+    ``RecordSourceError`` instead of ``KeyError`` when the id was not found and a source that
+    could have held it failed, so a broken file is not reported as "no such record".
+    """
 
     def __init__(self, *sources: RecordSource) -> None:
         self.sources = sources
+        self._problems: dict[tuple[int, str], str] = {}
+        self._lock = threading.Lock()
+
+    def _note(self, index: int, schema: str, error: str | None) -> None:
+        with self._lock:
+            if error is None:
+                self._problems.pop((index, schema), None)
+            else:
+                self._problems[(index, schema)] = error
+
+    def problems(self) -> list[dict[str, str]]:
+        """Unreadable sources seen so far, as ``{"schema", "source", "detail"}``."""
+        with self._lock:
+            items = sorted(self._problems.items())
+        return [
+            {"schema": schema, "source": type(self.sources[i]).__name__, "detail": detail}
+            for (i, schema), detail in items
+        ]
 
     def schemas(self) -> dict[str, dict]:
         out: dict[str, dict] = {}
@@ -210,16 +262,35 @@ class MultiRecords:
         return out
 
     def list(self, schema: str) -> list[RecordSummary]:
-        found = [s for s in self.sources if schema in s.schemas()]
+        found = [(i, s) for i, s in enumerate(self.sources) if schema in s.schemas()]
         if not found:
             raise KeyError(schema)
-        return [summary for source in found for summary in source.list(schema)]
+        out: list[RecordSummary] = []
+        for i, source in found:
+            try:
+                out.extend(source.list(schema))
+            except RecordSourceError as exc:
+                self._note(i, schema, str(exc))
+            else:
+                self._note(i, schema, None)
+        return out
 
     def get(self, schema: str, id: str) -> dict:
-        for source in self.sources:
+        failure: str | None = None
+        known = False
+        for i, source in enumerate(self.sources):
             if schema in source.schemas():
+                known = True
                 try:
-                    return source.get(schema, id)
+                    record = source.get(schema, id)
                 except KeyError:
-                    continue
-        raise KeyError(id)
+                    self._note(i, schema, None)
+                except RecordSourceError as exc:
+                    self._note(i, schema, str(exc))
+                    failure = failure or str(exc)
+                else:
+                    self._note(i, schema, None)
+                    return record
+        if failure is not None:
+            raise RecordSourceError(failure)
+        raise KeyError(id if known else schema)

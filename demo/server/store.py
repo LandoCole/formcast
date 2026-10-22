@@ -6,6 +6,9 @@ name that isn't stored; every method raises ``ValueError("bad template name")`` 
 isn't plain (letters, digits, space, ``_ . -``, at most 80 characters, starting with a letter or
 digit), so a name can never reach outside the folder.
 
+``get`` raises ``StoredTemplateError`` (not ``ValueError``) when the name is fine and a file exists
+but isn't a valid template, so a caller can tell a broken stored file from a bad request.
+
 ``FolderTemplateStore`` keeps one ``<name>.json`` per template and writes through a temporary
 file and ``os.replace``, so a crash mid-write leaves the old file whole.
 """
@@ -37,6 +40,10 @@ class TemplateStore(Protocol):
     def get(self, name: str) -> Template: ...
     def put(self, name: str, template: Template) -> None: ...
     def delete(self, name: str) -> None: ...
+
+
+class StoredTemplateError(Exception):
+    """A stored file exists but is not a valid template (damaged, hand-edited, or from elsewhere)."""
 
 
 def check_name(name: str) -> str:
@@ -71,10 +78,17 @@ class FolderTemplateStore:
         return out
 
     def get(self, name: str) -> Template:
+        path = self._path(name)  # a bad name raises ValueError here, before any file is read
         try:
-            return Template.from_json(self._path(name).read_text(encoding="utf-8"))
+            text = path.read_text(encoding="utf-8")
         except FileNotFoundError:
             raise KeyError(name) from None
+        except UnicodeDecodeError:
+            raise StoredTemplateError(f"stored template {name!r} is not valid UTF-8 text") from None
+        try:
+            return Template.from_json(text)
+        except (ValueError, TypeError, KeyError) as exc:  # bad JSON, or JSON that isn't a template
+            raise StoredTemplateError(f"stored template {name!r} is not a valid template") from exc
 
     def put(self, name: str, template: Template) -> None:
         path = self._path(name)
