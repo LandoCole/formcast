@@ -392,7 +392,8 @@ class Api:
         """``{kind, doc, schema?, template?, instruction?, region?}`` -> ``{id}``; poll ``GET /api/jobs/{id}``.
 
         ``build`` takes ``schema`` (an object or a stored schema's name). ``adapt`` takes ``template`` and
-        uses its own schema. ``revise`` takes ``template`` and ``instruction``, and optionally
+        uses its own schema. For ``adapt`` and ``revise`` the template must have as many pages as the PDF
+        (400 ``page_count_mismatch``). ``revise`` takes ``template`` and ``instruction``, and optionally
         ``region: {page, rect: [x0, y0, x1, y1]}`` in PDF points (origin top-left). A job runs on a thread,
         two at a time; a third is refused with 429 ``busy``. Every input is checked here, before a thread starts.
         """
@@ -408,6 +409,12 @@ class Api:
             schema = self._schema(payload)
         else:
             template = _template(payload)
+            if template.form.page_count != doc.page_count:  # adapt moves boxes between pages of other sizes, never other pages
+                raise ApiError(
+                    400, "page_count_mismatch",
+                    f"This template is for a form with {_pages(template.form.page_count)} and this PDF has "
+                    f"{_pages(doc.page_count)}, so it can't be {'adapted to' if kind == 'adapt' else 'revised on'} it.",
+                )  # fmt: skip
             if _schema_loops(template.schema_):
                 raise ApiError(400, "bad_schema", _SCHEMA_LOOP)
             flatten_schema(template.schema_)
@@ -647,6 +654,10 @@ def _region(raw: Any, doc: Doc) -> tuple[int, tuple[float, float, float, float]]
     if not all(math.isfinite(v) for v in (x0, y0, x1, y1)):
         raise ApiError(400, "bad_region", shape)
     return page, (x0, y0, x1, y1)
+
+
+def _pages(n: int) -> str:
+    return f"{n} page" if n == 1 else f"{n} pages"
 
 
 def _dump(template: Template) -> dict:

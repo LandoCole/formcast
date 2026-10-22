@@ -395,6 +395,17 @@ def test_adapt_and_revise_need_a_valid_template(ai, kind):
     assert factory.providers == []
 
 
+@pytest.mark.parametrize("kind", ["adapt", "revise"])
+def test_adapt_and_revise_refuse_a_template_with_another_page_count(ai, kind):
+    base, doc, template, factory = ai
+    extra = {"instruction": "do it"} if kind == "revise" else {}
+    two_pages = open_doc(base, small_pdf(pages=2, text="Name"), "two.pdf")
+    status, out = post(base, "/api/jobs", {"kind": kind, "doc": two_pages, "template": template, **extra})
+    assert (status, out["error"]) == (400, "page_count_mismatch")
+    assert out["detail"] == f"This template is for a form with 1 page and this PDF has 2 pages, so it can't be {'adapted to' if kind == 'adapt' else 'revised on'} it."
+    assert factory.providers == []
+
+
 @pytest.mark.parametrize("instruction", [None, "", "   ", 7, ["do it"]])
 def test_revise_needs_a_non_empty_instruction(ai, instruction):
     base, doc, template, factory = ai
