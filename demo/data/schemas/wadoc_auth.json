@@ -1,0 +1,55 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://example.org/schemas/release-authorization.json",
+ "title": "Release of information authorization",
+ "description": "A person's authorization for one organization to release their records to another.",
+ "type": "object",
+ "properties": {
+  "individual": {
+   "type": "object",
+   "description": "The person whose records are released.",
+   "properties": {
+    "first_name": {"type": "string"},
+    "middle_name": {"type": "string"},
+    "last_name": {"type": "string"},
+    "date_of_birth": {"type": "string", "format": "date"},
+    "doc_number": {"type": "string", "description": "Department of Corrections offender number."}
+   },
+   "required": ["first_name", "last_name"]
+  },
+  "releasing_organization": {"$ref": "#/$defs/organization", "description": "Organization that holds the records."},
+  "recipient_organization": {"$ref": "#/$defs/organization", "description": "Organization the records are released to."},
+  "information_requested": {"type": "string", "description": "Which records may be disclosed."},
+  "purpose": {"type": "string", "description": "How the released information will be used."},
+  "signed_on": {"type": "string", "format": "date", "description": "Date the individual signed."},
+  "witness": {
+   "type": "object",
+   "properties": {
+    "name": {"type": "string"},
+    "signed_on": {"type": "string", "format": "date"}
+   }
+  },
+  "expires_on": {"type": "string", "format": "date", "description": "Authorization end date (90 days after signing)."}
+ },
+ "required": ["individual", "releasing_organization", "recipient_organization"],
+ "$defs": {
+  "organization": {
+   "type": "object",
+   "properties": {
+    "name": {"type": "string"},
+    "address": {"$ref": "#/$defs/address"},
+    "phone": {"type": "string"}
+   },
+   "required": ["name"]
+  },
+  "address": {
+   "type": "object",
+   "properties": {
+    "street": {"type": "string"},
+    "city": {"type": "string"},
+    "state": {"type": "string", "description": "Two-letter state code."},
+    "postal_code": {"type": "string"}
+   }
+  }
+ }
+}

@@ -1,0 +1,4970 @@
+{
+  "formcast_version": "1",
+  "template_id": "e6f1ba1fa4b54a2abaf76cd0ea3da0a4",
+  "schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.org/schemas/city-job-application.json",
+    "title": "City job application",
+    "description": "A non-exempt job application as kept in the city's applicant tracking system.",
+    "type": "object",
+    "properties": {
+      "application_id": {
+        "type": "string",
+        "description": "Applicant tracking number."
+      },
+      "application_date": {
+        "type": "string",
+        "format": "date"
+      },
+      "position_applied_for": {
+        "type": "string"
+      },
+      "applicant": {
+        "type": "object",
+        "properties": {
+          "first_name": {
+            "type": "string"
+          },
+          "middle_name": {
+            "type": "string"
+          },
+          "last_name": {
+            "type": "string"
+          },
+          "address": {
+            "$ref": "#/$defs/address"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "us_born_citizen": {
+            "type": "boolean",
+            "description": "Born a U.S. citizen (naturalized citizens must file proof)."
+          }
+        },
+        "required": [
+          "first_name",
+          "last_name"
+        ]
+      },
+      "previous_application": {
+        "type": "object",
+        "properties": {
+          "applied_before": {
+            "type": "boolean"
+          },
+          "position": {
+            "type": "string"
+          },
+          "applied_on": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "education": {
+        "type": "object",
+        "properties": {
+          "school_name": {
+            "type": "string",
+            "description": "Last school attended."
+          },
+          "school_city": {
+            "type": "string"
+          },
+          "school_state": {
+            "type": "string"
+          },
+          "credential": {
+            "type": "string",
+            "description": "Degree or diploma obtained."
+          }
+        }
+      },
+      "certifications": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Certifications held."
+      },
+      "drivers_license": {
+        "type": "object",
+        "properties": {
+          "valid": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string"
+          }
+        }
+      },
+      "commercial_drivers_license": {
+        "type": "object",
+        "properties": {
+          "valid": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string"
+          }
+        }
+      },
+      "employment_history": {
+        "type": "array",
+        "items": {
+          "$ref": "#/$defs/job"
+        },
+        "description": "Most recent first."
+      },
+      "may_contact_current_employer": {
+        "type": "boolean"
+      },
+      "accepts_temporary_employment": {
+        "type": "boolean"
+      },
+      "criminal_history": {
+        "type": "object",
+        "properties": {
+          "has_record": {
+            "type": "boolean",
+            "description": "Ever charged or convicted of a crime or misdemeanor other than a traffic violation."
+          },
+          "county": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "date": {
+            "type": "string",
+            "format": "date"
+          },
+          "court": {
+            "type": "string"
+          },
+          "offense": {
+            "type": "string"
+          },
+          "disposition": {
+            "type": "string"
+          }
+        }
+      },
+      "available_from": {
+        "type": "string",
+        "format": "date",
+        "description": "Earliest start date."
+      },
+      "signed_on": {
+        "type": "string",
+        "format": "date"
+      }
+    },
+    "required": [
+      "position_applied_for",
+      "applicant"
+    ],
+    "$defs": {
+      "address": {
+        "type": "object",
+        "properties": {
+          "street": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "description": "Two-letter state code."
+          },
+          "postal_code": {
+            "type": "string"
+          }
+        }
+      },
+      "job": {
+        "type": "object",
+        "properties": {
+          "employer": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string",
+            "description": "Employer address as one line."
+          },
+          "business_type": {
+            "type": "string"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "description": "Empty for the current job."
+          },
+          "supervisor": {
+            "type": "string",
+            "description": "Name and title of the immediate supervisor."
+          },
+          "final_salary": {
+            "type": "number",
+            "description": "Final pay amount, in dollars."
+          },
+          "final_salary_period": {
+            "type": "string",
+            "enum": [
+              "hour",
+              "week",
+              "month",
+              "year"
+            ]
+          },
+          "reason_for_leaving": {
+            "type": "string"
+          },
+          "position_title": {
+            "type": "string"
+          },
+          "duties": {
+            "type": "string",
+            "description": "Description of the work."
+          }
+        },
+        "required": [
+          "employer"
+        ]
+      }
+    }
+  },
+  "form": {
+    "fingerprint": "5ee08ca5b7b86c79",
+    "page_count": 3,
+    "page_sizes": [
+      [
+        612.0,
+        792.0
+      ],
+      [
+        612.0,
+        792.0
+      ],
+      [
+        612.0,
+        792.0
+      ]
+    ],
+    "kinds": [
+      "fillable",
+      "fillable",
+      "fillable"
+    ],
+    "signature": {
+      "ink": [
+        "00000000000000000ff800001ff800001ffff8000ffff8000000000000000000003ffc001fc000001fffffe01ffffff01fffffc0000000001ffffff01c0000000ffffff01ffffff01c0300000ffffff01fffffc01fff80000fff80001ffffff01ffc00000ffffff01ffffff01ff800001ff8000007fffff00000000007fffff007fffff000aa00001fff00001ffe0000000040001fffe0001ffe00000000000000000000000000000000000000000000",
+        "000000000000000000000000000000000007e0001fffffc01ffffff01fffffe00fffffc01ffffff81f8000000ffffff01ffffff01f8000000ffffff01ffffff01f20000001de00001ffffff01e00000001fffff01ffffff000000000000000001ffffff01f80000000fffff01ffffff01f800000007ffff01ffffff01f20000001de00001ffffff01e00000001fffff01ffffff000000000000000000000000000000000000000000000000000000000",
+        "000000000000000000000000000000001ffffff00fff80001fffc0001ffffff00f3004000ffffff01ffffff000000000000000001fffff000f8030001ffffff00000000000000000000000001ffffff00fffffe00fffffe01fffffe00ffffff00ffffff01ffffff00fffffe00fffffe01ff00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+      ],
+      "text": [
+        [
+          24232368,
+          26558056,
+          19659794,
+          152698291,
+          24776554,
+          23689771,
+          63949044,
+          38503411,
+          22585688,
+          112470733,
+          73138826,
+          32157103,
+          43154027,
+          22708143,
+          1188105,
+          6143320,
+          8791732,
+          10442743,
+          45878823,
+          60716654,
+          22772245,
+          32261912,
+          125881,
+          6825844,
+          1964169,
+          5190041,
+          5405459,
+          21217397,
+          66173284,
+          40689640,
+          8125932,
+          9985134,
+          44750195,
+          2474605,
+          965810,
+          20085546,
+          14700878,
+          8946590,
+          9486653,
+          34276191,
+          1286014,
+          3020711,
+          40058756,
+          7327610,
+          65203659,
+          57840301,
+          65517347,
+          20294580,
+          8897457,
+          10484270,
+          5455239,
+          13936017,
+          12962427,
+          70414052,
+          4088050,
+          8446614,
+          11226839,
+          3381248,
+          22347825,
+          76415957,
+          19661797,
+          8747473,
+          58309239,
+          22405666
+        ],
+        [
+          32767076,
+          8319125,
+          30304718,
+          43286053,
+          28588074,
+          34735686,
+          3118367,
+          5066506,
+          88972423,
+          18356716,
+          122460190,
+          3094608,
+          13790726,
+          93660840,
+          123042606,
+          147625371,
+          28603653,
+          38679382,
+          37636439,
+          20208628,
+          15554569,
+          24212582,
+          22244499,
+          147644294,
+          9531578,
+          112780233,
+          74477417,
+          36884022,
+          18741479,
+          51286998,
+          20376571,
+          17024846,
+          66836906,
+          74448791,
+          42348884,
+          69877678,
+          70889518,
+          71565276,
+          6752790,
+          32980809,
+          30314346,
+          5424995,
+          10379149,
+          2566757,
+          4185529,
+          10031270,
+          11257590,
+          4212190,
+          73034879,
+          32858953,
+          2204196,
+          33568317,
+          38525808,
+          24227919,
+          43415849,
+          47029001,
+          5707552,
+          37285113,
+          55725576,
+          4327350,
+          95965960,
+          38194154,
+          10147870,
+          1029328
+        ],
+        [
+          986597,
+          73412434,
+          44706874,
+          65706199,
+          6972337,
+          15837031,
+          25445132,
+          27533959,
+          3096863,
+          191524,
+          99682214,
+          45357258,
+          24877797,
+          3749757,
+          30742875,
+          19036686,
+          16759739,
+          26833356,
+          9544663,
+          16733894,
+          22227183,
+          9390191,
+          8010028,
+          10023719,
+          43810745,
+          15798372,
+          7433669,
+          128387083,
+          24006629,
+          78304596,
+          36418930,
+          20627340,
+          8906413,
+          2529273,
+          9504375,
+          2663087,
+          33608544,
+          12166017,
+          44489418,
+          18607965,
+          7430832,
+          32800086,
+          15168074,
+          908662,
+          7066302,
+          5108100,
+          33849952,
+          31532769,
+          40470683,
+          14743343,
+          10539372,
+          17447049,
+          33197388,
+          18543140,
+          44963886,
+          57511946,
+          21173261,
+          6193860,
+          7154349,
+          90971352,
+          400159,
+          41157547,
+          12863330,
+          22117235
+        ]
+      ],
+      "version": 1
+    }
+  },
+  "fields": [
+    {
+      "id": "w0_0",
+      "type": "text",
+      "label": "Date",
+      "page": 0,
+      "rect": [
+        99.12000274658203,
+        147.5999755859375,
+        186.83999633789062,
+        173.6400146484375
+      ],
+      "source": {
+        "paths": [
+          "application_date"
+        ],
+        "transforms": [
+          {
+            "op": "date_format",
+            "args": {
+              "format": "%m/%d/%Y"
+            }
+          }
+        ],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Date",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_1",
+      "type": "text",
+      "label": "Position Applied For",
+      "page": 0,
+      "rect": [
+        169.55999755859375,
+        237.3599853515625,
+        536.52001953125,
+        263.4000244140625
+      ],
+      "source": {
+        "paths": [
+          "position_applied_for"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Position Applied For",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_2",
+      "type": "text",
+      "label": "Name (first middle last)",
+      "page": 0,
+      "rect": [
+        104.76000213623047,
+        264.239990234375,
+        537.47998046875,
+        290.1600036621094
+      ],
+      "source": {
+        "paths": [
+          "applicant.first_name",
+          "applicant.middle_name",
+          "applicant.last_name"
+        ],
+        "transforms": [],
+        "join": " ",
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Name",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_3",
+      "type": "text",
+      "label": "Home Address",
+      "page": 0,
+      "rect": [
+        144.0,
+        291.0,
+        538.3200073242188,
+        317.0400085449219
+      ],
+      "source": {
+        "paths": [
+          "applicant.address.street",
+          "applicant.address.city",
+          "applicant.address.state",
+          "applicant.address.postal_code"
+        ],
+        "transforms": [],
+        "join": ", ",
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Home Address",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_4",
+      "type": "text",
+      "label": "Phone #",
+      "page": 0,
+      "rect": [
+        112.08000183105469,
+        317.8800048828125,
+        271.0799865722656,
+        343.9200134277344
+      ],
+      "source": {
+        "paths": [
+          "applicant.phone"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Phone",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_5",
+      "type": "text",
+      "label": "Email",
+      "page": 0,
+      "rect": [
+        306.7200012207031,
+        317.8800048828125,
+        536.760009765625,
+        343.9200134277344
+      ],
+      "source": {
+        "paths": [
+          "applicant.email"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Email",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_6",
+      "type": "checkbox",
+      "label": "Born US citizen: Yes",
+      "page": 0,
+      "rect": [
+        153.1199951171875,
+        362.8800048828125,
+        164.16000366210938,
+        370.20001220703125
+      ],
+      "source": {
+        "paths": [
+          "applicant.us_born_citizen"
+        ],
+        "transforms": [
+          {
+            "op": "bool_to_check",
+            "args": {}
+          }
+        ],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Born US Citizen",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_7",
+      "type": "checkbox",
+      "label": "Born US citizen: No",
+      "page": 0,
+      "rect": [
+        183.47999572753906,
+        362.8800048828125,
+        194.52000427246094,
+        370.20001220703125
+      ],
+      "source": {
+        "paths": [
+          "applicant.us_born_citizen"
+        ],
+        "transforms": [
+          {
+            "op": "bool_to_check",
+            "args": {}
+          }
+        ],
+        "join": null,
+        "when": {
+          "op": "equals",
+          "args": {
+            "value": false
+          }
+        }
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Yes",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_8",
+      "type": "checkbox",
+      "label": "Previously applied: Yes",
+      "page": 0,
+      "rect": [
+        267.8399963378906,
+        391.44000244140625,
+        278.8800048828125,
+        398.760009765625
+      ],
+      "source": {
+        "paths": [
+          "previous_application.applied_before"
+        ],
+        "transforms": [
+          {
+            "op": "bool_to_check",
+            "args": {}
+          }
+        ],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Have you previously applied with the city",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_9",
+      "type": "checkbox",
+      "label": "Previously applied: No",
+      "page": 0,
+      "rect": [
+        298.20001220703125,
+        391.44000244140625,
+        309.239990234375,
+        398.760009765625
+      ],
+      "source": {
+        "paths": [
+          "previous_application.applied_before"
+        ],
+        "transforms": [
+          {
+            "op": "bool_to_check",
+            "args": {}
+          }
+        ],
+        "join": null,
+        "when": {
+          "op": "equals",
+          "args": {
+            "value": false
+          }
+        }
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Yes_2",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_10",
+      "type": "text",
+      "label": "If yes: position and date applied",
+      "page": 0,
+      "rect": [
+        333.4800109863281,
+        401.760009765625,
+        536.280029296875,
+        427.79998779296875
+      ],
+      "source": {
+        "paths": [
+          "previous_application.position",
+          "previous_application.applied_on"
+        ],
+        "transforms": [],
+        "join": ", ",
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "If yes give position applied for and date of application",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_11",
+      "type": "text",
+      "label": "School name & location",
+      "page": 0,
+      "rect": [
+        262.32000732421875,
+        428.6400146484375,
+        536.280029296875,
+        454.67999267578125
+      ],
+      "source": {
+        "paths": [
+          "education.school_name",
+          "education.school_city",
+          "education.school_state"
+        ],
+        "transforms": [],
+        "join": ", ",
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Name  Location of school last attended",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_12",
+      "type": "text",
+      "label": "Degree or diploma",
+      "page": 0,
+      "rect": [
+        208.32000732421875,
+        455.5199890136719,
+        537.1199951171875,
+        481.55999755859375
+      ],
+      "source": {
+        "paths": [
+          "education.credential"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Degree or Diploma Obtained",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_13",
+      "type": "text",
+      "label": "Certifications",
+      "page": 0,
+      "rect": [
+        110.5199966430664,
+        509.760009765625,
+        537.8400268554688,
+        535.7999877929688
+      ],
+      "source": {
+        "paths": [
+          "certifications"
+        ],
+        "transforms": [
+          {
+            "op": "join",
+            "args": {
+              "sep": ", "
+            }
+          }
+        ],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "undefined",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_14",
+      "type": "text",
+      "label": "Certifications (line 2)",
+      "page": 0,
+      "rect": [
+        110.5199966430664,
+        537.239990234375,
+        537.8400268554688,
+        563.280029296875
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "undefined_2",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_15",
+      "type": "text",
+      "label": "Certifications (line 3)",
+      "page": 0,
+      "rect": [
+        110.5199966430664,
+        564.719970703125,
+        537.8400268554688,
+        590.760009765625
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "undefined_3",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_16",
+      "type": "checkbox",
+      "label": "Valid driver license: Yes",
+      "page": 0,
+      "rect": [
+        236.75999450683594,
+        609.719970703125,
+        247.8000030517578,
+        617.0399780273438
+      ],
+      "source": {
+        "paths": [
+          "drivers_license.valid"
+        ],
+        "transforms": [
+          {
+            "op": "bool_to_check",
+            "args": {}
+          }
+        ],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Do you have a valid drivers license",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_17",
+      "type": "checkbox",
+      "label": "Valid driver license: No",
+      "page": 0,
+      "rect": [
+        267.1199951171875,
+        609.719970703125,
+        278.1600036621094,
+        617.0399780273438
+      ],
+      "source": {
+        "paths": [
+          "drivers_license.valid"
+        ],
+        "transforms": [
+          {
+            "op": "bool_to_check",
+            "args": {}
+          }
+        ],
+        "join": null,
+        "when": {
+          "op": "equals",
+          "args": {
+            "value": false
+          }
+        }
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Yes_3",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_18",
+      "type": "text",
+      "label": "Driver license state",
+      "page": 0,
+      "rect": [
+        157.1999969482422,
+        620.0399780273438,
+        283.20001220703125,
+        646.0800170898438
+      ],
+      "source": {
+        "paths": [
+          "drivers_license.state"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "If yes what state",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_19",
+      "type": "checkbox",
+      "label": "Valid CDL: Yes",
+      "page": 0,
+      "rect": [
+        292.44000244140625,
+        665.0399780273438,
+        303.4800109863281,
+        672.3599853515625
+      ],
+      "source": {
+        "paths": [
+          "commercial_drivers_license.valid"
+        ],
+        "transforms": [
+          {
+            "op": "bool_to_check",
+            "args": {}
+          }
+        ],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Do you have a valid commercial drivers license",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_20",
+      "type": "checkbox",
+      "label": "Valid CDL: No",
+      "page": 0,
+      "rect": [
+        322.67999267578125,
+        665.0399780273438,
+        333.7200012207031,
+        672.3599853515625
+      ],
+      "source": {
+        "paths": [
+          "commercial_drivers_license.valid"
+        ],
+        "transforms": [
+          {
+            "op": "bool_to_check",
+            "args": {}
+          }
+        ],
+        "join": null,
+        "when": {
+          "op": "equals",
+          "args": {
+            "value": false
+          }
+        }
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Yes_4",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w0_21",
+      "type": "text",
+      "label": "CDL state",
+      "page": 0,
+      "rect": [
+        157.1999969482422,
+        675.47998046875,
+        283.20001220703125,
+        701.52001953125
+      ],
+      "source": {
+        "paths": [
+          "commercial_drivers_license.state"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "If yes what state_2",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w1_0",
+      "type": "text",
+      "label": "Employer Name",
+      "page": 1,
+      "rect": [
+        150.9600067138672,
+        147.3599853515625,
+        539.760009765625,
+        173.4000244140625
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Employer Name",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w1_1",
+      "type": "text",
+      "label": "Employer Address",
+      "page": 1,
+      "rect": [
+        159.9600067138672,
+        174.239990234375,
+        537.8400268554688,
+        200.280029296875
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Employer Address",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w1_2",
+      "type": "text",
+      "label": "Type of Business",
+      "page": 1,
+      "rect": [
+        153.1199951171875,
+        201.1199951171875,
+        536.52001953125,
+        227.15997314453125
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Type of Business",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w1_3",
+      "type": "text",
+      "label": "Date of Employment",
+      "page": 1,
+      "rect": [
+        171.47999572753906,
+        228.0,
+        538.4400024414062,
+        253.91998291015625
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Date of Employment",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w1_4",
+      "type": "text",
+      "label": "Name & Title of Immediate Supervisor",
+      "page": 1,
+      "rect": [
+        252.72000122070312,
+        254.760009765625,
+        537.5999755859375,
+        280.79998779296875
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Name  Title of Immediate Supervisor",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w1_5",
+      "type": "text",
+      "label": "Final Salary",
+      "page": 1,
+      "rect": [
+        137.8800048828125,
+        281.6400146484375,
+        187.1999969482422,
+        307.67999267578125
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Final Salary",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w1_6",
+      "type": "text",
+      "label": "per",
+      "page": 1,
+      "rect": [
+        207.47999572753906,
+        281.6400146484375,
+        284.2799987792969,
+        307.67999267578125
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "per",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w1_7",
+      "type": "text",
+      "label": "Reason for Leaving",
+      "page": 1,
+      "rect": [
+        165.83999633789062,
+        308.5199890136719,
+        538.3200073242188,
+        334.55999755859375
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Reason for Leaving",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w1_8",
+      "type": "text",
+      "label": "Position Title",
+      "page": 1,
+      "rect": [
+        137.27999877929688,
+        335.3999938964844,
+        537.1199951171875,
+        361.32000732421875
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Position Title",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w1_9",
+      "type": "text",
+      "label": "Description of Work",
+      "page": 1,
+      "rect": [
+        168.83999633789062,
+        362.1600036621094,
+        535.7999877929688,
+        388.20001220703125
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Description of Work",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w1_10",
+      "type": "text",
+      "label": "Employer Name",
+      "page": 1,
+      "rect": [
+        150.9600067138672,
+        415.9200134277344,
+        539.760009765625,
+        441.9599914550781
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Employer Name_2",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w1_11",
+      "type": "text",
+      "label": "Employer Address",
+      "page": 1,
+      "rect": [
+        159.9600067138672,
+        442.79998779296875,
+        537.8400268554688,
+        468.8399963378906
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Employer Address_2",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w1_12",
+      "type": "text",
+      "label": "Type of Business",
+      "page": 1,
+      "rect": [
+        153.1199951171875,
+        469.67999267578125,
+        536.52001953125,
+        495.6000061035156
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Type of Business_2",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w1_13",
+      "type": "text",
+      "label": "Date of Employment",
+      "page": 1,
+      "rect": [
+        171.47999572753906,
+        496.44000244140625,
+        538.4400024414062,
+        522.47998046875
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Date of Employment_2",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w1_14",
+      "type": "text",
+      "label": "Name & Title of Immediate Supervisor",
+      "page": 1,
+      "rect": [
+        252.72000122070312,
+        523.3200073242188,
+        537.5999755859375,
+        549.3599853515625
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Name  Title of Immediate Supervisor_2",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w1_15",
+      "type": "text",
+      "label": "Final Salary",
+      "page": 1,
+      "rect": [
+        137.8800048828125,
+        550.2000122070312,
+        187.1999969482422,
+        576.239990234375
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Final Salary_2",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w1_16",
+      "type": "text",
+      "label": "per",
+      "page": 1,
+      "rect": [
+        207.47999572753906,
+        550.2000122070312,
+        284.2799987792969,
+        576.239990234375
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "per_2",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w1_17",
+      "type": "text",
+      "label": "Reason for Leaving",
+      "page": 1,
+      "rect": [
+        165.83999633789062,
+        577.0800170898438,
+        538.3200073242188,
+        603.1199951171875
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Reason for Leaving_2",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w1_18",
+      "type": "text",
+      "label": "Position Title",
+      "page": 1,
+      "rect": [
+        137.27999877929688,
+        603.9600219726562,
+        537.1199951171875,
+        629.8800048828125
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Position Title_2",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w1_19",
+      "type": "text",
+      "label": "Description of Work",
+      "page": 1,
+      "rect": [
+        168.83999633789062,
+        630.719970703125,
+        535.7999877929688,
+        656.760009765625
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Description of Work_2",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w2_0",
+      "type": "radio_option",
+      "label": "Contact present employer: Yes",
+      "page": 2,
+      "rect": [
+        474.8399963378906,
+        75.84002685546875,
+        485.8800048828125,
+        83.15997314453125
+      ],
+      "source": {
+        "paths": [
+          "may_contact_current_employer"
+        ],
+        "transforms": [
+          {
+            "op": "bool_to_check",
+            "args": {}
+          }
+        ],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "group_1",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w2_1",
+      "type": "radio_option",
+      "label": "Contact present employer: No",
+      "page": 2,
+      "rect": [
+        505.20001220703125,
+        75.84002685546875,
+        516.239990234375,
+        83.15997314453125
+      ],
+      "source": {
+        "paths": [
+          "may_contact_current_employer"
+        ],
+        "transforms": [
+          {
+            "op": "bool_to_check",
+            "args": {}
+          }
+        ],
+        "join": null,
+        "when": {
+          "op": "equals",
+          "args": {
+            "value": false
+          }
+        }
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "group_1",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w2_2",
+      "type": "radio_option",
+      "label": "Temporary employment: Yes",
+      "page": 2,
+      "rect": [
+        272.8800048828125,
+        104.4000244140625,
+        283.9200134277344,
+        111.719970703125
+      ],
+      "source": {
+        "paths": [
+          "accepts_temporary_employment"
+        ],
+        "transforms": [
+          {
+            "op": "bool_to_check",
+            "args": {}
+          }
+        ],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "undefined_4",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w2_3",
+      "type": "radio_option",
+      "label": "Temporary employment: No",
+      "page": 2,
+      "rect": [
+        303.1199951171875,
+        104.4000244140625,
+        314.1600036621094,
+        111.719970703125
+      ],
+      "source": {
+        "paths": [
+          "accepts_temporary_employment"
+        ],
+        "transforms": [
+          {
+            "op": "bool_to_check",
+            "args": {}
+          }
+        ],
+        "join": null,
+        "when": {
+          "op": "equals",
+          "args": {
+            "value": false
+          }
+        }
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "undefined_4",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w2_6",
+      "type": "text",
+      "label": "Crime County",
+      "page": 2,
+      "rect": [
+        254.75999450683594,
+        142.44000244140625,
+        397.20001220703125,
+        168.239990234375
+      ],
+      "source": {
+        "paths": [
+          "criminal_history.county"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "No If yes state in full County",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w2_7",
+      "type": "text",
+      "label": "Crime State",
+      "page": 2,
+      "rect": [
+        428.5199890136719,
+        142.44000244140625,
+        532.6799926757812,
+        168.239990234375
+      ],
+      "source": {
+        "paths": [
+          "criminal_history.state"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "State",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w2_5",
+      "type": "checkbox",
+      "label": "Criminal record: Yes",
+      "page": 2,
+      "rect": [
+        72.0,
+        159.719970703125,
+        83.04000091552734,
+        167.03997802734375
+      ],
+      "source": {
+        "paths": [
+          "criminal_history.has_record"
+        ],
+        "transforms": [
+          {
+            "op": "bool_to_check",
+            "args": {}
+          }
+        ],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Yes_7",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w2_4",
+      "type": "checkbox",
+      "label": "Criminal record: No",
+      "page": 2,
+      "rect": [
+        102.36000061035156,
+        159.719970703125,
+        113.4000015258789,
+        167.03997802734375
+      ],
+      "source": {
+        "paths": [
+          "criminal_history.has_record"
+        ],
+        "transforms": [
+          {
+            "op": "bool_to_check",
+            "args": {}
+          }
+        ],
+        "join": null,
+        "when": {
+          "op": "equals",
+          "args": {
+            "value": false
+          }
+        }
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "toggle_6",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w2_8",
+      "type": "text",
+      "label": "Crime Date",
+      "page": 2,
+      "rect": [
+        99.0,
+        170.280029296875,
+        170.27999877929688,
+        196.08001708984375
+      ],
+      "source": {
+        "paths": [
+          "criminal_history.date"
+        ],
+        "transforms": [
+          {
+            "op": "date_format",
+            "args": {
+              "format": "%m/%d/%Y"
+            }
+          }
+        ],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Date_2",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w2_9",
+      "type": "text",
+      "label": "Court",
+      "page": 2,
+      "rect": [
+        203.52000427246094,
+        170.280029296875,
+        285.7200012207031,
+        196.08001708984375
+      ],
+      "source": {
+        "paths": [
+          "criminal_history.court"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Court",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w2_10",
+      "type": "text",
+      "label": "Offense",
+      "page": 2,
+      "rect": [
+        328.79998779296875,
+        170.280029296875,
+        400.0799865722656,
+        196.08001708984375
+      ],
+      "source": {
+        "paths": [
+          "criminal_history.offense"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "fill_5",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w2_11",
+      "type": "text",
+      "label": "Disposition",
+      "page": 2,
+      "rect": [
+        459.1199951171875,
+        170.280029296875,
+        535.9199829101562,
+        196.08001708984375
+      ],
+      "source": {
+        "paths": [
+          "criminal_history.disposition"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Disposition",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w2_12",
+      "type": "signature",
+      "label": "Applicant Signature",
+      "page": 2,
+      "rect": [
+        166.9199981689453,
+        250.79998779296875,
+        347.760009765625,
+        276.5999755859375
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Applicant Signature",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "w2_13",
+      "type": "text",
+      "label": "Date signed",
+      "page": 2,
+      "rect": [
+        382.20001220703125,
+        250.79998779296875,
+        535.6799926757812,
+        276.5999755859375
+      ],
+      "source": {
+        "paths": [
+          "signed_on"
+        ],
+        "transforms": [
+          {
+            "op": "date_format",
+            "args": {
+              "format": "%m/%d/%Y"
+            }
+          }
+        ],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": "Date_3",
+      "segments": [],
+      "confidence": null,
+      "origin": "widget"
+    },
+    {
+      "id": "f1",
+      "type": "table",
+      "label": "Employer",
+      "page": null,
+      "rect": null,
+      "source": {
+        "paths": [
+          "employment_history"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [
+        {
+          "page": 1,
+          "rect": [
+            151.0,
+            147.4,
+            539.8,
+            173.4
+          ],
+          "row_top": 147.4,
+          "row_height": 26.0,
+          "max_rows": 1,
+          "columns": [
+            {
+              "key": "employer",
+              "x": [
+                151.0,
+                539.8
+              ],
+              "transforms": [],
+              "wrap": null,
+              "fields": [
+                "w1_0"
+              ]
+            }
+          ]
+        },
+        {
+          "page": 1,
+          "rect": [
+            151.0,
+            415.9,
+            539.8,
+            442.0
+          ],
+          "row_top": 415.9,
+          "row_height": 26.100000000000023,
+          "max_rows": 1,
+          "columns": [
+            {
+              "key": "employer",
+              "x": [
+                151.0,
+                539.8
+              ],
+              "transforms": [],
+              "wrap": null,
+              "fields": [
+                "w1_10"
+              ]
+            }
+          ]
+        }
+      ],
+      "confidence": null,
+      "origin": "agent"
+    },
+    {
+      "id": "f2",
+      "type": "table",
+      "label": "Address",
+      "page": null,
+      "rect": null,
+      "source": {
+        "paths": [
+          "employment_history"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [
+        {
+          "page": 1,
+          "rect": [
+            160.0,
+            174.2,
+            537.8,
+            200.3
+          ],
+          "row_top": 174.2,
+          "row_height": 26.100000000000023,
+          "max_rows": 1,
+          "columns": [
+            {
+              "key": "address",
+              "x": [
+                160.0,
+                537.8
+              ],
+              "transforms": [],
+              "wrap": null,
+              "fields": [
+                "w1_1"
+              ]
+            }
+          ]
+        },
+        {
+          "page": 1,
+          "rect": [
+            160.0,
+            442.8,
+            537.8,
+            468.8
+          ],
+          "row_top": 442.8,
+          "row_height": 26.0,
+          "max_rows": 1,
+          "columns": [
+            {
+              "key": "address",
+              "x": [
+                160.0,
+                537.8
+              ],
+              "transforms": [],
+              "wrap": null,
+              "fields": [
+                "w1_11"
+              ]
+            }
+          ]
+        }
+      ],
+      "confidence": null,
+      "origin": "agent"
+    },
+    {
+      "id": "f3",
+      "type": "table",
+      "label": "Business type",
+      "page": null,
+      "rect": null,
+      "source": {
+        "paths": [
+          "employment_history"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [
+        {
+          "page": 1,
+          "rect": [
+            153.1,
+            201.1,
+            536.5,
+            227.2
+          ],
+          "row_top": 201.1,
+          "row_height": 26.099999999999994,
+          "max_rows": 1,
+          "columns": [
+            {
+              "key": "business_type",
+              "x": [
+                153.1,
+                536.5
+              ],
+              "transforms": [],
+              "wrap": null,
+              "fields": [
+                "w1_2"
+              ]
+            }
+          ]
+        },
+        {
+          "page": 1,
+          "rect": [
+            153.1,
+            469.7,
+            536.5,
+            495.6
+          ],
+          "row_top": 469.7,
+          "row_height": 25.900000000000034,
+          "max_rows": 1,
+          "columns": [
+            {
+              "key": "business_type",
+              "x": [
+                153.1,
+                536.5
+              ],
+              "transforms": [],
+              "wrap": null,
+              "fields": [
+                "w1_12"
+              ]
+            }
+          ]
+        }
+      ],
+      "confidence": null,
+      "origin": "agent"
+    },
+    {
+      "id": "f4",
+      "type": "table",
+      "label": "Start date",
+      "page": null,
+      "rect": null,
+      "source": {
+        "paths": [
+          "employment_history"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [
+        {
+          "page": 1,
+          "rect": [
+            171.5,
+            228.0,
+            538.4,
+            253.9
+          ],
+          "row_top": 228.0,
+          "row_height": 25.900000000000006,
+          "max_rows": 1,
+          "columns": [
+            {
+              "key": "start_date",
+              "x": [
+                171.5,
+                538.4
+              ],
+              "transforms": [
+                {
+                  "op": "date_format",
+                  "args": {
+                    "format": "%m/%d/%Y"
+                  }
+                }
+              ],
+              "wrap": null,
+              "fields": [
+                "w1_3"
+              ]
+            }
+          ]
+        },
+        {
+          "page": 1,
+          "rect": [
+            171.5,
+            496.4,
+            538.4,
+            522.5
+          ],
+          "row_top": 496.4,
+          "row_height": 26.100000000000023,
+          "max_rows": 1,
+          "columns": [
+            {
+              "key": "start_date",
+              "x": [
+                171.5,
+                538.4
+              ],
+              "transforms": [
+                {
+                  "op": "date_format",
+                  "args": {
+                    "format": "%m/%d/%Y"
+                  }
+                }
+              ],
+              "wrap": null,
+              "fields": [
+                "w1_13"
+              ]
+            }
+          ]
+        }
+      ],
+      "confidence": null,
+      "origin": "agent"
+    },
+    {
+      "id": "f5",
+      "type": "table",
+      "label": "Supervisor",
+      "page": null,
+      "rect": null,
+      "source": {
+        "paths": [
+          "employment_history"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [
+        {
+          "page": 1,
+          "rect": [
+            252.7,
+            254.8,
+            537.6,
+            280.8
+          ],
+          "row_top": 254.8,
+          "row_height": 26.0,
+          "max_rows": 1,
+          "columns": [
+            {
+              "key": "supervisor",
+              "x": [
+                252.7,
+                537.6
+              ],
+              "transforms": [],
+              "wrap": null,
+              "fields": [
+                "w1_4"
+              ]
+            }
+          ]
+        },
+        {
+          "page": 1,
+          "rect": [
+            252.7,
+            523.3,
+            537.6,
+            549.4
+          ],
+          "row_top": 523.3,
+          "row_height": 26.100000000000023,
+          "max_rows": 1,
+          "columns": [
+            {
+              "key": "supervisor",
+              "x": [
+                252.7,
+                537.6
+              ],
+              "transforms": [],
+              "wrap": null,
+              "fields": [
+                "w1_14"
+              ]
+            }
+          ]
+        }
+      ],
+      "confidence": null,
+      "origin": "agent"
+    },
+    {
+      "id": "f6",
+      "type": "table",
+      "label": "Reason for leaving",
+      "page": null,
+      "rect": null,
+      "source": {
+        "paths": [
+          "employment_history"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [
+        {
+          "page": 1,
+          "rect": [
+            165.8,
+            308.5,
+            538.3,
+            334.6
+          ],
+          "row_top": 308.5,
+          "row_height": 26.100000000000023,
+          "max_rows": 1,
+          "columns": [
+            {
+              "key": "reason_for_leaving",
+              "x": [
+                165.8,
+                538.3
+              ],
+              "transforms": [],
+              "wrap": null,
+              "fields": [
+                "w1_7"
+              ]
+            }
+          ]
+        },
+        {
+          "page": 1,
+          "rect": [
+            165.8,
+            577.1,
+            538.3,
+            603.1
+          ],
+          "row_top": 577.1,
+          "row_height": 26.0,
+          "max_rows": 1,
+          "columns": [
+            {
+              "key": "reason_for_leaving",
+              "x": [
+                165.8,
+                538.3
+              ],
+              "transforms": [],
+              "wrap": null,
+              "fields": [
+                "w1_17"
+              ]
+            }
+          ]
+        }
+      ],
+      "confidence": null,
+      "origin": "agent"
+    },
+    {
+      "id": "f7",
+      "type": "table",
+      "label": "Position title",
+      "page": null,
+      "rect": null,
+      "source": {
+        "paths": [
+          "employment_history"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [
+        {
+          "page": 1,
+          "rect": [
+            137.3,
+            335.4,
+            537.1,
+            361.3
+          ],
+          "row_top": 335.4,
+          "row_height": 25.900000000000034,
+          "max_rows": 1,
+          "columns": [
+            {
+              "key": "position_title",
+              "x": [
+                137.3,
+                537.1
+              ],
+              "transforms": [],
+              "wrap": null,
+              "fields": [
+                "w1_8"
+              ]
+            }
+          ]
+        },
+        {
+          "page": 1,
+          "rect": [
+            137.3,
+            604.0,
+            537.1,
+            629.9
+          ],
+          "row_top": 604.0,
+          "row_height": 25.899999999999977,
+          "max_rows": 1,
+          "columns": [
+            {
+              "key": "position_title",
+              "x": [
+                137.3,
+                537.1
+              ],
+              "transforms": [],
+              "wrap": null,
+              "fields": [
+                "w1_18"
+              ]
+            }
+          ]
+        }
+      ],
+      "confidence": null,
+      "origin": "agent"
+    },
+    {
+      "id": "f8",
+      "type": "table",
+      "label": "Duties",
+      "page": null,
+      "rect": null,
+      "source": {
+        "paths": [
+          "employment_history"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [
+        {
+          "page": 1,
+          "rect": [
+            168.8,
+            362.2,
+            535.8,
+            388.2
+          ],
+          "row_top": 362.2,
+          "row_height": 26.0,
+          "max_rows": 1,
+          "columns": [
+            {
+              "key": "duties",
+              "x": [
+                168.8,
+                535.8
+              ],
+              "transforms": [],
+              "wrap": null,
+              "fields": [
+                "w1_9"
+              ]
+            }
+          ]
+        },
+        {
+          "page": 1,
+          "rect": [
+            168.8,
+            630.7,
+            535.8,
+            656.8
+          ],
+          "row_top": 630.7,
+          "row_height": 26.09999999999991,
+          "max_rows": 1,
+          "columns": [
+            {
+              "key": "duties",
+              "x": [
+                168.8,
+                535.8
+              ],
+              "transforms": [],
+              "wrap": null,
+              "fields": [
+                "w1_19"
+              ]
+            }
+          ]
+        }
+      ],
+      "confidence": null,
+      "origin": "agent"
+    },
+    {
+      "id": "f9",
+      "type": "table",
+      "label": "Final salary",
+      "page": null,
+      "rect": null,
+      "source": {
+        "paths": [
+          "employment_history"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [
+        {
+          "page": 1,
+          "rect": [
+            137.9,
+            281.6,
+            284.3,
+            307.7
+          ],
+          "row_top": 281.6,
+          "row_height": 26.099999999999966,
+          "max_rows": 1,
+          "columns": [
+            {
+              "key": "final_salary",
+              "x": [
+                137.9,
+                187.2
+              ],
+              "transforms": [
+                {
+                  "op": "number_format",
+                  "args": {
+                    "decimals": 2
+                  }
+                }
+              ],
+              "wrap": null,
+              "fields": [
+                "w1_5"
+              ]
+            },
+            {
+              "key": "final_salary_period",
+              "x": [
+                207.5,
+                284.3
+              ],
+              "transforms": [],
+              "wrap": null,
+              "fields": [
+                "w1_6"
+              ]
+            }
+          ]
+        },
+        {
+          "page": 1,
+          "rect": [
+            137.9,
+            550.2,
+            284.3,
+            576.2
+          ],
+          "row_top": 550.2,
+          "row_height": 26.0,
+          "max_rows": 1,
+          "columns": [
+            {
+              "key": "final_salary",
+              "x": [
+                137.9,
+                187.2
+              ],
+              "transforms": [
+                {
+                  "op": "number_format",
+                  "args": {
+                    "decimals": 2
+                  }
+                }
+              ],
+              "wrap": null,
+              "fields": [
+                "w1_15"
+              ]
+            },
+            {
+              "key": "final_salary_period",
+              "x": [
+                207.5,
+                284.3
+              ],
+              "transforms": [],
+              "wrap": null,
+              "fields": [
+                "w1_16"
+              ]
+            }
+          ]
+        }
+      ],
+      "confidence": null,
+      "origin": "agent"
+    }
+  ],
+  "history": [
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_0",
+        "label": "Date"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.536486+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w0_0",
+        "type": "text"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.538519+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_0",
+        "source": {
+          "paths": [
+            "application_date"
+          ],
+          "transforms": [
+            {
+              "op": "date_format",
+              "args": {
+                "format": "%m/%d/%Y"
+              }
+            }
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.540725+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_1",
+        "label": "Position Applied For"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.542612+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w0_1",
+        "type": "text"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.544322+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_1",
+        "source": {
+          "paths": [
+            "position_applied_for"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.545935+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_2",
+        "label": "Name (first middle last)"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.547494+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w0_2",
+        "type": "text"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.549102+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_2",
+        "source": {
+          "paths": [
+            "applicant.first_name",
+            "applicant.middle_name",
+            "applicant.last_name"
+          ],
+          "transforms": [],
+          "join": " "
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.550724+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_3",
+        "label": "Home Address"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.552398+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w0_3",
+        "type": "text"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.554171+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_3",
+        "source": {
+          "paths": [
+            "applicant.address.street",
+            "applicant.address.city",
+            "applicant.address.state",
+            "applicant.address.postal_code"
+          ],
+          "transforms": [],
+          "join": ", "
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.555672+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_4",
+        "label": "Phone #"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.557114+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w0_4",
+        "type": "text"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.558577+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_4",
+        "source": {
+          "paths": [
+            "applicant.phone"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.560062+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_5",
+        "label": "Email"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.561523+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w0_5",
+        "type": "text"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.563020+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_5",
+        "source": {
+          "paths": [
+            "applicant.email"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.564367+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_6",
+        "label": "Born US citizen: Yes"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.565654+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w0_6",
+        "type": "checkbox"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.566974+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_6",
+        "source": {
+          "paths": [
+            "applicant.us_born_citizen"
+          ],
+          "transforms": [
+            {
+              "op": "bool_to_check",
+              "args": {}
+            }
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.568367+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_7",
+        "label": "Born US citizen: No"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.569867+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w0_7",
+        "type": "checkbox"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.571282+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_7",
+        "source": {
+          "paths": [
+            "applicant.us_born_citizen"
+          ],
+          "transforms": [
+            {
+              "op": "bool_to_check",
+              "args": {}
+            }
+          ],
+          "when": {
+            "op": "equals",
+            "args": {
+              "value": false
+            }
+          }
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.572764+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_8",
+        "label": "Previously applied: Yes"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.574266+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w0_8",
+        "type": "checkbox"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.575608+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_8",
+        "source": {
+          "paths": [
+            "previous_application.applied_before"
+          ],
+          "transforms": [
+            {
+              "op": "bool_to_check",
+              "args": {}
+            }
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.576885+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_9",
+        "label": "Previously applied: No"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.578134+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w0_9",
+        "type": "checkbox"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.579402+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_9",
+        "source": {
+          "paths": [
+            "previous_application.applied_before"
+          ],
+          "transforms": [
+            {
+              "op": "bool_to_check",
+              "args": {}
+            }
+          ],
+          "when": {
+            "op": "equals",
+            "args": {
+              "value": false
+            }
+          }
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.580731+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_10",
+        "label": "If yes: position applied for"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.582009+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w0_10",
+        "type": "text"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.583279+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_10",
+        "source": {
+          "paths": [
+            "previous_application.position"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.584475+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_11",
+        "label": "School name & location"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.585730+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w0_11",
+        "type": "text"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.586951+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_11",
+        "source": {
+          "paths": [
+            "education.school_name",
+            "education.school_city",
+            "education.school_state"
+          ],
+          "transforms": [],
+          "join": ", "
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.588174+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_12",
+        "label": "Degree or diploma"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.589475+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w0_12",
+        "type": "text"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.590702+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_12",
+        "source": {
+          "paths": [
+            "education.credential"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.591854+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_13",
+        "label": "Certifications"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.592978+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w0_13",
+        "type": "text"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.594111+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_13",
+        "source": {
+          "paths": [
+            "certifications"
+          ],
+          "transforms": [
+            {
+              "op": "join",
+              "args": {
+                "sep": ", "
+              }
+            }
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.595305+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_14",
+        "label": "Certifications (line 2)"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.596541+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w0_14",
+        "type": "text"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.597722+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_15",
+        "label": "Certifications (line 3)"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.598876+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w0_15",
+        "type": "text"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.599964+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_16",
+        "label": "Valid driver license: Yes"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.601041+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w0_16",
+        "type": "checkbox"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.602132+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_16",
+        "source": {
+          "paths": [
+            "drivers_license.valid"
+          ],
+          "transforms": [
+            {
+              "op": "bool_to_check",
+              "args": {}
+            }
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.603402+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_17",
+        "label": "Valid driver license: No"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.605069+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w0_17",
+        "type": "checkbox"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.606246+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_17",
+        "source": {
+          "paths": [
+            "drivers_license.valid"
+          ],
+          "transforms": [
+            {
+              "op": "bool_to_check",
+              "args": {}
+            }
+          ],
+          "when": {
+            "op": "equals",
+            "args": {
+              "value": false
+            }
+          }
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.607412+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_18",
+        "label": "Driver license state"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.608534+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w0_18",
+        "type": "text"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.609663+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_18",
+        "source": {
+          "paths": [
+            "drivers_license.state"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.610802+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_19",
+        "label": "Valid CDL: Yes"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.611927+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w0_19",
+        "type": "checkbox"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.613077+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_19",
+        "source": {
+          "paths": [
+            "commercial_drivers_license.valid"
+          ],
+          "transforms": [
+            {
+              "op": "bool_to_check",
+              "args": {}
+            }
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.614241+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_20",
+        "label": "Valid CDL: No"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.615392+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w0_20",
+        "type": "checkbox"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.616555+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_20",
+        "source": {
+          "paths": [
+            "commercial_drivers_license.valid"
+          ],
+          "transforms": [
+            {
+              "op": "bool_to_check",
+              "args": {}
+            }
+          ],
+          "when": {
+            "op": "equals",
+            "args": {
+              "value": false
+            }
+          }
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.617673+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_21",
+        "label": "CDL state"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.618828+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w0_21",
+        "type": "text"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.620053+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_21",
+        "source": {
+          "paths": [
+            "commercial_drivers_license.state"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.621211+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w2_0",
+        "label": "Contact present employer: Yes"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.622343+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w2_0",
+        "type": "radio_option"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.623473+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w2_0",
+        "source": {
+          "paths": [
+            "may_contact_current_employer"
+          ],
+          "transforms": [
+            {
+              "op": "bool_to_check",
+              "args": {}
+            }
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.624627+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w2_1",
+        "label": "Contact present employer: No"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.625765+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w2_1",
+        "type": "radio_option"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.626918+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w2_1",
+        "source": {
+          "paths": [
+            "may_contact_current_employer"
+          ],
+          "transforms": [
+            {
+              "op": "bool_to_check",
+              "args": {}
+            }
+          ],
+          "when": {
+            "op": "equals",
+            "args": {
+              "value": false
+            }
+          }
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.628115+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w2_2",
+        "label": "Temporary employment: Yes"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.629285+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w2_2",
+        "type": "radio_option"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.630455+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w2_2",
+        "source": {
+          "paths": [
+            "accepts_temporary_employment"
+          ],
+          "transforms": [
+            {
+              "op": "bool_to_check",
+              "args": {}
+            }
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.631604+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w2_3",
+        "label": "Temporary employment: No"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.632796+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w2_3",
+        "type": "radio_option"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.633956+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w2_3",
+        "source": {
+          "paths": [
+            "accepts_temporary_employment"
+          ],
+          "transforms": [
+            {
+              "op": "bool_to_check",
+              "args": {}
+            }
+          ],
+          "when": {
+            "op": "equals",
+            "args": {
+              "value": false
+            }
+          }
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.635141+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w2_4",
+        "label": "Criminal record: No"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.636440+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w2_4",
+        "type": "checkbox"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.637768+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w2_4",
+        "source": {
+          "paths": [
+            "criminal_history.has_record"
+          ],
+          "transforms": [
+            {
+              "op": "bool_to_check",
+              "args": {}
+            }
+          ],
+          "when": {
+            "op": "equals",
+            "args": {
+              "value": false
+            }
+          }
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.639021+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w2_5",
+        "label": "Criminal record: Yes"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.640202+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w2_5",
+        "type": "checkbox"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.641395+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w2_5",
+        "source": {
+          "paths": [
+            "criminal_history.has_record"
+          ],
+          "transforms": [
+            {
+              "op": "bool_to_check",
+              "args": {}
+            }
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.642607+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w2_6",
+        "label": "Crime County"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.643809+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w2_6",
+        "type": "text"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.645002+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w2_6",
+        "source": {
+          "paths": [
+            "criminal_history.county"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.646203+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w2_7",
+        "label": "Crime State"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.647428+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w2_7",
+        "type": "text"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.648632+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w2_7",
+        "source": {
+          "paths": [
+            "criminal_history.state"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.649860+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w2_8",
+        "label": "Crime Date"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.651064+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w2_8",
+        "type": "text"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.652410+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w2_8",
+        "source": {
+          "paths": [
+            "criminal_history.date"
+          ],
+          "transforms": [
+            {
+              "op": "date_format",
+              "args": {
+                "format": "%m/%d/%Y"
+              }
+            }
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.653758+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w2_9",
+        "label": "Court"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.654998+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w2_9",
+        "type": "text"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.656254+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w2_9",
+        "source": {
+          "paths": [
+            "criminal_history.court"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.657513+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w2_10",
+        "label": "Offense"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.658771+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w2_10",
+        "type": "text"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.660030+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w2_10",
+        "source": {
+          "paths": [
+            "criminal_history.offense"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.661301+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w2_11",
+        "label": "Disposition"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.662606+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w2_11",
+        "type": "text"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.663886+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w2_11",
+        "source": {
+          "paths": [
+            "criminal_history.disposition"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.665172+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w2_13",
+        "label": "Date signed"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.666454+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "w2_13",
+        "type": "text"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.667746+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w2_13",
+        "source": {
+          "paths": [
+            "signed_on"
+          ],
+          "transforms": [
+            {
+              "op": "date_format",
+              "args": {
+                "format": "%m/%d/%Y"
+              }
+            }
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:10:51.669142+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "add_table",
+        "id": "f1",
+        "label": "Employer",
+        "source_path": "employment_history",
+        "segments": [
+          {
+            "page": 1,
+            "rect": [
+              151.0,
+              147.4,
+              539.8,
+              173.4
+            ],
+            "row_top": 147.4,
+            "row_height": 26.0,
+            "max_rows": 1,
+            "columns": [
+              {
+                "key": "employer",
+                "x": [
+                  151.0,
+                  539.8
+                ],
+                "transforms": [],
+                "fields": [
+                  "w1_0"
+                ]
+              }
+            ]
+          },
+          {
+            "page": 1,
+            "rect": [
+              151.0,
+              415.9,
+              539.8,
+              442.0
+            ],
+            "row_top": 415.9,
+            "row_height": 26.100000000000023,
+            "max_rows": 1,
+            "columns": [
+              {
+                "key": "employer",
+                "x": [
+                  151.0,
+                  539.8
+                ],
+                "transforms": [],
+                "fields": [
+                  "w1_10"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:11:32.558451+00:00",
+      "note": "step 6"
+    },
+    {
+      "op": {
+        "op": "add_table",
+        "id": "f2",
+        "label": "Address",
+        "source_path": "employment_history",
+        "segments": [
+          {
+            "page": 1,
+            "rect": [
+              160.0,
+              174.2,
+              537.8,
+              200.3
+            ],
+            "row_top": 174.2,
+            "row_height": 26.100000000000023,
+            "max_rows": 1,
+            "columns": [
+              {
+                "key": "address",
+                "x": [
+                  160.0,
+                  537.8
+                ],
+                "transforms": [],
+                "fields": [
+                  "w1_1"
+                ]
+              }
+            ]
+          },
+          {
+            "page": 1,
+            "rect": [
+              160.0,
+              442.8,
+              537.8,
+              468.8
+            ],
+            "row_top": 442.8,
+            "row_height": 26.0,
+            "max_rows": 1,
+            "columns": [
+              {
+                "key": "address",
+                "x": [
+                  160.0,
+                  537.8
+                ],
+                "transforms": [],
+                "fields": [
+                  "w1_11"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:11:32.562273+00:00",
+      "note": "step 6"
+    },
+    {
+      "op": {
+        "op": "add_table",
+        "id": "f3",
+        "label": "Business type",
+        "source_path": "employment_history",
+        "segments": [
+          {
+            "page": 1,
+            "rect": [
+              153.1,
+              201.1,
+              536.5,
+              227.2
+            ],
+            "row_top": 201.1,
+            "row_height": 26.099999999999994,
+            "max_rows": 1,
+            "columns": [
+              {
+                "key": "business_type",
+                "x": [
+                  153.1,
+                  536.5
+                ],
+                "transforms": [],
+                "fields": [
+                  "w1_2"
+                ]
+              }
+            ]
+          },
+          {
+            "page": 1,
+            "rect": [
+              153.1,
+              469.7,
+              536.5,
+              495.6
+            ],
+            "row_top": 469.7,
+            "row_height": 25.900000000000034,
+            "max_rows": 1,
+            "columns": [
+              {
+                "key": "business_type",
+                "x": [
+                  153.1,
+                  536.5
+                ],
+                "transforms": [],
+                "fields": [
+                  "w1_12"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:11:32.565780+00:00",
+      "note": "step 6"
+    },
+    {
+      "op": {
+        "op": "add_table",
+        "id": "f4",
+        "label": "Start date",
+        "source_path": "employment_history",
+        "segments": [
+          {
+            "page": 1,
+            "rect": [
+              171.5,
+              228.0,
+              538.4,
+              253.9
+            ],
+            "row_top": 228.0,
+            "row_height": 25.900000000000006,
+            "max_rows": 1,
+            "columns": [
+              {
+                "key": "start_date",
+                "x": [
+                  171.5,
+                  538.4
+                ],
+                "transforms": [
+                  {
+                    "op": "date_format",
+                    "args": {
+                      "format": "%m/%d/%Y"
+                    }
+                  }
+                ],
+                "fields": [
+                  "w1_3"
+                ]
+              }
+            ]
+          },
+          {
+            "page": 1,
+            "rect": [
+              171.5,
+              496.4,
+              538.4,
+              522.5
+            ],
+            "row_top": 496.4,
+            "row_height": 26.100000000000023,
+            "max_rows": 1,
+            "columns": [
+              {
+                "key": "start_date",
+                "x": [
+                  171.5,
+                  538.4
+                ],
+                "transforms": [
+                  {
+                    "op": "date_format",
+                    "args": {
+                      "format": "%m/%d/%Y"
+                    }
+                  }
+                ],
+                "fields": [
+                  "w1_13"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:11:32.569252+00:00",
+      "note": "step 6"
+    },
+    {
+      "op": {
+        "op": "add_table",
+        "id": "f5",
+        "label": "Supervisor",
+        "source_path": "employment_history",
+        "segments": [
+          {
+            "page": 1,
+            "rect": [
+              252.7,
+              254.8,
+              537.6,
+              280.8
+            ],
+            "row_top": 254.8,
+            "row_height": 26.0,
+            "max_rows": 1,
+            "columns": [
+              {
+                "key": "supervisor",
+                "x": [
+                  252.7,
+                  537.6
+                ],
+                "transforms": [],
+                "fields": [
+                  "w1_4"
+                ]
+              }
+            ]
+          },
+          {
+            "page": 1,
+            "rect": [
+              252.7,
+              523.3,
+              537.6,
+              549.4
+            ],
+            "row_top": 523.3,
+            "row_height": 26.100000000000023,
+            "max_rows": 1,
+            "columns": [
+              {
+                "key": "supervisor",
+                "x": [
+                  252.7,
+                  537.6
+                ],
+                "transforms": [],
+                "fields": [
+                  "w1_14"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:11:32.573563+00:00",
+      "note": "step 6"
+    },
+    {
+      "op": {
+        "op": "add_table",
+        "id": "f6",
+        "label": "Reason for leaving",
+        "source_path": "employment_history",
+        "segments": [
+          {
+            "page": 1,
+            "rect": [
+              165.8,
+              308.5,
+              538.3,
+              334.6
+            ],
+            "row_top": 308.5,
+            "row_height": 26.100000000000023,
+            "max_rows": 1,
+            "columns": [
+              {
+                "key": "reason_for_leaving",
+                "x": [
+                  165.8,
+                  538.3
+                ],
+                "transforms": [],
+                "fields": [
+                  "w1_7"
+                ]
+              }
+            ]
+          },
+          {
+            "page": 1,
+            "rect": [
+              165.8,
+              577.1,
+              538.3,
+              603.1
+            ],
+            "row_top": 577.1,
+            "row_height": 26.0,
+            "max_rows": 1,
+            "columns": [
+              {
+                "key": "reason_for_leaving",
+                "x": [
+                  165.8,
+                  538.3
+                ],
+                "transforms": [],
+                "fields": [
+                  "w1_17"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:11:32.576717+00:00",
+      "note": "step 6"
+    },
+    {
+      "op": {
+        "op": "add_table",
+        "id": "f7",
+        "label": "Position title",
+        "source_path": "employment_history",
+        "segments": [
+          {
+            "page": 1,
+            "rect": [
+              137.3,
+              335.4,
+              537.1,
+              361.3
+            ],
+            "row_top": 335.4,
+            "row_height": 25.900000000000034,
+            "max_rows": 1,
+            "columns": [
+              {
+                "key": "position_title",
+                "x": [
+                  137.3,
+                  537.1
+                ],
+                "transforms": [],
+                "fields": [
+                  "w1_8"
+                ]
+              }
+            ]
+          },
+          {
+            "page": 1,
+            "rect": [
+              137.3,
+              604.0,
+              537.1,
+              629.9
+            ],
+            "row_top": 604.0,
+            "row_height": 25.899999999999977,
+            "max_rows": 1,
+            "columns": [
+              {
+                "key": "position_title",
+                "x": [
+                  137.3,
+                  537.1
+                ],
+                "transforms": [],
+                "fields": [
+                  "w1_18"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:11:32.579901+00:00",
+      "note": "step 6"
+    },
+    {
+      "op": {
+        "op": "add_table",
+        "id": "f8",
+        "label": "Duties",
+        "source_path": "employment_history",
+        "segments": [
+          {
+            "page": 1,
+            "rect": [
+              168.8,
+              362.2,
+              535.8,
+              388.2
+            ],
+            "row_top": 362.2,
+            "row_height": 26.0,
+            "max_rows": 1,
+            "columns": [
+              {
+                "key": "duties",
+                "x": [
+                  168.8,
+                  535.8
+                ],
+                "transforms": [],
+                "fields": [
+                  "w1_9"
+                ]
+              }
+            ]
+          },
+          {
+            "page": 1,
+            "rect": [
+              168.8,
+              630.7,
+              535.8,
+              656.8
+            ],
+            "row_top": 630.7,
+            "row_height": 26.09999999999991,
+            "max_rows": 1,
+            "columns": [
+              {
+                "key": "duties",
+                "x": [
+                  168.8,
+                  535.8
+                ],
+                "transforms": [],
+                "fields": [
+                  "w1_19"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:11:32.583151+00:00",
+      "note": "step 6"
+    },
+    {
+      "op": {
+        "op": "add_table",
+        "id": "f9",
+        "label": "Final salary",
+        "source_path": "employment_history",
+        "segments": [
+          {
+            "page": 1,
+            "rect": [
+              137.9,
+              281.6,
+              284.3,
+              307.7
+            ],
+            "row_top": 281.6,
+            "row_height": 26.099999999999966,
+            "max_rows": 1,
+            "columns": [
+              {
+                "key": "final_salary",
+                "x": [
+                  137.9,
+                  187.2
+                ],
+                "transforms": [
+                  {
+                    "op": "number_format",
+                    "args": {
+                      "decimals": 2
+                    }
+                  }
+                ],
+                "fields": [
+                  "w1_5"
+                ]
+              },
+              {
+                "key": "final_salary_period",
+                "x": [
+                  207.5,
+                  284.3
+                ],
+                "fields": [
+                  "w1_6"
+                ]
+              }
+            ]
+          },
+          {
+            "page": 1,
+            "rect": [
+              137.9,
+              550.2,
+              284.3,
+              576.2
+            ],
+            "row_top": 550.2,
+            "row_height": 26.0,
+            "max_rows": 1,
+            "columns": [
+              {
+                "key": "final_salary",
+                "x": [
+                  137.9,
+                  187.2
+                ],
+                "transforms": [
+                  {
+                    "op": "number_format",
+                    "args": {
+                      "decimals": 2
+                    }
+                  }
+                ],
+                "fields": [
+                  "w1_15"
+                ]
+              },
+              {
+                "key": "final_salary_period",
+                "x": [
+                  207.5,
+                  284.3
+                ],
+                "fields": [
+                  "w1_16"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:11:32.586309+00:00",
+      "note": "step 6"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_10",
+        "source": {
+          "paths": [
+            "previous_application.position",
+            "previous_application.applied_on"
+          ],
+          "transforms": [],
+          "join": ", "
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:11:49.219822+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "w0_10",
+        "label": "If yes: position and date applied"
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:11:49.225534+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "w0_13",
+        "source": {
+          "paths": [
+            "certifications"
+          ],
+          "transforms": [
+            {
+              "op": "join",
+              "args": {
+                "sep": ", "
+              }
+            }
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T21:11:49.230191+00:00",
+      "note": "step 8"
+    }
+  ]
+}

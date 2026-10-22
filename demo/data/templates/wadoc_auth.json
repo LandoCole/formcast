@@ -1,0 +1,1590 @@
+{
+  "formcast_version": "1",
+  "template_id": "391e617ef50d42578ef7b9cac77e5aa0",
+  "schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.org/schemas/release-authorization.json",
+    "title": "Release of information authorization",
+    "description": "A person's authorization for one organization to release their records to another.",
+    "type": "object",
+    "properties": {
+      "individual": {
+        "type": "object",
+        "description": "The person whose records are released.",
+        "properties": {
+          "first_name": {
+            "type": "string"
+          },
+          "middle_name": {
+            "type": "string"
+          },
+          "last_name": {
+            "type": "string"
+          },
+          "date_of_birth": {
+            "type": "string",
+            "format": "date"
+          },
+          "doc_number": {
+            "type": "string",
+            "description": "Department of Corrections offender number."
+          }
+        },
+        "required": [
+          "first_name",
+          "last_name"
+        ]
+      },
+      "releasing_organization": {
+        "$ref": "#/$defs/organization",
+        "description": "Organization that holds the records."
+      },
+      "recipient_organization": {
+        "$ref": "#/$defs/organization",
+        "description": "Organization the records are released to."
+      },
+      "information_requested": {
+        "type": "string",
+        "description": "Which records may be disclosed."
+      },
+      "purpose": {
+        "type": "string",
+        "description": "How the released information will be used."
+      },
+      "signed_on": {
+        "type": "string",
+        "format": "date",
+        "description": "Date the individual signed."
+      },
+      "witness": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "signed_on": {
+            "type": "string",
+            "format": "date"
+          }
+        }
+      },
+      "expires_on": {
+        "type": "string",
+        "format": "date",
+        "description": "Authorization end date (90 days after signing)."
+      }
+    },
+    "required": [
+      "individual",
+      "releasing_organization",
+      "recipient_organization"
+    ],
+    "$defs": {
+      "organization": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "address": {
+            "$ref": "#/$defs/address"
+          },
+          "phone": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "address": {
+        "type": "object",
+        "properties": {
+          "street": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string",
+            "description": "Two-letter state code."
+          },
+          "postal_code": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "form": {
+    "fingerprint": "a76c9ca2b8d35f92",
+    "page_count": 1,
+    "page_sizes": [
+      [
+        612.0,
+        792.0
+      ]
+    ],
+    "kinds": [
+      "digital"
+    ],
+    "signature": {
+      "ink": [
+        "000000001c0000003f003ffe3f800ffe0000fffc3ffffffc000000003f7ffffc3ffffffc2ffdbffc3f0000003f0000003f7ffffc3ffffffc3ffdfffc3ff80000000000003ffffffc3ffffffc3ffffffc3ffffffc000000003ffe00003ffffffc3ffffffc3ffffffc3ffffffc3ffffffc00000000000000003803c0c0000000003ffbfefc0000000003ffffc03ffffffc3fffffe0000000000000000000000000000000003f838ffc0000000000000000"
+      ],
+      "text": [
+        [
+          8468158,
+          3511399,
+          77494000,
+          7519665,
+          75906220,
+          55140624,
+          53301988,
+          25845978,
+          2225541,
+          57610177,
+          33588242,
+          10529657,
+          126038308,
+          8198798,
+          22172442,
+          36028704,
+          62098693,
+          46572061,
+          26466443,
+          73354575,
+          2220252,
+          9778929,
+          27537815,
+          32111436,
+          49340505,
+          2256524,
+          23609879,
+          26718956,
+          62525121,
+          17635857,
+          59736187,
+          15124275,
+          1252433,
+          41543111,
+          40859424,
+          116098742,
+          50834991,
+          17500210,
+          11191537,
+          39140387,
+          57178359,
+          15178823,
+          9778133,
+          22122413,
+          18541009,
+          33067385,
+          7873461,
+          25457259,
+          156897474,
+          23049900,
+          19353663,
+          36197266,
+          38333215,
+          7155797,
+          45034612,
+          243655758,
+          89976385,
+          6847854,
+          16374858,
+          20128312,
+          14275979,
+          3544728,
+          504171,
+          20876044
+        ]
+      ],
+      "version": 1
+    }
+  },
+  "fields": [
+    {
+      "id": "c0_0",
+      "type": "text",
+      "label": "Individual full name",
+      "page": 0,
+      "rect": [
+        42.95070266723633,
+        77.60028076171875,
+        306.38775634765625,
+        94.28893280029297
+      ],
+      "source": {
+        "paths": [
+          "individual.first_name",
+          "individual.middle_name",
+          "individual.last_name"
+        ],
+        "transforms": [],
+        "join": " ",
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.8737093806266785,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_1",
+      "type": "text",
+      "label": "Releasing organization name",
+      "page": 0,
+      "rect": [
+        157.47108459472656,
+        117.95977020263672,
+        576.3543701171875,
+        135.5177764892578
+      ],
+      "source": {
+        "paths": [
+          "releasing_organization.name"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.892423152923584,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_2",
+      "type": "text",
+      "label": "Releasing street",
+      "page": 0,
+      "rect": [
+        85.74469757080078,
+        137.46908569335938,
+        576.5485229492188,
+        155.37820434570312
+      ],
+      "source": {
+        "paths": [
+          "releasing_organization.address.street"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.8347800374031067,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_3",
+      "type": "text",
+      "label": "Releasing city",
+      "page": 0,
+      "rect": [
+        63.19471740722656,
+        157.17816162109375,
+        278.9625244140625,
+        175.11767578125
+      ],
+      "source": {
+        "paths": [
+          "releasing_organization.address.city"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.8862334489822388,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_4",
+      "type": "text",
+      "label": "Releasing state",
+      "page": 0,
+      "rect": [
+        328.611083984375,
+        159.23219299316406,
+        477.66650390625,
+        175.23562622070312
+      ],
+      "source": {
+        "paths": [
+          "releasing_organization.address.state"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.8725106716156006,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_5",
+      "type": "text",
+      "label": "Releasing zip",
+      "page": 0,
+      "rect": [
+        513.4327392578125,
+        159.43988037109375,
+        576.5488891601562,
+        175.21408081054688
+      ],
+      "source": {
+        "paths": [
+          "releasing_organization.address.postal_code"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.867538332939148,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_6",
+      "type": "text",
+      "label": "Recipient organization name",
+      "page": 0,
+      "rect": [
+        157.72869873046875,
+        205.86962890625,
+        576.352294921875,
+        222.46478271484375
+      ],
+      "source": {
+        "paths": [
+          "recipient_organization.name"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.87814861536026,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_7",
+      "type": "text",
+      "label": "Recipient street",
+      "page": 0,
+      "rect": [
+        85.94625091552734,
+        225.63674926757812,
+        576.3973388671875,
+        242.33566284179688
+      ],
+      "source": {
+        "paths": [
+          "recipient_organization.address.street"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.8587216734886169,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_8",
+      "type": "text",
+      "label": "Recipient city",
+      "page": 0,
+      "rect": [
+        62.87733459472656,
+        246.5824432373047,
+        279.4902648925781,
+        262.4342346191406
+      ],
+      "source": {
+        "paths": [
+          "recipient_organization.address.city"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.8914138078689575,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_9",
+      "type": "text",
+      "label": "Recipient state",
+      "page": 0,
+      "rect": [
+        328.4931335449219,
+        246.7999267578125,
+        477.52398681640625,
+        262.41796875
+      ],
+      "source": {
+        "paths": [
+          "recipient_organization.address.state"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.8713432550430298,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_10",
+      "type": "text",
+      "label": "Recipient zip",
+      "page": 0,
+      "rect": [
+        513.130126953125,
+        246.4654541015625,
+        576.6098022460938,
+        262.38916015625
+      ],
+      "source": {
+        "paths": [
+          "recipient_organization.address.postal_code"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.8773494362831116,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_11",
+      "type": "text",
+      "label": "Information to disclose",
+      "page": 0,
+      "rect": [
+        36.32558059692383,
+        293.12677001953125,
+        576.5938110351562,
+        309.3180847167969
+      ],
+      "source": {
+        "paths": [
+          "information_requested"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.8323652744293213,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_12",
+      "type": "text",
+      "label": "Information continued",
+      "page": 0,
+      "rect": [
+        36.732154846191406,
+        310.7297668457031,
+        576.5746459960938,
+        326.4269714355469
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.8635920286178589,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_13",
+      "type": "text",
+      "label": "Information continued",
+      "page": 0,
+      "rect": [
+        36.49949264526367,
+        327.4829406738281,
+        576.4978637695312,
+        343.1510009765625
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.8789392113685608,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_14",
+      "type": "text",
+      "label": "Information continued",
+      "page": 0,
+      "rect": [
+        35.776878356933594,
+        343.9462890625,
+        576.4414672851562,
+        359.6844177246094
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.8742856383323669,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_15",
+      "type": "text",
+      "label": "Information continued",
+      "page": 0,
+      "rect": [
+        36.568138122558594,
+        361.0830383300781,
+        576.5673828125,
+        376.9413757324219
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.8822005987167358,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_16",
+      "type": "text",
+      "label": "Purpose",
+      "page": 0,
+      "rect": [
+        36.53940963745117,
+        411.7620849609375,
+        576.47998046875,
+        427.8141174316406
+      ],
+      "source": {
+        "paths": [
+          "purpose"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.8753712177276611,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_17",
+      "type": "text",
+      "label": "Purpose continued",
+      "page": 0,
+      "rect": [
+        36.52830123901367,
+        429.0934753417969,
+        576.6201171875,
+        444.7739562988281
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.8830151557922363,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_18",
+      "type": "text",
+      "label": "Purpose continued",
+      "page": 0,
+      "rect": [
+        35.792476654052734,
+        445.3099060058594,
+        576.87841796875,
+        461.2298889160156
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.8554560542106628,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_19",
+      "type": "text",
+      "label": "Purpose continued",
+      "page": 0,
+      "rect": [
+        36.501976013183594,
+        462.5646667480469,
+        576.4512329101562,
+        478.35748291015625
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.8520787358283997,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_20",
+      "type": "text",
+      "label": "Purpose continued",
+      "page": 0,
+      "rect": [
+        36.63335037231445,
+        479.5175476074219,
+        576.481689453125,
+        495.2041320800781
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.850838840007782,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_21",
+      "type": "signature",
+      "label": "Individual signature",
+      "page": 0,
+      "rect": [
+        36.01588439941406,
+        523.4675903320312,
+        252.20899963378906,
+        539.6621704101562
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.7756128311157227,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_22",
+      "type": "text",
+      "label": "Date of birth",
+      "page": 0,
+      "rect": [
+        270.135986328125,
+        523.3688354492188,
+        450.3074035644531,
+        539.6909790039062
+      ],
+      "source": {
+        "paths": [
+          "individual.date_of_birth"
+        ],
+        "transforms": [
+          {
+            "op": "date_format",
+            "args": {
+              "format": "%m/%d/%Y"
+            }
+          }
+        ],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.6893177032470703,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_23",
+      "type": "text",
+      "label": "Date signed",
+      "page": 0,
+      "rect": [
+        468.2235412597656,
+        523.5244750976562,
+        576.6083374023438,
+        539.6820678710938
+      ],
+      "source": {
+        "paths": [
+          "signed_on"
+        ],
+        "transforms": [
+          {
+            "op": "date_format",
+            "args": {
+              "format": "%m/%d/%Y"
+            }
+          }
+        ],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.8400735855102539,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_24",
+      "type": "text",
+      "label": "Witness name",
+      "page": 0,
+      "rect": [
+        36.073524475097656,
+        564.8338012695312,
+        252.22222900390625,
+        581.1594848632812
+      ],
+      "source": {
+        "paths": [
+          "witness.name"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.8063825368881226,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_25",
+      "type": "signature",
+      "label": "Witness signature",
+      "page": 0,
+      "rect": [
+        270.1440734863281,
+        564.6962890625,
+        450.4533996582031,
+        580.931884765625
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.5951899886131287,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_26",
+      "type": "text",
+      "label": "Witness date",
+      "page": 0,
+      "rect": [
+        468.2635192871094,
+        564.9169311523438,
+        576.5224609375,
+        581.1422119140625
+      ],
+      "source": {
+        "paths": [
+          "witness.signed_on"
+        ],
+        "transforms": [
+          {
+            "op": "date_format",
+            "args": {
+              "format": "%m/%d/%Y"
+            }
+          }
+        ],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.8001548051834106,
+      "origin": "detector"
+    }
+  ],
+  "history": [
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_0",
+        "label": "Individual full name"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:53:57.601803+00:00",
+      "note": "step 4"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_0",
+        "source": {
+          "paths": [
+            "individual.first_name",
+            "individual.middle_name",
+            "individual.last_name"
+          ],
+          "transforms": [],
+          "join": " "
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.442943+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_1",
+        "label": "Releasing organization name"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.444319+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_1",
+        "source": {
+          "paths": [
+            "releasing_organization.name"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.445418+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_2",
+        "label": "Releasing street"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.446416+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_2",
+        "source": {
+          "paths": [
+            "releasing_organization.address.street"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.447462+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_3",
+        "label": "Releasing city"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.448490+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_3",
+        "source": {
+          "paths": [
+            "releasing_organization.address.city"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.449561+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_4",
+        "label": "Releasing state"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.450606+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_4",
+        "source": {
+          "paths": [
+            "releasing_organization.address.state"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.451724+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_5",
+        "label": "Releasing zip"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.452808+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_5",
+        "source": {
+          "paths": [
+            "releasing_organization.address.postal_code"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.453962+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_6",
+        "label": "Recipient organization name"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.454971+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_6",
+        "source": {
+          "paths": [
+            "recipient_organization.name"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.455949+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_7",
+        "label": "Recipient street"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.456908+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_7",
+        "source": {
+          "paths": [
+            "recipient_organization.address.street"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.457915+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_8",
+        "label": "Recipient city"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.458909+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_8",
+        "source": {
+          "paths": [
+            "recipient_organization.address.city"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.459952+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_9",
+        "label": "Recipient state"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.460988+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_9",
+        "source": {
+          "paths": [
+            "recipient_organization.address.state"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.462072+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_10",
+        "label": "Recipient zip"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.463122+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_10",
+        "source": {
+          "paths": [
+            "recipient_organization.address.postal_code"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.464214+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_11",
+        "label": "Information to disclose"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.465343+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_11",
+        "source": {
+          "paths": [
+            "information_requested"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.466315+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_16",
+        "label": "Purpose"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.467264+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_16",
+        "source": {
+          "paths": [
+            "purpose"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.468261+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_22",
+        "label": "Date of birth"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.469253+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_22",
+        "source": {
+          "paths": [
+            "individual.date_of_birth"
+          ],
+          "transforms": [
+            {
+              "op": "date_format",
+              "args": {
+                "format": "%m/%d/%Y"
+              }
+            }
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.470521+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_23",
+        "label": "Date signed"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.471557+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_23",
+        "source": {
+          "paths": [
+            "signed_on"
+          ],
+          "transforms": [
+            {
+              "op": "date_format",
+              "args": {
+                "format": "%m/%d/%Y"
+              }
+            }
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.472662+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_24",
+        "label": "Witness name"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.473718+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_24",
+        "source": {
+          "paths": [
+            "witness.name"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.474813+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_26",
+        "label": "Witness date"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.475901+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_26",
+        "source": {
+          "paths": [
+            "witness.signed_on"
+          ],
+          "transforms": [
+            {
+              "op": "date_format",
+              "args": {
+                "format": "%m/%d/%Y"
+              }
+            }
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.476958+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_21",
+        "label": "Signature"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.477936+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_25",
+        "label": "Witness signature"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.478912+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_12",
+        "label": "Information continued"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.479896+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_13",
+        "label": "Information continued"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.480881+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_14",
+        "label": "Information continued"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.481873+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_15",
+        "label": "Information continued"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.482879+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_17",
+        "label": "Purpose continued"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.483886+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_18",
+        "label": "Purpose continued"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.484901+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_19",
+        "label": "Purpose continued"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.485924+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_20",
+        "label": "Purpose continued"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:19.486878+00:00",
+      "note": "step 8"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "c0_21",
+        "type": "signature"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:27.724873+00:00",
+      "note": "step 10"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "c0_25",
+        "type": "signature"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:27.727244+00:00",
+      "note": "step 10"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_21",
+        "label": "Individual signature"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:27.729058+00:00",
+      "note": "step 10"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_25",
+        "label": "Witness signature"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:54:27.730805+00:00",
+      "note": "step 10"
+    }
+  ]
+}
