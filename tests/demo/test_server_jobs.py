@@ -467,18 +467,20 @@ def test_a_third_concurrent_job_is_429_busy_and_a_finished_job_frees_its_slot(st
                                                       [gates[1], finish("b", [{"path": "name", "reason": "t"}])],
                                                       [finish("c", [{"path": "name", "reason": "t"}])]))
     doc = open_doc(base)
-    first = start(base, kind="build", doc=doc, schema=SCHEMA)
-    second = start(base, kind="build", doc=doc, schema=SCHEMA)
+    running = [start(base, kind="build", doc=doc, schema=SCHEMA) for _ in range(2)]
     for gate in gates:
         assert gate.reached.wait(10)
     status, body = post(base, "/api/jobs", {"kind": "build", "doc": doc, "schema": SCHEMA})
     assert status == 429 and body["error"] == "busy" and "wait" in body["detail"]
+    # Each job thread takes its script when it starts, so either job may be the one gates[0] holds.
     gates[0].release()
-    assert wait_ended(base, first)["status"] == "done"
+    ended = wait_for(lambda: [i for i in running if job(base, i)["status"] != "running"], what="a job to end")
+    assert len(ended) == 1 and job(base, ended[0])["status"] == "done"
     third = start(base, kind="build", doc=doc, schema=SCHEMA)  # a slot is free again
     assert wait_ended(base, third)["status"] == "done"
     gates[1].release()
-    assert wait_ended(base, second)["status"] == "done"
+    (still_running,) = set(running) - set(ended)
+    assert wait_ended(base, still_running)["status"] == "done"
 
 
 def test_finished_jobs_are_kept_up_to_a_limit_and_the_oldest_are_forgotten(start_demo_server):
