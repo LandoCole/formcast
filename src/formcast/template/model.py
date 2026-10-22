@@ -144,7 +144,7 @@ def linked_cells(template: Template) -> dict[str, tuple[str, int, int, str]]:
 
 
 class FormInfo(BaseModel):
-    fingerprint: str
+    fingerprint: str | None  # None for templates made outside the library (browser demo); see rebind
     page_count: int
     page_sizes: list[tuple[float, float]]
     kinds: list[str]
