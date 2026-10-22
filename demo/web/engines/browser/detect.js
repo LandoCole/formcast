@@ -5,11 +5,16 @@
 import { makeView, toPage, viewSize } from "../../core/geometry.js";
 import { DETECT_DPI, MODELS } from "./ffdnet.js";
 
-/** Time limits in milliseconds. */
+/**
+ * Time limits in milliseconds. Loading fails when this long passes with no progress from the worker
+ * (each download progress message restarts the clock, so a slow but working download goes on);
+ * detecting a page, render included, fails when it takes longer than its limit.
+ */
 export const LOAD_TIMEOUT_MS = 120_000;
 export const DETECT_TIMEOUT_MS = 60_000;
 
 const WORKER_FAILED = "The detection worker stopped unexpectedly. Try again.";
+const RENDER_FAILED = "This page could not be rendered for detection.";
 
 /**
  * @typedef {[number, number, number, number]} Rect
@@ -53,16 +58,17 @@ export class Detector {
 
   /**
    * Download (or take from the cache) and start the model. Safe to call again; later calls wait for
-   * the first.
+   * the first. Fails when `loadTimeoutMs` passes without any progress from the worker.
    * @param {(loaded: number, total: number) => void} [onProgress] download progress in bytes
    * @returns {Promise<void>}
    */
   load(onProgress) {
     if (this.loading === null) {
       const { url, bytes } = MODELS[this.model];
-      const late = `The detection model did not finish loading within ${this.loadTimeoutMs / 1000} seconds. ` +
+      const late = `The detection model stopped loading: nothing arrived for ${this.loadTimeoutMs / 1000} seconds. ` +
         "Check the connection and try again.";
-      this.loading = this.request({ type: "load", url, bytes }, [], this.loadTimeoutMs, late, onProgress)
+      const limit = { ms: this.loadTimeoutMs, idle: true, message: late };
+      this.loading = this.request({ type: "load", url, bytes }, [], limit, onProgress)
         .then((res) => {
           this.provider = res.provider;
         })
@@ -75,7 +81,8 @@ export class Detector {
   }
 
   /**
-   * Field candidates on one page, in PDF points (unrotated crop-box space, origin top-left).
+   * Field candidates on one page, in PDF points (unrotated crop-box space, origin top-left). After the
+   * model is loaded, rendering and detection together must finish within `detectTimeoutMs`.
    * @param {{pages: {width: number, height: number, rotation: number}[],
    *   render(index: number, canvas: any, scale: number): Promise<void>}} doc a BrowserDoc
    * @param {number} pageIndex
@@ -86,12 +93,11 @@ export class Detector {
     if (page === undefined) throw new RangeError(`no page ${pageIndex}`);
     await this.load();
     const started = performance.now();
-    const canvas = newCanvas();
-    await doc.render(pageIndex, canvas, DETECT_DPI / 72);
-    const { width, height } = canvas;
-    const pixels = canvas.getContext("2d").getImageData(0, 0, width, height).data;
+    const late = `Detection did not finish within ${this.detectTimeoutMs / 1000} seconds on this page.`;
+    const { pixels, width, height } = await this.renderPage(doc, pageIndex, this.detectTimeoutMs, late);
+    const left = Math.max(0, this.detectTimeoutMs - (performance.now() - started));
     const res = await this.request({ type: "detect", rgba: pixels.buffer, width, height }, [pixels.buffer],
-      this.detectTimeoutMs, `Detection did not finish within ${this.detectTimeoutMs / 1000} seconds on this page.`);
+      { ms: left, idle: false, message: late });
     this.provider = res.provider;
     this.totalMs += performance.now() - started;
     this.pages += 1;
@@ -114,6 +120,28 @@ export class Detector {
 
   // -- internals
 
+  /** The page's RGBA pixels at the detection resolution, within `ms` (a plain error otherwise). */
+  async renderPage(doc, pageIndex, ms, late) {
+    const rendered = (async () => {
+      const canvas = newCanvas();
+      await doc.render(pageIndex, canvas, DETECT_DPI / 72);
+      const { width, height } = canvas;
+      return { pixels: canvas.getContext("2d").getImageData(0, 0, width, height).data, width, height };
+    })().catch((e) => {
+      throw new Error(RENDER_FAILED, { cause: e });
+    });
+    rendered.catch(() => {}); // settled late after a timeout: nobody is waiting any more
+    let timer;
+    const expired = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(late)), ms);
+    });
+    try {
+      return await Promise.race([rendered, expired]);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   startWorker() {
     const worker = new Worker(this.workerUrl, { type: "module" });
     worker.onmessage = (event) => {
@@ -121,6 +149,7 @@ export class Detector {
       const req = this.pending.get(msg.id);
       if (req === undefined) return;
       if (msg.type === "progress") {
+        if (req.limit.idle) req.arm(); // progress restarts an inactivity limit
         req.onProgress?.(msg.loaded, msg.total);
         return;
       }
@@ -135,15 +164,22 @@ export class Detector {
     this.worker = worker;
   }
 
-  request(body, transfer, timeoutMs, timeoutMessage, onProgress) {
+  /**
+   * Post a request to the worker. `limit.ms` is a deadline from now, or with `limit.idle` the longest
+   * wait between messages; when it passes the worker is stopped (a stuck worker can't be interrupted,
+   * so the next request starts clean) and the request fails with `limit.message`.
+   */
+  request(body, transfer, limit, onProgress) {
     if (this.worker === null) this.startWorker();
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        // a stuck worker cannot be interrupted: stop it, so the next request starts clean
-        this.stop(new Error(timeoutMessage));
-      }, timeoutMs);
-      this.pending.set(id, { resolve, reject, timer, onProgress });
+      const req = { resolve, reject, timer: null, limit, onProgress };
+      req.arm = () => {
+        clearTimeout(req.timer);
+        req.timer = setTimeout(() => this.stop(new Error(limit.message)), limit.ms);
+      };
+      req.arm();
+      this.pending.set(id, req);
       this.worker.postMessage({ id, ...body }, transfer);
     });
   }

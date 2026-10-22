@@ -94,15 +94,24 @@ const COMMANDS = {
     const { tensor, letterbox: lb } = letterbox(fromBase64(rgba), width, height, size);
     return { tensor: toBase64(new Uint8Array(tensor.buffer)), letterbox: lb };
   },
-  // a detector whose worker never answers: the load and detect time limits
-  async timeout({ loadTimeoutMs }) {
-    const d = new Detector({ workerUrl: new URL("./silent-worker.js", location.href), loadTimeoutMs });
+  // a detector on a stub worker (silent-worker.js, or stub-worker.js?mode=...) with short limits:
+  // load it and, with `render` ("hang", "throw" or "blank"), detect on a fake one-page document
+  async detector({ worker, loadTimeoutMs, detectTimeoutMs, render }) {
+    const d = new Detector({ workerUrl: new URL(worker, location.href), loadTimeoutMs, detectTimeoutMs });
+    const renders = {
+      hang: () => new Promise(() => {}),
+      throw: async () => { throw new Error("standard font fetch failed"); },
+      blank: async (index, canvas) => { canvas.width = 10; canvas.height = 10; },
+    };
+    const doc = { pages: [{ width: 100, height: 100, rotation: 0 }], render: renders[render] };
     const started = performance.now();
     try {
       await d.load();
-      return { error: null };
+      if (render === undefined) return { error: null };
+      const detections = await d.detect(doc, 0);
+      return { error: null, detections, ms: performance.now() - started };
     } catch (e) {
-      return { error: e.message, ms: performance.now() - started, workerStopped: d.worker === null };
+      return { error: e.message, cause: e.cause?.message ?? null, ms: performance.now() - started, workerStopped: d.worker === null };
     } finally {
       d.dispose();
     }

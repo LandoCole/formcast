@@ -229,12 +229,40 @@ def test_letterbox_matches_the_library_exactly(harness, size, shape):
     assert np.array_equal(js, py)
 
 
-def test_detector_load_time_limit_rejects_with_a_plain_message(harness):
-    out = harness({"op": "timeout", "loadTimeoutMs": 300})
-    assert out["error"] == ("The detection model did not finish loading within 0.3 seconds. "
-                            "Check the connection and try again.")  # fmt: skip
-    assert out["ms"] >= 290
+LOAD_LATE = "The detection model stopped loading: nothing arrived for 0.3 seconds. Check the connection and try again."
+DETECT_LATE = "Detection did not finish within 0.3 seconds on this page."
+
+
+def test_detector_load_limit_rejects_a_silent_worker_with_a_plain_message(harness):
+    out = harness({"op": "detector", "worker": "silent-worker.js", "loadTimeoutMs": 300})
+    assert out["error"] == LOAD_LATE
+    assert 290 <= out["ms"] < 1500
     assert out["workerStopped"] is True
+
+
+def test_detector_load_limit_counts_from_the_last_progress(harness):
+    """Progress at 0 and 200 ms, then silence: a 300 ms inactivity limit fails at about 500 ms."""
+    out = harness({"op": "detector", "worker": "stub-worker.js?mode=trickle", "loadTimeoutMs": 300})
+    assert out["error"] == LOAD_LATE
+    assert out["ms"] >= 480
+    assert out["workerStopped"] is True
+
+
+def test_detect_limit_covers_a_render_that_never_finishes(harness):
+    out = harness({"op": "detector", "worker": "stub-worker.js?mode=ok", "detectTimeoutMs": 300, "render": "hang"})
+    assert out["error"] == DETECT_LATE
+    assert 290 <= out["ms"] < 1500
+
+
+def test_detect_reports_a_failed_render_plainly(harness):
+    out = harness({"op": "detector", "worker": "stub-worker.js?mode=ok", "detectTimeoutMs": 300, "render": "throw"})
+    assert out["error"] == "This page could not be rendered for detection."
+    assert out["cause"] == "standard font fetch failed"
+
+
+def test_detect_after_a_quick_render_uses_the_rest_of_the_limit(harness):
+    out = harness({"op": "detector", "worker": "stub-worker.js?mode=ok", "detectTimeoutMs": 300, "render": "blank"})
+    assert out == {"error": None, "detections": [], "ms": out["ms"]}
 
 
 # ------------------------------------------------------------------ parity (slow: downloads FFDNet-S)
