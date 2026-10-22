@@ -2,10 +2,8 @@
  "run": "2026-10-21_defer-placement",
  "model_label": "Haiku 5.5",
  "form": "i9",
- "split": "dev",
- "kind": "fillable",
  "variant": "as_published",
- "model_env": "ANTHROPIC_EVAL",
+ "model": "claude-haiku-5-5",
  "detection": {
   "iou0.3": {
    "gt": 130,
@@ -38,34 +36,6 @@
    }
   }
  },
- "baseline": {
-  "detector": "FFDNet-L",
-  "pages": [
-   0,
-   2,
-   3
-  ],
-  "iou0.3": {
-   "gt": 130,
-   "pred": 129,
-   "matched": 124,
-   "pred_matched": 124,
-   "type_ok": 115,
-   "recall": 0.9538,
-   "precision": 0.9612,
-   "type_acc": 0.9274
-  },
-  "iou0.5": {
-   "gt": 130,
-   "pred": 129,
-   "matched": 123,
-   "pred_matched": 123,
-   "type_ok": 114,
-   "recall": 0.9462,
-   "precision": 0.9535,
-   "type_acc": 0.9268
-  }
- },
  "mapping": {
   "n_path": 114,
   "n_transform": 42,
@@ -80,40 +50,6 @@
   "joint_acc": 0.886,
   "exact_path_set_acc": 1.0
  },
- "formmap_s": 2.5,
- "page_kinds": [
-  "fillable",
-  "digital",
-  "fillable",
-  "fillable"
- ],
- "text_sources": [
-  "pdf",
-  "pdf",
-  "pdf",
-  "pdf"
- ],
- "candidates": 0,
- "model": "claude-haiku-5-5",
- "steps": 12,
- "input_tokens": 323768,
- "output_tokens": 29646,
- "wall_s": 144.3,
- "stop_reason": "finish",
- "finished": true,
- "error": null,
- "unplaceable": 2,
- "fields": 138,
- "fields_with_source": 52,
- "schema_mapped": 65,
- "schema_mappable": 67,
- "template_path": "eval/results/templates/2026-10-21_defer-placement/anthropic_eval/i9_as_published.json",
- "scored_pages": [
-  0,
-  2,
-  3
- ],
- "log_path": "eval/results/logs/2026-10-21_defer-placement/anthropic_eval/i9_as_published.json",
  "fill": {
   "units": 441,
   "correct": 301,
@@ -133,5 +69,10 @@
   "static_choice": 0,
   "rows_dropped_ok": true,
   "fill_errors": []
- }
+ },
+ "steps": 12,
+ "input_tokens": 323768,
+ "output_tokens": 29646,
+ "wall_s": 144.3,
+ "finished": true
 }

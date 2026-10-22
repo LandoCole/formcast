@@ -69,18 +69,27 @@ def load(name: str):
 
 
 NUMBER = {"type": "number", "minimum": 0, "maximum": 1}
+TEXT = {"type": "string", "minLength": 1}
 DETECTION_ROW = {
     "type": "object",
-    "required": ["kind", "variant", "detector", "recall_50", "recall_30", "precision_30", "gt"],
+    "required": ["kind", "variant", "label", "detector", "recall_50", "recall_30", "precision_30", "gt"],
     "additionalProperties": False,
     "properties": {
-        "kind": {"type": "string"}, "variant": {"type": "string"}, "detector": {"type": "string"},
+        "kind": {"type": "string"}, "variant": {"type": "string"}, "label": TEXT, "detector": {"type": "string"},
         "recall_50": NUMBER, "recall_30": NUMBER, "precision_30": NUMBER, "gt": {"type": "integer", "minimum": 1},
+    },
+}  # fmt: skip
+LABELLED = {
+    "type": "object",
+    "additionalProperties": {
+        "type": "object", "required": ["label", "text"], "additionalProperties": False,
+        "properties": {"label": TEXT, "text": TEXT},
     },
 }  # fmt: skip
 RESULTS_SCHEMA = {
     "type": "object",
-    "required": ["generated_from", "detection", "browser_models", "agent_dev", "heldout_status", "caveats"],
+    "required": ["generated_from", "detection", "browser_models", "agent_dev", "heldout_status", "caveats",
+                 "groups", "detectors", "metrics", "notes"],
     "additionalProperties": False,
     "properties": {
         "generated_from": {"type": "array", "items": {"type": "string", "pattern": "^eval/results/"}, "minItems": 1},
@@ -96,10 +105,10 @@ RESULTS_SCHEMA = {
             "minItems": 1,
             "items": {
                 "type": "object",
-                "required": ["kind", "variant", "detector", "recall_50", "recall_30", "precision_30"],
+                "required": ["kind", "variant", "label", "detector", "recall_50", "recall_30", "precision_30"],
                 "additionalProperties": False,
                 "properties": {
-                    "kind": {"type": "string"}, "variant": {"type": "string"},
+                    "kind": {"type": "string"}, "variant": {"type": "string"}, "label": TEXT,
                     "detector": {"enum": ["FFDNet-L", "FFDNet-L-onnx", "FFDNet-S-onnx"]},
                     "recall_50": NUMBER, "recall_30": NUMBER, "precision_30": NUMBER,
                 },
@@ -110,11 +119,12 @@ RESULTS_SCHEMA = {
             "minItems": 1,
             "items": {
                 "type": "object",
-                "required": ["run", "model", "label", "group", "sessions", "recall_50", "precision_30", "path", "joint",
-                             "fill_acc", "steps", "input_tokens"],
+                "required": ["run", "model", "label", "detail", "headline", "sessions_of", "group", "sessions",
+                             "recall_50", "precision_30", "path", "joint", "fill_acc", "steps", "input_tokens"],
                 "additionalProperties": False,
                 "properties": {
-                    "run": {"type": "string"}, "model": {"type": "string"}, "label": {"type": "string"},
+                    "run": {"type": "string"}, "model": {"type": "string"}, "label": TEXT, "detail": TEXT,
+                    "headline": {"type": "boolean"}, "sessions_of": {"type": ["string", "null"]},
                     "group": {"enum": ["fillable", "digital", "scanned", "all"]},
                     "sessions": {"type": "integer", "minimum": 0},
                     "recall_50": NUMBER, "precision_30": NUMBER, "path": NUMBER, "joint": NUMBER,
@@ -125,12 +135,27 @@ RESULTS_SCHEMA = {
         },  # fmt: skip
         "heldout_status": {
             "type": "object",
-            "required": ["sessions_planned", "sessions_completed", "luna_heldout", "note"],
+            "required": ["sessions_planned", "sessions_completed", "luna_heldout", "note", "source"],
             "additionalProperties": False,
             "properties": {"sessions_planned": {"type": "integer"}, "sessions_completed": {"type": "integer"},
-                           "luna_heldout": {"type": "boolean"}, "note": {"type": "string", "minLength": 1}},
+                           "luna_heldout": {"type": "boolean"}, "note": TEXT, "source": TEXT},
         },  # fmt: skip
         "caveats": {"type": "array", "items": {"type": "string"}, "minItems": 2},
+        "groups": {**LABELLED, "required": ["fillable", "digital", "scanned", "all"]},
+        "detectors": {**LABELLED, "required": ["FFDNet-L", "FFDetr", "FFDNet-L-onnx", "FFDNet-S-onnx"]},
+        "metrics": {**LABELLED, "required": ["recall_50", "recall_30", "precision_30", "path", "joint", "fill_acc",
+                                             "steps", "input_tokens"]},
+        "notes": {
+            "type": "object",
+            "required": ["averaging", "errored_sessions", "seed", "heldout_scan", "partial_runs", "bare_detector",
+                         "browser_models"],
+            "additionalProperties": False,
+            "properties": {
+                "averaging": TEXT, "errored_sessions": TEXT, "seed": TEXT, "heldout_scan": TEXT,
+                "bare_detector": TEXT, "browser_models": TEXT,
+                "partial_runs": {"type": "array", "items": TEXT},
+            },
+        },
     },
 }  # fmt: skip
 
@@ -140,8 +165,10 @@ def results() -> dict:
     return bs.build_results()
 
 
-def agent_row(results: dict, run: str, group: str) -> dict:
-    return next(r for r in results["agent_dev"] if r["run"] == run and r["group"] == group)
+def agent_row(results: dict, run: str, group: str, sessions_of: str | None = None) -> dict:
+    return next(
+        r for r in results["agent_dev"] if r["run"] == run and r["group"] == group and r["sessions_of"] == sessions_of
+    )
 
 
 def test_results_match_the_shape(results):
@@ -201,10 +228,65 @@ def test_heldout_status_and_caveats(results):
     assert status["sessions_completed"] == 1
     assert status["luna_heldout"] is False
     assert "usage limit" in status["note"]
+    assert status["source"] == "docs/superpowers/specs/2026-10-20-form-projection-design.md, section 14.3"
+    assert (ROOT / status["source"].split(",")[0]).is_file()
     assert results["caveats"] == [
         "Dev results were tuned on over four Haiku rounds.",
         "Haiku varies about ±0.1 path per form between runs.",
     ]
+
+
+def test_only_the_headline_run_is_marked(results):
+    marked = {r["run"] for r in results["agent_dev"] if r["headline"]}
+    assert marked == {"2026-10-21_defer-placement"}
+    assert agent_row(results, "2026-10-21_defer-placement", "all")["detail"] == "current code"
+
+
+def test_the_partial_run_count_comes_from_the_data(results, monkeypatch):
+    rows = load("agent_openai_eval_dev_2026-10-21_round2.json")["rows"]
+    errored = sum(1 for r in rows if r.get("error"))
+    assert (len(rows), errored) == (24, 10)
+    row = agent_row(results, "2026-10-21_round2", "all")
+    assert row["detail"].endswith("14 of 24 sessions")
+    assert results["notes"]["partial_runs"] == [
+        "Luna 6, round 2 is partial: the OpenAI credits ran out after 14 of 24 sessions, and the 10 that "
+        "failed are left out. Compare it with round 1 on the same 14 sessions."
+    ]
+    # the count follows the file: one more errored row changes the label and the note
+    real_load = bs._load
+
+    def one_more_error(name):
+        data = real_load(name)
+        if name.endswith("_round2.json"):
+            first_ok = next(r for r in data["rows"] if not r.get("error"))
+            first_ok["error"] = "FormcastError: test"
+        return data
+
+    monkeypatch.setattr(bs, "_load", one_more_error)
+    changed = bs.build_results()
+    assert agent_row(changed, "2026-10-21_round2", "all")["detail"].endswith("13 of 24 sessions")
+    assert "after 13 of 24 sessions, and the 11 that failed" in changed["notes"]["partial_runs"][0]
+    assert agent_row(changed, "2026-10-21_round1", "all", sessions_of="2026-10-21_round2")["sessions"] == 13
+
+
+def test_round_one_on_the_round_two_sessions_matches_the_spec(results):
+    # main spec 14.3: "Luna round 1" on the 14 paired sessions
+    row = agent_row(results, "2026-10-21_round1", "all", sessions_of="2026-10-21_round2")
+    assert row["sessions"] == 14
+    assert row["detail"] == "round 1 on the same 14 sessions"
+    assert (round(row["recall_50"], 2), round(row["precision_30"], 2)) == (0.38, 0.81)
+    assert (round(row["path"], 2), round(row["joint"], 2), round(row["fill_acc"], 2)) == (0.55, 0.48, 0.50)
+    assert (row["steps"], round(row["input_tokens"] / 1000)) == (13.1, 233)
+
+
+def test_explanations_name_the_groups_and_the_exclusions(results):
+    groups = results["groups"]
+    assert "as published" in groups["fillable"]["text"] and "as published" in groups["digital"]["text"]
+    assert "fake-scan" in groups["scanned"]["text"]
+    assert "native scan" in results["notes"]["heldout_scan"]
+    assert "ended in an error" in results["notes"]["errored_sessions"]
+    labels = {r["label"] for r in results["detection"]["heldout"] if r["kind"] == "scanned"}
+    assert labels == {"Native scan"}
 
 
 def test_detection_tables_come_from_the_baseline_files(results):
@@ -279,12 +361,26 @@ def check_bundle(folder: Path, form_id: str) -> dict:
     jsonschema.validate(json.loads((folder / "record.json").read_text()), schema)
     assert schema == json.loads((ROOT / "forms" / "schemas" / f"{form_id}.json").read_text())
     scores = json.loads((folder / "agent-scores.json").read_text())
+    assert set(scores) == set(bs.AGENT_SCORE_KEYS)  # no local paths or harness fields
     assert scores["run"] == "2026-10-21_defer-placement"
     assert scores["form"] == form_id and scores["variant"] == "as_published"
     assert scores["model_label"] == "Haiku 5.5"
     for name in ("form.pdf", "published.pdf"):
         assert (folder / name).stat().st_size < 2 * 1024 * 1024, name
     return detections
+
+
+def test_agent_scores_keep_only_what_the_page_shows():
+    # detect.js scoresLine reads run, model_label, model, detection, mapping, fill and steps
+    assert bs.AGENT_SCORE_KEYS == (
+        "run", "model_label", "form", "variant", "model", "detection", "mapping", "fill",
+        "steps", "input_tokens", "output_tokens", "wall_s", "finished",
+    )  # fmt: skip
+    scores = bs.agent_scores("fw9")
+    assert list(scores) == list(bs.AGENT_SCORE_KEYS)
+    assert scores["mapping"]["path_acc"] == bs.agent_row("fw9")["mapping"]["path_acc"]
+    fixture = json.loads((ROOT / "tests" / "web" / "fixtures" / "sample-bundle" / "agent-scores.json").read_text())
+    assert set(fixture) == set(bs.AGENT_SCORE_KEYS)
 
 
 @pytest.mark.parametrize("form_id", bs.DEFAULT_FORMS)

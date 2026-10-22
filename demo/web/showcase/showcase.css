@@ -151,11 +151,65 @@ textarea:focus-visible { outline: 2px solid var(--ink); outline-offset: -1px; }
 
 #report { min-width: 0; overflow-x: auto; }
 
+/* ---------- write-up (as on the classifier and docrooter pages) ---------- */
+.body h3.sub { margin: 48px 0 24px; font-family: var(--mono); font-weight: 500; font-size: 11px; line-height: 24px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink); }
+.body > p + h3.sub, .body > div + h3.sub, .body > dl + h3.sub { margin-top: 48px; }
+.body b { font-weight: 500; }
+.list { margin: 0 0 24px; padding-left: 24px; max-width: 62ch; }
+.list li { line-height: 24px; }
+.body > .note, .body > div > .note, .body .defs { margin: 24px 0 0; font-size: 17px; line-height: 24px; color: var(--graphite); max-width: 62ch; }
+.body > .note b, .body > div > .note b { color: var(--ink); }
+.note.sources { font-family: var(--mono); font-size: 11px; overflow-wrap: anywhere; }
+.defs { display: grid; grid-template-columns: minmax(0, max-content) minmax(0, 1fr); gap: 12px 24px; }
+.defs dt { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink); white-space: nowrap; }
+.defs dd { margin: 0; }
+.heldout-line { margin: 0; line-height: 24px; }
+
+.diagram { margin: 0 0 24px; width: round(down, 100%, 24px); }
+.diagram svg { display: block; width: 100%; height: auto; overflow: visible; }
+.diagram .tall { display: none; }
+.diagram .bx { fill: var(--paper); stroke: var(--ink); stroke-width: 1; }
+.diagram .bx.you { fill: none; stroke: var(--graphite); stroke-dasharray: 4 3; }
+.diagram .ln { fill: none; stroke: var(--ink); stroke-width: 1; }
+.diagram .ln.you { stroke: var(--graphite); stroke-dasharray: 4 3; }
+.diagram .ah { fill: var(--ink); }
+.diagram .t { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; fill: var(--ink); }
+.diagram .s { font-family: var(--mono); font-size: 10px; letter-spacing: .04em; fill: var(--graphite); }
+.diagram .bl circle { fill: var(--paper); stroke: var(--ink); stroke-width: 1; }
+.diagram .bl text { font-family: var(--mono); font-size: 10px; fill: var(--ink); text-anchor: middle; dominant-baseline: central; }
+.diagram figcaption { font-family: var(--mono); font-size: 11px; line-height: 24px; padding-block: 12px; letter-spacing: .04em; color: var(--graphite); }
+
+.tablebox { overflow-x: auto; width: round(down, 100%, 24px); }
+.tablebox + .tablebox { margin-top: 48px; }
+.tablebox table { width: 100%; min-width: 480px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+#agent-table table { min-width: 648px; }
+.tablebox thead th + th { width: 64px; }
+.tablebox caption { text-align: left; font-family: var(--mono); font-size: 11px; letter-spacing: .06em; color: var(--graphite); line-height: 24px; padding-bottom: 12px; }
+.tablebox th, .tablebox td { padding: 12px 0 12px 12px; line-height: 24px; text-align: right; vertical-align: top; box-shadow: inset 0 -0.5px 0 0 var(--rule); white-space: nowrap; }
+.tablebox thead th { padding-top: 0; font-family: var(--mono); font-weight: 400; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--graphite); vertical-align: bottom; white-space: normal; }
+.tablebox th:first-child, .tablebox td:first-child { text-align: left; padding-left: 0; }
+.tablebox td { font-family: var(--mono); font-size: 13px; color: var(--ink); }
+.tablebox tbody th { font-family: var(--serif); font-weight: 400; font-size: 18px; color: var(--ink); white-space: normal; min-width: 168px; }
+.tablebox tbody th .k { display: block; font-family: var(--mono); font-size: 10px; line-height: 24px; letter-spacing: .08em; text-transform: uppercase; color: var(--graphite); }
+.tablebox tr.grp th { padding: 24px 0 0; font-family: var(--mono); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink); box-shadow: inset 0 -1px 0 0 var(--ink); }
+.tablebox tbody:first-of-type tr.grp th { padding-top: 0; }
+.tablebox tr.pick th, .tablebox tr.pick td { font-weight: 500; }
+.tablebox tr.pick th { font-style: italic; }
+
+.foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0 24px; padding-block: 24px; line-height: 24px; box-shadow: var(--line-top); font-family: var(--mono); font-size: 11px; letter-spacing: .08em; color: var(--graphite); }
+.foot a { color: inherit; }
+
 @media (max-width: 960px) {
   .tool { grid-template-columns: minmax(0, 1fr) 320px; gap: 24px 32px; }
 }
 @media (max-width: 760px) {
   .sec { grid-template-columns: minmax(0, 1fr); }
+  .diagram .wide { display: none; }
+  .diagram .tall { display: block; }
+  .defs { grid-template-columns: minmax(0, 1fr); }
+  .defs { gap: 0; }
+  .tablebox tbody th { position: sticky; left: 0; background: var(--paper); }  /* names stay put while the figures scroll */
+  .defs dd + dt { margin-top: 12px; }
   .sec > .label { margin-bottom: 24px; }
   .tool { grid-template-columns: minmax(0, 1fr); }
   .fig { position: static; }

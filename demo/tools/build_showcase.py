@@ -14,7 +14,7 @@ A bundle is the folder the page's Detect step reads:
     record.json          a clearly fictional record for the schema (demo/tools/sample_records/)
     published.pdf        the form as published, fields kept
     agent-template.json  the AI agent's archived template for that file (run ``defer-placement``)
-    agent-scores.json    that session's row from the run's results json
+    agent-scores.json    that session's scores from the run's results json (AGENT_SCORE_KEYS only)
 
 ``results`` writes ``demo/web/showcase/results.json`` from the committed files in ``eval/results/``,
 so every number on the page traces to a file there.
@@ -62,6 +62,13 @@ AGENT_RUN = "2026-10-21_defer-placement"
 AGENT_RESULTS = RESULTS_DIR / f"agent_anthropic_eval_dev_{AGENT_RUN}.json"
 AGENT_TEMPLATES = RESULTS_DIR / "templates.tar.gz"
 AGENT_MODEL_LABEL = "Haiku 5.5"
+# What a bundle keeps of the session's results row: what the page shows (detect.js scoresLine reads
+# run, model_label, model, detection, mapping, fill and steps) and the session's cost. Local paths
+# and harness fields stay out.
+AGENT_SCORE_KEYS = (
+    "run", "model_label", "form", "variant", "model", "detection", "mapping", "fill",
+    "steps", "input_tokens", "output_tokens", "wall_s", "finished",
+)  # fmt: skip
 
 # ---------------------------------------------------------------- bundles
 
@@ -167,9 +174,11 @@ def agent_row(form_id: str, results_path: Path = AGENT_RESULTS) -> dict:
 
 
 def agent_scores(form_id: str, results_path: Path = AGENT_RESULTS) -> dict:
-    """agent-scores.json: the session's row plus the run name and the model's label."""
+    """agent-scores.json: the session's row plus the run name and the model's label, cut to
+    ``AGENT_SCORE_KEYS`` (in that order)."""
     meta = json.loads(results_path.read_text(encoding="utf-8"))["meta"]
-    return {"run": meta["run"], "model_label": AGENT_MODEL_LABEL, **agent_row(form_id, results_path)}
+    full = {"run": meta["run"], "model_label": AGENT_MODEL_LABEL, **agent_row(form_id, results_path)}
+    return {k: full[k] for k in AGENT_SCORE_KEYS}
 
 
 def archived_template(form_id: str, run: str = AGENT_RUN) -> bytes:
@@ -283,19 +292,118 @@ BASELINE_DEV = "baseline_detection_2026-10-21.json"
 BASELINE_HELDOUT = "baseline_detection_2026-10-21_heldout.json"
 BASELINE_ONNX = "baseline_detection_2026-10-21_onnx.json"
 
-# (run, label) in table order: the seed floor, the current code, the best earlier mapping, Luna 6.
+# (results file, label, detail, headline) in table order: the seed floor, the current code, the
+# best earlier mapping, Luna 6. A run with sessions that ended in an error gets "; N of M sessions"
+# appended to its detail, counted from the file.
 AGENT_RUNS = (
-    ("agent_seed_dev_2026-10-21_seed-fill.json", "Seeded template, no agent"),
-    (AGENT_RESULTS.name, "Haiku 5.5, current code (defer-placement)"),
-    ("agent_anthropic_eval_dev_2026-10-21_round3-gen.json", "Haiku 5.5, round3-gen"),
-    ("agent_openai_eval_dev_2026-10-21_round1.json", "Luna 6, round 1 (earlier code)"),
-    ("agent_openai_eval_dev_2026-10-21_round2.json", "Luna 6, round 2 (partial, 14 of 24 sessions)"),
-)
+    ("agent_seed_dev_2026-10-21_seed-fill.json", "Seeded template", "no agent", False),
+    (AGENT_RESULTS.name, AGENT_MODEL_LABEL, "current code", True),
+    ("agent_anthropic_eval_dev_2026-10-21_round3-gen.json", AGENT_MODEL_LABEL, "round3-gen, earlier code, best mapping so far", False),
+    ("agent_openai_eval_dev_2026-10-21_round1.json", "Luna 6", "round 1, earlier code", False),
+    ("agent_openai_eval_dev_2026-10-21_round2.json", "Luna 6", "round 2, earlier code", False),
+)  # fmt: skip
+# Runs cut short, from main spec 14.3: why, and which earlier run is re-scored on the same sessions
+# (the fair comparison). Counts are not stated here; they come from the files.
+PARTIAL_RUNS = {
+    "agent_openai_eval_dev_2026-10-21_round2.json": {
+        "name": "Luna 6, round 2",
+        "reason": "the OpenAI credits ran out",
+        "compare": ("agent_openai_eval_dev_2026-10-21_round1.json", "Luna 6", "round 1"),
+    },
+}
 GROUPS = ("fillable", "digital", "scanned", "all")
 
-# main spec §14.3, "Read this first": 1 of 9 Haiku sessions finished; stated, not recomputed, because
+# The words the page shows next to the numbers (main spec 14.3, "How to read the tables").
+GROUP_TEXT = {
+    "fillable": {
+        "label": "Fillable",
+        "text": (
+            "Fillable forms as published. The template starts from the form's own fields, and those "
+            "fields are the answer key, so the seeded template finds every box by construction."
+        ),
+    },
+    "digital": {"label": "Flat digital", "text": "Flat digital forms as published: printed lines and boxes, no form fields."},
+    "scanned": {
+        "label": "Scanned",
+        "text": (
+            "The fake-scan variants of the same forms: each page turned into a degraded image with no "
+            "text layer and no form fields."
+        ),
+    },
+    "all": {"label": "All sessions", "text": "Every session of the run, each form as published and as a fake scan."},
+}  # fmt: skip
+DETECTION_LABELS = {
+    ("fillable", "as_published"): "Fillable, as published",
+    ("fillable", "fake_scan"): "Fillable, fake scan",
+    ("flat", "as_published"): "Flat digital, as published",
+    ("flat", "fake_scan"): "Flat digital, fake scan",
+    ("scanned", "as_published"): "Native scan",
+}
+DETECTOR_TEXT = {
+    "FFDNet-L": {
+        "label": "FFDNet-L, as the library runs it",
+        "text": "PyTorch, with test-time augmentation. The library's detector for digital pages.",
+    },
+    "FFDetr": {"label": "FFDetr", "text": "The library's detector for scanned pages."},
+    "FFDNet-L-onnx": {"label": "FFDNet-L in the browser", "text": "The published ONNX export, one pass."},
+    "FFDNet-S-onnx": {
+        "label": "FFDNet-S in the browser",
+        "text": "The published ONNX export, one pass. This page's default.",
+    },
+}  # fmt: skip
+METRIC_TEXT = {
+    "recall_50": {
+        "label": "Recall @ .5",
+        "text": (
+            "Share of the answer key's boxes that a template box covers closely: intersection over "
+            "union of at least 0.5."
+        ),
+    },
+    "recall_30": {"label": "Recall @ .3", "text": "The same, with a looser overlap of at least 0.3."},
+    "precision_30": {
+        "label": "Precision @ .3",
+        "text": "Share of the template's boxes that sit on a real box (overlap of at least 0.3).",
+    },
+    "path": {
+        "label": "Path",
+        "text": "Share of the boxes that take data whose template box is linked to the right schema path.",
+    },
+    "joint": {
+        "label": "Joint",
+        "text": "The path and its transforms both right (a date format, a slice of a string, a tick for true).",
+    },
+    "fill_acc": {
+        "label": "Fill",
+        "text": (
+            "The template fills test records into the PDF, and each box is checked for the right value. "
+            "Table cells count once per row and record, so tables weigh more here than in path."
+        ),
+    },
+    "steps": {"label": "Steps", "text": "Agent steps per session, averaged."},
+    "input_tokens": {"label": "Input tokens", "text": "Model input tokens per session, averaged."},
+}  # fmt: skip
+NOTES = {
+    "averaging": (
+        "Figures are micro-averaged over the answer key's boxes: every box counts once, so long forms "
+        "weigh more than short ones."
+    ),
+    "errored_sessions": (
+        "Agent-run rows leave out sessions that ended in an error, as the results files' own totals do."
+    ),
+    "seed": (
+        "The seeded template is where every agent session starts: one box per form field and per "
+        "detector box, linked to nothing. It scores zero on path, joint and fill by construction."
+    ),
+    "heldout_scan": "On the held-out split, scanned also includes one native scan: a paper form scanned to PDF.",
+    "bare_detector": "Bare detectors: the model alone, before any seeding or agent.",
+    "browser_models": (
+        "Dev forms only. The page runs the published ONNX exports of FFDNet-S and FFDNet-L in one pass; "
+        "the library runs FFDNet-L in PyTorch with test-time augmentation."
+    ),
+}  # fmt: skip# main spec 14.3, "Read this first": 1 of 9 Haiku sessions finished; stated, not recomputed, because
 # the held-out agent results are not read for anything but this status.
 HELDOUT_STATUS = {
+    "source": "docs/superpowers/specs/2026-10-20-form-projection-design.md, section 14.3",
     "sessions_planned": 9,
     "sessions_completed": 1,
     "luna_heldout": False,
@@ -336,6 +444,7 @@ def detection_totals(rows: list[dict]) -> list[dict]:
         {
             "kind": kind,
             "variant": variant,
+            "label": DETECTION_LABELS[(kind, variant)],
             "detector": detector,
             "recall_50": _ratio(g["m5"], g["gt"]),
             "recall_30": _ratio(g["m3"], g["gt"]),
@@ -354,19 +463,35 @@ def _in_group(row: dict, group: str) -> bool:
     return row["variant"] == "as_published" and row["kind"] == ("fillable" if group == "fillable" else "flat")
 
 
-def agent_group_rows(name: str, label: str) -> list[dict]:
+def _completed(rows: list[dict]) -> list[dict]:
+    """The sessions that finished: scored, and not ended in an error."""
+    return [r for r in rows if r.get("detection") and r.get("mapping") and not r.get("error")]
+
+
+def agent_group_rows(
+    name: str,
+    label: str,
+    detail: str,
+    *,
+    headline: bool = False,
+    only: set[tuple[str, str]] | None = None,
+    sessions_of: str | None = None,
+) -> list[dict]:
     """The figures of one agent results file per group (fillable, digital, scanned, all).
 
-    Sessions that ended in an error are left out, as the results file's own totals do. Detection,
-    path, joint and fill are micro-averaged over ground-truth fields; steps and input tokens are
-    per-session means.
+    Sessions that ended in an error are left out, as the results file's own totals do; ``only``
+    keeps just those (form, variant) sessions, and ``sessions_of`` names the run they come from.
+    Detection, path, joint and fill are micro-averaged over ground-truth fields; steps and input
+    tokens are per-session means.
     """
     data = _load(name)
     run = data["meta"]["run"]
     model = data["meta"]["model"]
     if model.startswith("seed-only"):
         model = "none"
-    ok = [r for r in data["rows"] if r.get("detection") and r.get("mapping") and not r.get("error")]
+    ok = _completed(data["rows"])
+    if only is not None:
+        ok = [r for r in ok if (r["form"], r["variant"]) in only]
     out = []
     for group in GROUPS:
         rs = [r for r in ok if _in_group(r, group)]
@@ -379,6 +504,9 @@ def agent_group_rows(name: str, label: str) -> list[dict]:
             "run": run,
             "model": model,
             "label": label,
+            "detail": detail,
+            "headline": headline,
+            "sessions_of": sessions_of,
             "group": group,
             "sessions": len(rs),
             "recall_50": _ratio(sum(d["matched"] for d in det5), sum(d["gt"] for d in det5)),
@@ -392,14 +520,50 @@ def agent_group_rows(name: str, label: str) -> list[dict]:
     return out
 
 
+def agent_rows_and_notes() -> tuple[list[dict], list[str], list[str]]:
+    """The agent_dev rows, the notes on partial runs, and the result files read.
+
+    A partial run's detail gets its finished and total session counts, and the earlier run it is
+    compared with is added right after it, re-scored on the same finished sessions.
+    """
+    rows: list[dict] = []
+    notes: list[str] = []
+    files: list[str] = []
+    for name, label, detail, headline in AGENT_RUNS:
+        files.append(name)
+        sessions = _load(name)["rows"]
+        done = _completed(sessions)
+        partial = PARTIAL_RUNS.get(name) if len(done) < len(sessions) else None
+        if partial is None:
+            rows += agent_group_rows(name, label, detail, headline=headline)
+            continue
+        n, total = len(done), len(sessions)
+        rows += agent_group_rows(name, label, f"{detail}; {n} of {total} sessions", headline=headline)
+        notes.append(
+            f"{partial['name']} is partial: {partial['reason']} after {n} of {total} sessions, and the "
+            f"{total - n} that failed are left out. Compare it with {partial['compare'][2]} on the same {n} sessions."
+        )
+        other, other_label, other_round = partial["compare"]
+        rows += agent_group_rows(
+            other,
+            other_label,
+            f"{other_round} on the same {n} sessions",
+            only={(r["form"], r["variant"]) for r in done},
+            sessions_of=_load(name)["meta"]["run"],
+        )
+        if other not in files:
+            files.append(other)
+    return rows, notes, files
+
+
 def build_results() -> dict:
     """The contents of results.json."""
     onnx = [
-        {k: row[k] for k in ("kind", "variant", "detector", "recall_50", "recall_30", "precision_30")}
+        {k: row[k] for k in ("kind", "variant", "label", "detector", "recall_50", "recall_30", "precision_30")}
         for row in detection_totals(_load(BASELINE_ONNX))
     ]
-    agent_dev = [row for name, label in AGENT_RUNS for row in agent_group_rows(name, label)]
-    sources = [BASELINE_DEV, BASELINE_HELDOUT, BASELINE_ONNX, *(name for name, _ in AGENT_RUNS)]
+    agent_dev, partial_notes, agent_files = agent_rows_and_notes()
+    sources = [BASELINE_DEV, BASELINE_HELDOUT, BASELINE_ONNX, *agent_files]
     return {
         "generated_from": [f"eval/results/{name}" for name in sources],
         "detection": {
@@ -410,6 +574,10 @@ def build_results() -> dict:
         "agent_dev": agent_dev,
         "heldout_status": dict(HELDOUT_STATUS),
         "caveats": list(CAVEATS),
+        "groups": GROUP_TEXT,
+        "detectors": DETECTOR_TEXT,
+        "metrics": METRIC_TEXT,
+        "notes": {**NOTES, "partial_runs": partial_notes},
     }
 
 

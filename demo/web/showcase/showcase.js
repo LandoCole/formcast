@@ -1,6 +1,7 @@
 // The formcast showcase (layout C) on the browser engine. A thin wiring layer: it creates the
 // engine, mounts the page view, keeps the session (document, template and its undo stack) and hands
 // the three steps to their modules (detect.js, link.js, fill.js), which call back through `app`.
+// The write-up's Results section renders from results.json (results.js).
 //
 // Test hooks: `?samples=<dir>/` (the folder holding index.json), `?worker=<url>` (a stand-in
 // detection worker) and `?timeout=<ms>` (the sample fetch time limit) are honoured only when the
@@ -16,6 +17,7 @@ import { createBrowserEngine } from "../engines/browser/engine.js";
 import { mountDetect } from "./detect.js";
 import { mountFill } from "./fill.js";
 import { mountLink } from "./link.js";
+import { mountResults } from "./results.js";
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -338,3 +340,4 @@ mountDetect(app);
 mountLink(app);
 mountFill(app);
 render();
+mountResults({ url: new URL("results.json", location.href), $, timeoutMs: FETCH_TIMEOUT_MS });

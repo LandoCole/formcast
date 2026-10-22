@@ -142,6 +142,184 @@
       </div>
     </aside>
   </section>
+
+  <section class="sec" aria-labelledby="l-how">
+    <h2 class="label" id="l-how">How it works</h2>
+    <div class="body">
+      <p>formcast is a Python library. It turns a blank PDF form and a JSON Schema into a template, and a template, the blank form and a record into a filled PDF with a report. This page runs the same steps in your browser, without the agent: the detector, your links and the fill.</p>
+      <figure class="diagram">
+        <svg class="wide" viewBox="0 0 672 264" role="img" aria-label="The pipeline: a PDF form becomes a page map; an AI agent, given the JSON Schema, writes a template; fill takes the template and a record and writes a filled PDF with a report. In this page you do the agent's step by hand.">
+          <text class="s" x="72" y="16" text-anchor="middle">PDF FORM</text>
+          <path class="ln" d="M72.5 24v40"/><path class="ah" d="M68.5 64h8l-4 8z"/>
+          <text class="s" x="276" y="16" text-anchor="middle">JSON SCHEMA</text>
+          <path class="ln" d="M276.5 24v40"/><path class="ah" d="M272.5 64h8l-4 8z"/>
+          <text class="s" x="612" y="16" text-anchor="middle">RECORD</text>
+          <path class="ln" d="M612.5 24v40"/><path class="ah" d="M608.5 64h8l-4 8z"/>
+
+          <rect class="bx" x="0.5" y="72.5" width="143" height="95"/>
+          <text class="t" x="16" y="100">PAGE MAP</text>
+          <text class="s" x="16" y="124">words and rules,</text>
+          <text class="s" x="16" y="140">form fields,</text>
+          <text class="s" x="16" y="156">detector boxes</text>
+
+          <path class="ln" d="M144 120.5h40"/><path class="ah" d="M184 116.5v8l8-4z"/>
+
+          <rect class="bx" x="192.5" y="72.5" width="167" height="95"/>
+          <text class="t" x="208" y="100">AGENT</text>
+          <text class="s" x="208" y="124">writes Python against</text>
+          <text class="s" x="208" y="140">query helpers and</text>
+          <text class="s" x="208" y="156">edit operations</text>
+
+          <path class="ln you" d="M276.5 168v24"/>
+          <rect class="bx you" x="192.5" y="192.5" width="167" height="47"/>
+          <text class="s" x="208" y="212">in this page:</text>
+          <text class="s" x="208" y="228">you, by hand</text>
+
+          <path class="ln" d="M360 120.5h40"/><path class="ah" d="M400 116.5v8l8-4z"/>
+
+          <rect class="bx" x="408.5" y="72.5" width="95" height="95"/>
+          <text class="t" x="424" y="100">TEMPLATE</text>
+          <text class="s" x="424" y="124">JSON: boxes,</text>
+          <text class="s" x="424" y="140">paths and</text>
+          <text class="s" x="424" y="156">transforms</text>
+
+          <path class="ln" d="M504 120.5h40"/><path class="ah" d="M544 116.5v8l8-4z"/>
+
+          <rect class="bx" x="552.5" y="72.5" width="119" height="95"/>
+          <text class="t" x="568" y="100">FILL</text>
+          <text class="s" x="568" y="124">writes real</text>
+          <text class="s" x="568" y="140">form fields</text>
+
+          <path class="ln" d="M612.5 168v40"/><path class="ah" d="M608.5 208h8l-4 8z"/>
+          <text class="s" x="612" y="236" text-anchor="middle">FILLED PDF</text>
+          <text class="s" x="612" y="252" text-anchor="middle">+ FILL REPORT</text>
+
+          <g class="bl"><circle cx="0.5" cy="72.5" r="9"/><text x="0.5" y="72.5">1</text></g>
+          <g class="bl"><circle cx="192.5" cy="72.5" r="9"/><text x="192.5" y="72.5">2</text></g>
+          <g class="bl"><circle cx="408.5" cy="72.5" r="9"/><text x="408.5" y="72.5">3</text></g>
+          <g class="bl"><circle cx="552.5" cy="72.5" r="9"/><text x="552.5" y="72.5">4</text></g>
+        </svg>
+        <svg class="tall" viewBox="0 0 336 576" role="img" aria-label="The pipeline: a PDF form becomes a page map; an AI agent, given the JSON Schema, writes a template; fill takes the template and a record and writes a filled PDF with a report. In this page you do the agent's step by hand.">
+          <text class="s" x="108" y="16" text-anchor="middle">PDF FORM</text>
+          <path class="ln" d="M108.5 24v16"/><path class="ah" d="M104.5 40h8l-4 8z"/>
+
+          <rect class="bx" x="0.5" y="48.5" width="335" height="71"/>
+          <text class="t" x="16" y="76">PAGE MAP</text>
+          <text class="s" x="16" y="100">words and rules, form fields,</text>
+          <text class="s" x="16" y="116">detector boxes</text>
+
+          <path class="ln" d="M108.5 120v40"/><path class="ah" d="M104.5 160h8l-4 8z"/>
+          <text class="s" x="124" y="148">+ JSON SCHEMA</text>
+
+          <rect class="bx" x="0.5" y="168.5" width="215" height="95"/>
+          <text class="t" x="16" y="196">AGENT</text>
+          <text class="s" x="16" y="220">writes Python against</text>
+          <text class="s" x="16" y="236">query helpers and</text>
+          <text class="s" x="16" y="252">edit operations</text>
+
+          <path class="ln you" d="M216 216.5h24"/>
+          <rect class="bx you" x="240.5" y="192.5" width="95" height="47"/>
+          <text class="s" x="252" y="212">this page:</text>
+          <text class="s" x="252" y="228">you, by hand</text>
+
+          <path class="ln" d="M108.5 264v40"/><path class="ah" d="M104.5 304h8l-4 8z"/>
+
+          <rect class="bx" x="0.5" y="312.5" width="335" height="71"/>
+          <text class="t" x="16" y="340">TEMPLATE</text>
+          <text class="s" x="16" y="364">JSON: boxes, paths and transforms</text>
+
+          <path class="ln" d="M108.5 384v40"/><path class="ah" d="M104.5 424h8l-4 8z"/>
+          <text class="s" x="124" y="412">+ RECORD</text>
+
+          <rect class="bx" x="0.5" y="432.5" width="335" height="71"/>
+          <text class="t" x="16" y="460">FILL</text>
+          <text class="s" x="16" y="484">writes real form fields</text>
+
+          <path class="ln" d="M108.5 504v40"/><path class="ah" d="M104.5 544h8l-4 8z"/>
+          <text class="s" x="108" y="572" text-anchor="middle">FILLED PDF + FILL REPORT</text>
+
+          <g class="bl"><circle cx="0.5" cy="48.5" r="9"/><text x="0.5" y="48.5">1</text></g>
+          <g class="bl"><circle cx="0.5" cy="168.5" r="9"/><text x="0.5" y="168.5">2</text></g>
+          <g class="bl"><circle cx="0.5" cy="312.5" r="9"/><text x="0.5" y="312.5">3</text></g>
+          <g class="bl"><circle cx="0.5" cy="432.5" r="9"/><text x="0.5" y="432.5">4</text></g>
+        </svg>
+        <figcaption>Fig. 2 · From a blank form to a filled one. In this page you do step 2 by hand.</figcaption>
+      </figure>
+      <p><b>1 · Page map.</b> The form first becomes a page map: its words and lines of text with their positions, the form fields it already has, the printed rules near each blank, and the boxes the CommonForms detector proposes. Each box comes with its nearest label. A page without a usable text layer is read with OCR.</p>
+      <p><b>2 · Agent.</b> An AI model gets the page map as compact text and writes Python that runs against it. Query helpers find words, the text to the right of or below an item, and the candidate boxes on a page. Edit operations link a box to a schema path, add or split boxes, group choices and build tables. The agent starts from a seeded template, one box per form field and per detector box, and edits it step by step; each step reports what changed and what was refused.</p>
+      <p><b>3 · Template.</b> The result is JSON: every box with its page, position and type, the schema path it reads, and any transforms, such as a date format or a tick when a value is true. A person reviews and corrects it, and it reruns on new records with no model call.</p>
+      <p><b>4 · Fill.</b> Filling writes real PDF form fields, so the output is still a form. The fill report lists text that had to shrink or didn't fit, and record data with no box to go in.</p>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="l-agent">
+    <h2 class="label" id="l-agent">What the AI agent adds</h2>
+    <div class="body">
+      <p><b>Here, you do the agent's job.</b> The detector only proposes boxes. In this page you link each box to a schema field, add the boxes it missed, and fix or remove the wrong ones.</p>
+      <p><b>In the library, the agent does it with tools, without vision.</b> It never sees the page image. It reads the page map as text and geometry and works through the edit operations. That is enough to:</p>
+      <ul class="list">
+        <li>link each box to a schema path, with transforms where the form needs them;</li>
+        <li>add the fields the detector missed, most often checkboxes, signature lines and date lines;</li>
+        <li>read an underline in front of an option as a checkbox to mark;</li>
+        <li>split one long line into parts using the small labels under it, such as street, city, state and ZIP;</li>
+        <li>mark “circle one” choices, group choices, and build tables from rows of cells;</li>
+        <li>leave printed text alone when it only looks like a blank.</li>
+      </ul>
+      <p><b>It keeps the detector's boxes.</b> Without the image, the agent placed boxes worse than the detector: in earlier runs most of its moves and resizes left a box further from its blank. With the current code it can't move or resize a detected box, and it is told to add a box only where none sits on or next to a blank. Its job is the mapping.</p>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="l-results" id="results" data-state="loading">
+    <h2 class="label" id="l-results">Results</h2>
+    <div class="body">
+      <p class="lead" id="results-lead">Loading the results…</p>
+      <p>Each agent session gets one form, as published or as a fake scan, with its JSON Schema, and its template is scored against an answer key for that form. The development (dev) forms are the ones the agent was tuned on; the held-out forms were kept back to test it. Every figure here is read from the committed eval files when the page loads.</p>
+      <h3 class="sub">The agent on the dev forms</h3>
+      <div class="tablebox" id="agent-table"></div>
+      <div id="caveats"></div>
+      <p class="note" id="agent-reading"></p>
+      <dl class="defs" id="agent-defs"></dl>
+      <div id="agent-notes"></div>
+      <h3 class="sub">Held-out forms</h3>
+      <div id="heldout"></div>
+      <h3 class="sub">The detector in your browser</h3>
+      <p>On pages as published, the two models this page can run are close to each other and a little behind the detector as the library runs it. On fake scans neither is reliable, so scanned pages need the Python pipeline.</p>
+      <div class="tablebox" id="browser-table"></div>
+      <div id="browser-notes"></div>
+      <h3 class="sub">Bare detectors, dev and held-out</h3>
+      <div class="tablebox" id="detection-dev"></div>
+      <div class="tablebox" id="detection-heldout"></div>
+      <div id="detection-notes"></div>
+      <p class="note sources" id="sources"></p>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="l-limits">
+    <h2 class="label" id="l-limits">Limits</h2>
+    <div class="body">
+      <p><b>Mapping is where the agent loses points now.</b> On fillable forms it links nearly every field. On flat and scanned forms it often draws its own box beside a detected one and links that instead, links a list to the text box but not to the checkbox that goes with it, or drops a transform from one run to the next.</p>
+      <p><b>Scans are weak.</b> On some scanned pages the detector misses most of the boxes, and a scan has no printed rules to place the missing ones against. Neither model in this page is reliable on scans; the library sends scanned pages to FFDetr and reads them with OCR. Finding lines and boxes in the image itself would be new work.</p>
+      <p><b>Long forms.</b> The agent stops early or gives up on long, noisy forms, and those sessions cost the most, because every step resends the first message.</p>
+      <p><b>Drawn boxes.</b> A blank drawn as a rectangle reaches the page map only as two rules, so the agent can put the field on the label row above it.</p>
+      <p><b>The answer key.</b> Some of its conventions can't be inferred from the form, such as one box or two for a from–to date, and whether office-use blanks count.</p>
+      <p><b>The held-out run is incomplete.</b> It stopped at the provider's usage limit, so there is no measure yet of how the agent does on forms it wasn't tuned on. Results has the details.</p>
+    </div>
+  </section>
+
+  <section class="sec" aria-labelledby="l-credits">
+    <h2 class="label" id="l-credits">Credits and code</h2>
+    <div class="body">
+      <p><b>CommonForms.</b> The detector is FFDNet from CommonForms, by Joe Barrow (<a href="https://arxiv.org/abs/2509.16506">the paper</a>). Its dataset is Apache-2.0. This page loads the model weights from the author's Hugging Face pages, <a href="https://huggingface.co/jbarrow/FFDNet-S-cpu">FFDNet-S</a> and <a href="https://huggingface.co/jbarrow/FFDNet-L-cpu">FFDNet-L</a>, and only when you run the detector.</p>
+      <p><b>Libraries.</b> <a href="https://www.npmjs.com/package/pdfjs-dist">pdf.js</a> (Apache-2.0) draws the page, <a href="https://www.npmjs.com/package/onnxruntime-web">ONNX Runtime Web</a> (MIT) runs the model and <a href="https://www.npmjs.com/package/pdf-lib">pdf-lib</a> (MIT) writes the filled PDF. They are copied into the page, not loaded from a CDN.</p>
+      <p><b>Sample forms.</b> The W-9, W-4 and I-9 are US federal government forms, in the public domain. The sample records are made up.</p>
+      <p><b>Code.</b> <a href="#" data-todo id="repo-link">The formcast repository</a> holds the library, the eval and this page.</p>
+    </div>
+  </section>
+
+  <footer class="foot">
+    <span>Code: <a href="#" data-todo>formcast</a></span>
+    <span>Field detection by <a href="https://arxiv.org/abs/2509.16506">CommonForms</a> FFDNet</span>
+  </footer>
 </main>
 
 <script type="module" src="showcase.js"></script>
