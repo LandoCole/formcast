@@ -20,6 +20,7 @@ SHOWCASE = ROOT / "demo" / "web" / "showcase"
 HTML = (SHOWCASE / "index.html").read_text(encoding="utf-8")
 RESULTS = json.loads((SHOWCASE / "results.json").read_text(encoding="utf-8"))
 PAGE = "/demo/web/showcase/index.html"
+REPO = "https://github.com/LandoCole/formcast"
 
 SECTIONS = ["How it works", "What the AI agent adds", "Results", "Limits", "Credits and code"]
 # landon-portfolio/tools/check_site.py
@@ -143,18 +144,18 @@ def test_the_copy_follows_the_site_rules(parsed):
         assert term.lower() not in HTML.lower()
 
 
-def test_credits_link_the_paper_the_models_and_the_pending_repo(parsed):
+def test_credits_link_the_paper_the_models_and_the_repo(parsed):
     credits = parsed.sections[SECTIONS.index("Credits and code")]
     hrefs = [a.get("href") for a in credits.links]
     assert "https://arxiv.org/abs/2509.16506" in hrefs
     assert "https://huggingface.co/jbarrow/FFDNet-S-cpu" in hrefs
     assert "https://huggingface.co/jbarrow/FFDNet-L-cpu" in hrefs
     assert "Joe Barrow" in text_of(credits) and "Apache-2.0" in text_of(credits)
-    # the repository is not public yet: plain text marked data-todo, never a link that goes nowhere
-    assert '<span data-todo id="repo-link">The formcast repository</span>' in HTML
-    assert "It is not public yet." in text_of(credits)
-    assert "Code: not public yet" in " ".join(text_of(parsed.footer).split())
-    assert HTML.count("data-todo") == 2
+    assert REPO in hrefs
+    assert "not public" not in HTML
+    assert "Code: github.com/LandoCole/formcast" in " ".join(text_of(parsed.footer).split())
+    assert REPO in [a.get("href") for a in parsed.footer.links]
+    assert "data-todo" not in HTML
     for s in [*parsed.sections, parsed.footer]:
         for a in s.links:
             assert a.get("href") not in ("#", ""), (s.label, a)
