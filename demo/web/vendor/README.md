@@ -16,12 +16,20 @@ Licence: `pdfjs/LICENSE`.
 
 | File | Bytes |
 | --- | ---: |
-| `build/pdf.min.mjs` | 458,705 |
-| `build/pdf.worker.min.mjs` | 1,265,413 |
+| `build/pdf.min.mjs` | 518,555 |
+| `build/pdf.worker.min.mjs` | 1,317,034 |
 | `cmaps/` (character maps, 169 files) | about 1.6 MB |
 | `standard_fonts/` (the 14 standard fonts, 16 files) | about 0.8 MB |
 | `wasm/` (JBIG2, JPEG 2000, colour and QuickJS sandbox builds, with their licences) | about 1.5 MB |
 | `iccs/` (ICC profile and licence) | about 20 KB |
+
+The two `build/` files are the tarball's `legacy/build/pdf.min.mjs` and
+`legacy/build/pdf.worker.min.mjs` (same version, unmodified), not its modern `build/`. The modern
+build calls `Map.prototype.getOrInsertComputed` and `Math.sumPrecise`, which Safari 26.0 lacks, so
+no PDF opened there; the legacy build adds them. It does not add async iteration of a
+`ReadableStream`, which pdf.js uses to read text; `engines/browser/streams.js` adds that.
+Replaced on 2026-10-23 (tarball integrity
+`sha512-ZHjSVpDa3D6izMq8/04lvkhkATUmL9px6ChPaXc1k6nU2Mrhlg1/7F0bdUqCwUjw3NsPTfPZsMDUU6ZIcRaeQw==`).
 
 `cmaps/` and `standard_fonts/` are needed to render many forms correctly. Point pdf.js
 at them with `cMapUrl`, `standardFontDataUrl` and `wasmUrl`.
