@@ -225,6 +225,81 @@ def test_linking_an_unlinked_field(panels):
     assert panels.page.locator('#inspector [data-ctl="add-transform"]').count() == 0
 
 
+def test_a_box_can_combine_several_data_fields(panels):
+    ins = panels.page.locator("#inspector")
+    name = by_id(panels.template, "name")
+    assert ins.locator('[data-ctl="join"]').count() == 0  # one path: no joiner
+    add = ins.locator('[data-ctl="path-add"]')
+    assert add.locator("option").all_inner_texts()[0] == "Add another field…"
+    assert "applicant.name" not in add.locator("option").all_inner_texts()  # already used
+    add.select_option("applicant.email")
+    (op,) = panels.ops()
+    assert op == {
+        "op": "set_source",
+        "id": "name",
+        "source": {"paths": ["applicant.name", "applicant.email"], "transforms": [], "join": " ", "when": None},
+    }
+
+    name["source"] = op["source"]  # the host applies the op and shows the field again
+    panels.setup()
+    assert ins.locator('[data-ctl="path"]').input_value() == "applicant.name"
+    assert ins.locator('[data-ctl="path-1"]').input_value() == "applicant.email"
+    assert ins.locator('[data-ctl="path"] option').all_inner_texts()[0] != "not linked"  # remove a row instead
+    join = ins.locator('[data-ctl="join"]')
+    assert join.input_value() == " "
+    assert "A space." in ins.inner_text()
+    for role, label in [
+        ("combobox", "Data field 1"),
+        ("combobox", "Data field 2"),
+        ("button", "Remove applicant.name"),
+        ("button", "Remove applicant.email"),
+        ("combobox", "Add another field"),
+        ("textbox", "Joined with"),
+    ]:
+        assert ins.get_by_role(role, name=label, exact=True).count() == 1, (role, label)
+
+    # each change is one op with the whole source (setup() shows the field again and clears the log)
+    join.fill(" / ")
+    join.press("Enter")
+    (op,) = panels.ops()
+    assert op["source"] == {**name["source"], "join": " / "}
+    panels.setup()
+    ins.locator('[data-ctl="path-1"]').select_option("applicant.dob")
+    (op,) = panels.ops()
+    assert op["source"] == {**name["source"], "paths": ["applicant.name", "applicant.dob"]}
+    panels.setup()
+    ins.locator('[data-ctl="path-remove-0"]').click()
+    (op,) = panels.ops()
+    assert op["source"] == {**name["source"], "paths": ["applicant.email"], "join": None}
+
+
+def test_an_unset_joiner_says_what_fill_does(panels):
+    by_id(panels.template, "name")["source"]["paths"] = ["applicant.name", "applicant.email"]
+    panels.setup()
+    ins = panels.page.locator("#inspector")
+    assert ins.locator('[data-ctl="join"]').input_value() == ""
+    assert 'Not set: the values are joined with ", ".' in ins.inner_text()
+    ins.locator('[data-ctl="path-add"]').select_option("applicant.dob")
+    (op,) = panels.ops()
+    assert op["source"]["paths"] == ["applicant.name", "applicant.email", "applicant.dob"]
+    assert op["source"]["join"] is None  # a third path keeps the joiner as it is
+
+
+def test_choice_and_table_boxes_take_one_data_field(panels):
+    for fid in ("s1", "items"):
+        panels.setup(field_id=fid)
+        assert panels.page.locator('#inspector [data-ctl="path-add"]').count() == 0, fid
+
+
+def test_every_path_of_a_combined_source_is_placed(panels):
+    leaf = panels.page.locator('.fc-sl-leaf[data-path="applicant.email"]')
+    assert leaf.get_attribute("data-status") == "none"
+    by_id(panels.template, "name")["source"]["paths"] = ["applicant.name", "applicant.email"]
+    panels.setup()
+    assert leaf.get_attribute("data-status") == "placed"
+    assert panels.page.locator('.fc-sl-leaf[data-path="applicant.name"]').get_attribute("data-status") == "placed"
+
+
 def test_adding_a_date_format_transform_emits_the_chain_once_it_is_valid(panels):
     panels.setup(field_id="dob")
     ins = panels.page.locator("#inspector")

@@ -377,6 +377,31 @@ def test_fill_report_and_templates(open_tool, tmp_path):
     assert tool.errors == []
 
 
+def test_a_box_that_combines_two_fields_fills_them_joined(open_tool):
+    tool = open_tool()
+    schema = {"type": "object", "properties": {"first_name": {"type": "string"}, "last_name": {"type": "string"}}}
+    tool.step("link")
+    tool.page.click("#paste summary")
+    tool.page.fill("#schema-text", json.dumps(schema))
+    tool.page.click("#use-schema")
+    tool.page.locator('.fc-sl-leaf[data-path="first_name"]').wait_for()
+    field_id = link_first_box(tool, "first_name")
+    tool.page.select_option("#inspector select[data-ctl=path-add]", "last_name")
+    tag = tool.page.locator(f'.fc-box[data-field-id="{field_id}"] .fc-tag')
+    tool.page.wait_for_function("el => el.textContent === 'first_name, last_name'", arg=tag.element_handle())
+    assert tool.page.input_value("#inspector [data-ctl=join]") == " "
+    assert tool.page.locator('.fc-sl-leaf[data-path="last_name"]').get_attribute("data-status") == "placed"
+
+    tool.step("fill")
+    tool.page.fill("#record", json.dumps({"first_name": "Jane", "last_name": "Doe"}))
+    with tool.page.expect_download() as dl:
+        tool.page.click("#fill")
+    filled = pymupdf.open(stream=Path(dl.value.path()).read_bytes(), filetype="pdf")
+    values = [w.field_value for p in filled for w in p.widgets() or []]
+    assert "Jane Doe" in values
+    assert tool.errors == []
+
+
 def test_bad_record_json_is_reported(open_tool):
     tool = open_tool()
     tool.step("fill")
