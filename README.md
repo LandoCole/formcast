@@ -196,7 +196,9 @@ form from a record. It runs entirely in the page: vanilla HTML and ES modules, n
 pdf.js, pdf-lib and onnxruntime-web vendored in `demo/web/vendor/`. The detector is FFDNet-S, fetched
 from Hugging Face on first use and cached by the browser. It is a review tool, not the whole pipeline:
 there is no AI in the browser, and scanned pages are not supported there (the page has no OCR, so
-scans get boxes but no labels). The agent's work is shown through templates it already built.
+scans get boxes but no labels). The agent's work is shown through templates it already built: on a
+sample form, Auto map pairs the agent's mapping with the boxes the detector found, by position. Fill
+shows the filled PDF on the page before it is downloaded.
 
 To open it locally, serve `demo/web` and visit the showcase:
 

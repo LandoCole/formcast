@@ -28,7 +28,7 @@ import score  # noqa: E402  (eval/score.py; build_showcase put eval/ on the path
 HELDOUT = (ROOT / "forms" / "heldout").resolve()
 FILES = (
     "manifest.json", "form.pdf", "detections.json", "original-fields.json", "schema.json",
-    "record.json", "published.pdf", "agent-template.json", "agent-scores.json",
+    "records.json", "agent-template.json", "agent-scores.json",
 )  # fmt: skip
 
 
@@ -325,22 +325,22 @@ def check_bundle(folder: Path, form_id: str) -> dict:
     assert manifest["license"] == "US federal government work (public domain)"
 
     stripped = pymupdf.open(folder / "form.pdf")
-    published = pymupdf.open(folder / "published.pdf")
+    published = pymupdf.open(ROOT / "forms" / "dev" / f"{form_id}.pdf")
     template = json.loads((folder / "agent-template.json").read_text())
     try:
-        for doc in (stripped, published):
-            assert not doc.is_encrypted  # pdf-lib cannot fill an encrypted file
-            assert doc.page_count == manifest["pages"]
+        assert not stripped.is_encrypted  # pdf-lib cannot fill an encrypted file
+        assert stripped.page_count == manifest["pages"]
         assert widgets(stripped) == 0
-        assert published.page_count == template["form"]["page_count"]
-        assert [[p.rect.width, p.rect.height] for p in published] == [list(s) for s in template["form"]["page_sizes"]]
+        # Auto map pairs the agent's fields with boxes by position, so they share the page geometry
+        assert stripped.page_count == template["form"]["page_count"]
+        assert [[p.rect.width, p.rect.height] for p in stripped] == [list(s) for s in template["form"]["page_sizes"]]
 
         originals = json.loads((folder / "original-fields.json").read_text())["pages"]
         scored = sum(len(v) for v in originals.values())
         assert scored == len(score.load_gt(entry, ROOT / "forms" / "dev" / f"{form_id}.pdf"))
-        for page in published:  # the published file keeps its widgets
+        for page in published:
             assert len(bs.own_fields(page)) == len(originals.get(str(page.number), []))
-        assert widgets(published) >= scored > 0
+        assert scored > 0
 
         detections = json.loads((folder / "detections.json").read_text())
         assert detections["model"] == "FFDNet-S-onnx"
@@ -358,20 +358,25 @@ def check_bundle(folder: Path, form_id: str) -> dict:
         published.close()
 
     schema = json.loads((folder / "schema.json").read_text())
-    jsonschema.validate(json.loads((folder / "record.json").read_text()), schema)
+    records = json.loads((folder / "records.json").read_text())
+    assert 2 <= len(records) <= 3
+    assert len({r["title"] for r in records}) == len(records)
+    for r in records:
+        assert set(r) == {"title", "record"} and r["title"]
+        jsonschema.validate(r["record"], schema)
     assert schema == json.loads((ROOT / "forms" / "schemas" / f"{form_id}.json").read_text())
+    assert template["schema"] == schema  # Auto map is offered while the template keeps this schema
     scores = json.loads((folder / "agent-scores.json").read_text())
     assert set(scores) == set(bs.AGENT_SCORE_KEYS)  # no local paths or harness fields
     assert scores["run"] == "2026-10-21_defer-placement"
     assert scores["form"] == form_id and scores["variant"] == "as_published"
     assert scores["model_label"] == "Haiku 5.5"
-    for name in ("form.pdf", "published.pdf"):
-        assert (folder / name).stat().st_size < 2 * 1024 * 1024, name
+    assert (folder / "form.pdf").stat().st_size < 2 * 1024 * 1024
     return detections
 
 
-def test_agent_scores_keep_only_what_the_page_shows():
-    # detect.js scoresLine reads run, model_label, model, detection, mapping, fill and steps
+def test_agent_scores_keep_the_label_and_the_sessions_scores():
+    # the Auto map note names model_label; the rest is the session's row, without local paths
     assert bs.AGENT_SCORE_KEYS == (
         "run", "model_label", "form", "variant", "model", "detection", "mapping", "fill",
         "steps", "input_tokens", "output_tokens", "wall_s", "finished",
@@ -396,17 +401,100 @@ def test_the_committed_index_lists_the_bundles_in_order():
         assert e == {k: manifest[k] for k in ("id", "title", "revision", "source_url", "pages")}
 
 
-def test_the_agent_template_is_the_archived_one_byte_for_byte():
+def schema_of(form_id: str) -> dict:
+    return json.loads((ROOT / "forms" / "schemas" / f"{form_id}.json").read_text())
+
+
+def test_the_agent_template_is_the_archived_one_with_only_its_digit_splits_corrected():
     for form_id in bs.DEFAULT_FORMS:
-        assert (bs.SAMPLES / form_id / "agent-template.json").read_bytes() == bs.archived_template(form_id)
+        archived = bs.archived_template(form_id)
+        bundled = (bs.SAMPLES / form_id / "agent-template.json").read_bytes()
+        assert bundled == bs.correct_digit_splits(archived, schema_of(form_id))
+        if form_id != "fw9":
+            assert bundled == archived, form_id  # the W-4 and I-9 have no position split to correct
+            continue
+        before, after = json.loads(archived), json.loads(bundled)
+        changed = [
+            (a["source"]["paths"], [t["op"] for t in a["source"]["transforms"]], b["source"]["transforms"])
+            for a, b in zip(before["fields"], after["fields"])
+            if a != b
+        ]
+        assert changed == [
+            (["ssn"], ["slice"], [{"op": "split", "args": {"sep": "-", "index": 0}}]),
+            (["ssn"], ["slice"], [{"op": "split", "args": {"sep": "-", "index": 1}}]),
+            (["ssn"], ["slice"], [{"op": "split", "args": {"sep": "-", "index": 2}}]),
+            (["ein"], ["slice"], [{"op": "split", "args": {"sep": "-", "index": 0}}]),
+            (["ein"], ["slice"], [{"op": "split", "args": {"sep": "-", "index": 1}}]),
+        ]
+        assert {k: v for k, v in before.items() if k != "fields"} == {k: v for k, v in after.items() if k != "fields"}
+
+
+def test_correct_digit_splits_leaves_other_slices_alone():
+    schema = {"type": "object", "properties": {"ein": {"type": "string", "pattern": r"^\d{2}-\d{7}$"}, "code": {"type": "string"}}}
+
+    def template(path, start, end):
+        tr = [{"op": "slice", "args": {"start": start, "end": end}}]
+        return json.dumps({"fields": [{"id": "f", "source": {"paths": [path], "transforms": tr}}]}).encode()
+
+    for unchanged in (template("code", 0, 1), template("ein", 0, 3), template("ein", 1, 2)):
+        assert bs.correct_digit_splits(unchanged, schema) == unchanged
+    fixed = json.loads(bs.correct_digit_splits(template("ein", 2, 9), schema))
+    assert fixed["fields"][0]["source"]["transforms"] == [{"op": "split", "args": {"sep": "-", "index": 1}}]
+
+
+def test_the_corrected_w9_template_fills_the_whole_ein_and_ssn():
+    from formcast.render.fill import fill
+    from formcast.template.model import Template
+
+    template = Template.model_validate_json((bs.SAMPLES / "fw9" / "agent-template.json").read_text())
+    records = json.loads((bs.SAMPLES / "fw9" / "records.json").read_text())
+    by_ein = next(r["record"] for r in records if "ein" in r["record"])
+    by_ssn = next(r["record"] for r in records if "ssn" in r["record"])
+    parts = {}
+    for record in (by_ein, by_ssn):
+        out, _ = fill(template, ROOT / "forms" / "dev" / "fw9.pdf", record, check_fingerprint=False)
+        doc = pymupdf.open(stream=out, filetype="pdf")
+        values = {w.field_name: w.field_value for w in doc[0].widgets() or []}
+        doc.close()
+        for f in template.fields:
+            if f.source and f.source.paths in (["ein"], ["ssn"]) and f.source.paths[0] in record:
+                parts.setdefault(f.source.paths[0], []).append(values[f.existing_widget])
+    assert "".join(parts["ein"]) == by_ein["ein"].replace("-", "")
+    assert parts["ein"] == by_ein["ein"].split("-")  # 12 | 3456789, no lost digit
+    assert parts["ssn"] == by_ssn["ssn"].split("-")
 
 
 def test_every_record_is_fictional_and_fits_its_schema():
     for form_id in bs.DEFAULT_FORMS:
-        record = json.loads((bs.RECORDS / f"{form_id}.json").read_text())
-        jsonschema.validate(record, json.loads((ROOT / "forms" / "schemas" / f"{form_id}.json").read_text()))
-        text = json.dumps(record)
-        assert "example" in text.lower()
+        records = json.loads((bs.RECORDS / f"{form_id}.json").read_text())
+        assert 2 <= len(records) <= 3, form_id
+        schema = json.loads((ROOT / "forms" / "schemas" / f"{form_id}.json").read_text())
+        for r in records:
+            jsonschema.validate(r["record"], schema)
+            text = json.dumps(r["record"])
+            assert "example" in text.lower(), r["title"]
+            for ssn in (v for k, v in walk(r["record"]) if k == "ssn"):
+                assert ssn.startswith("000"), (r["title"], ssn)  # an area number that is never issued
+
+
+def walk(value, key=None):
+    """Every (key, value) pair in nested JSON, leaves included."""
+    yield key, value
+    if isinstance(value, dict):
+        for k, v in value.items():
+            yield from walk(v, k)
+    elif isinstance(value, list):
+        for v in value:
+            yield from walk(v, key)
+
+
+def test_write_bundle_refuses_records_without_their_own_titles(tmp_path):
+    pdfs = {"stripped": b"%PDF-1.7", "originals": {}, "pages": 1}
+    schema = {"type": "object"}
+    for records in ([], [{"title": "", "record": {}}], [{"title": "a", "record": {}}, {"title": "a", "record": {}}]):
+        with pytest.raises(ValueError, match="own title"):
+            bs.write_bundle(tmp_path, bundle_id="x", form_id="fw9", title="x", pdfs=pdfs, detections={},
+                            schema=schema, records=records, template=b"{}", scores={})
 
 
 def test_the_stripped_pdf_has_no_encryption_even_when_the_source_has_it(tmp_path):

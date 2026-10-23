@@ -29,7 +29,7 @@ FORM_ID = "fw9"
 BUNDLE_ID = "sample-bundle"
 AGENT_TEMPLATE = FIXTURES / "templates" / "fw9_as_published.json"
 
-# Clearly fictional; write_bundle validates it against the schema.
+# Clearly fictional; write_bundle validates them against the schema.
 RECORD = {
     "vendor_id": "V-00417",
     "legal_name": "Juniper Lane Ceramics LLC",
@@ -42,6 +42,15 @@ RECORD = {
     "remit_email": "ap@example.com",
     "certified_on": "2026-03-14",
 }
+OTHER = {
+    "vendor_id": "V-00522",
+    "legal_name": "Tobias Wren",
+    "tax_classification": "individual_sole_proprietor",
+    "address": {"street": "27 Example Lane", "city": "Salem", "state": "OR", "postal_code": "97301"},
+    "ssn": "000-55-0101",
+    "remit_email": "tobias.wren@example.com",
+}
+RECORDS = [{"title": "Juniper Lane Ceramics LLC", "record": RECORD}, {"title": "Tobias Wren", "record": OTHER}]
 
 
 def build() -> None:
@@ -70,7 +79,7 @@ def build() -> None:
         pdfs=pdfs,
         detections=detections,
         schema=json.loads((ROOT / "forms" / "schemas" / f"{FORM_ID}.json").read_text()),
-        record=RECORD,
+        records=RECORDS,
         template=AGENT_TEMPLATE.read_bytes(),
         scores=bs.agent_scores(FORM_ID),
     )

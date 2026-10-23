@@ -1,41 +1,21 @@
-// The Detect step: pick a sample form or drop a PDF, run the detector live, compare the boxes with
-// the form's own fields, and open the AI agent's template for the sample.
+// The Detect step: pick a sample form or drop a PDF, then Detect finds its boxes under the scan
+// (scan.js), and the boxes can be compared with the form's own fields.
 //
-// A sample is a folder of files (Task 13 builds them; see demo/tools/build_showcase.py):
-// manifest.json, form.pdf (fields stripped), detections.json, original-fields.json, schema.json,
-// record.json, published.pdf, agent-template.json, agent-scores.json. The first five load with the
-// sample; the agent's three load when asked for.
+// A sample opens blank: the form with its fields stripped and no boxes. Detect runs FFDNet in the
+// browser on it. Where live detection is off until the visitor confirms the download (touch
+// phones, under 4 GB of memory), Detect plays the same scan over the sample's saved detections and
+// says plainly that they are saved results from an earlier run; Try anyway runs the detector live.
+// A visitor's flat PDF is detected live as soon as it opens (or waits for Try anyway); a fillable
+// one uses its own form fields.
+//
+// A sample is a folder of files (demo/tools/build_showcase.py builds them): manifest.json, form.pdf
+// (fields stripped), detections.json, original-fields.json, schema.json, records.json,
+// agent-template.json, agent-scores.json. All but the agent's template load with the sample; Auto
+// map (link.js) loads that when it is first asked for.
 
-import { iou } from "../core/geometry.js";
-import { checkTemplate, checkTemplateFits, recall, remember } from "../core/store.js";
+import { placeholderRecord } from "../core/schema.js";
+import { pairByOverlap } from "./automap.js";
 import { fetchWithin, seconds, withinTime } from "./limits.js";
-
-/**
- * How many of `originals` some box overlaps with IoU >= `threshold`, pairing each box with at most
- * one original (greedy, best overlap first).
- * @param {number[][]} originals rects
- * @param {number[][]} boxes rects
- * @param {number} [threshold]
- * @returns {number}
- */
-export function matchCount(originals, boxes, threshold = 0.5) {
-  const pairs = [];
-  originals.forEach((o, i) => {
-    boxes.forEach((b, j) => {
-      const v = iou(o, b);
-      if (v >= threshold) pairs.push([v, i, j]);
-    });
-  });
-  pairs.sort((a, b) => b[0] - a[0]);
-  const usedO = new Set();
-  const usedB = new Set();
-  for (const [, i, j] of pairs) {
-    if (usedO.has(i) || usedB.has(j)) continue;
-    usedO.add(i);
-    usedB.add(j);
-  }
-  return usedO.size;
-}
 
 const PROVIDERS = { webgpu: "WebGPU", wasm: "WebAssembly" };
 
@@ -46,23 +26,11 @@ function modelName(model) {
   return String(model ?? "the detector").replace(/-onnx$/i, "");
 }
 
-const fixed = (v) => (typeof v === "number" ? v.toFixed(2) : "–");
-
-/** The agent session's scores in one line, from agent-scores.json (a row of the eval results). */
-export function scoresLine(s) {
-  const parts = [
-    `detection recall ${fixed(s.detection?.["iou0.5"]?.recall)}`,
-    `path accuracy ${fixed(s.mapping?.path_acc)}`,
-    `joint ${fixed(s.mapping?.joint_acc)}`,
-    `fill accuracy ${fixed(s.fill?.fill_acc)}`,
-  ];
-  if (typeof s.steps === "number") parts.push(`${s.steps} steps`);
-  return `Built by ${s.model_label ?? s.model} in the dev eval (run ${s.run}). That session: ${parts.join(" · ")}.`;
-}
+const plural = (n, word, many = `${word}s`) => `${n} ${n === 1 ? word : many}`;
 
 /** @param {object} app see showcase.js */
 export function mountDetect(app) {
-  const { $, engine, session, state, say } = app;
+  const { $, engine, session, state, scan, say } = app;
   const msg = $("detect-msg");
   const status = (text) => {
     $("detect-status").textContent = text;
@@ -71,94 +39,55 @@ export function mountDetect(app) {
   const getBytes = (url) => fetchWithin(url, app.fetchTimeoutMs, async (res) => new Uint8Array(await res.arrayBuffer()));
   let index = [];
   const cache = new Map(); // sample id -> its files
-  let run = null; // the live detection in progress: {token} of the document it runs on
+  let run = null; // the detection in progress (live or saved): {token} of the document it runs on
   let confirmed = false; // the visitor accepted the download where live detection is off
+  let failed = false; // the last live run on this sample failed: its saved results are on offer
   let opening = 0; // bumps on every open, so only the latest one is shown
-  let restored = false;
 
-  /** True while a live detection runs on the document on screen (a run on an older one doesn't count). */
+  /** True while a detection runs on the document on screen (a run on an older one doesn't count). */
   const detecting = () => run !== null && run.token === session.generation;
   /** Show a status line for document `token` only while it is still the one on screen. */
   const statusFor = (token, text) => {
     if (token === session.generation) status(text);
   };
+  const mb = () => `${MODEL_MB[app.touch ? "S" : $("model").value] ?? MODEL_MB.S} MB`;
 
   // ---------------------------------------------------------------- samples
 
   async function loadSample(id) {
     if (cache.has(id)) return cache.get(id);
     const base = new URL(`${encodeURIComponent(id)}/`, app.samplesBase);
-    const [manifest, detections, originals, schema, record, bytes] = await Promise.all([
+    const [manifest, detections, originals, schema, records, scores, bytes] = await Promise.all([
       getJson(new URL("manifest.json", base)),
       getJson(new URL("detections.json", base)),
       getJson(new URL("original-fields.json", base)),
       getJson(new URL("schema.json", base)),
-      getJson(new URL("record.json", base)),
+      getJson(new URL("records.json", base)),
+      getJson(new URL("agent-scores.json", base)),
       getBytes(new URL("form.pdf", base)),
     ]);
-    const sample = { id, base, manifest, detections, originals, schema, record, bytes, agent: null };
+    const sample = { id, base, manifest, detections, originals, schema, records, scores, bytes, agent: null };
     cache.set(id, sample);
     return sample;
   }
 
-  async function loadAgent(sample) {
-    if (sample.agent === null) {
-      const [bytes, template, scores] = await Promise.all([
-        getBytes(new URL("published.pdf", sample.base)),
-        getJson(new URL("agent-template.json", sample.base)),
-        getJson(new URL("agent-scores.json", sample.base)),
-      ]);
-      sample.agent = { bytes, template, scores };
-    }
-    return sample.agent;
-  }
-
-  /**
-   * The remembered template for a sample variant when it is a template that still fits the PDF,
-   * else null. One that doesn't (say, saved by an older page) is forgotten.
-   */
-  function restore(sample, variant, doc) {
-    const key = `${sample.id}/${variant}`;
-    const t = recall(key);
-    if (t === null) return null;
-    try {
-      checkTemplate(t);
-      if (checkTemplateFits(t, doc) === null) return t;
-    } catch {
-      // not a template this page can use
-    }
-    remember(key, null);
-    return null;
-  }
-
-  /** Open a sample with its fields stripped and the boxes detected ahead of time. */
-  async function openSample(id, { fresh = false } = {}) {
+  /** Open a sample blank: its fields stripped and no boxes yet. */
+  async function openSample(id) {
     const mine = ++opening;
     say(msg, "");
     status("Opening the sample…");
     try {
       const sample = await loadSample(id);
       const doc = await engine.open(sample.bytes);
-      const seeded = await engine.seed(doc, sample.schema, { detections: sample.detections.pages });
+      const blank = await engine.seed(doc, sample.schema); // a page without widgets gets no boxes
       if (mine !== opening) return dropLate(doc);
-      const kept = fresh ? null : restore(sample, "form", doc);
-      restored = kept !== null;
-      app.setDocument({
-        doc,
-        name: sample.manifest.title,
-        sample,
-        variant: "form",
-        template: kept ?? seeded,
-        source: kept
-          ? { kind: "restored", text: "Your earlier edits" }
-          : { kind: "precomputed", text: `Boxes found ahead of time by ${modelName(sample.detections.model)}` },
-      });
-      app.setRecord(sample.record);
+      failed = false;
+      app.setDocument({ doc, name: sample.manifest.title, sample, template: blank, source: null });
+      app.setRecords(sample.records);
       $("sample").value = id;
-      status(kept
-        ? "Your earlier edits to this form are back."
-        : `These boxes were found ahead of time by ${modelName(sample.detections.model)}, the model this page runs. ` +
-          "Run it here to watch it work; the model downloads once and is kept for your next visit.");
+      status(app.liveOff && !confirmed
+        ? "Detect plays back the detector's saved results here: live detection is off on this device."
+        : `Detect runs ${modelName(sample.detections.model)} on this page in your browser to find the blanks.`);
     } catch (e) {
       if (mine !== opening) return false;
       say(msg, `This sample couldn't be opened. ${e.message}`);
@@ -173,45 +102,6 @@ export function mountDetect(app) {
   function dropLate(doc) {
     doc.destroy().catch(() => {});
     return false;
-  }
-
-  /** Open the sample as published with the AI agent's template for it. */
-  async function openAgent({ fresh = false } = {}) {
-    const sample = state.sample;
-    if (sample === null) return;
-    const mine = ++opening;
-    say(msg, "");
-    status("Opening the form as published…");
-    try {
-      const agent = await loadAgent(sample);
-      const doc = await engine.open(agent.bytes);
-      if (mine !== opening) return dropLate(doc);
-      const misfit = checkTemplateFits(agent.template, doc);
-      if (misfit) {
-        doc.destroy().catch(() => {});
-        throw new Error(misfit);
-      }
-      const kept = fresh ? null : restore(sample, "published", doc);
-      restored = kept !== null;
-      app.setDocument({
-        doc,
-        name: sample.manifest.title,
-        sample,
-        variant: "published",
-        template: kept ?? agent.template,
-        source: kept
-          ? { kind: "restored", text: "Your earlier edits" }
-          : { kind: "agent", text: `The AI agent's template (${agent.scores.model_label ?? agent.scores.model})` },
-      });
-      app.setRecord(sample.record);
-      status(kept
-        ? "Your earlier edits to the agent's template are back."
-        : "The form as published, with its own fields, and the template the agent built for it.");
-    } catch (e) {
-      if (mine !== opening) return;
-      say(msg, `The agent's template couldn't be opened. ${e.message}`);
-      status("");
-    }
   }
 
   async function loadIndex() {
@@ -233,13 +123,6 @@ export function mountDetect(app) {
 
   $("sample").addEventListener("change", (e) => {
     if (e.target.value) openSample(e.target.value);
-  });
-
-  $("start-over").addEventListener("click", () => {
-    if (state.sample === null) return;
-    remember(app.storageKey(), null);
-    if (state.variant === "published") openAgent({ fresh: true });
-    else openSample(state.sample.id, { fresh: true });
   });
 
   // ---------------------------------------------------------------- a visitor's PDF
@@ -272,20 +155,26 @@ export function mountDetect(app) {
     }
     if (mine !== opening) return dropLate(doc);
     const fillable = doc.pages.some((p) => p.widgets.length > 0);
-    restored = false;
+    failed = false;
     app.setDocument({
       doc,
       name: file.name,
       sample: null,
-      variant: "own",
       template,
-      source: fillable ? { kind: "widgets", text: "The PDF's own form fields" } : { kind: "none", text: "No boxes yet" },
+      source: fillable ? { kind: "widgets", text: "The PDF's own form fields" } : null,
     });
+    let record;
+    try {
+      record = placeholderRecord(schema);
+    } catch {
+      record = {};
+    }
+    app.setRecords([{ title: "A made-up record", record }], { placeholder: true });
     $("sample").value = "";
     if (fillable) {
       status("This PDF has its own form fields, so they are used as they are; no model needed.");
     } else {
-      await runLive();
+      await detect();
     }
   }
 
@@ -314,92 +203,143 @@ export function mountDetect(app) {
     if (file) openFile(file);
   });
 
-  // ---------------------------------------------------------------- live detection
+  // ---------------------------------------------------------------- detection
 
-  /** Pages to detect: the sample's precomputed pages, else every page without form fields. */
+  /** Pages to detect: the sample's pages with fields, else every page without form fields. */
   function detectPages() {
-    if (state.sample && state.variant === "form") return Object.keys(state.sample.detections.pages).map(Number);
+    if (state.sample) return Object.keys(state.sample.detections.pages).map(Number);
     return state.doc ? state.doc.pages.filter((p) => p.widgets.length === 0).map((p) => p.index) : [];
   }
 
-  /** Ask before downloading the model where live detection is off (spec §6). */
-  function askFirst() {
-    status("");
+  /** The note under Detect where live detection is off (spec §6): saved results, or none. */
+  function showNote(saved) {
+    const why = `The model is a ${mb()} download, may be slow here and can run the tab out of memory.`;
+    $("live-note-text").textContent = saved
+      ? `Saved results from an earlier run of the detector: live detection is off on this device. ${why}`
+      : `Live detection is off on this device. ${why} You can still add boxes by hand.`;
     $("live-note").hidden = false;
   }
 
-  async function runLive() {
+  /** Detect: live, or the saved results where live detection waits for the visitor to confirm. */
+  async function detect() {
     if (detecting() || state.doc === null) return;
     if (app.liveOff && !confirmed) {
-      askFirst();
+      if (state.sample) await playSaved();
+      else {
+        status("");
+        showNote(false);
+      }
       return;
     }
-    // claimed before any await, so a second click or a drop can't start a parallel run on this document
+    await runLive();
+  }
+
+  /** Claim the run for the document on screen (before any await, so a second click can't start a parallel run). */
+  async function claim(work) {
     const mine = { token: session.generation };
     run = mine;
     say(msg, "");
-    $("live-note").hidden = true;
     app.render();
     try {
-      if (state.variant === "published") {
-        // the detector runs on the sample with its fields stripped
-        if (!(await openSample(state.sample.id)) || state.variant !== "form") return;
-        mine.token = session.generation;
-        app.render();
-      }
-      await detectNow(mine.token);
+      await work(mine.token);
     } finally {
       if (run === mine) run = null;
       app.render();
     }
   }
 
-  /** Detect the pages of the document on screen (`token`) and replace its boxes with what is found. */
-  async function detectNow(token) {
-    const doc = state.doc;
-    const pages = detectPages();
-    if (pages.length === 0) {
-      status("Every page of this PDF has its own form fields; there is nothing to detect.");
-      return;
+  /**
+   * Put detected boxes on screen (one undo step) as the scan's last pass reaches them. False when
+   * the document changed meanwhile; throws when the boxes couldn't be put on screen.
+   */
+  async function showBoxes(token, detections, source) {
+    const template = await engine.seed(state.doc, app.template.schema, { detections });
+    if (token !== session.generation) return false;
+    const shown = scan.reveal(); // before the render, so the boxes come in with the line
+    const res = await session.replaceTemplate(template, { source });
+    if (res.stale) return false;
+    if (res.error !== undefined) {
+      scan.stop();
+      throw new Error(res.error);
     }
-    const model = app.touch ? "S" : $("model").value;
-    status("Starting the detector…");
-    const mb = (n) => (n / (1024 * 1024)).toFixed(1);
-    try {
-      const detections = {};
-      for (const [i, p] of pages.entries()) {
-        statusFor(token, pages.length > 1 ? `Detecting page ${p + 1} (${i + 1} of ${pages.length})…` : `Detecting page ${p + 1}…`);
-        detections[p] = await engine.detect(doc, p, {
-          model,
-          onProgress: (loaded, total) => {
-            statusFor(token, loaded < total ? `Downloading the model: ${mb(loaded)} of ${mb(total)} MB` : "Model ready. Detecting…");
-          },
-        });
-        if (token !== session.generation) return;
-      }
-      const template = await engine.seed(doc, app.template.schema, { detections });
-      if (token !== session.generation) return;
-      const info = engine.detectorInfo(model);
-      const how = `${info.model}${info.provider ? ` on ${PROVIDERS[info.provider] ?? info.provider}` : ""}`;
-      const speed = info.msPerPage === null ? "" : ` · ${Math.round(info.msPerPage)} ms per page`;
-      const res = await session.replaceTemplate(template, { source: { kind: "live", text: `Detected live by ${how}${speed}` } });
-      if (res.stale) return;
-      const found = Object.values(detections).reduce((n, list) => n + list.length, 0);
-      status(`Done: ${found} boxes on ${pages.length === 1 ? "1 page" : `${pages.length} pages`}. Undo brings back the boxes before.`);
-    } catch (e) {
-      if (token === session.generation) {
-        say(msg, `Live detection didn't finish: ${e.message} The boxes shown are unchanged.`);
-        status("");
-      }
-    }
+    await shown;
+    return token === session.generation;
   }
 
-  $("run-live").addEventListener("click", () => runLive());
+  /** Play the scan over the sample's saved detections, and say plainly that they are saved. */
+  function playSaved() {
+    return claim(async (token) => {
+      const sample = state.sample;
+      failed = false;
+      $("live-note").hidden = true;
+      status("Reading the page…");
+      const name = modelName(sample.detections.model);
+      const source = { kind: "saved", text: `Saved results from an earlier run of ${name}` };
+      try {
+        if (!(await showBoxes(token, structuredClone(sample.detections.pages), source))) return;
+      } catch (e) {
+        if (token === session.generation) {
+          say(msg, `The saved results couldn't be shown: ${e.message}`);
+          status("");
+        }
+        return;
+      }
+      const found = Object.values(sample.detections.pages).reduce((n, list) => n + list.length, 0);
+      const pages = Object.keys(sample.detections.pages).length;
+      status(`${plural(found, "box", "boxes")} on ${plural(pages, "page")}, from a run of ${name} made ahead of time.`);
+      if (app.liveOff && !confirmed) showNote(true);
+    });
+  }
+
+  function runLive() {
+    return claim(async (token) => {
+      const doc = state.doc;
+      const pages = detectPages();
+      $("live-note").hidden = true;
+      if (pages.length === 0) {
+        status("Every page of this PDF has its own form fields; there is nothing to detect.");
+        return;
+      }
+      const model = app.touch ? "S" : $("model").value;
+      status(scan.still ? "Scanning the page: starting the detector…" : "Starting the detector…");
+      scan.start();
+      const mbOf = (n) => (n / (1024 * 1024)).toFixed(1);
+      try {
+        const detections = {};
+        for (const [i, p] of pages.entries()) {
+          statusFor(token, pages.length > 1 ? `Detecting page ${p + 1} (${i + 1} of ${pages.length})…` : `Detecting page ${p + 1}…`);
+          detections[p] = await engine.detect(doc, p, {
+            model,
+            onProgress: (loaded, total) => {
+              statusFor(token, loaded < total ? `Downloading the model: ${mbOf(loaded)} of ${mbOf(total)} MB` : "Model ready. Detecting…");
+            },
+          });
+          if (token !== session.generation) return;
+        }
+        const info = engine.detectorInfo(model);
+        const how = `${info.model}${info.provider ? ` on ${PROVIDERS[info.provider] ?? info.provider}` : ""}`;
+        const speed = info.msPerPage === null ? "" : ` · ${Math.round(info.msPerPage)} ms per page`;
+        if (!(await showBoxes(token, detections, { kind: "live", text: `Detected live by ${how}${speed}` }))) return;
+        failed = false;
+        const found = Object.values(detections).reduce((n, list) => n + list.length, 0);
+        status(`Done: ${plural(found, "box", "boxes")} on ${plural(pages.length, "page")}. Undo brings back the boxes before.`);
+      } catch (e) {
+        if (token === session.generation) {
+          scan.stop();
+          failed = state.sample !== null;
+          say(msg, `Live detection didn't finish: ${e.message} The boxes shown are unchanged.`);
+          status("");
+        }
+      }
+    });
+  }
+
+  $("detect").addEventListener("click", () => detect());
   $("try-anyway").addEventListener("click", () => {
     confirmed = true;
     runLive();
   });
-  $("load-agent").addEventListener("click", () => openAgent());
+  $("play-saved").addEventListener("click", () => playSaved());
   $("model").addEventListener("change", () => app.render());
   $("compare").addEventListener("change", (e) => {
     state.compare = e.target.checked;
@@ -411,12 +351,12 @@ export function mountDetect(app) {
   app.onRender(() => {
     const sample = state.sample;
     const t = app.template;
+    const boxes = t?.fields.length ?? 0;
     $("model-group").hidden = app.touch;
-    $("run-live").disabled = detecting() || state.doc === null;
-    $("note-size").textContent = `${MODEL_MB[app.touch ? "S" : $("model").value] ?? MODEL_MB.S} MB`;
-    $("start-over").hidden = !restored || sample === null;
-    $("compare-group").hidden = sample === null;
-    $("agent-group").hidden = sample === null;
+    $("detect").disabled = detecting() || state.doc === null;
+    $("detect").textContent = detecting() ? "Detecting…" : boxes > 0 ? "Detect again" : "Detect the boxes";
+    $("play-saved").hidden = !(failed && sample !== null) || detecting();
+    $("compare-group").hidden = sample === null || boxes === 0;
     const page = state.doc?.pages[state.page];
     $("scanned-note").hidden = page?.kind !== "scanned";
 
@@ -424,14 +364,11 @@ export function mountDetect(app) {
       let n = 0;
       let m = 0;
       for (const [key, rects] of Object.entries(sample.originals.pages)) {
-        const boxes = t.fields.filter((f) => f.page === Number(key) && f.rect).map((f) => f.rect);
-        n += matchCount(rects, boxes);
+        const rectsOnPage = t.fields.filter((f) => f.page === Number(key) && f.rect).map((f) => f.rect);
+        n += pairByOverlap(rects, rectsOnPage, 0.5).length; // each own field found at most once
         m += rects.length;
       }
       $("found").textContent = `found ${n} of ${m} of the form's own fields (IoU 0.5 or more)`;
-      const scores = sample.agent?.scores;
-      $("agent-scores").hidden = !(scores && state.variant === "published");
-      if (scores) $("agent-scores").textContent = scoresLine(scores);
     }
 
     const m = sample?.manifest;
@@ -439,8 +376,7 @@ export function mountDetect(app) {
     if (state.doc === null) {
       docline.textContent = "No form open";
     } else if (m) {
-      const how = state.variant === "published" ? "as published, with its own fields" : "fields stripped";
-      docline.replaceChildren(Object.assign(document.createElement("b"), { textContent: m.title }), ` · rev. ${m.revision} · ${how}`);
+      docline.replaceChildren(Object.assign(document.createElement("b"), { textContent: m.title }), ` · rev. ${m.revision} · fields stripped`);
     } else {
       docline.replaceChildren(Object.assign(document.createElement("b"), { textContent: state.name }), " · your PDF");
     }

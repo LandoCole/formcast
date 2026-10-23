@@ -69,11 +69,18 @@ h1 { font-weight: 400; font-size: clamp(44px, 6vw, 64px); line-height: 72px; let
   background: var(--paper); border: 0; outline: 1px solid var(--ink); outline-offset: -0.5px; box-shadow: var(--line-box-gap);
   color: var(--ink); font-family: var(--mono); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; cursor: pointer;
 }
-.btn:hover:not(:disabled) { background: var(--ink); color: var(--paper); }
 .btn:focus-within { outline-width: 2px; }
 .btn:disabled { color: var(--graphite); outline-color: var(--rule); cursor: default; }
 .btn.quiet { outline-color: var(--rule); }
-.btn.quiet:hover:not(:disabled) { outline-color: var(--ink); }
+/* the one action each step leads with: Detect, Auto map, Fill */
+.btn.go { background: var(--ink); color: var(--paper); }
+.btn.go:disabled { background: var(--paper); color: var(--graphite); }
+/* only where there is a real hover: a tapped button on a phone would otherwise stay inverted */
+@media (hover: hover) {
+  .btn:hover:not(:disabled) { background: var(--ink); color: var(--paper); }
+  .btn.quiet:hover:not(:disabled) { outline-color: var(--ink); }
+  .btn.go:hover:not(:disabled) { background: var(--paper); color: var(--ink); }
+}
 .file { position: relative; }
 .file input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 select {
@@ -128,6 +135,35 @@ textarea:focus-visible { outline: 2px solid var(--ink); outline-offset: -1px; }
 .sw.selected { outline: 2px solid var(--ink); outline-offset: -1px; }
 .fig .msg { margin: 0; }
 
+/* ---------- the scan and the links landing (scan.js) ---------- */
+/* On the page sheet, so its tokens are the sheet's light ones in both themes. A thin line and a
+   soft light just above it sweep down while the detector runs; one last pass brings the boxes in. */
+.scan { position: absolute; inset: 0; z-index: 5; overflow: hidden; pointer-events: none; display: none; }
+.scan.is-sweeping, .scan.is-pass { display: block; }
+.scan::before, .scan::after { content: ""; position: absolute; left: 0; right: 0; top: 0; }
+.scan::before { height: 64px; transform: translateY(-100%); background: linear-gradient(to bottom, transparent, var(--tint-strong)); }
+.scan::after { height: 1px; background: var(--ink); opacity: .6; }
+.scan.is-sweeping::before, .scan.is-sweeping::after { animation: scan-sweep 2.2s cubic-bezier(.45, 0, .55, 1) infinite; }
+.scan.is-pass::before, .scan.is-pass::after { animation: scan-pass 1.4s linear both; }
+@keyframes scan-sweep { from { top: 0; } to { top: 100%; } }
+@keyframes scan-pass { 0% { top: 0; opacity: .6; } 90% { opacity: .6; } 100% { top: 100%; opacity: 0; } }
+.scan.is-pass::before { opacity: 1; }
+
+#pageview.is-revealing .fc-box { animation: box-in 320ms ease-out both; animation-delay: var(--reveal-delay, 0ms); }
+@keyframes box-in { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: none; } }
+/* a link landing: the box starts as not linked and turns linked, with a brief ring */
+#pageview.is-mapping .fc-box.is-landing { animation: link-in 420ms ease-out both; animation-delay: var(--land-delay, 0ms); }
+#pageview.is-mapping .fc-box.is-landing .fc-tag { animation: box-in 300ms ease-out both; animation-delay: var(--land-delay, 0ms); }
+@keyframes link-in {
+  0% { outline: 1px dashed var(--graphite); background: var(--tint-unlinked); box-shadow: 0 0 0 0 transparent; }
+  45% { box-shadow: 0 0 0 4px var(--tint-strong); }
+  100% { outline: 1px solid var(--ink); background: var(--tint); box-shadow: 0 0 0 0 transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scan { display: none !important; }
+  #pageview .fc-box, #pageview .fc-box .fc-tag { animation: none !important; }
+}
+
 .panel { min-width: 0; }
 .steps { display: flex; margin-bottom: 24px; }
 .steps [role="tab"] {
@@ -149,7 +185,6 @@ textarea:focus-visible { outline: 2px solid var(--ink); outline-offset: -1px; }
 .paste .msg { margin: 12px 0 0; }
 #schemalist { max-height: 360px; overflow: auto; padding: 1px; }
 
-#report { min-width: 0; overflow-x: auto; }
 
 /* ---------- write-up (as on the classifier and docrooter pages) ---------- */
 .body h3.sub { margin: 48px 0 24px; font-family: var(--mono); font-weight: 500; font-size: 11px; line-height: 24px; letter-spacing: .14em; text-transform: uppercase; color: var(--ink); }

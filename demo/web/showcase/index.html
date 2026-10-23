@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>formcast · Landon Thornton</title>
-<meta name="description" content="formcast in your browser: a form-field detector finds the blanks on a PDF form, you connect them to your data with a JSON Schema, and the page writes a fillable PDF.">
+<meta name="description" content="formcast in your browser: a form-field detector finds the blanks on a PDF form, an AI agent's mapping (or you, by hand) connects them to your data with a JSON Schema, and the page fills the form.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -22,7 +22,7 @@
     <p class="label">Interactive tool</p>
     <div class="body">
       <h1 id="ttl">formcast</h1>
-      <p class="lead">A detector finds the blanks on a form and you connect them to your data; in the full library an AI agent does the connecting.</p>
+      <p class="lead">A detector finds the blanks on a form and an AI agent connects them to your data. Here the detector runs in your browser, and the sample forms come with the agent's mapping, made ahead of time.</p>
       <p class="meta"><span>CommonForms FFDNet in your browser</span><span>JSON Schema in, fillable PDF out</span><span>Your file stays in your browser</span></p>
     </div>
   </section>
@@ -43,7 +43,7 @@
       </div>
       <figcaption>
         <span id="caption">Fig. 1 · Loading…</span>
-        <span class="key"><span><i class="sw linked"></i>linked</span><span><i class="sw unlinked"></i>not linked</span><span><i class="sw selected"></i>selected</span></span>
+        <span class="key" id="key"><span><i class="sw linked"></i>linked</span><span><i class="sw unlinked"></i>not linked</span><span><i class="sw selected"></i>selected</span></span>
       </figcaption>
       <p class="msg" id="op-msg" role="status" aria-live="polite" hidden></p>
     </figure>
@@ -75,12 +75,12 @@
           </select>
         </div>
         <div class="group">
-          <button type="button" class="btn" id="run-live">Run the detector live</button>
+          <button type="button" class="btn go" id="detect">Detect the boxes</button>
           <p class="readout" id="detect-status" aria-live="polite"></p>
-          <button type="button" class="btn quiet" id="start-over" hidden>Start over</button>
+          <button type="button" class="btn quiet" id="play-saved" hidden>Show the saved results</button>
         </div>
         <div class="group" id="live-note" hidden>
-          <p class="note">Live detection is off on this device. The model is a <span id="note-size">38 MB</span> download, may be slow here and can run the tab out of memory. You can still add boxes by hand.</p>
+          <p class="note" id="live-note-text"></p>
           <button type="button" class="btn quiet" id="try-anyway">Try anyway</button>
         </div>
         <p class="note" id="scanned-note" hidden>This page has no text layer, as on a scan. The detector still finds boxes, but they get no labels; the full library reads scans with OCR.</p>
@@ -88,15 +88,15 @@
           <label class="check"><input type="checkbox" id="compare"> Show the form's own fields</label>
           <p class="readout" id="found"></p>
         </div>
-        <div class="group" id="agent-group" hidden>
-          <button type="button" class="btn quiet" id="load-agent">Load the AI agent's template</button>
-          <p class="hint">Opens the form as published, with its own fields, and the template an AI agent built for it in the dev eval. On a fillable form the agent maps the form's own fields; on flat and scanned forms it maps detector boxes.</p>
-          <p class="readout" id="agent-scores" hidden></p>
-        </div>
-        <button type="button" class="btn next" data-goto="link">Next: link →</button>
+        <button type="button" class="btn next" data-goto="link">Next: map the fields →</button>
       </div>
 
       <div class="step" id="step-link" role="tabpanel" aria-labelledby="tab-link" hidden>
+        <div class="group" id="automap-group">
+          <button type="button" class="btn go" id="automap">Auto map</button>
+          <p class="readout" id="automap-status" aria-live="polite"></p>
+          <p class="hint" id="automap-note"></p>
+        </div>
         <div class="group">
           <p class="label" id="schema-label">Schema</p>
           <details class="paste" id="paste">
@@ -114,31 +114,33 @@
         <div class="group">
           <p class="label">Selected box</p>
           <div id="inspector"></div>
-        </div>
-        <div class="group">
-          <p class="label">History</p>
-          <div id="history"></div>
+          <div class="row">
+            <button type="button" class="btn quiet" id="undo" disabled>Undo</button>
+            <button type="button" class="btn quiet" id="redo" disabled>Redo</button>
+          </div>
         </div>
         <button type="button" class="btn next" data-goto="fill">Next: fill →</button>
       </div>
 
       <div class="step" id="step-fill" role="tabpanel" aria-labelledby="tab-fill" hidden>
+        <div class="group" id="record-pick-group">
+          <p class="label"><label for="record-pick">Record</label></p>
+          <select id="record-pick"></select>
+        </div>
         <div class="group">
-          <p class="label"><label for="record">Record</label></p>
-          <textarea id="record" rows="12" spellcheck="false"></textarea>
-          <p class="hint" id="record-hint">A made-up record for the schema. Edit it or paste your own.</p>
+          <p class="label"><label for="record" id="record-label">The record as JSON</label></p>
+          <textarea id="record" rows="10" spellcheck="false"></textarea>
+          <p class="hint" id="record-hint"></p>
           <p class="msg" id="record-error" role="alert" hidden></p>
         </div>
         <div class="group">
-          <button type="button" class="btn" id="fill">Fill and download the PDF</button>
-          <button type="button" class="btn quiet" id="smart">Download a fillable empty PDF</button>
+          <button type="button" class="btn go" id="fill">Fill the form</button>
           <div class="row">
-            <button type="button" class="btn quiet" id="save-template">Download template</button>
-            <label class="btn quiet file">Load template<input type="file" id="template-file" accept=".json,application/json"></label>
+            <button type="button" class="btn quiet" id="download" disabled>Download</button>
+            <button type="button" class="btn quiet" id="clear" disabled>Clear</button>
           </div>
           <p class="msg" id="fill-msg" role="status" hidden></p>
         </div>
-        <div id="report"></div>
       </div>
     </aside>
   </section>
@@ -146,9 +148,9 @@
   <section class="sec" aria-labelledby="l-how">
     <h2 class="label" id="l-how">How it works</h2>
     <div class="body">
-      <p>formcast is a Python library. It turns a blank PDF form and a JSON Schema into a template, and a template, the blank form and a record into a filled PDF with a report. This page runs the same steps in your browser, without the agent: the detector, your links and the fill.</p>
+      <p>formcast is a Python library. It turns a blank PDF form and a JSON Schema into a template, and a template, the blank form and a record into a filled PDF with a report. This page runs the fill in your browser, and the detector too where the device allows (elsewhere, such as on phones, it plays back the detector's saved results), but not the agent. For each sample form, Auto map loads the mapping the agent built for it in the eval and pairs it with your boxes by position; on a PDF of your own you link the boxes by hand. Fill shows the filled PDF on the page, the same file Download saves.</p>
       <figure class="diagram">
-        <svg class="wide" viewBox="0 0 672 264" role="img" aria-label="The pipeline: a PDF form becomes a page map; an AI agent, given the JSON Schema, writes a template; fill takes the template and a record and writes a filled PDF with a report. In this page you do the agent's step by hand.">
+        <svg class="wide" viewBox="0 0 672 264" role="img" aria-label="The pipeline: a PDF form becomes a page map; an AI agent, given the JSON Schema, writes a template; fill takes the template and a record and writes a filled PDF with a report. In this page the agent's step is its saved run for a sample form, or you, by hand.">
           <text class="s" x="72" y="16" text-anchor="middle">PDF FORM</text>
           <path class="ln" d="M72.5 24v40"/><path class="ah" d="M68.5 64h8l-4 8z"/>
           <text class="s" x="276" y="16" text-anchor="middle">JSON SCHEMA</text>
@@ -171,9 +173,10 @@
           <text class="s" x="208" y="156">edit operations</text>
 
           <path class="ln you" d="M276.5 168v24"/>
-          <rect class="bx you" x="192.5" y="192.5" width="167" height="47"/>
+          <rect class="bx you" x="192.5" y="192.5" width="167" height="63"/>
           <text class="s" x="208" y="212">in this page:</text>
-          <text class="s" x="208" y="228">you, by hand</text>
+          <text class="s" x="208" y="228">the agent's saved run,</text>
+          <text class="s" x="208" y="244">or you, by hand</text>
 
           <path class="ln" d="M360 120.5h40"/><path class="ah" d="M400 116.5v8l8-4z"/>
 
@@ -199,7 +202,7 @@
           <g class="bl"><circle cx="408.5" cy="72.5" r="9"/><text x="408.5" y="72.5">3</text></g>
           <g class="bl"><circle cx="552.5" cy="72.5" r="9"/><text x="552.5" y="72.5">4</text></g>
         </svg>
-        <svg class="tall" viewBox="0 0 336 576" role="img" aria-label="The pipeline: a PDF form becomes a page map; an AI agent, given the JSON Schema, writes a template; fill takes the template and a record and writes a filled PDF with a report. In this page you do the agent's step by hand.">
+        <svg class="tall" viewBox="0 0 336 576" role="img" aria-label="The pipeline: a PDF form becomes a page map; an AI agent, given the JSON Schema, writes a template; fill takes the template and a record and writes a filled PDF with a report. In this page the agent's step is its saved run for a sample form, or you, by hand.">
           <text class="s" x="108" y="16" text-anchor="middle">PDF FORM</text>
           <path class="ln" d="M108.5 24v16"/><path class="ah" d="M104.5 40h8l-4 8z"/>
 
@@ -218,9 +221,10 @@
           <text class="s" x="16" y="252">edit operations</text>
 
           <path class="ln you" d="M216 216.5h24"/>
-          <rect class="bx you" x="240.5" y="192.5" width="95" height="47"/>
-          <text class="s" x="252" y="212">this page:</text>
-          <text class="s" x="252" y="228">you, by hand</text>
+          <rect class="bx you" x="240.5" y="184.5" width="95" height="63"/>
+          <text class="s" x="252" y="204">this page:</text>
+          <text class="s" x="252" y="220">saved run,</text>
+          <text class="s" x="252" y="236">or by hand</text>
 
           <path class="ln" d="M108.5 264v40"/><path class="ah" d="M104.5 304h8l-4 8z"/>
 
@@ -243,7 +247,7 @@
           <g class="bl"><circle cx="0.5" cy="312.5" r="9"/><text x="0.5" y="312.5">3</text></g>
           <g class="bl"><circle cx="0.5" cy="432.5" r="9"/><text x="0.5" y="432.5">4</text></g>
         </svg>
-        <figcaption>Fig. 2 · From a blank form to a filled one. In this page you do step 2 by hand.</figcaption>
+        <figcaption>Fig. 2 · From a blank form to a filled one. In this page step 2 is the agent's saved run for a sample form, or you, by hand.</figcaption>
       </figure>
       <p><b>1 · Page map.</b> The form first becomes a page map: its words and lines of text with their positions, the form fields it already has, the printed rules near each blank, and the boxes the CommonForms detector proposes. Each box comes with its nearest label. A page without a usable text layer is read with OCR.</p>
       <p><b>2 · Agent.</b> An AI model gets the page map as compact text and writes Python that runs against it. Query helpers find words, the text to the right of or below an item, and the candidate boxes on a page. Edit operations link a box to a schema path, add or split boxes, group choices and build tables. The agent starts from a seeded template, one box per form field and per detector box, and edits it step by step; each step reports what changed and what was refused.</p>
@@ -255,7 +259,7 @@
   <section class="sec" aria-labelledby="l-agent">
     <h2 class="label" id="l-agent">What the AI agent adds</h2>
     <div class="body">
-      <p><b>Here, you do the agent's job.</b> The detector only proposes boxes. In this page you link each box to a schema field, add the boxes it missed, and fix or remove the wrong ones.</p>
+      <p><b>Here, the agent's work is replayed, not run.</b> The detector only proposes boxes. For each sample form, the agent built a template in the eval on the form as published, with its own fields; Auto map takes that mapping and pairs each of its fields with the box the detector found on the same blank. What it can't pair, and every box on a PDF of your own, you link by hand, and you can add the boxes the detector missed and fix or remove the wrong ones.</p>
       <p><b>In the library, the agent does it with tools, without vision.</b> It never sees the page image. It reads the page map as text and geometry and works through the edit operations. Its tools are built for:</p>
       <ul class="list">
         <li>linking each box to a schema path, with transforms where the form needs them;</li>
@@ -306,6 +310,7 @@
     <h2 class="label" id="l-limits">Limits</h2>
     <div class="body">
       <p><b>Mapping is where the agent loses points now.</b> On fillable forms it finds nearly every path, but its transforms vary from run to run. On flat and scanned forms it often draws its own box beside a detected one and links that instead. Across forms it often links a list to the text box but not to the checkbox that goes with it.</p>
+      <p><b>Auto map is a replay.</b> It works on the sample forms only, and only where a detected box overlaps a field the agent mapped: a box the detector missed or placed elsewhere stays unlinked, and the tables the agent built are not carried over.</p>
       <p><b>Scans are weak.</b> On some scanned pages the detector misses most of the boxes, and a scan has no printed rules to place the missing ones against. Neither model in this page is reliable on scans; the library sends scanned pages to FFDetr and reads them with OCR. Finding lines and boxes in the image itself would be new work.</p>
       <p><b>Long forms.</b> The agent stops early or gives up on long, noisy forms, and those sessions cost the most, because every step resends the first message.</p>
       <p><b>Drawn boxes.</b> A blank drawn as a rectangle reaches the page map only as two rules, so the agent can put the field on the label row above it.</p>
