@@ -123,6 +123,21 @@ class Bench:
             self.page.click(button)
         return Path(info.value.path()).read_bytes()
 
+    def filled(self, title: str = "") -> None:
+        """Wait for the filled PDF on the page (its caption naming ``title``), drawn and with the boxes hidden."""
+        self.page.wait_for_function(
+            "t => document.getElementById('pageview').classList.contains('is-filled')"
+            " && document.getElementById('caption').textContent.includes(t)"
+            " && document.querySelector('#pageview canvas.fc-pv-media')",
+            arg=title,
+        )
+        assert self.page.eval_on_selector("#pageview .fc-pv-layer", "el => getComputedStyle(el).visibility") == "hidden"
+
+    def cleared(self) -> None:
+        """Wait for the form with its boxes back on the page."""
+        self.page.wait_for_function("!document.getElementById('pageview').classList.contains('is-filled')")
+        expect(self.page.locator("#fill-download")).to_be_disabled()
+
 
 # Holds every /api/apply request in the page until the test releases it (oldest first), and counts them.
 GATE_APPLY = """
@@ -636,7 +651,15 @@ def test_the_ai_off_note_wraps_under_the_toolbar_without_overflow(demo_server, b
 # ------------------------------------------------------------------ fill, save
 
 
-def test_fill_from_a_stored_record_downloads_a_pdf_and_shows_the_report(demo_server, bench):
+def pdf_values(data: bytes) -> list[str]:
+    doc = pymupdf.open(stream=data, filetype="pdf")
+    try:
+        return [w.field_value for p in doc for w in p.widgets() or []]
+    finally:
+        doc.close()
+
+
+def test_fill_from_a_stored_record_shows_the_filled_pdf_and_download_saves_it(demo_server, bench):
     b = bench(demo_server)
     b.open_form("fw9")
     b.page.click("#reuse")
@@ -645,12 +668,99 @@ def test_fill_from_a_stored_record_downloads_a_pdf_and_shows_the_report(demo_ser
     expect(b.page.locator("#fill")).to_be_visible()
     expect(b.page.locator("#fill-schema")).to_have_value("fw9")
     expect(b.page.locator("#fill-record option[value='fw9-01']")).to_have_count(1)  # in CSV and SQLite, listed once
+    expect(b.page.locator("#fill-download")).to_be_disabled()
     b.page.select_option("#fill-record", "fw9-01")
-    pdf = b.download("#fill-go")
-    assert pdf.startswith(b"%PDF")
+    first_title = b.page.eval_on_selector("#fill-record", "s => s.selectedOptions[0].textContent")
+    b.page.click("#fill-go")
+    b.filled(first_title)
     expect(b.page.locator("#report .fc-rp-counts")).to_be_visible()
-    smart = b.download("#smart-go")
+    first = b.download("#fill-download")
+    assert first.startswith(b"%PDF")
+
+    # another record fills again, with no Clear in between
+    with b.page.expect_request("**/api/fill") as request:
+        b.page.select_option("#fill-record", "fw9-02")
+    assert request.value.post_data_json["record_ref"] == {"schema": "fw9", "id": "fw9-02"}
+    second_title = b.page.eval_on_selector("#fill-record", "s => s.selectedOptions[0].textContent")
+    b.filled(second_title)
+    second = b.download("#fill-download")
+    assert second != first and pdf_values(second) != pdf_values(first)
+
+    b.page.click("#fill-clear")
+    b.cleared()
+    smart = b.download("#smart-go")  # the fillable empty PDF still downloads straight away
     assert smart.startswith(b"%PDF")
+
+
+def test_an_edit_or_closing_the_drawer_ends_the_filled_preview(demo_server, bench):
+    b = bench(demo_server)
+    b.open_form("fw9")
+    b.page.click("#reuse")
+    b.page.wait_for_function("window.__workbench.template !== null")
+    box(b.page, "w0_0").click()  # an edit to undo later: the box's Delete key
+    b.page.keyboard.press("Delete")
+    expect(box(b.page, "w0_0")).to_have_count(0)
+    b.idle()
+    b.page.click("#fill-open")
+    b.page.select_option("#fill-record", "fw9-01")
+    b.page.click("#fill-go")
+    b.filled()
+    b.page.click("#fill-close")
+    b.cleared()
+    expect(b.boxes().first).to_be_visible()
+
+    b.page.click("#fill-open")
+    b.page.select_option("#fill-record", "fw9-01")
+    b.page.click("#fill-go")
+    b.filled()
+    b.page.click("#undo")  # any template change ends the preview
+    b.cleared()
+    expect(box(b.page, "w0_0")).to_be_visible()
+
+
+def test_clear_while_a_fill_runs_keeps_the_form_on_the_page(demo_server, bench):
+    b = bench(demo_server)
+    b.open_form("fw9")
+    b.page.click("#reuse")
+    b.page.wait_for_function("window.__workbench.template !== null")
+    b.page.click("#fill-open")
+    b.page.select_option("#fill-record", "fw9-01")
+    b.page.click("#fill-go")
+    b.filled()
+    held = []
+    b.page.route("**/api/fill", lambda route: held.append(route))
+    b.page.select_option("#fill-record", "fw9-02")  # fills again; the server's answer is held
+    b.page.wait_for_function("document.getElementById('fill-go').disabled")
+    b.page.click("#fill-clear")
+    b.cleared()
+    for _ in range(100):  # the held request reaches the route handler while Playwright runs
+        if held:
+            break
+        b.page.wait_for_timeout(50)
+    assert len(held) == 1
+    held[0].continue_()
+    b.page.wait_for_function("!document.getElementById('fill-go').disabled")
+    b.page.wait_for_timeout(300)
+    assert not b.page.evaluate("document.getElementById('pageview').classList.contains('is-filled')")
+    expect(b.page.locator("#fill-download")).to_be_disabled()
+
+
+def test_a_filled_pdf_the_browser_cannot_draw_still_downloads(demo_server, bench):
+    doc = pymupdf.open(stream=widget_pdf())
+    for _ in range(50):  # 51 pages: more than the browser's reader takes (MAX_PAGES)
+        doc.new_page(width=300, height=200)
+    data = doc.tobytes()
+    doc.close()
+    b = bench(demo_server)
+    b.upload(data, "long.pdf")
+    b.build_new()
+    b.page.click("#fill-open")
+    b.page.click("#fill-go")
+    expect(b.page.locator("#fill-msg")).to_contain_text("the preview couldn't be drawn")
+    expect(b.page.locator("#fill-msg")).to_contain_text("Download saves the filled PDF")
+    assert not b.page.evaluate("document.getElementById('pageview').classList.contains('is-filled')")
+    pdf = b.download("#fill-download")
+    assert pymupdf.open(stream=pdf).page_count == 51
 
 
 def test_a_pasted_schema_fills_from_an_editable_sample_record_never_from_another_schemas_records(demo_server, bench):
@@ -673,9 +783,10 @@ def test_a_pasted_schema_fills_from_an_editable_sample_record_never_from_another
     edited = {"name": "Ada Example", "note": "edited by hand"}
     b.page.fill("#fill-sample", json.dumps(edited))
     with b.page.expect_request("**/api/fill") as request:
-        pdf = b.download("#fill-go")
+        b.page.click("#fill-go")
     assert request.value.post_data_json["record"] == edited and "record_ref" not in request.value.post_data_json
-    assert pdf.startswith(b"%PDF")
+    b.filled("the sample record")
+    assert b.download("#fill-download").startswith(b"%PDF")
     expect(b.page.locator("#report .fc-rp-counts")).to_be_visible()
 
     # a stored schema's template offers its own records first, and the sample too
@@ -703,19 +814,26 @@ def test_fill_with_a_template_for_another_revision_offers_rebind_and_fill_anyway
     b.page.click("#fill-go")
     expect(b.page.locator("#fill-mismatch")).to_be_visible()
     expect(b.page.locator("#fill-mismatch")).to_contain_text("different version")
-    pdf = b.download("#rebind")
-    assert pdf.startswith(b"%PDF")
+    b.page.click("#rebind")  # one undo step, then the fill runs again
+    b.filled()
+    assert b.download("#fill-download").startswith(b"%PDF")
     expect(b.page.locator("#fill-mismatch")).to_be_hidden()
     b.idle()
     assert b.template()["form"]["fingerprint"] != get_json(demo_server, "/api/templates/fw9")[1]["template"]["form"]["fingerprint"]
 
-    b.page.click("#undo")  # back to the template as stored: the check refuses again
+    b.page.click("#undo")  # back to the template as stored: the preview ends and the check refuses again
+    b.cleared()
     b.idle()
     b.page.click("#fill-go")
     expect(b.page.locator("#fill-mismatch")).to_be_visible()
-    pdf = b.download("#fill-anyway")
-    assert pdf.startswith(b"%PDF")
+    b.page.click("#fill-anyway")
+    b.filled()
+    assert b.download("#fill-download").startswith(b"%PDF")
     expect(b.page.locator("#fill-msg")).to_contain_text("filled anyway")
+    # another record keeps filling anyway, without asking again
+    b.page.select_option("#fill-record", "fw9-01")
+    b.page.wait_for_function("document.getElementById('caption').textContent.includes(document.getElementById('fill-record').selectedOptions[0].textContent)")
+    expect(b.page.locator("#fill-mismatch")).to_be_hidden()
 
 
 def test_save_puts_the_template_in_the_store_and_it_is_matched_after_a_reload(demo_server, bench):

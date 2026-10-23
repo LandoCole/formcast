@@ -1,8 +1,15 @@
-// The formcast showcase (layout C) on the browser engine. A thin wiring layer: it creates the
-// engine and the session (core/session.js: document, template, undo, the ordered edit queue),
-// mounts the page view, renders on the session's events and hands the three steps to their modules
-// (detect.js, link.js, fill.js), which call back through `app`.
-// The write-up's Results section renders from results.json (results.js).
+// The formcast showcase (layout C) on the browser engine: a guided run of the three steps. Detect
+// runs the detector over the blank form under a scan, Link's Auto map carries the AI agent's
+// mapping for a sample onto the boxes, and Fill shows the filled PDF in place before it is
+// downloaded. A thin wiring layer: it creates the engine and the session (core/session.js:
+// document, template, undo, the ordered edit queue), mounts the page view and the scan, renders on
+// the session's events and hands the three steps to their modules (detect.js, link.js, fill.js),
+// which call back through `app`. The write-up's Results section renders from results.json
+// (results.js).
+//
+// The filled preview. While Fill shows a filled PDF (`state.preview`), the page view draws that
+// PDF's pages and hides the boxes. Any change to the template, another document, or leaving the
+// Fill step ends the preview, so the page never shows a fill of an older template.
 //
 // Test hooks: `?samples=<dir>/` (the folder holding index.json), `?worker=<url>` (a stand-in
 // detection worker) and `?timeout=<ms>` (every time limit below: fetching sample files, opening a
@@ -14,12 +21,12 @@ import { PageView } from "../core/pageview.js";
 import { schemaPathsOf } from "../core/schema.js";
 import { fieldWarnings } from "../core/schemalist.js";
 import { createSession } from "../core/session.js";
-import { remember } from "../core/store.js";
 import { createBrowserEngine } from "../engines/browser/engine.js";
 import { mountDetect } from "./detect.js";
 import { mountFill } from "./fill.js";
 import { mountLink } from "./link.js";
 import { mountResults } from "./results.js";
+import { createScan } from "./scan.js";
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -59,16 +66,18 @@ const touch = detectTouch();
 const bus = createBus();
 const engine = createBrowserEngine({ workerUrl });
 const view = new PageView($("pageview"), { bus });
+const scan = createScan($("pageview"));
 const session = createSession({ engine, bus });
 
 /** What the page shows besides the session's document and template. */
 const state = {
   name: "",
   sample: null, // the open sample's files (see detect.js), or null for a visitor's own PDF
-  variant: null, // "form" (fields stripped), "published" (as published) or "own"
   page: 0,
   selected: null,
   compare: false,
+  /** The filled PDF on show in the Fill step: {doc, bytes, title}, or null. */
+  preview: null,
   /** The open document (the session's), or null. */
   get doc() {
     return session.doc;
@@ -89,6 +98,7 @@ const app = {
   engine,
   session,
   view,
+  scan,
   state,
   samplesBase,
   touch, // tap to link, no drag, the model choice hidden (FFDNet-S)
@@ -103,6 +113,11 @@ const app = {
     return session.template;
   },
 
+  /** The step on show: "detect", "link" or "fill". */
+  get step() {
+    return step;
+  },
+
   /** The current schema's flattened paths ([] when it can't be flattened). */
   schemaPaths() {
     return schemaPathsOf(app.template?.schema);
@@ -115,16 +130,36 @@ const app = {
 
   /**
    * Show a new document with its starting template; the undo history starts over.
-   * @param {{doc: object, name: string, sample: object | null, variant: string, template: object,
+   * @param {{doc: object, name: string, sample: object | null, template: object,
    *   source: {kind: string, text: string}}} opts
    * (New templates for the document on screen go through `app.session.replaceTemplate`.)
    */
-  setDocument({ doc, name, sample, variant, template, source }) {
-    Object.assign(state, { name, sample, variant, page: 0, selected: null });
+  setDocument({ doc, name, sample, template, source }) {
+    scan.stop();
+    dropPreview();
+    Object.assign(state, { name, sample, page: 0, selected: null });
     session.setDocument(doc, template, { source });
     say($("op-msg"), "");
     view.select(null);
+    for (const fn of documentHooks) fn();
     showPage(0);
+  },
+
+  /** Register a function called when a new document is shown (before it is drawn). */
+  onDocument(fn) {
+    documentHooks.push(fn);
+  },
+
+  /**
+   * Show a filled PDF in place of the form, boxes hidden; null goes back to the form.
+   * @param {{doc: object, bytes: Uint8Array, title: string} | null} preview `doc` is the filled PDF
+   *   opened by the engine (closed when the preview ends); `bytes` what Download saves
+   */
+  setPreview(preview) {
+    if (preview === state.preview) return;
+    dropPreview();
+    state.preview = preview;
+    showPage(state.page);
   },
 
   /** Select a field (or none) from outside the page view, turning to its page. */
@@ -137,20 +172,17 @@ const app = {
     view.select(state.selected);
   },
 
-  /** Put a record in the Fill step's text box. */
-  setRecord(record) {
-    $("record").value = `${JSON.stringify(record, null, 2)}\n`;
-  },
-
-  /** The localStorage key of the open sample's template. */
-  storageKey,
   showPage,
   setStep,
   render,
 };
+const documentHooks = [];
 
-function storageKey() {
-  return `${state.sample.id}/${state.variant}`;
+/** End the preview without redrawing (the caller does): its document is closed. */
+function dropPreview() {
+  const old = state.preview;
+  state.preview = null;
+  old?.doc.destroy().catch(() => {});
 }
 
 // ------------------------------------------------------------------ page and rendering
@@ -167,20 +199,21 @@ function showPage(index) {
   if (doc === null) return render();
   state.page = Math.max(0, Math.min(index, doc.pageCount - 1));
   const page = doc.pages[state.page];
+  const shown = state.preview?.doc ?? doc; // the filled PDF has the form's pages, filled in
   view.setScale(fitScale(page));
   view.setPage({
     index: page.index,
     width: page.width,
     height: page.height,
     rotation: page.rotation,
-    render: (canvas, scale) => doc.render(page.index, canvas, scale),
+    render: (canvas, scale) => shown.render(page.index, canvas, scale),
   });
   render();
 }
 
 /** Outlines of the sample's original fields on the current page, when "show" is on. */
 function compareRects() {
-  if (!state.compare || state.sample === null || state.variant === "own") return [];
+  if (!state.compare || state.sample === null) return [];
   return state.sample.originals.pages[String(state.page)] ?? [];
 }
 
@@ -192,18 +225,28 @@ function render() {
   $("pageview").hidden = !open;
   $("stage-empty").hidden = open;
   $("pager").hidden = !open || state.doc.pageCount < 2;
+  const filled = open && state.preview !== null;
+  $("pageview").classList.toggle("is-filled", filled);
+  $("key").hidden = filled;
   if (open) {
     if (state.selected !== null && !t.fields.some((f) => f.id === state.selected)) {
       state.selected = null;
       view.select(null);
     }
-    view.setTemplate(t, { compare: compareRects(), warnings: fieldWarnings(t, app.schemaPaths(), session.fieldWarnings) });
+    view.setTemplate(t, { compare: filled ? [] : compareRects(), warnings: fieldWarnings(t, app.schemaPaths(), session.fieldWarnings) });
+    scan.decorate();
     $("page-no").textContent = `Page ${state.page + 1} of ${state.doc.pageCount}`;
     $("prev-page").disabled = state.page === 0;
     $("next-page").disabled = state.page >= state.doc.pageCount - 1;
-    const linked = t.fields.filter((f) => (f.source?.paths ?? []).length > 0).length;
-    const source = session.source?.text ?? "";
-    $("caption").textContent = `Fig. 1 · ${source ? `${source} · ` : ""}${plural(t.fields.length, "box", "boxes")} · ${linked} linked`;
+    if (filled) {
+      $("caption").textContent = `Fig. 1 · The filled PDF · ${state.preview.title}`;
+    } else {
+      const linked = t.fields.filter((f) => (f.source?.paths ?? []).length > 0).length;
+      const source = session.source?.text ?? "";
+      const boxes = t.fields.length === 0 ? "no boxes yet" : `${plural(t.fields.length, "box", "boxes")} · ${linked} linked`;
+      const text = source ? `${source} · ${boxes}` : boxes;
+      $("caption").textContent = `Fig. 1 · ${text[0].toUpperCase()}${text.slice(1)}`;
+    }
   } else {
     $("caption").textContent = "Fig. 1 · No form open";
   }
@@ -215,6 +258,7 @@ function render() {
 const STEPS = ["detect", "link", "fill"];
 
 function setStep(name) {
+  if (name !== "fill" && state.preview !== null) app.setPreview(null); // back to the boxes to edit
   step = name;
   for (const s of STEPS) {
     const tab = $(`tab-${s}`);
@@ -254,11 +298,11 @@ bus.on("select", ({ id }) => {
 bus.on("op", ({ op }) => session.apply(op));
 bus.on("undo", () => session.undo());
 bus.on("redo", () => session.redo());
-bus.on("template", ({ template, added, reason }) => {
-  if (state.sample) remember(storageKey(), template);
+bus.on("template", ({ added, reason }) => {
   if (reason === "apply") say($("op-msg"), "");
   if (added !== null) state.selected = added;
-  render();
+  if (state.preview !== null) app.setPreview(null); // a fill of the template before is out of date
+  else render();
   if (added !== null) view.select(added);
 });
 bus.on("error", ({ message }) => {

@@ -1,37 +1,121 @@
-{
- "employee_id": "E-20817",
- "employee": {
-  "first_name": "Marisol",
-  "middle_name": "Q",
-  "last_name": "Fernsby",
-  "ssn": "000-12-3456",
-  "address": {
-   "street": "72 Sample Street",
-   "city": "Springfield",
-   "state": "OR",
-   "postal_code": "97477"
+[
+ {
+  "title": "Marisol Fernsby, head of household",
+  "record": {
+   "employee_id": "E-20817",
+   "employee": {
+    "first_name": "Marisol",
+    "middle_name": "Q",
+    "last_name": "Fernsby",
+    "ssn": "000-12-3456",
+    "address": {
+     "street": "72 Sample Street",
+     "city": "Springfield",
+     "state": "OR",
+     "postal_code": "97477"
+    }
+   },
+   "withholding": {
+    "filing_status": "head_of_household",
+    "two_jobs_only": false,
+    "dependent_credits": 2000,
+    "other_income": 1500,
+    "deductions": 3200,
+    "extra_withholding": 25,
+    "exempt": false,
+    "effective_date": "2026-02-02"
+   },
+   "employer": {
+    "name": "Brightwater Example Foods Inc.",
+    "address": {
+     "street": "9 Placeholder Road",
+     "city": "Eugene",
+     "state": "OR",
+     "postal_code": "97401"
+    },
+    "ein": "00-0000001"
+   },
+   "hire_date": "2026-01-20",
+   "signed_on": "2026-01-22"
   }
  },
- "withholding": {
-  "filing_status": "head_of_household",
-  "two_jobs_only": false,
-  "dependent_credits": 2000,
-  "other_income": 1500,
-  "deductions": 3200,
-  "extra_withholding": 25,
-  "exempt": false,
-  "effective_date": "2026-02-02"
+ {
+  "title": "Priya Halvorsen, single, two jobs",
+  "record": {
+   "employee_id": "E-20944",
+   "employee": {
+    "first_name": "Priya",
+    "last_name": "Halvorsen",
+    "ssn": "000-34-5678",
+    "address": {
+     "street": "310 Example Way, Apt 2",
+     "city": "Eugene",
+     "state": "OR",
+     "postal_code": "97402"
+    }
+   },
+   "withholding": {
+    "filing_status": "single_or_married_separately",
+    "two_jobs_only": true,
+    "dependent_credits": 0,
+    "other_income": 0,
+    "deductions": 0,
+    "extra_withholding": 0,
+    "exempt": false,
+    "effective_date": "2026-03-02"
+   },
+   "employer": {
+    "name": "Brightwater Example Foods Inc.",
+    "address": {
+     "street": "9 Placeholder Road",
+     "city": "Eugene",
+     "state": "OR",
+     "postal_code": "97401"
+    },
+    "ein": "00-0000001"
+   },
+   "hire_date": "2026-02-23",
+   "signed_on": "2026-02-24"
+  }
  },
- "employer": {
-  "name": "Brightwater Example Foods Inc.",
-  "address": {
-   "street": "9 Placeholder Road",
-   "city": "Eugene",
-   "state": "OR",
-   "postal_code": "97401"
-  },
-  "ein": "00-0000001"
- },
- "hire_date": "2026-01-20",
- "signed_on": "2026-01-22"
-}
+ {
+  "title": "Gideon Marsh, married filing jointly",
+  "record": {
+   "employee_id": "E-21003",
+   "employee": {
+    "first_name": "Gideon",
+    "middle_name": "T",
+    "last_name": "Marsh",
+    "ssn": "000-78-9012",
+    "address": {
+     "street": "88 Placeholder Drive",
+     "city": "Springfield",
+     "state": "OR",
+     "postal_code": "97478"
+    }
+   },
+   "withholding": {
+    "filing_status": "married_jointly_or_surviving_spouse",
+    "two_jobs_only": false,
+    "dependent_credits": 4000,
+    "other_income": 0,
+    "deductions": 1200,
+    "extra_withholding": 50,
+    "exempt": false,
+    "effective_date": "2026-04-06"
+   },
+   "employer": {
+    "name": "Brightwater Example Foods Inc.",
+    "address": {
+     "street": "9 Placeholder Road",
+     "city": "Eugene",
+     "state": "OR",
+     "postal_code": "97401"
+    },
+    "ein": "00-0000001"
+   },
+   "hire_date": "2026-03-30",
+   "signed_on": "2026-03-31"
+  }
+ }
+]

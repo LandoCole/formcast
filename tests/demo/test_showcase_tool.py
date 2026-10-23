@@ -1,4 +1,9 @@
-"""The showcase page's tool (layout C) on the browser engine, in Chromium.
+"""The showcase page's tool (layout C) on the browser engine, in Chromium: the guided flow.
+
+A sample opens blank (its fields stripped, no boxes). Detect runs the detector under a scan and the
+boxes come in as it passes; where live detection is off it plays the scan over the sample's saved
+detections and says so. Link's Auto map carries the AI agent's mapping onto the boxes by position.
+Fill shows the filled PDF on the page; Download saves those bytes and Clear goes back to the boxes.
 
 The page reads its samples from ``?samples=/tests/web/fixtures/`` (the hand-made bundle that
 ``tests/web/make_sample_bundle.py`` builds from ``forms/dev/fw9.pdf``) and detects with
@@ -18,7 +23,6 @@ import pymupdf
 import pytest
 
 from formcast.geometry import iou
-from formcast.template.model import Template
 
 ROOT = Path(__file__).resolve().parents[2]
 BUNDLE = ROOT / "tests" / "web" / "fixtures" / "sample-bundle"
@@ -30,13 +34,19 @@ PAGE = "/demo/web/showcase/index.html"
 DESKTOP = {"viewport": {"width": 1280, "height": 900}}
 PHONE = {"viewport": {"width": 375, "height": 812}, "is_mobile": True, "has_touch": True, "device_scale_factor": 2}
 
-LAZY = re.compile(r"huggingface\.co|onnxruntime-web|pdf-lib|detect-worker|fake-detect-worker|engines/browser/detect\.js")
+LAZY = re.compile(r"huggingface\.co|onnxruntime-web|pdf-lib|detect-worker|fake-detect-worker|engines/browser/detect\.js|agent-template")
 MODEL = re.compile(r"huggingface\.co|onnxruntime-web|fake-detect-worker|detect-worker\.js")
 PROTECTED = "This PDF is protected against changes, so it can't be filled in the browser. The full library can fill it."
+SAVED_NOTE = "Saved results from an earlier run of the detector: live detection is off on this device."
+# where the browser reports under 4 GB, live detection waits for the visitor: Detect plays the saved results
+LOW_MEMORY = "Object.defineProperty(Navigator.prototype, 'deviceMemory', {get: () => 2, configurable: true});"
 
 
 def bundle_json(name: str):
     return json.loads((BUNDLE / name).read_text(encoding="utf-8"))
+
+
+SAVED = len(bundle_json("detections.json")["pages"]["0"])  # the saved boxes on page 0
 
 
 class Tool:
@@ -60,20 +70,63 @@ class Tool:
         else:
             self.page.wait_for_function("n => document.querySelectorAll('.fc-box').length === n", arg=count, timeout=timeout)
 
+    def wait_status(self, start: str, timeout: int = 15_000):
+        self.page.wait_for_function(
+            "s => document.getElementById('detect-status').textContent.startsWith(s)", arg=start, timeout=timeout
+        )
+
     def step(self, name: str):
         self.page.click(f"#tab-{name}")
 
     def drop(self, name: str, data: bytes, mime: str = "application/pdf"):
         self.page.set_input_files("#file", files=[{"name": name, "mimeType": mime, "buffer": data}])
 
-    def record_status(self):
-        """Start keeping every text #detect-status shows, in window.statusSeen."""
-        self.page.evaluate("""() => {
-            window.statusSeen = [];
-            const el = document.getElementById('detect-status');
-            new MutationObserver(() => window.statusSeen.push(el.textContent))
-              .observe(el, {childList: true, characterData: true, subtree: true});
-        }""")
+    def detect(self, count: int):
+        """Click Detect and wait for `count` boxes and the end of the scan."""
+        self.page.click("#detect")
+        self.wait_boxes(count)
+        self.page.wait_for_function("!document.getElementById('pageview').classList.contains('is-revealing')")
+        self.page.wait_for_function("!document.getElementById('detect').disabled")
+
+    def automap(self):
+        """Run Auto map from the Link step and wait for its readout and the links landing."""
+        self.step("link")
+        self.page.click("#automap")
+        self.page.wait_for_function("document.getElementById('automap-status').textContent.startsWith('Mapped')")
+        self.page.wait_for_function("!document.getElementById('pageview').classList.contains('is-mapping')")
+
+    def fill(self):
+        """Fill from the Fill step and wait for the filled PDF on the page."""
+        self.step("fill")
+        self.page.click("#fill")
+        self.wait_filled()
+
+    def wait_filled(self, title: str = ""):
+        self.page.wait_for_function(
+            "t => document.getElementById('pageview').classList.contains('is-filled')"
+            " && document.getElementById('caption').textContent.includes(t)",
+            arg=title,
+            timeout=15_000,
+        )
+
+    def download(self) -> bytes:
+        with self.page.expect_download() as dl:
+            self.page.click("#download")
+        assert dl.value.suggested_filename.endswith("-filled.pdf")
+        return Path(dl.value.path()).read_bytes()
+
+    def watch(self, script: str):
+        """Start keeping in window.seen every value `script` (an expression) takes as the page changes."""
+        self.page.evaluate(
+            """expr => {
+                window.seen = [];
+                const look = new Function(`return (${expr})`);
+                const note = () => { const v = look(); if (window.seen.at(-1) !== v) window.seen.push(v); };
+                new MutationObserver(note).observe(document.body, {subtree: true, childList: true, attributes: true, characterData: true});
+                note();
+            }""",
+            script,
+        )
 
     def no_horizontal_scroll(self):
         # compared with the configured width: a mobile layout viewport grows to fit overflowing content
@@ -114,7 +167,8 @@ def open_tool(server, browser):
         page.goto(f"{server}{PAGE}?{'&'.join(query)}")
         tool = Tool(page, requests, errors)
         if wait:
-            tool.wait_boxes()
+            page.wait_for_selector(".fc-pv-media", timeout=10_000)
+            page.wait_for_function("!document.getElementById('detect').disabled")
         return tool
 
     yield _open
@@ -122,22 +176,43 @@ def open_tool(server, browser):
         context.close()
 
 
-def greedy_matches(originals, boxes, thr=0.5) -> int:
+def greedy_matches(originals, boxes, thr=0.5) -> list[tuple[int, int]]:
     pairs = sorted(
         ((iou(o, b), i, j) for i, o in enumerate(originals) for j, b in enumerate(boxes) if iou(o, b) >= thr),
-        reverse=True,
+        key=lambda p: -p[0],
     )
-    used_o, used_b = set(), set()
+    used_o, used_b, out = set(), set(), []
     for _, i, j in pairs:
         if i not in used_o and j not in used_b:
             used_o.add(i)
             used_b.add(j)
-    return len(used_o)
+            out.append((i, j))
+    return out
+
+
+def expected_mapped(detections: dict, agent: dict) -> int:
+    """How many saved boxes Auto map links: same page, IoU >= 0.3, one to one (showcase/automap.js)."""
+    n = 0
+    for page, cands in detections.items():
+        linked = [
+            f["rect"] for f in agent["fields"]
+            if f["type"] != "table" and f.get("page") == int(page) and (f.get("source") or {}).get("paths")
+        ]  # fmt: skip
+        n += len(greedy_matches([c["rect"] for c in cands], linked, 0.3))
+    return n
 
 
 def user_password_pdf() -> bytes:
     doc = pymupdf.open(BUNDLE / "form.pdf")
     data = doc.tobytes(encryption=pymupdf.PDF_ENCRYPT_AES_256, owner_pw="owner-secret", user_pw="visitor")
+    doc.close()
+    return data
+
+
+def published_pdf() -> bytes:
+    """The fixture's form as published, with its own fields (a fillable PDF a visitor might drop)."""
+    doc = pymupdf.open(ROOT / "forms" / "dev" / "fw9.pdf")
+    data = doc.tobytes(encryption=pymupdf.PDF_ENCRYPT_NONE)
     doc.close()
     return data
 
@@ -154,17 +229,27 @@ def link_first_box(tool: Tool, path: str) -> str:
     return field_id
 
 
+def widget_values(data: bytes) -> list[str]:
+    doc = pymupdf.open(stream=data, filetype="pdf")
+    try:
+        return [w.field_value for p in doc for w in p.widgets() or []]
+    finally:
+        doc.close()
+
+
 # ---------------------------------------------------------------- load
 
 
-def test_first_paint_shows_the_sample_with_boxes_fast_and_nothing_heavy(open_tool):
+def test_a_sample_opens_blank_fast_and_loads_nothing_heavy(open_tool):
     tool = open_tool(wait=False)
-    tool.page.wait_for_selector(".fc-box", timeout=2000)
     tool.page.wait_for_selector(".fc-pv-media", timeout=2000)
     assert tool.page.evaluate("performance.now()") < 2000
-    expected = len(bundle_json("detections.json")["pages"]["0"])
-    assert tool.boxes().count() == expected
-    assert "FFDNet-S" in tool.page.inner_text("#caption")
+    tool.page.wait_for_function("!document.getElementById('detect').disabled")
+    assert tool.boxes().count() == 0
+    assert tool.page.inner_text("#caption") == "Fig. 1 · No boxes yet"
+    assert tool.page.inner_text("#detect") == "DETECT THE BOXES"
+    assert "fields stripped" in tool.page.inner_text("#docline")
+    assert tool.page.is_hidden("#compare-group")
     tool.page.wait_for_timeout(300)
     assert tool.requested(LAZY) == []
     assert tool.errors == []
@@ -180,6 +265,15 @@ def test_steps_panel_starts_on_detect(open_tool):
     assert not tool.page.is_visible("#step-fill")
 
 
+def test_the_developer_controls_are_gone(open_tool):
+    tool = open_tool()
+    for gone in ("#smart", "#save-template", "#template-file", "#report", "#history", "#load-agent", "#agent-group", "#start-over"):
+        assert tool.page.locator(gone).count() == 0, gone
+    text = tool.page.inner_text(".tool")
+    for phrase in ("fillable empty PDF", "Download template", "Load template", "fields written", "left to fill"):
+        assert phrase not in text, phrase
+
+
 def test_missing_samples_say_so_and_leave_the_drop_path(open_tool):
     tool = open_tool(samples="/tests/web/no-such-samples/", wait=False)
     msg = tool.page.locator("#detect-msg")
@@ -191,11 +285,73 @@ def test_missing_samples_say_so_and_leave_the_drop_path(open_tool):
 # ---------------------------------------------------------------- detect
 
 
-def test_original_fields_are_drawn_and_counted(open_tool):
+def test_detect_runs_live_under_a_scan_and_the_boxes_come_in_as_it_passes(open_tool):
     tool = open_tool()
+    tool.watch("document.getElementById('detect-status').textContent")
+    tool.page.click("#detect")
+    tool.page.wait_for_selector(".scan.is-sweeping", state="attached")
+    assert tool.page.inner_text("#detect") == "DETECTING…"
+    tool.page.wait_for_selector("#pageview.is-revealing .fc-box", state="attached")
+    delays = tool.page.eval_on_selector_all(
+        ".fc-box", "els => els.map(e => [parseFloat(e.style.top), parseFloat(e.style.getPropertyValue('--reveal-delay'))])"
+    )
+    delays.sort()
+    assert [d for _, d in delays] == sorted(d for _, d in delays)  # lower on the page, later in
+    assert delays[-1][1] > delays[0][1]
+    tool.wait_boxes(CANNED_BOXES)
+    tool.page.wait_for_function("!document.getElementById('pageview').classList.contains('is-revealing')")
+    assert tool.page.locator(".scan.is-sweeping, .scan.is-pass").count() == 0
+    caption = tool.page.inner_text("#caption")
+    assert "Detected live by FFDNet-S" in caption
+    assert re.search(r"\d+ ms per page", caption)
+    seen = tool.page.evaluate("window.seen")
+    assert any("MB" in s for s in seen), seen
+    assert any("Detecting" in s for s in seen), seen
+    assert tool.requested(re.compile("fake-detect-worker"))
+    assert tool.page.inner_text("#detect") == "DETECT AGAIN"
+    # one undo takes the boxes off again
+    tool.step("link")
+    tool.page.click("#undo")
+    tool.wait_boxes(0)
+    assert tool.errors == []
+
+
+def test_with_reduced_motion_nothing_sweeps_and_the_status_says_what_happens(open_tool):
+    tool = open_tool(reduced_motion="reduce")
+    tool.watch("[...document.querySelectorAll('.scan.is-sweeping, .scan.is-pass, #pageview.is-revealing')].length")
+    tool.page.click("#detect")
+    tool.wait_boxes(CANNED_BOXES)
+    tool.wait_status("Done")
+    assert tool.page.evaluate("window.seen") == [0]
+    assert tool.errors == []
+
+
+def test_saved_results_play_where_live_detection_is_off_and_say_so(open_tool):
+    tool = open_tool(init_script=LOW_MEMORY)
+    assert "plays back the detector's saved results" in tool.page.inner_text("#detect-status")
+    tool.watch("document.querySelectorAll('.scan.is-pass').length")
+    tool.detect(SAVED)
+    assert 1 in tool.page.evaluate("window.seen")  # the same scan, over the saved boxes
+    assert "Saved results from an earlier run of FFDNet-S" in tool.page.inner_text("#caption")
+    assert "Detected live" not in tool.page.inner_text("#caption")
+    note = tool.page.locator("#live-note")
+    assert note.is_visible()
+    assert SAVED_NOTE in note.inner_text()
+    tool.page.wait_for_timeout(300)
+    assert tool.requested(MODEL) == []
+    tool.page.click("#try-anyway")
+    tool.wait_boxes(CANNED_BOXES)
+    assert "Detected live" in tool.page.inner_text("#caption")
+    assert note.is_hidden()
+    assert tool.errors == []
+
+
+def test_original_fields_are_drawn_and_counted(open_tool):
+    tool = open_tool(init_script=LOW_MEMORY)
+    tool.detect(SAVED)
     originals = bundle_json("original-fields.json")["pages"]["0"]
     boxes = [d["rect"] for d in bundle_json("detections.json")["pages"]["0"]]
-    n = greedy_matches(originals, boxes)
+    n = len(greedy_matches(originals, boxes))
     assert 0 < n < len(originals)  # the bundle leaves some out on purpose
     assert tool.page.locator(".fc-compare").count() == 0
     tool.page.check("#compare")
@@ -205,53 +361,34 @@ def test_original_fields_are_drawn_and_counted(open_tool):
     assert tool.page.locator(".fc-compare").count() == 0
 
 
-def test_run_live_shows_progress_then_replaces_the_boxes(open_tool):
-    tool = open_tool()
-    tool.record_status()
-    tool.page.click("#run-live")
-    tool.wait_boxes(CANNED_BOXES)
-    caption = tool.page.inner_text("#caption")
-    assert "Detected live by FFDNet-S" in caption
-    assert re.search(r"\d+ ms per page", caption)
-    seen = tool.page.evaluate("window.statusSeen")
-    assert any("MB" in s for s in seen), seen
-    assert any("Detecting" in s for s in seen), seen
-    assert tool.requested(re.compile("fake-detect-worker"))
-    assert not tool.page.is_disabled("#run-live")
-    # undo brings back the boxes found ahead of time
-    tool.step("link")
-    tool.page.click(".fc-history [data-action=undo]")
-    tool.wait_boxes(len(bundle_json("detections.json")["pages"]["0"]))
-    assert tool.errors == []
-
-
-def test_failed_live_detection_keeps_the_boxes_and_says_why(open_tool):
+def test_failed_live_detection_says_why_and_offers_the_saved_results(open_tool):
     tool = open_tool(worker=f"{FAKE_WORKER}?mode=fail")
-    before = tool.boxes().count()
-    tool.page.click("#run-live")
+    tool.page.click("#detect")
     msg = tool.page.locator("#detect-msg")
     msg.wait_for()
     assert "could not be downloaded" in msg.inner_text()
-    assert tool.boxes().count() == before
-    assert not tool.page.is_disabled("#run-live")
+    assert tool.boxes().count() == 0
+    assert tool.page.locator(".scan.is-sweeping").count() == 0
+    assert not tool.page.is_disabled("#detect")
+    tool.page.click("#play-saved")
+    tool.wait_boxes(SAVED)
+    assert "Saved results" in tool.page.inner_text("#caption")
+    assert tool.page.is_hidden("#play-saved")
 
 
 def test_dropped_files_bad_and_good(open_tool):
     tool = open_tool()
-    before = tool.boxes().count()
     msg = tool.page.locator("#detect-msg")
 
     tool.drop("notes.txt", b"just some text\n", "text/plain")
     msg.wait_for()
     assert msg.inner_text() == "This file isn't a PDF."
-    assert tool.boxes().count() == before
 
     tool.drop("locked.pdf", user_password_pdf())
     tool.page.wait_for_function("document.getElementById('detect-msg').textContent.includes('password')")
-    assert tool.boxes().count() == before
     assert "IRS W-9" in tool.page.inner_text("#docline")
 
-    tool.drop("form.pdf", (BUNDLE / "form.pdf").read_bytes())
+    tool.drop("form.pdf", (BUNDLE / "form.pdf").read_bytes())  # a flat PDF is detected as it opens
     tool.wait_boxes(CANNED_BOXES)
     assert msg.is_hidden()
     assert "form.pdf" in tool.page.inner_text("#docline")
@@ -268,24 +405,111 @@ def test_owner_protected_pdf_opens_but_fill_refuses(open_tool):
     msg = tool.page.locator("#fill-msg")
     msg.wait_for()
     assert msg.inner_text() == PROTECTED
-    tool.page.click("#smart")
-    assert msg.inner_text() == PROTECTED
     assert tool.requested(re.compile("pdf-lib")) == []
+
+
+def test_double_click_on_detect_runs_once(open_tool):
+    tool = open_tool()
+    tool.watch("document.getElementById('detect-status').textContent")
+    tool.page.dblclick("#detect")
+    assert tool.page.is_disabled("#detect")
+    tool.wait_status("Done")
+    tool.wait_boxes(CANNED_BOXES)
+    seen = tool.page.evaluate("window.seen")
+    assert sum(s.startswith("Done") for s in seen) == 1, seen
+    assert sum(s == "Detecting page 1…" for s in seen) == 1, seen
+
+
+def test_pdf_dropped_during_live_detection_is_detected(open_tool):
+    tool = open_tool()
+    tool.page.click("#detect")  # the fake worker takes 500 ms to load
+    tool.drop("form.pdf", (BUNDLE / "form.pdf").read_bytes())
+    tool.wait_status("Done")
+    assert "form.pdf" in tool.page.inner_text("#docline")
+    tool.wait_boxes(CANNED_BOXES)
+    assert "Detected live" in tool.page.inner_text("#caption")
+    assert not tool.page.is_disabled("#detect")
+    assert tool.page.locator("#detect-msg").is_hidden()
+    assert tool.errors == []
 
 
 # ---------------------------------------------------------------- link
 
 
+def test_auto_map_carries_the_agents_mapping_as_one_undo_step(open_tool):
+    tool = open_tool(init_script=LOW_MEMORY)
+    tool.detect(SAVED)
+    want = expected_mapped(bundle_json("detections.json")["pages"], bundle_json("agent-template.json"))
+    assert 0 < want < SAVED
+    tool.step("link")
+    note = tool.page.inner_text("#automap-note")
+    assert "These sample forms are pre-mapped." in note
+    assert f"the AI agent ({bundle_json('agent-scores.json')['model_label']})" in note
+    assert "matched to your boxes by position" in note
+    tool.watch("document.getElementById('pageview').classList.contains('is-mapping')")
+    tool.page.click("#automap")
+    tool.page.wait_for_function("document.getElementById('automap-status').textContent.startsWith('Mapped')")
+    assert tool.page.inner_text("#automap-status") == f"Mapped {want} of {SAVED} boxes. The rest are yours to link by hand."
+    assert True in tool.page.evaluate("window.seen")  # the links landed in turn
+    assert tool.page.locator(".fc-box.is-linked").count() == want
+    assert f"{want} linked" in tool.page.inner_text("#caption")
+    assert tool.page.locator(".fc-box.is-linked .fc-tag", has_text=re.compile("^legal_name$")).count() == 1
+    # still editable by hand, and one undo takes the whole mapping off
+    link_first_box(tool, "vendor_id")
+    assert tool.page.inner_text("#automap-status").startswith("Mapped")  # a hand edit leaves the readout
+    tool.page.click("#undo")
+    tool.page.click("#undo")
+    tool.page.wait_for_function("document.querySelectorAll('.fc-box.is-linked').length === 0")
+    assert tool.page.inner_text("#automap-status") == ""
+    # Detect again puts new boxes on screen: an old readout would no longer be true
+    tool.page.click("#redo")
+    tool.page.wait_for_function("document.getElementById('automap-status').textContent === ''")
+    tool.automap()
+    tool.step("detect")
+    tool.detect(SAVED)
+    tool.step("link")
+    assert tool.page.inner_text("#automap-status") == ""
+    assert tool.errors == []
+
+
+def test_auto_map_is_off_for_a_visitors_pdf_and_a_pasted_schema(open_tool):
+    tool = open_tool()
+    tool.step("link")
+    assert tool.page.is_disabled("#automap")
+    assert tool.page.inner_text("#automap-status").startswith("Detect the boxes first")
+    tool.step("detect")
+    tool.detect(CANNED_BOXES)
+    tool.step("link")
+    assert not tool.page.is_disabled("#automap")
+
+    tool.page.click("#paste summary")
+    tool.page.fill("#schema-text", json.dumps({"type": "object", "properties": {"full_name": {"type": "string"}}}))
+    tool.page.click("#use-schema")
+    tool.page.locator('.fc-sl-leaf[data-path="full_name"]').wait_for()
+    assert tool.page.is_disabled("#automap")
+    assert "no prepared mapping for yours" in tool.page.inner_text("#automap-status")
+    tool.page.click("#sample-schema")
+    tool.page.wait_for_function("!document.getElementById('automap').disabled")
+
+    tool.drop("form.pdf", (BUNDLE / "form.pdf").read_bytes())
+    tool.page.wait_for_function("document.getElementById('docline').textContent.includes('form.pdf')")
+    tool.wait_boxes(CANNED_BOXES)
+    assert tool.page.is_disabled("#automap")
+    assert "no prepared mapping for your PDF" in tool.page.inner_text("#automap-status")
+    assert tool.page.is_hidden("#automap-note")
+
+
 def test_link_undo_redo(open_tool):
     tool = open_tool()
+    tool.detect(CANNED_BOXES)
     field_id = link_first_box(tool, "legal_name")
     assert tool.page.locator("[role=tab][aria-selected=true]").text_content().endswith("Link")
     tag = tool.page.locator(f'.fc-box[data-field-id="{field_id}"] .fc-tag')
-    tool.page.click(".fc-history [data-action=undo]")
+    tool.page.click("#undo")
     tool.page.wait_for_function(
         "id => document.querySelector(`.fc-box[data-field-id='${id}'] .fc-tag`).textContent === 'not linked'", arg=field_id
     )
-    tool.page.click(".fc-history [data-action=redo]")
+    tool.page.click("#redo")
     tool.page.wait_for_function(
         "id => document.querySelector(`.fc-box[data-field-id='${id}'] .fc-tag`).textContent === 'legal_name'", arg=field_id
     )
@@ -296,6 +520,7 @@ def test_link_undo_redo(open_tool):
 
 def test_pasted_schemas(open_tool):
     tool = open_tool()
+    tool.detect(CANNED_BOXES)
     field_id = link_first_box(tool, "legal_name")
     tool.page.click("#paste summary")
     error = tool.page.locator("#schema-error")
@@ -304,7 +529,6 @@ def test_pasted_schemas(open_tool):
     tool.page.click("#use-schema")
     error.wait_for()
     assert "isn't valid JSON" in error.inner_text()
-    assert tool.page.locator('.fc-sl-leaf[data-path="legal_name"]').count() == 1
     assert tool.page.locator('.fc-sl-leaf[data-path="legal_name"]').get_attribute("data-status") == "placed"
 
     tool.page.fill("#schema-text", json.dumps({"type": "array"}))
@@ -327,58 +551,106 @@ def test_pasted_schemas(open_tool):
     assert tool.page.locator("#inspector .fc-ins-warn.is-orphan").is_visible()
     selected = tool.page.eval_on_selector("#inspector select[data-ctl=path]", "s => s.selectedOptions[0].textContent")
     assert selected == "legal_name (not in schema)"
-    assert tool.page.locator(f'.fc-box[data-field-id="{field_id}"] .fc-tag').inner_text() == "legal_name"
-    # the record follows the new schema
-    record = json.loads(tool.page.input_value("#record"))
-    assert set(record) == {"full_name", "city"}
+    # the record follows the new schema: one made-up record, no picker
+    tool.step("fill")
+    assert set(json.loads(tool.page.input_value("#record"))) == {"full_name", "city"}
+    assert tool.page.is_hidden("#record-pick-group")
+    # the sample's schema brings its records back
+    tool.step("link")
+    tool.page.click("#sample-schema")
+    tool.step("fill")
+    tool.page.wait_for_function("!document.getElementById('record-pick-group').hidden")
+    assert json.loads(tool.page.input_value("#record")) == bundle_json("records.json")[0]["record"]
 
 
 # ---------------------------------------------------------------- fill
 
 
-def test_fill_report_and_templates(open_tool, tmp_path):
-    tool = open_tool()
-    link_first_box(tool, "legal_name")
+def test_fill_shows_the_filled_pdf_and_download_saves_it(open_tool):
+    tool = open_tool(init_script=LOW_MEMORY)
+    tool.detect(SAVED)
+    tool.automap()
     tool.step("fill")
-    assert json.loads(tool.page.input_value("#record")) == bundle_json("record.json")
+    records = bundle_json("records.json")
+    options = tool.page.locator("#record-pick option").all_text_contents()
+    assert options == [r["title"] for r in records]
+    assert json.loads(tool.page.input_value("#record")) == records[0]["record"]
+    assert tool.page.is_disabled("#download") and tool.page.is_disabled("#clear")
     assert tool.requested(re.compile("pdf-lib")) == []
 
-    with tool.page.expect_download() as dl:
-        tool.page.click("#fill")
-    data = Path(dl.value.path()).read_bytes()
-    assert data.startswith(b"%PDF")
-    assert dl.value.suggested_filename == "fw9-filled.pdf"
-    tool.page.locator("#report .fc-rp-counts").wait_for()
+    tool.page.click("#fill")
+    tool.wait_filled(records[0]["title"])
     assert tool.requested(re.compile("pdf-lib"))
-    filled = pymupdf.open(stream=data, filetype="pdf")
-    values = [w.field_value for p in filled for w in p.widgets() or []]
-    assert bundle_json("record.json")["legal_name"] in values
+    assert "The filled PDF" in tool.page.inner_text("#caption")
+    assert tool.page.inner_text("#fill-msg").startswith(f"Filled with {records[0]['title']}.")
+    assert tool.page.eval_on_selector(".fc-pv-layer", "el => getComputedStyle(el).visibility") == "hidden"
+    assert tool.page.is_hidden("#key")
+    tool.page.wait_for_selector("canvas.fc-pv-media")
+    first = tool.download()
+    assert records[0]["record"]["legal_name"] in widget_values(first)
 
-    with tool.page.expect_download() as dl:
-        tool.page.click("#save-template")
-    saved = Path(dl.value.path()).read_text(encoding="utf-8")
-    template = Template.model_validate_json(saved)
-    assert template.form.page_count == 6
+    # another record fills again from the template, with no Clear in between
+    tool.page.select_option("#record-pick", "1")
+    tool.wait_filled(records[1]["title"])
+    second = tool.download()
+    values = widget_values(second)
+    assert records[1]["record"]["legal_name"] in values
+    assert records[0]["record"]["legal_name"] not in values  # never filled on top of the first
 
-    path = tmp_path / "mine.json"
-    path.write_text(saved, encoding="utf-8")
-    tool.page.set_input_files("#template-file", str(path))
-    msg = tool.page.locator("#fill-msg")
-    tool.page.wait_for_function("document.getElementById('fill-msg').textContent.startsWith('Template loaded')")
+    tool.page.click("#clear")
+    tool.page.wait_for_function("!document.getElementById('pageview').classList.contains('is-filled')")
+    assert tool.page.eval_on_selector(".fc-pv-layer", "el => getComputedStyle(el).visibility") == "visible"
+    assert tool.page.is_disabled("#download") and tool.page.is_disabled("#clear")
+    assert tool.boxes().count() == SAVED
+    assert tool.errors == []
 
-    other = ROOT / "tests" / "web" / "fixtures" / "templates" / "wadoc_auth_as_published.json"
-    tool.page.set_input_files("#template-file", str(other))
-    tool.page.wait_for_function("document.getElementById('fill-msg').textContent.startsWith('This template is for')")
-    assert msg.inner_text() == "This template is for a 1-page form; this PDF has 6 pages."
 
-    with tool.page.expect_download() as dl:
-        tool.page.click("#smart")
-    assert Path(dl.value.path()).read_bytes().startswith(b"%PDF")
+def test_leaving_the_fill_step_or_editing_ends_the_preview(open_tool):
+    tool = open_tool()
+    tool.detect(CANNED_BOXES)
+    link_first_box(tool, "legal_name")
+    tool.fill()
+    tool.step("link")
+    tool.page.wait_for_function("!document.getElementById('pageview').classList.contains('is-filled')")
+    tool.step("fill")
+    assert tool.page.is_disabled("#download")
+    tool.page.click("#fill")
+    tool.wait_filled()
+    # an edit ends it too (here an undo, with the Link step's button)
+    tool.page.evaluate("document.getElementById('undo').click()")
+    tool.page.wait_for_function("!document.getElementById('pageview').classList.contains('is-filled')")
+    assert tool.page.is_disabled("#download")
+    assert "0 linked" in tool.page.inner_text("#caption")
+
+
+def test_a_fill_still_running_when_the_visitor_leaves_fill_is_never_shown(open_tool):
+    tool = open_tool()
+    held = []
+    tool.page.route(re.compile(r"pdf-lib"), lambda route: held.append(route))  # pdf-lib arrives when let through
+    tool.detect(CANNED_BOXES)
+    tool.watch("document.getElementById('pageview').classList.contains('is-filled')")
+    tool.step("fill")
+    tool.page.click("#fill")
+    for _ in range(100):  # the held request reaches the route handler while Playwright runs
+        if held:
+            break
+        tool.page.wait_for_timeout(50)
+    assert held
+    tool.step("link")
+    for route in held:
+        route.continue_()
+    tool.page.wait_for_function("!document.getElementById('fill').disabled")  # the fill has finished
+    tool.page.wait_for_timeout(300)
+    assert tool.page.evaluate("window.seen") == [False]
+    tool.step("fill")
+    assert tool.page.is_disabled("#download")
+    assert tool.page.is_hidden("#fill-msg")
     assert tool.errors == []
 
 
 def test_a_box_that_combines_two_fields_fills_them_joined(open_tool):
     tool = open_tool()
+    tool.detect(CANNED_BOXES)
     schema = {"type": "object", "properties": {"first_name": {"type": "string"}, "last_name": {"type": "string"}}}
     tool.step("link")
     tool.page.click("#paste summary")
@@ -394,60 +666,22 @@ def test_a_box_that_combines_two_fields_fills_them_joined(open_tool):
 
     tool.step("fill")
     tool.page.fill("#record", json.dumps({"first_name": "Jane", "last_name": "Doe"}))
-    with tool.page.expect_download() as dl:
-        tool.page.click("#fill")
-    filled = pymupdf.open(stream=Path(dl.value.path()).read_bytes(), filetype="pdf")
-    values = [w.field_value for p in filled for w in p.widgets() or []]
-    assert "Jane Doe" in values
+    tool.page.click("#fill")
+    tool.wait_filled("your edited record")
+    assert "Jane Doe" in widget_values(tool.download())
     assert tool.errors == []
 
 
 def test_bad_record_json_is_reported(open_tool):
     tool = open_tool()
+    tool.detect(CANNED_BOXES)
     tool.step("fill")
     tool.page.fill("#record", "{oops")
     tool.page.click("#fill")
     error = tool.page.locator("#record-error")
     error.wait_for()
     assert "isn't valid JSON" in error.inner_text()
-
-
-# ---------------------------------------------------------------- the agent's template
-
-
-def test_agent_template_opens_on_the_published_pdf(open_tool):
-    tool = open_tool()
-    template = bundle_json("agent-template.json")
-    scores = bundle_json("agent-scores.json")
-    on_page0 = [f for f in template["fields"] if f.get("page") == 0]
-    tool.page.click("#load-agent")
-    tool.wait_boxes(len(on_page0))
-    linked = [f for f in on_page0 if (f.get("source") or {}).get("paths")]
-    assert tool.page.locator(".fc-box.is-linked").count() == len(linked)
-    first = linked[0]
-    tag = tool.page.locator(f'.fc-box[data-field-id="{first["id"]}"] .fc-tag').inner_text()
-    assert tag == ", ".join(first["source"]["paths"])
-    assert "as published" in tool.page.inner_text("#docline")
-    line = tool.page.locator("#agent-scores")
-    assert line.is_visible()
-    text = line.inner_text()
-    assert scores["model_label"] in text
-    assert f"path accuracy {scores['mapping']['path_acc']:.2f}" in text
-    assert f"fill accuracy {scores['fill']['fill_acc']:.2f}" in text
-    assert f"{scores['steps']} steps" in text
-    assert "The AI agent's template" in tool.page.inner_text("#caption")
-    assert tool.errors == []
-
-
-def test_edits_are_remembered_per_sample(open_tool):
-    tool = open_tool()
-    link_first_box(tool, "legal_name")
-    tool.page.reload()
-    tool.wait_boxes()
-    assert "1 linked" in tool.page.inner_text("#caption")
-    assert tool.page.is_visible("#start-over")
-    tool.page.click("#start-over")
-    tool.page.wait_for_function("document.getElementById('caption').textContent.includes('0 linked')")
+    assert tool.page.is_disabled("#download")
 
 
 # ---------------------------------------------------------------- phones and themes
@@ -461,6 +695,8 @@ def test_phone_layout(open_tool):
     panel = page.locator(".panel").bounding_box()
     assert fig["y"] + fig["height"] <= panel["y"] + 1
     assert page.locator("#model-group").is_hidden()
+    tool.detect(SAVED)  # live detection is off on a phone: the saved results
+    tool.no_horizontal_scroll()
     # select the small box nearest the page's right edge: its handles and tag stay inside the page width
     right = page.evaluate("""() => {
         const small = [...document.querySelectorAll('.fc-box')]
@@ -478,7 +714,16 @@ def test_phone_layout(open_tool):
     page.wait_for_function("el => el.textContent === 'llc_tax_classification'", arg=tag.element_handle())
     assert tag.bounding_box()["x"] + tag.bounding_box()["width"] > page.viewport_size["width"]
     tool.no_horizontal_scroll()
-    assert tool.requested(LAZY) == []
+    # the whole flow on a phone: Auto map, Fill, Download and Clear all in reach
+    tool.automap()
+    tool.no_horizontal_scroll()
+    tool.fill()
+    tool.no_horizontal_scroll()
+    for button in ("#fill", "#download", "#clear"):
+        box = page.locator(button).bounding_box()
+        assert box["x"] >= 0 and box["x"] + box["width"] <= page.viewport_size["width"], button
+    assert tool.download().startswith(b"%PDF")
+    assert tool.requested(MODEL) == []
 
 
 def test_phone_flat_pdf_waits_for_try_anyway(open_tool):
@@ -487,6 +732,7 @@ def test_phone_flat_pdf_waits_for_try_anyway(open_tool):
     note = tool.page.locator("#live-note")
     note.wait_for()
     assert "Live detection is off on this device" in note.inner_text()
+    assert "Saved results" not in note.inner_text()  # a visitor's PDF has none
     assert "38 MB" in note.inner_text()
     assert tool.page.locator("#try-anyway").is_visible()
     tool.page.wait_for_timeout(300)
@@ -500,8 +746,9 @@ def test_phone_flat_pdf_waits_for_try_anyway(open_tool):
 
 def test_phone_fillable_pdf_uses_its_own_fields(open_tool):
     tool = open_tool(PHONE)
-    tool.drop("published.pdf", (BUNDLE / "published.pdf").read_bytes())
-    doc = pymupdf.open(BUNDLE / "published.pdf")
+    data = published_pdf()
+    tool.drop("published.pdf", data)
+    doc = pymupdf.open(stream=data)
     widgets = len([w for w in doc[0].widgets() or [] if w.field_type != pymupdf.PDF_WIDGET_TYPE_BUTTON])
     doc.close()
     tool.wait_boxes(widgets)
@@ -517,27 +764,15 @@ def test_dark_mode(open_tool):
     assert bg == "rgb(16, 15, 15)"
     light = open_tool(color_scheme="light")
     assert light.page.evaluate("getComputedStyle(document.body).backgroundColor") == "rgb(255, 252, 240)"
+    # the primary buttons keep a readable label when disabled
+    tool.step("link")
+    assert tool.page.is_disabled("#automap")
+    color = tool.page.eval_on_selector("#automap", "el => getComputedStyle(el).color")
+    background = tool.page.eval_on_selector("#automap", "el => getComputedStyle(el).backgroundColor")
+    assert color != background
 
 
-def test_phone_run_live_asks_before_downloading(open_tool):
-    tool = open_tool(PHONE)
-    before = tool.boxes().count()
-    tool.page.click("#run-live")
-    note = tool.page.locator("#live-note")
-    note.wait_for()
-    tool.page.wait_for_timeout(300)
-    assert tool.requested(MODEL) == []
-    assert tool.boxes().count() == before
-    tool.page.click("#try-anyway")
-    tool.wait_boxes(CANNED_BOXES)
-    assert note.is_hidden()
-    assert tool.requested(re.compile("fake-detect-worker"))
-
-
-LOW_MEMORY = "Object.defineProperty(Navigator.prototype, 'deviceMemory', {get: () => 2, configurable: true});"
-
-
-def test_low_memory_desktop_keeps_mouse_tools_but_asks_before_downloading(open_tool):
+def test_low_memory_desktop_keeps_mouse_tools_and_plays_saved_results_until_asked(open_tool):
     tool = open_tool(init_script=LOW_MEMORY)
     page = tool.page
     assert page.evaluate("navigator.deviceMemory") == 2
@@ -547,75 +782,35 @@ def test_low_memory_desktop_keeps_mouse_tools_but_asks_before_downloading(open_t
     assert page.inner_text("#link-hint").startswith("Drag a field onto a box")
     tool.step("detect")
     page.select_option("#model", "L")
-    page.click("#run-live")
+    tool.detect(SAVED)
     note = page.locator("#live-note")
-    note.wait_for()
     assert "102 MB" in note.inner_text()
     page.wait_for_timeout(300)
     assert tool.requested(MODEL) == []
     page.select_option("#model", "S")
     page.click("#try-anyway")
     tool.wait_boxes(CANNED_BOXES)
-    # once accepted, the next run doesn't ask again
-    page.wait_for_function("document.getElementById('detect-status').textContent.startsWith('Done')")
-    page.click("#run-live")
-    page.wait_for_function("document.getElementById('detect-status').textContent.startsWith('Done')")
+    # once accepted, Detect runs live without asking again
+    tool.wait_status("Done")
+    page.click("#detect")
+    tool.wait_status("Done")
     assert note.is_hidden()
+    assert "Detected live" in page.inner_text("#caption")
 
 
-def test_pdf_dropped_during_live_detection_is_detected(open_tool):
-    tool = open_tool()
-    tool.page.click("#run-live")  # the fake worker takes 500 ms to load
-    tool.drop("form.pdf", (BUNDLE / "form.pdf").read_bytes())
-    tool.page.wait_for_function("document.getElementById('detect-status').textContent.startsWith('Done')", timeout=15_000)
-    assert "form.pdf" in tool.page.inner_text("#docline")
-    tool.wait_boxes(CANNED_BOXES)
-    assert "Detected live" in tool.page.inner_text("#caption")
-    assert not tool.page.is_disabled("#run-live")
-    assert tool.page.locator("#detect-msg").is_hidden()
-    assert tool.errors == []
+# ---------------------------------------------------------------- time limits and failures
 
 
-def test_double_click_on_run_live_in_the_agent_view_runs_once(open_tool):
-    tool = open_tool()
-    tool.page.click("#load-agent")
-    tool.page.wait_for_function("document.getElementById('docline').textContent.includes('as published')")
-    tool.record_status()
-    tool.page.dblclick("#run-live")
-    assert tool.page.is_disabled("#run-live")
-    tool.page.wait_for_function("document.getElementById('detect-status').textContent.startsWith('Done')", timeout=15_000)
-    tool.wait_boxes(CANNED_BOXES)
-    seen = tool.page.evaluate("window.statusSeen")
-    assert seen.count("Opening the sample…") == 1, seen
-    assert sum(s.startswith("Done") for s in seen) == 1, seen
-    assert "fields stripped" in tool.page.inner_text("#docline")
-    assert not tool.page.is_disabled("#run-live")
-
-
-def test_a_broken_remembered_template_is_dropped(open_tool):
-    tool = open_tool()
-    expected = len(bundle_json("detections.json")["pages"]["0"])
-    tool.page.evaluate("""() => {
-        localStorage.setItem('formcast:template:sample-bundle/form', JSON.stringify({formcast_version: '1', fields: 'x'}));
-    }""")
-    tool.page.reload()
-    tool.wait_boxes(expected)
-    assert tool.page.locator("#detect-msg").is_hidden()
-    assert "ahead of time" in tool.page.inner_text("#caption")
-    assert tool.page.evaluate("localStorage.getItem('formcast:template:sample-bundle/form')") == "null"
-
-
-def test_a_hung_sample_file_times_out_and_keeps_the_page(open_tool):
+def test_a_hung_agent_template_times_out_and_keeps_the_page(open_tool):
     tool = open_tool(timeout=500)
     tool.page.route(re.compile(r"agent-template\.json$"), lambda route: None)  # never answered
-    before = tool.boxes().count()
-    tool.page.click("#load-agent")
-    msg = tool.page.locator("#detect-msg")
-    msg.wait_for(timeout=5000)
-    assert "took more than" in msg.inner_text()
-    assert tool.boxes().count() == before
-    assert "fields stripped" in tool.page.inner_text("#docline")
-    assert tool.page.inner_text("#detect-status") == ""
+    tool.detect(CANNED_BOXES)
+    tool.step("link")
+    tool.page.click("#automap")
+    tool.page.wait_for_function("document.getElementById('automap-status').textContent.includes('took more than')", timeout=5000)
+    assert tool.page.inner_text("#automap-status").startswith("Auto map didn't finish:")
+    assert tool.page.locator(".fc-box.is-linked").count() == 0
+    assert not tool.page.is_disabled("#automap")
 
 
 HANG_OPEN = """(() => {
@@ -630,12 +825,10 @@ PART_FAILED = "Part of the page didn't load. Check the connection and try again.
 def test_a_pdf_that_never_opens_times_out_and_keeps_the_page(open_tool):
     """A stand-in for a hung pdf.js open: the dropped file's bytes never arrive."""
     tool = open_tool(timeout=500, init_script=HANG_OPEN)
-    before = tool.boxes().count()
     tool.drop("hang.pdf", (BUNDLE / "form.pdf").read_bytes())
     msg = tool.page.locator("#detect-msg")
     msg.wait_for(timeout=5000)
     assert msg.inner_text() == "This file took more than 1 second to open. Try again, or try a smaller PDF."
-    assert tool.boxes().count() == before
     assert "IRS W-9" in tool.page.inner_text("#docline")
     assert tool.page.inner_text("#detect-status") == ""
     # the next file opens as usual
@@ -653,9 +846,7 @@ def test_a_fill_that_never_finishes_times_out(open_tool):
     tool.page.wait_for_function("document.getElementById('fill-msg').textContent.includes('took more than')", timeout=5000)
     assert msg.inner_text() == "That didn't work: Filling took more than 1 second. Try again."
     assert not tool.page.is_disabled("#fill")
-    tool.page.click("#smart")
-    tool.page.wait_for_function("document.getElementById('fill-msg').textContent.includes('fillable PDF took')", timeout=5000)
-    assert msg.inner_text() == "That didn't work: Making the fillable PDF took more than 1 second. Try again."
+    assert tool.page.is_disabled("#download")
 
 
 def test_a_part_that_fails_to_load_says_so_plainly(open_tool):
@@ -667,13 +858,12 @@ def test_a_part_that_fails_to_load_says_so_plainly(open_tool):
     tool.page.wait_for_function("document.getElementById('fill-msg').textContent.includes('load')", timeout=5000)
     assert tool.page.inner_text("#fill-msg") == f"That didn't work: {PART_FAILED}"
     tool.step("detect")
-    before = tool.boxes().count()
-    tool.page.click("#run-live")
+    tool.page.click("#detect")
     msg = tool.page.locator("#detect-msg")
     msg.wait_for(timeout=5000)
     assert PART_FAILED in msg.inner_text()
     assert "dynamically imported" not in msg.inner_text()
-    assert tool.boxes().count() == before
+    assert tool.boxes().count() == 0
 
 
 # ---------------------------------------------------------------- the real sample bundles
@@ -682,49 +872,54 @@ REAL_SAMPLES = ROOT / "demo" / "web" / "showcase" / "samples"
 
 
 @pytest.mark.parametrize("form_id", ["fw9", "fw4", "i9"])
-def test_each_real_sample_loads_by_id_with_boxes_and_the_agent_template(open_tool, form_id):
-    """The page's own samples/ folder (no ?samples=): pick the sample by id, then open the agent's file."""
-    tool = open_tool(samples=None, worker=None, wait=False)
+def test_each_real_sample_detects_auto_maps_and_fills(open_tool, form_id):
+    """The page's own samples/ folder (no ?samples=), on a low-memory device so Detect plays the saved results."""
+    tool = open_tool(samples=None, worker=None, wait=False, init_script=LOW_MEMORY)
     tool.page.wait_for_function("document.querySelectorAll('#sample option').length >= 3")
     index = json.loads((REAL_SAMPLES / "index.json").read_text())
     assert [o for o in tool.page.locator("#sample option").evaluate_all("els => els.map(e => e.value)")] == [e["id"] for e in index]
     title = next(e["title"] for e in index if e["id"] == form_id)
 
     tool.page.select_option("#sample", form_id)
+    tool.page.wait_for_function("t => document.getElementById('docline').textContent.includes(t)", arg=title)
+    tool.page.wait_for_function("!document.getElementById('detect').disabled")
+    assert tool.boxes().count() == 0
     detections = json.loads((REAL_SAMPLES / form_id / "detections.json").read_text())["pages"]
     originals = json.loads((REAL_SAMPLES / form_id / "original-fields.json").read_text())["pages"]
-    tool.wait_boxes(len(detections["0"]))
-    assert title in tool.page.inner_text("#docline")
+    tool.detect(len(detections["0"]))
     assert "fields stripped" in tool.page.inner_text("#docline")
     assert "FFDNet-S" in tool.page.inner_text("#caption")
-    found = sum(greedy_matches(originals[p], [d["rect"] for d in detections[p]]) for p in originals)
+    found = sum(len(greedy_matches(originals[p], [d["rect"] for d in detections[p]])) for p in originals)
     total = sum(len(v) for v in originals.values())
     assert 0 < found <= total
     assert f"found {found} of {total}" in tool.page.inner_text("#found")
 
-    template = json.loads((REAL_SAMPLES / form_id / "agent-template.json").read_text())
-    # a table is drawn as one box per segment on the page; any other field as one box
-    drawn = sum(
-        sum(seg["page"] == 0 for seg in f["segments"]) if f["type"] == "table" else int(f["page"] == 0 and bool(f["rect"]))
-        for f in template["fields"]
-    )
-    tool.page.click("#load-agent")
-    tool.page.wait_for_function("document.getElementById('docline').textContent.includes('as published')")
-    tool.wait_boxes(drawn)
-    scores = tool.page.locator("#agent-scores")
-    scores.wait_for()
-    assert "Haiku 5.5" in scores.inner_text()
-    assert "2026-10-21_defer-placement" in scores.inner_text()
+    agent = json.loads((REAL_SAMPLES / form_id / "agent-template.json").read_text())
+    want = expected_mapped(detections, agent)
+    boxes = sum(len(v) for v in detections.values())
+    tool.automap()
+    assert tool.page.inner_text("#automap-status").startswith(f"Mapped {want} of {boxes} boxes.")
+    assert "Haiku 5.5" in tool.page.inner_text("#automap-note")
+
+    records = json.loads((REAL_SAMPLES / form_id / "records.json").read_text())
+    tool.fill()
+    tool.wait_filled(records[0]["title"])
+    tool.page.select_option("#record-pick", str(len(records) - 1))
+    tool.wait_filled(records[-1]["title"])
+    values = widget_values(tool.download())
+    for key in ("ein", "ssn"):
+        if form_id == "fw9" and key in records[-1]["record"]:  # the W-9's split boxes take every digit
+            for part in records[-1]["record"][key].split("-"):
+                assert part in values, (key, part, values)
     assert tool.page.locator("#detect-msg").is_hidden()
     assert tool.requested(MODEL) == []
     assert tool.errors == []
 
 
 def test_a_failed_sample_switch_keeps_the_picker_on_the_open_sample(open_tool):
-    tool = open_tool(samples=None, worker=None, wait=False)
+    tool = open_tool(samples=None, worker=None)
     index = json.loads((REAL_SAMPLES / "index.json").read_text())
     first, other = index[0]["id"], index[1]["id"]
-    tool.wait_boxes()
     tool.page.route(re.compile(rf"/samples/{other}/manifest\.json$"), lambda route: route.abort())
     tool.page.select_option("#sample", other)
     msg = tool.page.locator("#detect-msg")

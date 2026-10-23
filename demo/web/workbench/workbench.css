@@ -162,6 +162,7 @@ textarea:focus-visible, .text:focus-visible { outline: 2px solid var(--ink); out
 .drawer-head h2 { margin: 0; font-weight: 400; font-size: 28px; line-height: 36px; }
 .drawer .row { margin-bottom: 20px; justify-content: stretch; }
 .drawer .row .btn { flex: 1 1 0; }
+.drawer .row + .hint { margin: -8px 0 20px; }
 .mismatch { margin: 0 0 20px; padding: 12px; outline: 1px solid var(--ink); outline-offset: -.5px; }
 .mismatch p { margin: 0 0 12px; font-size: 16px; line-height: 24px; }
 .mismatch .row { margin-bottom: 0; }

@@ -10,6 +10,10 @@
 // still being held. So the page's boxes are redrawn only when nothing is queued or in flight and no
 // pointer or arrow key is held on the page; the side panels redraw at once.
 //
+// The filled preview. Fill in the drawer shows the filled PDF on the page (`state.preview`, drawn
+// in the browser by pdf.js from the very bytes Download saves) with the boxes hidden. Any template
+// change and any new document end it, so the page never shows a fill of an older template.
+//
 // Test hooks (localhost and 127.0.0.1 only): `?poll=<ms>` sets how often AI jobs are polled, and
 // `window.__workbench` exposes the template on screen and whether the edit queue is idle.
 
@@ -65,6 +69,8 @@ const state = {
   zoom: null, // pixels per point, or null to fit the page to the column
   schemaName: null, // the stored schema picked on the start screen, if any
   savedName: null, // the store name this template was loaded from or saved as
+  /** The filled PDF on show from the fill drawer: {doc, bytes, title}, or null (see fill.js). */
+  preview: null,
 };
 
 let pending = 0; // session calls queued or running
@@ -112,6 +118,7 @@ const app = {
    *   savedName?: string | null}} opts
    */
   setDocument({ doc, template, source, schemaName = null, savedName = null }) {
+    dropPreview();
     Object.assign(state, { page: 0, selected: null, schemaName, savedName });
     session.setDocument(doc, template, { source });
     app.notice("");
@@ -136,6 +143,18 @@ const app = {
     resetHooks.push(fn);
   },
 
+  /**
+   * Show a filled PDF on the page in place of the form, boxes hidden; null goes back to the form.
+   * @param {{doc: object, bytes: Uint8Array, title: string} | null} preview `doc` is the filled PDF
+   *   opened with pdf.js (closed when the preview ends); `bytes` what Download saves
+   */
+  setPreview(preview) {
+    if (preview === state.preview) return;
+    dropPreview();
+    state.preview = preview;
+    if (session.doc !== null) showPage(state.page);
+  },
+
   /** The current schema's flattened paths ([] when it can't be flattened). */
   schemaPaths() {
     return schemaPathsOf(app.template?.schema);
@@ -150,6 +169,13 @@ const app = {
   render,
 };
 const resetHooks = [];
+
+/** End the preview without redrawing (the caller does): its document is closed. */
+function dropPreview() {
+  const old = state.preview;
+  state.preview = null;
+  old?.doc.destroy().catch(() => {});
+}
 
 // ------------------------------------------------------------------ page
 
@@ -191,12 +217,13 @@ function showPage(index) {
   if (doc === null) return render();
   state.page = Math.max(0, Math.min(index, doc.pageCount - 1));
   const page = doc.pages[state.page];
+  const filled = state.preview?.doc ?? null; // the filled PDF has the form's pages, filled in
   view.setPage({
     index: page.index,
     width: page.width,
     height: page.height,
     rotation: page.rotation,
-    render: (canvas, scale) => page.render(canvas, scale),
+    render: (canvas, scale) => (filled ? filled.render(page.index, canvas, scale) : page.render(canvas, scale)),
   });
   applyScale();
   renderPanels();
@@ -282,8 +309,13 @@ function renderPanels() {
     canUndo: session.canUndo,
     canRedo: session.canRedo,
   });
+  $("pageview").classList.toggle("is-filled", open && state.preview !== null);
   if (!open) {
     $("caption").textContent = "";
+    return;
+  }
+  if (state.preview !== null) {
+    $("caption").textContent = `The filled PDF · ${state.preview.title} · Clear in the fill drawer goes back to the boxes`;
     return;
   }
   const linked = t.fields.filter((f) => (f.source?.paths ?? []).length > 0).length;
@@ -411,6 +443,7 @@ bus.on("template", ({ added, reason }) => {
     state.selected = added;
     selectAfterRender = added;
   }
+  if (state.preview !== null) app.setPreview(null); // a fill of the template before is out of date
   render();
 });
 bus.on("error", ({ message }) => {

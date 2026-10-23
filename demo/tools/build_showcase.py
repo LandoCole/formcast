@@ -8,19 +8,22 @@ A bundle is the folder the page's Detect step reads:
 
     manifest.json        id, form, title, revision, source_url, license, pages
     form.pdf             the form with its fields stripped (what the detector looks at)
-    detections.json      {"model", "pages": {"<page>": [{kind, rect, conf}]}} from FFDNet-S, ahead of time
+    detections.json      {"model", "pages": {"<page>": [{kind, rect, conf}]}} from FFDNet-S, ahead of
+                         time (played back where live detection is off)
     original-fields.json {"pages": {"<page>": [rect]}} the form's own fields, for "found N of M"
     schema.json          the form's sample JSON Schema (forms/schemas/)
-    record.json          a clearly fictional record for the schema (demo/tools/sample_records/)
-    published.pdf        the form as published, fields kept
-    agent-template.json  the AI agent's archived template for that file (run ``defer-placement``)
+    records.json         [{"title", "record"}]: two or three clearly fictional records for the schema
+                         (demo/tools/sample_records/), for the Fill step's record picker
+    agent-template.json  the AI agent's archived template for the published form (run
+                         ``defer-placement``; ``correct_digit_splits`` fixes its slices of dashed
+                         digit strings), which Auto map carries onto the detected boxes
     agent-scores.json    that session's scores from the run's results json (AGENT_SCORE_KEYS only)
 
 ``results`` writes ``demo/web/showcase/results.json`` from the committed files in ``eval/results/``,
 so every number on the page traces to a file there.
 
-Both PDFs of a bundle are saved by PyMuPDF without encryption (pdf-lib cannot fill an encrypted
-file), and the stripped one also drops the form's XFA data. The functions ``write_bundle`` and
+The stripped PDF is saved by PyMuPDF without encryption (pdf-lib cannot fill an encrypted file)
+and without the form's XFA data. The functions ``write_bundle`` and
 ``write_index`` are the one bundle writer; ``tests/web/make_sample_bundle.py`` calls them too.
 Nothing here reads ``forms/heldout/``.
 """
@@ -29,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 import tarfile
 from pathlib import Path
@@ -62,9 +66,8 @@ AGENT_RUN = "2026-10-21_defer-placement"
 AGENT_RESULTS = RESULTS_DIR / f"agent_anthropic_eval_dev_{AGENT_RUN}.json"
 AGENT_TEMPLATES = RESULTS_DIR / "templates.tar.gz"
 AGENT_MODEL_LABEL = "Haiku 5.5"
-# What a bundle keeps of the session's results row: what the page shows (detect.js scoresLine reads
-# run, model_label, model, detection, mapping, fill and steps) and the session's cost. Local paths
-# and harness fields stay out.
+# What a bundle keeps of the session's results row: the model's label (the Auto map note names it),
+# the session's scores and its cost. Local paths and harness fields stay out.
 AGENT_SCORE_KEYS = (
     "run", "model_label", "form", "variant", "model", "detection", "mapping", "fill",
     "steps", "input_tokens", "output_tokens", "wall_s", "finished",
@@ -111,11 +114,12 @@ def _save(doc: pymupdf.Document) -> bytes:
 
 
 def split_pdf(source: Path) -> dict[str, Any]:
-    """Read ``source`` and make its two bundle PDFs.
+    """Read ``source`` and make the bundle's stripped PDF.
 
-    Returns ``{"published", "stripped", "originals", "pages", "was_encrypted"}``: both PDFs as bytes
-    (saved without encryption), ``originals`` as ``{page: [rect]}`` for pages that have fields, the
-    page count, and whether the source file was encrypted.
+    Returns ``{"published", "stripped", "originals", "pages", "was_encrypted"}``: the form as
+    published and with its fields stripped, as bytes (both saved without encryption; only the
+    stripped one goes in a bundle), ``originals`` as ``{page: [rect]}`` for pages that have fields,
+    the page count, and whether the source file was encrypted.
     """
     doc = pymupdf.open(source)
     try:
@@ -191,6 +195,58 @@ def archived_template(form_id: str, run: str = AGENT_RUN) -> bytes:
         return f.read()
 
 
+# A pattern of digit groups joined by dashes, as the schemas give an SSN or an EIN: ^\d{3}-\d{2}-\d{4}$
+DASHED_DIGITS = re.compile(r"\^\\d\{\d+\}(?:-\\d\{\d+\})+\$")
+
+
+def _schema_patterns(schema: dict) -> dict[str, str]:
+    """Schema path -> the ``pattern`` of the string at that path (dotted object paths, $refs followed)."""
+    defs = schema.get("$defs", {})
+    out: dict[str, str] = {}
+
+    def walk(node: dict, prefix: str) -> None:
+        if "$ref" in node:
+            node = defs.get(node["$ref"].rsplit("/", 1)[-1], {})
+        for key, sub in (node.get("properties") or {}).items():
+            path = f"{prefix}{key}"
+            if isinstance(sub.get("pattern"), str):
+                out[path] = sub["pattern"]
+            walk(sub, f"{path}.")
+
+    walk(schema, "")
+    return out
+
+
+def correct_digit_splits(template: bytes, schema: dict) -> bytes:
+    """The agent template with its position slices of dashed digit strings made into dash splits.
+
+    The archived agent session split the W-9's SSN and EIN boxes with ``slice`` as if the values had
+    no dashes (EIN [0:2] and [2:9]), but the schema's values are dashed (NN-NNNNNNN), so the slices
+    cut across the dash and the last digit falls off. Where a field's only path has a dashed-digits
+    pattern and its slice covers exactly one digit group of the dashless value, the slice becomes
+    ``split`` on "-" at that group's index, which is what the agent meant. Nothing else changes, and
+    a template with nothing to correct comes back byte for byte.
+    """
+    patterns = _schema_patterns(schema)
+    data = json.loads(template)
+    changed = False
+    for field in data["fields"]:
+        source = field.get("source") or {}
+        paths = source.get("paths") or []
+        pattern = patterns.get(paths[0]) if len(paths) == 1 else None
+        if pattern is None or not DASHED_DIGITS.fullmatch(pattern):
+            continue
+        groups = [int(n) for n in re.findall(r"\{(\d+)\}", pattern)]
+        bounds = [(sum(groups[:i]), sum(groups[: i + 1])) for i in range(len(groups))]
+        for t in source.get("transforms") or []:
+            args = t.get("args") or {}
+            span = (args.get("start", 0), args.get("end"))
+            if t.get("op") == "slice" and span in bounds:
+                t["op"], t["args"] = "split", {"sep": "-", "index": bounds.index(span)}
+                changed = True
+    return (json.dumps(data, indent=2, ensure_ascii=False) + "\n").encode("utf-8") if changed else template
+
+
 def write_json(path: Path, data: Any) -> None:
     """One JSON file the way every file in a bundle is written."""
     path.write_text(json.dumps(data, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -205,24 +261,27 @@ def write_bundle(
     pdfs: dict[str, Any],
     detections: dict[str, list[dict]],
     schema: dict,
-    record: dict,
+    records: list[dict],
     template: bytes,
     scores: dict,
     model: str = DETECTOR_NAME,
 ) -> dict:
     """Write one sample bundle into ``out`` and return its index entry.
 
-    ``pdfs`` is the result of ``split_pdf``; ``template`` is the agent template's file content.
-    Raises ``jsonschema.ValidationError`` when ``record`` does not fit ``schema``, and ``ValueError``
-    when a PDF is over 2 MB.
+    ``pdfs`` is the result of ``split_pdf``; ``records`` is ``[{"title", "record"}]``; ``template``
+    is the agent template's file content. Raises ``jsonschema.ValidationError`` when a record does
+    not fit ``schema``, and ``ValueError`` when there are no records, a title is missing or repeated,
+    or the stripped PDF is over 2 MB.
     """
-    jsonschema.validate(record, schema)
-    for name in ("published", "stripped"):
-        if len(pdfs[name]) > MAX_PDF_BYTES:
-            raise ValueError(f"{form_id} {name} PDF is {len(pdfs[name])} bytes, over the {MAX_PDF_BYTES} limit")
+    titles = [r.get("title") for r in records]
+    if not records or not all(isinstance(t, str) and t for t in titles) or len(set(titles)) != len(titles):
+        raise ValueError(f"{form_id} needs records, each with its own title")
+    for r in records:
+        jsonschema.validate(r["record"], schema)
+    if len(pdfs["stripped"]) > MAX_PDF_BYTES:
+        raise ValueError(f"{form_id} stripped PDF is {len(pdfs['stripped'])} bytes, over the {MAX_PDF_BYTES} limit")
     entry = form_entry(form_id)
     out.mkdir(parents=True, exist_ok=True)
-    (out / "published.pdf").write_bytes(pdfs["published"])
     (out / "form.pdf").write_bytes(pdfs["stripped"])
     write_json(out / "manifest.json", {
         "id": bundle_id,
@@ -236,8 +295,8 @@ def write_bundle(
     write_json(out / "detections.json", {"model": model, "pages": detections})
     write_json(out / "original-fields.json", {"pages": {str(n): rects for n, rects in pdfs["originals"].items()}})
     write_json(out / "schema.json", schema)
-    write_json(out / "record.json", record)
-    (out / "agent-template.json").write_bytes(template)
+    write_json(out / "records.json", [{"title": r["title"], "record": r["record"]} for r in records])
+    (out / "agent-template.json").write_bytes(correct_digit_splits(template, schema))
     write_json(out / "agent-scores.json", scores)
     return {
         "id": bundle_id,
@@ -270,7 +329,7 @@ def build_samples(form_ids: tuple[str, ...] = DEFAULT_FORMS, out: Path = SAMPLES
             pdfs=pdfs,
             detections=detections,
             schema=json.loads((ROOT / "forms" / "schemas" / f"{form_id}.json").read_text(encoding="utf-8")),
-            record=json.loads((RECORDS / f"{form_id}.json").read_text(encoding="utf-8")),
+            records=json.loads((RECORDS / f"{form_id}.json").read_text(encoding="utf-8")),
             template=archived_template(form_id),
             scores=agent_scores(form_id),
         )
@@ -279,8 +338,7 @@ def build_samples(form_ids: tuple[str, ...] = DEFAULT_FORMS, out: Path = SAMPLES
         own = sum(len(v) for v in pdfs["originals"].values())
         print(
             f"{form_id}: {pdfs['pages']} pages, {boxes} detected boxes, {own} own fields, "
-            f"source encrypted: {pdfs['was_encrypted']}, form.pdf {len(pdfs['stripped']):,} B, "
-            f"published.pdf {len(pdfs['published']):,} B"
+            f"source encrypted: {pdfs['was_encrypted']}, form.pdf {len(pdfs['stripped']):,} B"
         )
     write_index(out / "index.json", entries)
     return entries
@@ -604,7 +662,7 @@ def main(argv: list[str] | None = None) -> int:
         ids = tuple(i.strip() for i in args.forms.split(",") if i.strip())
         missing = [i for i in ids if i not in TITLES]
         if missing:
-            ap.error(f"no sample title for {missing}; add it to TITLES (and a record in demo/tools/sample_records/)")
+            ap.error(f"no sample title for {missing}; add it to TITLES (and records in demo/tools/sample_records/)")
         build_samples(ids)
     else:
         results = build_results_file()

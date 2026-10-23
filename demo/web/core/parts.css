@@ -93,6 +93,9 @@
 
 .fc-pv-layer { position: absolute; inset: 0; }
 .fc-pv-layer.is-drawing { cursor: crosshair; touch-action: none; }
+/* A filled PDF on show (the host adds .is-filled): its own fields are drawn, the boxes and the
+   add-box bar are hidden (kept in the layout, so the page doesn't jump). */
+.fc-pageview.is-filled .fc-pv-layer, .fc-pageview.is-filled .fc-pv-bar { visibility: hidden; }
 
 /* ---- boxes ---- */
 

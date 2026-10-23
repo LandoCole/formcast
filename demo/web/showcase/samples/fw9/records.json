@@ -1,0 +1,60 @@
+[
+ {
+  "title": "Juniper Lane Ceramics LLC",
+  "record": {
+   "vendor_id": "V-00417",
+   "legal_name": "Juniper Lane Ceramics LLC",
+   "business_name": "Juniper Lane Studio",
+   "tax_classification": "llc",
+   "llc_tax_classification": "s_corporation",
+   "has_foreign_partners": false,
+   "address": {
+    "street": "418 Example Avenue",
+    "city": "Springfield",
+    "state": "OR",
+    "postal_code": "97477"
+   },
+   "ein": "12-3456789",
+   "remit_email": "ap@example.com",
+   "certified_on": "2026-03-14"
+  }
+ },
+ {
+  "title": "Tobias Wren, sole proprietor",
+  "record": {
+   "vendor_id": "V-00522",
+   "legal_name": "Tobias Wren",
+   "business_name": "Wren Bicycle Repair",
+   "tax_classification": "individual_sole_proprietor",
+   "has_foreign_partners": false,
+   "address": {
+    "street": "27 Example Lane",
+    "city": "Salem",
+    "state": "OR",
+    "postal_code": "97301"
+   },
+   "ssn": "000-55-0101",
+   "remit_email": "tobias.wren@example.com",
+   "certified_on": "2026-05-02"
+  }
+ },
+ {
+  "title": "Northgate Example Supply Co.",
+  "record": {
+   "vendor_id": "V-00731",
+   "legal_name": "Northgate Example Supply Co.",
+   "tax_classification": "c_corporation",
+   "has_foreign_partners": true,
+   "exempt_payee_code": "5",
+   "address": {
+    "street": "1200 Sample Parkway, Suite 300",
+    "city": "Portland",
+    "state": "OR",
+    "postal_code": "97204"
+   },
+   "ein": "00-0000731",
+   "remit_email": "payables@example.com",
+   "certified_on": "2026-08-19"
+  }
+ }
+]
