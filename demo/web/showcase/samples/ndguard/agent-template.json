@@ -1,0 +1,2497 @@
+{
+  "formcast_version": "1",
+  "template_id": "8936522fab394d3fbe422d1983c002e4",
+  "schema": {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://example.org/schemas/military-records-release-request.json",
+    "title": "Military records release request",
+    "description": "A service member's (or responsible party's) request to release personnel records to a person or facility.",
+    "type": "object",
+    "properties": {
+      "requester": {
+        "type": "object",
+        "description": "The service member whose records are requested.",
+        "properties": {
+          "first_name": {
+            "type": "string"
+          },
+          "middle_name": {
+            "type": "string"
+          },
+          "last_name": {
+            "type": "string"
+          },
+          "date_of_birth": {
+            "type": "string",
+            "format": "date"
+          },
+          "ssn": {
+            "type": "string",
+            "pattern": "^\\d{3}-?\\d{2}-?\\d{4}$"
+          },
+          "service_number": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          },
+          "address": {
+            "$ref": "#/$defs/address"
+          }
+        },
+        "required": [
+          "first_name",
+          "last_name",
+          "date_of_birth"
+        ]
+      },
+      "service": {
+        "type": "object",
+        "properties": {
+          "branch": {
+            "type": "string",
+            "description": "e.g. Army, Air Force."
+          },
+          "component": {
+            "type": "string",
+            "enum": [
+              "active_duty",
+              "national_guard",
+              "reserve"
+            ]
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date"
+          },
+          "rank": {
+            "type": "string",
+            "description": "Rank at separation or current rank."
+          }
+        }
+      },
+      "recipient": {
+        "type": "object",
+        "description": "Person or facility that receives the records.",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "address": {
+            "$ref": "#/$defs/address"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "fax": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "format": "email"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "documents_requested": {
+        "type": "array",
+        "uniqueItems": true,
+        "items": {
+          "type": "string",
+          "enum": [
+            "dd214",
+            "ngb22",
+            "ngb23",
+            "medical",
+            "other"
+          ]
+        }
+      },
+      "other_documents": {
+        "type": "string",
+        "description": "Description when 'other' is requested."
+      },
+      "reason": {
+        "type": "string"
+      },
+      "authorization_expires_on": {
+        "type": "string",
+        "format": "date"
+      },
+      "signer_relationship": {
+        "type": "string",
+        "description": "Signer's relationship to the member, e.g. Self."
+      },
+      "signed_on": {
+        "type": "string",
+        "format": "date"
+      }
+    },
+    "required": [
+      "requester",
+      "recipient",
+      "documents_requested"
+    ],
+    "$defs": {
+      "address": {
+        "type": "object",
+        "properties": {
+          "street": {
+            "type": "string"
+          },
+          "city": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "postal_code": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  },
+  "form": {
+    "fingerprint": "a36c862846744055",
+    "page_count": 1,
+    "page_sizes": [
+      [
+        612.0,
+        792.0
+      ]
+    ],
+    "kinds": [
+      "digital"
+    ]
+  },
+  "fields": [
+    {
+      "id": "c0_0",
+      "type": "text",
+      "label": "Received",
+      "page": 0,
+      "rect": [
+        375.5318298339844,
+        53.750755310058594,
+        488.6953430175781,
+        72.83505249023438
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.4973876476287842,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_1",
+      "type": "text",
+      "label": "Initials",
+      "page": 0,
+      "rect": [
+        490.5628967285156,
+        53.76090621948242,
+        529.344970703125,
+        72.81288146972656
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.8150851130485535,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_2",
+      "type": "text",
+      "label": "Date",
+      "page": 0,
+      "rect": [
+        531.0571899414062,
+        53.73677062988281,
+        587.8715209960938,
+        72.81584167480469
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.8594683408737183,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_3",
+      "type": "text",
+      "label": "Completed",
+      "page": 0,
+      "rect": [
+        381.6822814941406,
+        74.07677459716797,
+        488.77337646484375,
+        90.92754364013672
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.4303608238697052,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_4",
+      "type": "text",
+      "label": "",
+      "page": 0,
+      "rect": [
+        490.7777099609375,
+        74.1340560913086,
+        529.2896118164062,
+        91.01039123535156
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.8571504950523376,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_5",
+      "type": "text",
+      "label": "",
+      "page": 0,
+      "rect": [
+        531.048828125,
+        74.12008666992188,
+        587.9421997070312,
+        91.0892562866211
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.8884913921356201,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_6",
+      "type": "text",
+      "label": "Mailed/Faxed/Other",
+      "page": 0,
+      "rect": [
+        420.580078125,
+        91.86881256103516,
+        481.8705139160156,
+        101.94879913330078
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.80300372838974,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_7",
+      "type": "text",
+      "label": "(circle all that apply)",
+      "page": 0,
+      "rect": [
+        490.84100341796875,
+        92.3634262084961,
+        529.1263427734375,
+        114.4459228515625
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.853262186050415,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_8",
+      "type": "text",
+      "label": "",
+      "page": 0,
+      "rect": [
+        531.06689453125,
+        92.42584228515625,
+        587.8572998046875,
+        114.59359741210938
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.8541402816772461,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_9",
+      "type": "text",
+      "label": "Name (first, middle, last)",
+      "page": 0,
+      "rect": [
+        63.3138542175293,
+        161.96243286132812,
+        307.472900390625,
+        173.6226043701172
+      ],
+      "source": {
+        "paths": [
+          "requester.first_name",
+          "requester.middle_name",
+          "requester.last_name"
+        ],
+        "transforms": [],
+        "join": " ",
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.7248436808586121,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_10",
+      "type": "text",
+      "label": "DOB",
+      "page": 0,
+      "rect": [
+        329.86968994140625,
+        162.09169006347656,
+        425.5279235839844,
+        173.66012573242188
+      ],
+      "source": {
+        "paths": [
+          "requester.date_of_birth"
+        ],
+        "transforms": [
+          {
+            "op": "date_format",
+            "args": {
+              "format": "%m/%d/%Y"
+            }
+          }
+        ],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.8393904566764832,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_11",
+      "type": "text",
+      "label": "Phone #",
+      "page": 0,
+      "rect": [
+        464.41693115234375,
+        162.44871520996094,
+        569.9398193359375,
+        173.6697998046875
+      ],
+      "source": {
+        "paths": [
+          "requester.phone"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.843625009059906,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_12",
+      "type": "text",
+      "label": "Maiden/Other Name",
+      "page": 0,
+      "rect": [
+        129.92677307128906,
+        194.04507446289062,
+        306.9484558105469,
+        205.92291259765625
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.736860454082489,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_13",
+      "type": "text",
+      "label": "SSN",
+      "page": 0,
+      "rect": [
+        327.7510681152344,
+        193.58091735839844,
+        423.2997131347656,
+        205.95603942871094
+      ],
+      "source": {
+        "paths": [
+          "requester.ssn"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.8276398777961731,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_14",
+      "type": "text",
+      "label": "SN (service number)",
+      "page": 0,
+      "rect": [
+        437.4416809082031,
+        193.53433227539062,
+        571.4334106445312,
+        205.880615234375
+      ],
+      "source": {
+        "paths": [
+          "requester.service_number"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.801585853099823,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_16",
+      "type": "text",
+      "label": "Branch of military",
+      "page": 0,
+      "rect": [
+        123.95160675048828,
+        256.9716491699219,
+        200.82763671875,
+        268.04998779296875
+      ],
+      "source": {
+        "paths": [
+          "service.branch"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.7790695428848267,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_18",
+      "type": "text",
+      "label": "Rank",
+      "page": 0,
+      "rect": [
+        473.2268371582031,
+        256.8403625488281,
+        576.298583984375,
+        268.03021240234375
+      ],
+      "source": {
+        "paths": [
+          "service.rank"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.8113540410995483,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_19",
+      "type": "text",
+      "label": "Recipient full name",
+      "page": 0,
+      "rect": [
+        102.05110168457031,
+        327.98516845703125,
+        574.3365478515625,
+        344.43365478515625
+      ],
+      "source": {
+        "paths": [
+          "recipient.name"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.5899413824081421,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_21",
+      "type": "text",
+      "label": "Fax number",
+      "page": 0,
+      "rect": [
+        123.90125274658203,
+        389.1650085449219,
+        568.9185180664062,
+        403.6807861328125
+      ],
+      "source": {
+        "paths": [
+          "recipient.fax"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.6453402638435364,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_22",
+      "type": "text",
+      "label": "Email address",
+      "page": 0,
+      "rect": [
+        173.23074340820312,
+        416.9199523925781,
+        549.2398071289062,
+        433.6434631347656
+      ],
+      "source": {
+        "paths": [
+          "recipient.email"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.6366754770278931,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_23",
+      "type": "checkbox",
+      "label": "DD Form 214",
+      "page": 0,
+      "rect": [
+        40.778785705566406,
+        455.6455993652344,
+        76.26811981201172,
+        466.34405517578125
+      ],
+      "source": {
+        "paths": [
+          "documents_requested"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": {
+          "op": "contains",
+          "args": {
+            "value": "dd214"
+          }
+        }
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.642886221408844,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_24",
+      "type": "checkbox",
+      "label": "NGB Form 22",
+      "page": 0,
+      "rect": [
+        255.64569091796875,
+        455.3992919921875,
+        291.18634033203125,
+        466.36175537109375
+      ],
+      "source": {
+        "paths": [
+          "documents_requested"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": {
+          "op": "contains",
+          "args": {
+            "value": "ngb22"
+          }
+        }
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.7622349858283997,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_25",
+      "type": "checkbox",
+      "label": "NGB Form 23",
+      "page": 0,
+      "rect": [
+        40.37879180908203,
+        467.2193298339844,
+        75.95728302001953,
+        478.0380859375
+      ],
+      "source": {
+        "paths": [
+          "documents_requested"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": {
+          "op": "contains",
+          "args": {
+            "value": "ngb23"
+          }
+        }
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.5835879445075989,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_26",
+      "type": "checkbox",
+      "label": "Medical documentation",
+      "page": 0,
+      "rect": [
+        256.16558837890625,
+        467.2747802734375,
+        291.7476806640625,
+        478.14288330078125
+      ],
+      "source": {
+        "paths": [
+          "documents_requested"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": {
+          "op": "contains",
+          "args": {
+            "value": "medical"
+          }
+        }
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.8019501566886902,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_27",
+      "type": "checkbox",
+      "label": "Other",
+      "page": 0,
+      "rect": [
+        40.309471130371094,
+        478.8643493652344,
+        76.00154876708984,
+        489.4994201660156
+      ],
+      "source": {
+        "paths": [
+          "documents_requested"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": {
+          "op": "contains",
+          "args": {
+            "value": "other"
+          }
+        }
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.6521472334861755,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_28",
+      "type": "text",
+      "label": "Reason for Request:",
+      "page": 0,
+      "rect": [
+        72.6975326538086,
+        524.5241088867188,
+        448.9286804199219,
+        535.3551025390625
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.3777512311935425,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_29",
+      "type": "text",
+      "label": "Reason for request",
+      "page": 0,
+      "rect": [
+        37.7615852355957,
+        542.0850830078125,
+        575.746337890625,
+        557.679443359375
+      ],
+      "source": {
+        "paths": [
+          "reason"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.4501223564147949,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_30",
+      "type": "text",
+      "label": "Authorization expires on",
+      "page": 0,
+      "rect": [
+        82.17431640625,
+        593.9576416015625,
+        148.5449676513672,
+        604.46484375
+      ],
+      "source": {
+        "paths": [
+          "authorization_expires_on"
+        ],
+        "transforms": [
+          {
+            "op": "date_format",
+            "args": {
+              "format": "%m/%d/%Y"
+            }
+          }
+        ],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.851368248462677,
+      "origin": "detector"
+    },
+    {
+      "id": "c0_31",
+      "type": "text",
+      "label": "Date signed",
+      "page": 0,
+      "rect": [
+        503.971923828125,
+        673.3121948242188,
+        576.3701171875,
+        684.9733276367188
+      ],
+      "source": {
+        "paths": [
+          "signed_on"
+        ],
+        "transforms": [
+          {
+            "op": "date_format",
+            "args": {
+              "format": "%m/%d/%Y"
+            }
+          }
+        ],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": 0.3759215474128723,
+      "origin": "detector"
+    },
+    {
+      "id": "a_street",
+      "type": "text",
+      "label": "Address street",
+      "page": 0,
+      "rect": [
+        92.0,
+        222.0,
+        250.0,
+        237.0
+      ],
+      "source": {
+        "paths": [
+          "requester.address.street"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "agent"
+    },
+    {
+      "id": "a_city",
+      "type": "text",
+      "label": "City",
+      "page": 0,
+      "rect": [
+        252.0,
+        222.0,
+        370.0,
+        237.0
+      ],
+      "source": {
+        "paths": [
+          "requester.address.city"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "agent"
+    },
+    {
+      "id": "a_state",
+      "type": "text",
+      "label": "State",
+      "page": 0,
+      "rect": [
+        372.0,
+        222.0,
+        470.0,
+        237.0
+      ],
+      "source": {
+        "paths": [
+          "requester.address.state"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "agent"
+    },
+    {
+      "id": "a_zip",
+      "type": "text",
+      "label": "Zip",
+      "page": 0,
+      "rect": [
+        472.0,
+        222.0,
+        574.0,
+        237.0
+      ],
+      "source": {
+        "paths": [
+          "requester.address.postal_code"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "agent"
+    },
+    {
+      "id": "k_ad",
+      "type": "choice_mark",
+      "label": "AD",
+      "page": 0,
+      "rect": [
+        201.0,
+        256.0,
+        213.0,
+        270.0
+      ],
+      "source": {
+        "paths": [
+          "service.component"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": {
+          "op": "equals",
+          "args": {
+            "value": "active_duty"
+          }
+        }
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "agent"
+    },
+    {
+      "id": "k_ng",
+      "type": "choice_mark",
+      "label": "NG",
+      "page": 0,
+      "rect": [
+        214.0,
+        256.0,
+        228.0,
+        270.0
+      ],
+      "source": {
+        "paths": [
+          "service.component"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": {
+          "op": "equals",
+          "args": {
+            "value": "national_guard"
+          }
+        }
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "agent"
+    },
+    {
+      "id": "k_res",
+      "type": "choice_mark",
+      "label": "Res",
+      "page": 0,
+      "rect": [
+        229.0,
+        256.0,
+        254.0,
+        270.0
+      ],
+      "source": {
+        "paths": [
+          "service.component"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": {
+          "op": "equals",
+          "args": {
+            "value": "reserve"
+          }
+        }
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "agent"
+    },
+    {
+      "id": "o_other",
+      "type": "text",
+      "label": "Other documents description",
+      "page": 0,
+      "rect": [
+        40.0,
+        491.0,
+        576.0,
+        501.0
+      ],
+      "source": {
+        "paths": [
+          "other_documents"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "agent"
+    },
+    {
+      "id": "sig",
+      "type": "signature",
+      "label": "Signature of person or responsible party",
+      "page": 0,
+      "rect": [
+        36.0,
+        668.0,
+        280.0,
+        684.0
+      ],
+      "source": null,
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "agent"
+    },
+    {
+      "id": "rel",
+      "type": "text",
+      "label": "Relationship",
+      "page": 0,
+      "rect": [
+        290.0,
+        670.0,
+        420.0,
+        684.0
+      ],
+      "source": {
+        "paths": [
+          "signer_relationship"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "agent"
+    },
+    {
+      "id": "sd_start",
+      "type": "text",
+      "label": "Dates of service: start",
+      "page": 0,
+      "rect": [
+        346.0,
+        257.0,
+        396.0,
+        268.0
+      ],
+      "source": {
+        "paths": [
+          "service.start_date"
+        ],
+        "transforms": [
+          {
+            "op": "date_format",
+            "args": {
+              "format": "%m/%d/%Y"
+            }
+          }
+        ],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "agent"
+    },
+    {
+      "id": "sd_end",
+      "type": "text",
+      "label": "Dates of service: end",
+      "page": 0,
+      "rect": [
+        398.0,
+        257.0,
+        445.0,
+        268.0
+      ],
+      "source": {
+        "paths": [
+          "service.end_date"
+        ],
+        "transforms": [
+          {
+            "op": "date_format",
+            "args": {
+              "format": "%m/%d/%Y"
+            }
+          }
+        ],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "agent"
+    },
+    {
+      "id": "rc_addr",
+      "type": "text",
+      "label": "Release to address",
+      "page": 0,
+      "rect": [
+        123.0,
+        359.0,
+        380.0,
+        373.0
+      ],
+      "source": {
+        "paths": [
+          "recipient.address.street",
+          "recipient.address.city",
+          "recipient.address.state",
+          "recipient.address.postal_code"
+        ],
+        "transforms": [],
+        "join": ", ",
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "agent"
+    },
+    {
+      "id": "rc_phone",
+      "type": "text",
+      "label": "Recipient phone",
+      "page": 0,
+      "rect": [
+        456.0,
+        359.0,
+        573.0,
+        373.0
+      ],
+      "source": {
+        "paths": [
+          "recipient.phone"
+        ],
+        "transforms": [],
+        "join": null,
+        "when": null
+      },
+      "style": {
+        "font_size": "auto",
+        "min_font_size": 6.0,
+        "align": "left",
+        "comb": null,
+        "multiline": false
+      },
+      "existing_widget": null,
+      "segments": [],
+      "confidence": null,
+      "origin": "agent"
+    }
+  ],
+  "history": [
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_9",
+        "source": {
+          "paths": [
+            "requester.first_name",
+            "requester.middle_name",
+            "requester.last_name"
+          ],
+          "transforms": [],
+          "join": " "
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:55:46.767324+00:00",
+      "note": "step 3"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_9",
+        "label": "Name (first, middle, last)"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.675924+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_10",
+        "source": {
+          "paths": [
+            "requester.date_of_birth"
+          ],
+          "transforms": [
+            {
+              "op": "date_format",
+              "args": {
+                "format": "%m/%d/%Y"
+              }
+            }
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.677666+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_10",
+        "label": "DOB"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.679317+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_11",
+        "source": {
+          "paths": [
+            "requester.phone"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.680576+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_11",
+        "label": "Phone #"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.681782+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_13",
+        "source": {
+          "paths": [
+            "requester.ssn"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.683039+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_13",
+        "label": "SSN"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.684262+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_14",
+        "source": {
+          "paths": [
+            "requester.service_number"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.685848+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_14",
+        "label": "SN (service number)"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.687126+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "add_field",
+        "id": "a_street",
+        "type": "text",
+        "page": 0,
+        "rect": [
+          92.0,
+          222.0,
+          250.0,
+          237.0
+        ],
+        "label": "Address street",
+        "source": {
+          "paths": [
+            "requester.address.street"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.689911+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "add_field",
+        "id": "a_city",
+        "type": "text",
+        "page": 0,
+        "rect": [
+          252.0,
+          222.0,
+          370.0,
+          237.0
+        ],
+        "label": "City",
+        "source": {
+          "paths": [
+            "requester.address.city"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.691102+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "add_field",
+        "id": "a_state",
+        "type": "text",
+        "page": 0,
+        "rect": [
+          372.0,
+          222.0,
+          470.0,
+          237.0
+        ],
+        "label": "State",
+        "source": {
+          "paths": [
+            "requester.address.state"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.692323+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "add_field",
+        "id": "a_zip",
+        "type": "text",
+        "page": 0,
+        "rect": [
+          472.0,
+          222.0,
+          574.0,
+          237.0
+        ],
+        "label": "Zip",
+        "source": {
+          "paths": [
+            "requester.address.postal_code"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.693605+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_16",
+        "source": {
+          "paths": [
+            "service.branch"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.694927+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_16",
+        "label": "Branch of military"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.696214+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_17",
+        "label": "Dates of service"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.697492+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_18",
+        "source": {
+          "paths": [
+            "service.rank"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.698841+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_18",
+        "label": "Rank"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.700154+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "add_field",
+        "id": "k_ad",
+        "type": "choice_mark",
+        "page": 0,
+        "rect": [
+          201.0,
+          256.0,
+          213.0,
+          270.0
+        ],
+        "label": "AD",
+        "source": {
+          "paths": [
+            "service.component"
+          ],
+          "transforms": [],
+          "when": {
+            "op": "equals",
+            "args": {
+              "value": "active_duty"
+            }
+          }
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.701712+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "add_field",
+        "id": "k_ng",
+        "type": "choice_mark",
+        "page": 0,
+        "rect": [
+          214.0,
+          256.0,
+          228.0,
+          270.0
+        ],
+        "label": "NG",
+        "source": {
+          "paths": [
+            "service.component"
+          ],
+          "transforms": [],
+          "when": {
+            "op": "equals",
+            "args": {
+              "value": "national_guard"
+            }
+          }
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.703047+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "add_field",
+        "id": "k_res",
+        "type": "choice_mark",
+        "page": 0,
+        "rect": [
+          229.0,
+          256.0,
+          254.0,
+          270.0
+        ],
+        "label": "Res",
+        "source": {
+          "paths": [
+            "service.component"
+          ],
+          "transforms": [],
+          "when": {
+            "op": "equals",
+            "args": {
+              "value": "reserve"
+            }
+          }
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.704402+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_19",
+        "source": {
+          "paths": [
+            "recipient.name"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.705754+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_19",
+        "label": "Recipient full name"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.707077+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_20",
+        "source": {
+          "paths": [
+            "recipient.address.street",
+            "recipient.address.city",
+            "recipient.address.state",
+            "recipient.address.postal_code"
+          ],
+          "transforms": [],
+          "join": ", "
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.708440+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_20",
+        "label": "Recipient address"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.709791+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_21",
+        "source": {
+          "paths": [
+            "recipient.fax"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.711197+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_21",
+        "label": "Fax number"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.712488+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_22",
+        "source": {
+          "paths": [
+            "recipient.email"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.713720+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_22",
+        "label": "Email address"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.714930+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "c0_23",
+        "type": "checkbox"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.716181+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_23",
+        "source": {
+          "paths": [
+            "documents_requested"
+          ],
+          "transforms": [],
+          "when": {
+            "op": "contains",
+            "args": {
+              "value": "dd214"
+            }
+          }
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.717481+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_23",
+        "label": "DD Form 214"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.718724+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "c0_24",
+        "type": "checkbox"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.720005+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_24",
+        "source": {
+          "paths": [
+            "documents_requested"
+          ],
+          "transforms": [],
+          "when": {
+            "op": "contains",
+            "args": {
+              "value": "ngb22"
+            }
+          }
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.721300+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_24",
+        "label": "NGB Form 22"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.722435+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "c0_25",
+        "type": "checkbox"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.723604+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_25",
+        "source": {
+          "paths": [
+            "documents_requested"
+          ],
+          "transforms": [],
+          "when": {
+            "op": "contains",
+            "args": {
+              "value": "ngb23"
+            }
+          }
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.724807+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_25",
+        "label": "NGB Form 23"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.725974+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "c0_26",
+        "type": "checkbox"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.727170+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_26",
+        "source": {
+          "paths": [
+            "documents_requested"
+          ],
+          "transforms": [],
+          "when": {
+            "op": "contains",
+            "args": {
+              "value": "medical"
+            }
+          }
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.728398+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_26",
+        "label": "Medical documentation"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.729556+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_type",
+        "id": "c0_27",
+        "type": "checkbox"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.730760+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_27",
+        "source": {
+          "paths": [
+            "documents_requested"
+          ],
+          "transforms": [],
+          "when": {
+            "op": "contains",
+            "args": {
+              "value": "other"
+            }
+          }
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.731898+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_27",
+        "label": "Other"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.733013+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "add_field",
+        "id": "o_other",
+        "type": "text",
+        "page": 0,
+        "rect": [
+          40.0,
+          491.0,
+          576.0,
+          501.0
+        ],
+        "label": "Other documents description",
+        "source": {
+          "paths": [
+            "other_documents"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.734173+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_29",
+        "source": {
+          "paths": [
+            "reason"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.735348+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_29",
+        "label": "Reason for request"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.736503+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_30",
+        "source": {
+          "paths": [
+            "authorization_expires_on"
+          ],
+          "transforms": [
+            {
+              "op": "date_format",
+              "args": {
+                "format": "%m/%d/%Y"
+              }
+            }
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.737814+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_30",
+        "label": "Authorization expires on"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.738990+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "add_field",
+        "id": "sig",
+        "type": "signature",
+        "page": 0,
+        "rect": [
+          36.0,
+          668.0,
+          280.0,
+          684.0
+        ],
+        "label": "Signature of person or responsible party"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.740116+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "add_field",
+        "id": "rel",
+        "type": "text",
+        "page": 0,
+        "rect": [
+          290.0,
+          670.0,
+          420.0,
+          684.0
+        ],
+        "label": "Relationship",
+        "source": {
+          "paths": [
+            "signer_relationship"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.741344+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_source",
+        "id": "c0_31",
+        "source": {
+          "paths": [
+            "signed_on"
+          ],
+          "transforms": [
+            {
+              "op": "date_format",
+              "args": {
+                "format": "%m/%d/%Y"
+              }
+            }
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.743039+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "set_label",
+        "id": "c0_31",
+        "label": "Date signed"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:34.744258+00:00",
+      "note": "step 7"
+    },
+    {
+      "op": {
+        "op": "add_field",
+        "id": "sd_start",
+        "type": "text",
+        "page": 0,
+        "rect": [
+          346.0,
+          257.0,
+          396.0,
+          268.0
+        ],
+        "label": "Dates of service: start",
+        "source": {
+          "paths": [
+            "service.start_date"
+          ],
+          "transforms": [
+            {
+              "op": "date_format",
+              "args": {
+                "format": "%m/%d/%Y"
+              }
+            }
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:57.514377+00:00",
+      "note": "step 10"
+    },
+    {
+      "op": {
+        "op": "add_field",
+        "id": "sd_end",
+        "type": "text",
+        "page": 0,
+        "rect": [
+          398.0,
+          257.0,
+          445.0,
+          268.0
+        ],
+        "label": "Dates of service: end",
+        "source": {
+          "paths": [
+            "service.end_date"
+          ],
+          "transforms": [
+            {
+              "op": "date_format",
+              "args": {
+                "format": "%m/%d/%Y"
+              }
+            }
+          ]
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:57.516584+00:00",
+      "note": "step 10"
+    },
+    {
+      "op": {
+        "op": "remove_field",
+        "id": "c0_17"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:57.518654+00:00",
+      "note": "step 10"
+    },
+    {
+      "op": {
+        "op": "add_field",
+        "id": "rc_addr",
+        "type": "text",
+        "page": 0,
+        "rect": [
+          123.0,
+          359.0,
+          380.0,
+          373.0
+        ],
+        "label": "Release to address",
+        "source": {
+          "paths": [
+            "recipient.address.street",
+            "recipient.address.city",
+            "recipient.address.state",
+            "recipient.address.postal_code"
+          ],
+          "transforms": [],
+          "join": ", "
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:57.520515+00:00",
+      "note": "step 10"
+    },
+    {
+      "op": {
+        "op": "add_field",
+        "id": "rc_phone",
+        "type": "text",
+        "page": 0,
+        "rect": [
+          456.0,
+          359.0,
+          573.0,
+          373.0
+        ],
+        "label": "Recipient phone",
+        "source": {
+          "paths": [
+            "recipient.phone"
+          ],
+          "transforms": []
+        }
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:57.522385+00:00",
+      "note": "step 10"
+    },
+    {
+      "op": {
+        "op": "remove_field",
+        "id": "c0_20"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:56:57.524347+00:00",
+      "note": "step 10"
+    },
+    {
+      "op": {
+        "op": "remove_field",
+        "id": "c0_15"
+      },
+      "author": "agent",
+      "at": "2026-10-21T20:57:06.632152+00:00",
+      "note": "step 11"
+    }
+  ]
+}

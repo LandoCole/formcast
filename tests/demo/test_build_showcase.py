@@ -322,7 +322,12 @@ def check_bundle(folder: Path, form_id: str) -> dict:
     assert manifest["id"] == form_id
     assert manifest["source_url"] == entry["source"]
     assert manifest["revision"] == entry["revision"]
-    assert manifest["license"] == "US federal government work (public domain)"
+    assert manifest["kind"] == entry["kind"]
+    assert manifest["license"] == bs.license_of(form_id)
+    if form_id in bs.LICENSES:
+        assert "public domain" not in manifest["license"]
+    else:
+        assert manifest["license"] == "US federal government work (public domain)"
 
     stripped = pymupdf.open(folder / "form.pdf")
     published = pymupdf.open(ROOT / "forms" / "dev" / f"{form_id}.pdf")
@@ -336,15 +341,18 @@ def check_bundle(folder: Path, form_id: str) -> dict:
         assert [[p.rect.width, p.rect.height] for p in stripped] == [list(s) for s in template["form"]["page_sizes"]]
 
         originals = json.loads((folder / "original-fields.json").read_text())["pages"]
-        scored = sum(len(v) for v in originals.values())
-        assert scored == len(score.load_gt(entry, ROOT / "forms" / "dev" / f"{form_id}.pdf"))
         for page in published:
             assert len(bs.own_fields(page)) == len(originals.get(str(page.number), []))
-        assert scored > 0
-
         detections = json.loads((folder / "detections.json").read_text())
         assert detections["model"] == "FFDNet-S-onnx"
-        assert sorted(detections["pages"], key=int) == sorted(originals, key=int)
+        if entry["kind"] == "fillable":
+            scored = sum(len(v) for v in originals.values())
+            assert scored == len(score.load_gt(entry, ROOT / "forms" / "dev" / f"{form_id}.pdf"))
+            assert scored > 0
+            assert sorted(detections["pages"], key=int) == sorted(originals, key=int)
+        else:  # a flat, printed form: no fields of its own, detections on every page
+            assert originals == {}
+            assert sorted(detections["pages"], key=int) == [str(n) for n in range(stripped.page_count)]
         for key, boxes in detections["pages"].items():
             width, height = stripped[int(key)].rect.width, stripped[int(key)].rect.height
             assert boxes
@@ -411,7 +419,7 @@ def test_the_agent_template_is_the_archived_one_with_only_its_digit_splits_corre
         bundled = (bs.SAMPLES / form_id / "agent-template.json").read_bytes()
         assert bundled == bs.correct_digit_splits(archived, schema_of(form_id))
         if form_id != "fw9":
-            assert bundled == archived, form_id  # the W-4 and I-9 have no position split to correct
+            assert bundled == archived, form_id  # the other samples have no position split to correct
             continue
         before, after = json.loads(archived), json.loads(bundled)
         changed = [

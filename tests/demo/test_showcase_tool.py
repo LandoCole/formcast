@@ -871,7 +871,7 @@ def test_a_part_that_fails_to_load_says_so_plainly(open_tool):
 REAL_SAMPLES = ROOT / "demo" / "web" / "showcase" / "samples"
 
 
-@pytest.mark.parametrize("form_id", ["fw9", "fw4", "i9"])
+@pytest.mark.parametrize("form_id", ["fw9", "fw4", "i9", "ndguard", "grandview_app"])
 def test_each_real_sample_detects_auto_maps_and_fills(open_tool, form_id):
     """The page's own samples/ folder (no ?samples=), on a low-memory device so Detect plays the saved results."""
     tool = open_tool(samples=None, worker=None, wait=False, init_script=LOW_MEMORY)
@@ -887,12 +887,16 @@ def test_each_real_sample_detects_auto_maps_and_fills(open_tool, form_id):
     detections = json.loads((REAL_SAMPLES / form_id / "detections.json").read_text())["pages"]
     originals = json.loads((REAL_SAMPLES / form_id / "original-fields.json").read_text())["pages"]
     tool.detect(len(detections["0"]))
-    assert "fields stripped" in tool.page.inner_text("#docline")
     assert "FFDNet-S" in tool.page.inner_text("#caption")
-    found = sum(len(greedy_matches(originals[p], [d["rect"] for d in detections[p]])) for p in originals)
-    total = sum(len(v) for v in originals.values())
-    assert 0 < found <= total
-    assert f"found {found} of {total}" in tool.page.inner_text("#found")
+    if originals:
+        assert "fields stripped" in tool.page.inner_text("#docline")
+        found = sum(len(greedy_matches(originals[p], [d["rect"] for d in detections[p]])) for p in originals)
+        total = sum(len(v) for v in originals.values())
+        assert 0 < found <= total
+        assert f"found {found} of {total}" in tool.page.inner_text("#found")
+    else:  # a printed form has no fields of its own to compare with
+        assert "printed form, no fields" in tool.page.inner_text("#docline")
+        assert tool.page.locator("#compare-group").is_hidden()
 
     agent = json.loads((REAL_SAMPLES / form_id / "agent-template.json").read_text())
     want = expected_mapped(detections, agent)

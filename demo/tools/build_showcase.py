@@ -6,11 +6,13 @@
 ``samples`` writes ``demo/web/showcase/samples/<id>/`` for each form plus ``samples/index.json``.
 A bundle is the folder the page's Detect step reads:
 
-    manifest.json        id, form, title, revision, source_url, license, pages
-    form.pdf             the form with its fields stripped (what the detector looks at)
+    manifest.json        id, form, kind, title, revision, source_url, license, pages
+    form.pdf             the form with its fields stripped (what the detector looks at); a flat,
+                         printed form goes in as published
     detections.json      {"model", "pages": {"<page>": [{kind, rect, conf}]}} from FFDNet-S, ahead of
                          time (played back where live detection is off)
     original-fields.json {"pages": {"<page>": [rect]}} the form's own fields, for "found N of M"
+                         (empty for a flat form, which has none)
     schema.json          the form's sample JSON Schema (forms/schemas/)
     records.json         [{"title", "record"}]: two or three clearly fictional records for the schema
                          (demo/tools/sample_records/), for the Fill step's record picker
@@ -53,8 +55,19 @@ RESULTS_DIR = ROOT / "eval" / "results"
 RESULTS_JSON = SHOWCASE / "results.json"
 
 LICENSE = "US federal government work (public domain)"
-DEFAULT_FORMS = ("fw9", "fw4", "i9")
-TITLES = {"fw9": "IRS W-9", "fw4": "IRS W-4", "i9": "USCIS I-9"}
+# Forms that are not federal works: the agency that publishes each, for the manifest's license line.
+LICENSES = {
+    "ndguard": "North Dakota National Guard form, as published for public use",
+    "grandview_app": "City of Grandview, WA form, as published for public use",
+}
+DEFAULT_FORMS = ("fw9", "fw4", "i9", "ndguard", "grandview_app")
+TITLES = {
+    "fw9": "IRS W-9",
+    "fw4": "IRS W-4",
+    "i9": "USCIS I-9",
+    "ndguard": "ND National Guard release",
+    "grandview_app": "Grandview job application",
+}
 DETECTOR = "FFDNet-S"
 DETECTOR_NAME = "FFDNet-S-onnx"
 DPI = 144  # the library's detection resolution (DetectPolicy.dpi)
@@ -106,6 +119,19 @@ def widget_kind(w: pymupdf.Widget) -> str:
 def own_fields(page: pymupdf.Page) -> list[list[float]]:
     """Rects (points, unrotated crop-box space) of the page's data fields."""
     return [[round(v, 2) for v in (w.rect.x0, w.rect.y0, w.rect.x1, w.rect.y1)] for w in own_widgets(page)]
+
+
+def license_of(form_id: str) -> str:
+    """The manifest's license line for ``form_id``."""
+    return LICENSES.get(form_id, LICENSE)
+
+
+def detection_pages(entry: dict, pdfs: dict[str, Any]) -> list[int]:
+    """The pages a bundle's detections cover: the form's scored pages when the manifest names them,
+    else the pages with fields of their own, else (a flat form) every page."""
+    if "scored_pages" in entry:
+        return sorted(entry["scored_pages"])
+    return sorted(pdfs["originals"]) or list(range(pdfs["pages"]))
 
 
 def _save(doc: pymupdf.Document) -> bytes:
@@ -286,10 +312,11 @@ def write_bundle(
     write_json(out / "manifest.json", {
         "id": bundle_id,
         "form": form_id,
+        "kind": entry["kind"],
         "title": title,
         "revision": entry["revision"],
         "source_url": entry["source"],
-        "license": LICENSE,
+        "license": license_of(form_id),
         "pages": pdfs["pages"],
     })
     write_json(out / "detections.json", {"model": model, "pages": detections})
@@ -320,7 +347,7 @@ def build_samples(form_ids: tuple[str, ...] = DEFAULT_FORMS, out: Path = SAMPLES
         if entry["split"] != "dev":
             raise ValueError(f"{form_id} is not a dev form; samples come from the dev corpus")
         pdfs = split_pdf(ROOT / "forms" / entry["split"] / f"{form_id}.pdf")
-        detections = detect_pages(pdfs["stripped"], sorted(pdfs["originals"]))
+        detections = detect_pages(pdfs["stripped"], detection_pages(entry, pdfs))
         written = write_bundle(
             out / form_id,
             bundle_id=form_id,

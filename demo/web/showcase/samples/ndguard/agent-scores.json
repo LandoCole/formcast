@@ -1,0 +1,78 @@
+{
+ "run": "2026-10-21_defer-placement",
+ "model_label": "Haiku 5.5",
+ "form": "ndguard",
+ "variant": "as_published",
+ "model": "claude-haiku-5-5",
+ "detection": {
+  "iou0.3": {
+   "gt": 33,
+   "pred": 43,
+   "matched": 31,
+   "pred_matched": 31,
+   "recall": 0.9394,
+   "precision": 0.7209,
+   "type_ok": 31,
+   "type_acc": 1.0,
+   "missed_by_type": {
+    "text": 2,
+    "choice": 0,
+    "signature": 0
+   }
+  },
+  "iou0.5": {
+   "gt": 33,
+   "pred": 43,
+   "matched": 25,
+   "pred_matched": 25,
+   "recall": 0.7576,
+   "precision": 0.5814,
+   "type_ok": 25,
+   "type_acc": 1.0,
+   "missed_by_type": {
+    "text": 8,
+    "choice": 0,
+    "signature": 0
+   }
+  }
+ },
+ "mapping": {
+  "n_path": 29,
+  "n_transform": 16,
+  "matched": 28,
+  "path_ok": 27,
+  "transform_ok": 13,
+  "joint_ok": 24,
+  "exact_ok": 22,
+  "matched_rate": 0.9655,
+  "path_acc": 0.931,
+  "transform_acc": 0.8125,
+  "joint_acc": 0.8276,
+  "exact_path_set_acc": 0.7586
+ },
+ "fill": {
+  "units": 113,
+  "correct": 83,
+  "fill_acc": 0.7345,
+  "text": {
+   "units": 105,
+   "correct": 75
+  },
+  "choice": {
+   "units": 8,
+   "correct": 8
+  },
+  "cell": {
+   "units": 0,
+   "correct": 0
+  },
+  "static_choice": 0,
+  "rows_dropped_ok": null,
+  "fill_errors": []
+ },
+ "steps": 13,
+ "input_tokens": 218219,
+ "output_tokens": 28801,
+ "wall_s": 141.1,
+ "finished": true
+}
