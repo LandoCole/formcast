@@ -306,19 +306,6 @@
     </div>
   </section>
 
-  <section class="sec" aria-labelledby="l-limits">
-    <h2 class="label" id="l-limits">Limits</h2>
-    <div class="body">
-      <p><b>Mapping is where the agent loses points now.</b> On fillable forms it finds nearly every path, but its transforms vary from run to run. On flat and scanned forms it often draws its own box beside a detected one and links that instead. Across forms it often links a list to the text box but not to the checkbox that goes with it.</p>
-      <p><b>Auto map is a replay.</b> It works on the sample forms only, and only where a detected box overlaps a field the agent mapped: a box the detector missed or placed elsewhere stays unlinked, and the tables the agent built are not carried over.</p>
-      <p><b>Scans are weak.</b> On some scanned pages the detector misses most of the boxes, and a scan has no printed rules to place the missing ones against. Neither model in this page is reliable on scans; the library sends scanned pages to FFDetr and reads them with OCR. Finding lines and boxes in the image itself would be new work.</p>
-      <p><b>Long forms.</b> The agent stops early or gives up on long, noisy forms, and those sessions cost the most, because every step resends the first message.</p>
-      <p><b>Drawn boxes.</b> A blank drawn as a rectangle reaches the page map only as two rules, so the agent can put the field on the label row above it.</p>
-      <p><b>The answer key.</b> Some of its conventions can't be inferred from the form, such as one box or two for a from–to date, and whether office-use blanks count.</p>
-      <p><b>The held-out run is incomplete.</b> It stopped at the provider's usage limit, so there is no measure yet of how the agent does on forms it wasn't tuned on. Results has the details.</p>
-    </div>
-  </section>
-
   <section class="sec" aria-labelledby="l-credits">
     <h2 class="label" id="l-credits">Credits and code</h2>
     <div class="body">

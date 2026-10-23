@@ -1,4 +1,4 @@
-"""The showcase page's write-up: How it works, What the AI agent adds, Results, Limits, Credits.
+"""The showcase page's write-up: How it works, What the AI agent adds, Results, Credits.
 
 The static checks parse ``demo/web/showcase/index.html``; the rest open the page in Chromium (the
 real ``results.json`` and samples, Google Fonts answered with an empty stylesheet, Hugging Face
@@ -22,7 +22,7 @@ RESULTS = json.loads((SHOWCASE / "results.json").read_text(encoding="utf-8"))
 PAGE = "/demo/web/showcase/index.html"
 REPO = "https://github.com/LandoCole/formcast"
 
-SECTIONS = ["How it works", "What the AI agent adds", "Results", "Limits", "Credits and code"]
+SECTIONS = ["How it works", "What the AI agent adds", "Results", "Credits and code"]
 # landon-portfolio/tools/check_site.py
 BANNED_WORDS = [
     "revolutioni", "seamless", "empower", "cutting-edge", "game-chang",
