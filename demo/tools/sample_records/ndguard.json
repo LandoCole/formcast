@@ -1,0 +1,90 @@
+[
+ {
+  "title": "Marisol Quill, for a benefits claim",
+  "record": {
+   "requester": {
+    "first_name": "Marisol",
+    "middle_name": "J",
+    "last_name": "Quill",
+    "date_of_birth": "1988-04-12",
+    "ssn": "000-41-2290",
+    "phone": "701-555-0134",
+    "email": "marisol.quill@example.com",
+    "address": {
+     "street": "52 Example Street",
+     "city": "Bismarck",
+     "state": "ND",
+     "postal_code": "58501"
+    }
+   },
+   "service": {
+    "branch": "Army",
+    "component": "national_guard",
+    "start_date": "2008-06-02",
+    "end_date": "2016-06-01",
+    "rank": "Sergeant"
+   },
+   "recipient": {
+    "name": "Example County Veterans Service Office",
+    "address": {
+     "street": "100 Sample Avenue",
+     "city": "Bismarck",
+     "state": "ND",
+     "postal_code": "58504"
+    },
+    "phone": "701-555-0190",
+    "fax": "701-555-0191",
+    "email": "vso@example.com"
+   },
+   "documents_requested": ["dd214", "ngb22"],
+   "reason": "Veterans benefits application",
+   "authorization_expires_on": "2027-03-31",
+   "signer_relationship": "Self",
+   "signed_on": "2026-09-14"
+  }
+ },
+ {
+  "title": "Owen Tallis, for retirement pay",
+  "record": {
+   "requester": {
+    "first_name": "Owen",
+    "last_name": "Tallis",
+    "date_of_birth": "1975-11-03",
+    "ssn": "000-63-1187",
+    "service_number": "EX-447120",
+    "phone": "701-555-0172",
+    "email": "owen.tallis@example.com",
+    "address": {
+     "street": "9 Example Court",
+     "city": "Fargo",
+     "state": "ND",
+     "postal_code": "58102"
+    }
+   },
+   "service": {
+    "branch": "Air Force",
+    "component": "national_guard",
+    "start_date": "1994-08-15",
+    "end_date": "2015-08-14",
+    "rank": "Master Sergeant"
+   },
+   "recipient": {
+    "name": "Example Retirement Services",
+    "address": {
+     "street": "2400 Sample Boulevard",
+     "city": "Fargo",
+     "state": "ND",
+     "postal_code": "58103"
+    },
+    "phone": "701-555-0115",
+    "email": "records@example.com"
+   },
+   "documents_requested": ["dd214", "medical", "other"],
+   "other_documents": "Retirement points statement",
+   "reason": "Retirement pay application",
+   "authorization_expires_on": "2027-06-30",
+   "signer_relationship": "Self",
+   "signed_on": "2026-10-02"
+  }
+ }
+]

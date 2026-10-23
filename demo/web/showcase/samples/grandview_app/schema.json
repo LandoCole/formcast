@@ -1,0 +1,495 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "$id": "https://example.org/schemas/job-application.json",
+ "title": "Job application",
+ "description": "An applicant's employment application as kept by HR.",
+ "type": "object",
+ "properties": {
+  "applicant": {
+   "type": "object",
+   "properties": {
+    "first_name": {
+     "type": "string"
+    },
+    "middle_name": {
+     "type": "string"
+    },
+    "last_name": {
+     "type": "string"
+    },
+    "ssn": {
+     "type": "string",
+     "pattern": "^\\d{3}-\\d{2}-\\d{4}$",
+     "description": "Formatted NNN-NN-NNNN."
+    },
+    "address": {
+     "$ref": "#/$defs/address"
+    },
+    "home_phone": {
+     "$ref": "#/$defs/phone"
+    },
+    "mobile_phone": {
+     "$ref": "#/$defs/phone"
+    },
+    "work_phone": {
+     "$ref": "#/$defs/phone"
+    },
+    "email": {
+     "type": "string",
+     "format": "email"
+    },
+    "may_contact_at_work": {
+     "type": "boolean"
+    },
+    "can_furnish_work_permit": {
+     "type": "boolean",
+     "description": "Only asked of applicants under 18."
+    },
+    "legally_eligible": {
+     "type": "boolean",
+     "description": "Legally eligible for employment in the US."
+    },
+    "willing_to_relocate": {
+     "type": "boolean"
+    },
+    "willing_to_travel": {
+     "type": "boolean"
+    },
+    "willing_to_work_overtime": {
+     "type": "boolean"
+    },
+    "meets_attendance_requirements": {
+     "type": "string",
+     "enum": [
+      "yes",
+      "no",
+      "not_applicable"
+     ]
+    },
+    "can_perform_essential_functions": {
+     "type": "string",
+     "enum": [
+      "yes",
+      "no",
+      "need_more_information"
+     ]
+    },
+    "drivers_license": {
+     "type": "object",
+     "properties": {
+      "number": {
+       "type": "string"
+      },
+      "state": {
+       "type": "string"
+      },
+      "expires_on": {
+       "type": "string",
+       "format": "date"
+      }
+     }
+    },
+    "has_been_bonded": {
+     "type": "boolean"
+    }
+   },
+   "required": [
+    "first_name",
+    "last_name"
+   ]
+  },
+  "positions_applied_for": {
+   "type": "array",
+   "items": {
+    "type": "string"
+   },
+   "minItems": 1
+  },
+  "referral": {
+   "type": "object",
+   "properties": {
+    "source": {
+     "type": "string",
+     "enum": [
+      "walk_in",
+      "employee",
+      "advertisement",
+      "city_website",
+      "other_internet",
+      "school",
+      "job_fair",
+      "staffing_agency",
+      "government_agency",
+      "other"
+     ]
+    },
+    "detail": {
+     "type": "string",
+     "description": "Name of the employee, school, publication, etc."
+    }
+   }
+  },
+  "previous_application": {
+   "type": "object",
+   "properties": {
+    "submitted": {
+     "type": "boolean"
+    },
+    "details": {
+     "type": "string",
+     "description": "Dates and positions applied for before."
+    }
+   }
+  },
+  "previous_employment": {
+   "type": "object",
+   "description": "Earlier employment with this employer.",
+   "properties": {
+    "employed_here": {
+     "type": "boolean"
+    },
+    "from": {
+     "type": "string",
+     "format": "date"
+    },
+    "to": {
+     "type": "string",
+     "format": "date"
+    }
+   }
+  },
+  "available_from": {
+   "type": "string",
+   "format": "date"
+  },
+  "desired_pay": {
+   "type": "object",
+   "properties": {
+    "amount": {
+     "type": "number",
+     "minimum": 0
+    },
+    "period": {
+     "type": "string",
+     "enum": [
+      "hour",
+      "week",
+      "month",
+      "year"
+     ]
+    }
+   }
+  },
+  "employment_types_desired": {
+   "type": "array",
+   "uniqueItems": true,
+   "items": {
+    "type": "string",
+    "enum": [
+     "full_time",
+     "part_time",
+     "educational_co_op",
+     "seasonal",
+     "temporary"
+    ]
+   }
+  },
+  "criminal_history": {
+   "type": "object",
+   "properties": {
+    "convicted_last_10_years": {
+     "type": "boolean"
+    },
+    "details": {
+     "type": "string"
+    }
+   }
+  },
+  "employment_history": {
+   "type": "array",
+   "description": "Most recent employer first.",
+   "items": {
+    "type": "object",
+    "properties": {
+     "employer": {
+      "type": "string"
+     },
+     "phone": {
+      "$ref": "#/$defs/phone"
+     },
+     "street": {
+      "type": "string"
+     },
+     "city": {
+      "type": "string"
+     },
+     "state": {
+      "type": "string"
+     },
+     "start_date": {
+      "type": "string",
+      "format": "date"
+     },
+     "end_date": {
+      "type": "string",
+      "format": "date"
+     },
+     "starting_title": {
+      "type": "string"
+     },
+     "final_title": {
+      "type": "string"
+     },
+     "starting_pay_basis": {
+      "type": "string",
+      "enum": [
+       "hourly",
+       "salary"
+      ]
+     },
+     "starting_pay_amount": {
+      "type": "number"
+     },
+     "starting_pay_period": {
+      "type": "string"
+     },
+     "final_pay_basis": {
+      "type": "string",
+      "enum": [
+       "hourly",
+       "salary"
+      ]
+     },
+     "final_pay_amount": {
+      "type": "number"
+     },
+     "final_pay_period": {
+      "type": "string"
+     },
+     "other_compensation": {
+      "type": "string"
+     },
+     "supervisor_name": {
+      "type": "string"
+     },
+     "supervisor_title": {
+      "type": "string"
+     },
+     "may_contact": {
+      "type": "string",
+      "enum": [
+       "yes",
+       "no",
+       "later"
+      ]
+     },
+     "reason_for_leaving": {
+      "type": "string"
+     },
+     "duties": {
+      "type": "string"
+     },
+     "liked_most": {
+      "type": "string"
+     },
+     "liked_least": {
+      "type": "string"
+     }
+    },
+    "required": [
+     "employer"
+    ]
+   }
+  },
+  "employment_gaps_explanation": {
+   "type": "string"
+  },
+  "terminated_or_asked_to_resign": {
+   "type": "boolean"
+  },
+  "termination_explanation": {
+   "type": "string"
+  },
+  "skills_summary": {
+   "type": "string"
+  },
+  "computer_skills": {
+   "type": "object",
+   "properties": {
+    "word_processing": {
+     "$ref": "#/$defs/software_skill"
+    },
+    "spreadsheet": {
+     "$ref": "#/$defs/software_skill"
+    },
+    "presentation": {
+     "$ref": "#/$defs/software_skill"
+    },
+    "email": {
+     "$ref": "#/$defs/software_skill"
+    },
+    "internet": {
+     "$ref": "#/$defs/software_skill"
+    },
+    "other": {
+     "type": "array",
+     "items": {
+      "$ref": "#/$defs/software_skill"
+     }
+    }
+   }
+  },
+  "education": {
+   "type": "array",
+   "description": "Most recent school first.",
+   "items": {
+    "type": "object",
+    "properties": {
+     "school": {
+      "type": "string"
+     },
+     "city": {
+      "type": "string"
+     },
+     "state": {
+      "type": "string"
+     },
+     "years_completed": {
+      "type": "number"
+     },
+     "credential": {
+      "type": "string",
+      "enum": [
+       "diploma",
+       "ged",
+       "degree",
+       "certification",
+       "other"
+      ]
+     },
+     "degree": {
+      "type": "string"
+     },
+     "certification": {
+      "type": "string"
+     },
+     "gpa": {
+      "type": "string",
+      "description": "GPA or class rank."
+     },
+     "major": {
+      "type": "string"
+     },
+     "minor": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "references": {
+   "type": "array",
+   "maxItems": 3,
+   "items": {
+    "type": "object",
+    "properties": {
+     "name": {
+      "type": "string"
+     },
+     "title": {
+      "type": "string"
+     },
+     "relationship": {
+      "type": "string"
+     },
+     "phone": {
+      "$ref": "#/$defs/phone"
+     },
+     "years_known": {
+      "type": "number"
+     }
+    }
+   }
+  },
+  "organizations": {
+   "type": "array",
+   "items": {
+    "type": "object",
+    "properties": {
+     "name": {
+      "type": "string"
+     },
+     "offices_held": {
+      "type": "string"
+     }
+    }
+   }
+  },
+  "accomplishments": {
+   "type": "string"
+  },
+  "wrote_instructions": {
+   "type": "string",
+   "enum": [
+    "yes",
+    "no",
+    "not_applicable"
+   ],
+   "description": "Has written instructions to be followed by employees or customers."
+  },
+  "wrote_instructions_explanation": {
+   "type": "string"
+  },
+  "additional_information": {
+   "type": "string"
+  },
+  "signed_on": {
+   "type": "string",
+   "format": "date"
+  },
+  "received_on": {
+   "type": "string",
+   "format": "date",
+   "description": "Date HR received the application."
+  }
+ },
+ "required": [
+  "applicant",
+  "positions_applied_for"
+ ],
+ "$defs": {
+  "address": {
+   "type": "object",
+   "properties": {
+    "street": {
+     "type": "string"
+    },
+    "city": {
+     "type": "string"
+    },
+    "state": {
+     "type": "string"
+    },
+    "postal_code": {
+     "type": "string"
+    }
+   }
+  },
+  "phone": {
+   "type": "string",
+   "pattern": "^\\d{3}-\\d{3}-\\d{4}$",
+   "description": "Ten digits formatted NNN-NNN-NNNN."
+  },
+  "software_skill": {
+   "type": "object",
+   "properties": {
+    "software": {
+     "type": "string",
+     "description": "Software titles used."
+    },
+    "years": {
+     "type": "number"
+    }
+   }
+  }
+ }
+}

@@ -59,7 +59,7 @@
         <div class="group">
           <p class="label"><label for="sample">Sample form</label></p>
           <select id="sample" disabled><option value="">Loading samples…</option></select>
-          <p class="hint">US federal forms with their form fields taken out, so the detector has to find the blanks.</p>
+          <p class="hint">Government forms: federal ones with their form fields taken out, and printed ones that never had any. Either way, the detector has to find the blanks.</p>
         </div>
         <div class="group">
           <p class="label">Or your own PDF</p>
@@ -259,7 +259,7 @@
   <section class="sec" aria-labelledby="l-agent">
     <h2 class="label" id="l-agent">What the AI agent adds</h2>
     <div class="body">
-      <p><b>Here, the agent's work is replayed, not run.</b> The detector only proposes boxes. For each sample form, the agent built a template in the eval on the form as published, with its own fields; Auto map takes that mapping and pairs each of its fields with the box the detector found on the same blank. What it can't pair, and every box on a PDF of your own, you link by hand, and you can add the boxes the detector missed and fix or remove the wrong ones.</p>
+      <p><b>Here, the agent's work is replayed, not run.</b> The detector only proposes boxes. For each sample form, the agent built a template in the eval on the form as published; Auto map takes that mapping and pairs each of its fields with the box the detector found on the same blank. What it can't pair, and every box on a PDF of your own, you link by hand, and you can add the boxes the detector missed and fix or remove the wrong ones.</p>
       <p><b>In the library, the agent does it with tools, without vision.</b> It never sees the page image. It reads the page map as text and geometry and works through the edit operations. Its tools are built for:</p>
       <ul class="list">
         <li>linking each box to a schema path, with transforms where the form needs them;</li>
@@ -288,7 +288,7 @@
     <div class="body">
       <p><b>CommonForms.</b> The detector is FFDNet from CommonForms, by Joe Barrow (<a href="https://arxiv.org/abs/2509.16506">the paper</a>). Its dataset is Apache-2.0. This page loads the model weights from the author's Hugging Face pages, <a href="https://huggingface.co/jbarrow/FFDNet-S-cpu">FFDNet-S</a> and <a href="https://huggingface.co/jbarrow/FFDNet-L-cpu">FFDNet-L</a>, and only when you run the detector.</p>
       <p><b>Libraries.</b> <a href="https://www.npmjs.com/package/pdfjs-dist">pdf.js</a> (Apache-2.0) draws the page, <a href="https://www.npmjs.com/package/onnxruntime-web">ONNX Runtime Web</a> (MIT) runs the model and <a href="https://www.npmjs.com/package/pdf-lib">pdf-lib</a> (MIT) writes the filled PDF. They are copied into the page, not loaded from a CDN.</p>
-      <p><b>Sample forms.</b> The W-9, W-4 and I-9 are US federal government forms, in the public domain. The sample records are made up.</p>
+      <p><b>Sample forms.</b> The W-9, W-4 and I-9 are US federal government forms, in the public domain. The North Dakota National Guard release and the City of Grandview job application are published by those agencies for public use. The sample records are made up.</p>
       <p><b>Code.</b> <a href="https://github.com/LandoCole/formcast" id="repo-link">The formcast repository</a> holds the library, the eval and this page.</p>
     </div>
   </section>

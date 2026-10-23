@@ -19,5 +19,19 @@
   "revision": "2025-03",
   "source_url": "https://www.uscis.gov/sites/default/files/document/forms/i-9.pdf",
   "pages": 4
+ },
+ {
+  "id": "ndguard",
+  "title": "ND National Guard release",
+  "revision": "2018-09-19",
+  "source_url": "https://www.ndguard.nd.gov/sites/www/files/documents/Sites/Retirees/Release%20of%20Information%20180919.pdf",
+  "pages": 1
+ },
+ {
+  "id": "grandview_app",
+  "title": "Grandview job application",
+  "revision": "2018-06",
+  "source_url": "https://grandview.wa.us/wp-content/uploads/2024/05/Application-for-Employment.pdf",
+  "pages": 4
  }
 ]

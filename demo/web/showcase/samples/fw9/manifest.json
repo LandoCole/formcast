@@ -1,6 +1,7 @@
 {
  "id": "fw9",
  "form": "fw9",
+ "kind": "fillable",
  "title": "IRS W-9",
  "revision": "2024-03",
  "source_url": "https://www.irs.gov/pub/irs-pdf/fw9.pdf",

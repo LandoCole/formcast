@@ -356,11 +356,13 @@ export function mountDetect(app) {
     $("detect").disabled = detecting() || state.doc === null;
     $("detect").textContent = detecting() ? "Detecting…" : boxes > 0 ? "Detect again" : "Detect the boxes";
     $("play-saved").hidden = !(failed && sample !== null) || detecting();
-    $("compare-group").hidden = sample === null || boxes === 0;
+    // a flat, printed form has no fields of its own to compare with
+    const ownFields = sample !== null && Object.keys(sample.originals.pages).length > 0;
+    $("compare-group").hidden = !ownFields || boxes === 0;
     const page = state.doc?.pages[state.page];
     $("scanned-note").hidden = page?.kind !== "scanned";
 
-    if (sample !== null && t !== null) {
+    if (ownFields && t !== null) {
       let n = 0;
       let m = 0;
       for (const [key, rects] of Object.entries(sample.originals.pages)) {
@@ -376,7 +378,8 @@ export function mountDetect(app) {
     if (state.doc === null) {
       docline.textContent = "No form open";
     } else if (m) {
-      docline.replaceChildren(Object.assign(document.createElement("b"), { textContent: m.title }), ` · rev. ${m.revision} · fields stripped`);
+      const how = ownFields ? "fields stripped" : "printed form, no fields";
+      docline.replaceChildren(Object.assign(document.createElement("b"), { textContent: m.title }), ` · rev. ${m.revision} · ${how}`);
     } else {
       docline.replaceChildren(Object.assign(document.createElement("b"), { textContent: state.name }), " · your PDF");
     }

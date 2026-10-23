@@ -1,0 +1,274 @@
+[
+ {
+  "title": "Priya Calloway, parks maintenance",
+  "record": {
+   "applicant": {
+    "first_name": "Priya",
+    "middle_name": "R",
+    "last_name": "Calloway",
+    "ssn": "000-27-5512",
+    "address": {
+     "street": "314 Example Road",
+     "city": "Grandview",
+     "state": "WA",
+     "postal_code": "98930"
+    },
+    "mobile_phone": "509-555-0148",
+    "email": "priya.calloway@example.com",
+    "may_contact_at_work": false,
+    "legally_eligible": true,
+    "willing_to_relocate": false,
+    "willing_to_travel": true,
+    "willing_to_work_overtime": true,
+    "meets_attendance_requirements": "yes",
+    "can_perform_essential_functions": "yes",
+    "drivers_license": {
+     "number": "EXAMPLE123PC",
+     "state": "WA",
+     "expires_on": "2029-02-14"
+    },
+    "has_been_bonded": false
+   },
+   "positions_applied_for": ["Parks Maintenance Worker"],
+   "referral": {
+    "source": "city_website"
+   },
+   "previous_application": {
+    "submitted": false
+   },
+   "previous_employment": {
+    "employed_here": false
+   },
+   "available_from": "2026-11-16",
+   "desired_pay": {
+    "amount": 22.5,
+    "period": "hour"
+   },
+   "employment_types_desired": ["full_time", "seasonal"],
+   "criminal_history": {
+    "convicted_last_10_years": false
+   },
+   "employment_history": [
+    {
+     "employer": "Example Landscape Services",
+     "phone": "509-555-0161",
+     "street": "88 Sample Way",
+     "city": "Sunnyside",
+     "state": "WA",
+     "start_date": "2021-03-01",
+     "end_date": "2026-09-30",
+     "starting_title": "Grounds crew",
+     "final_title": "Crew lead",
+     "starting_pay_basis": "hourly",
+     "starting_pay_amount": 16.5,
+     "starting_pay_period": "hour",
+     "final_pay_basis": "hourly",
+     "final_pay_amount": 21,
+     "final_pay_period": "hour",
+     "supervisor_name": "Leo Marsh",
+     "supervisor_title": "Operations manager",
+     "may_contact": "yes",
+     "reason_for_leaving": "Seasonal contract ended",
+     "duties": "Mowing, irrigation repair and planting for commercial sites"
+    },
+    {
+     "employer": "Example Valley Nursery",
+     "phone": "509-555-0183",
+     "street": "12 Sample Lane",
+     "city": "Prosser",
+     "state": "WA",
+     "start_date": "2018-04-02",
+     "end_date": "2021-02-26",
+     "starting_title": "Nursery assistant",
+     "final_title": "Nursery assistant",
+     "starting_pay_basis": "hourly",
+     "starting_pay_amount": 13.5,
+     "starting_pay_period": "hour",
+     "final_pay_basis": "hourly",
+     "final_pay_amount": 15,
+     "final_pay_period": "hour",
+     "supervisor_name": "June Ortega",
+     "supervisor_title": "Owner",
+     "may_contact": "yes",
+     "reason_for_leaving": "Took a full-time crew position",
+     "duties": "Watering, potting and customer orders"
+    }
+   ],
+   "terminated_or_asked_to_resign": false,
+   "skills_summary": "Irrigation repair, small engine maintenance, licensed pesticide applicator",
+   "computer_skills": {
+    "email": {
+     "software": "Outlook",
+     "years": 5
+    },
+    "spreadsheet": {
+     "software": "Excel",
+     "years": 3
+    }
+   },
+   "education": [
+    {
+     "school": "Example Valley High School",
+     "city": "Grandview",
+     "state": "WA",
+     "years_completed": 4,
+     "credential": "diploma"
+    },
+    {
+     "school": "Example Community College",
+     "city": "Yakima",
+     "state": "WA",
+     "years_completed": 1,
+     "credential": "certification",
+     "certification": "Horticulture"
+    }
+   ],
+   "references": [
+    {
+     "name": "Leo Marsh",
+     "title": "Operations manager",
+     "relationship": "Former supervisor",
+     "phone": "509-555-0162",
+     "years_known": 5
+    },
+    {
+     "name": "Ana Ruiz",
+     "title": "Head gardener",
+     "relationship": "Former coworker",
+     "phone": "509-555-0177",
+     "years_known": 7
+    }
+   ],
+   "signed_on": "2026-10-20"
+  }
+ },
+ {
+  "title": "Jonah Feld, accounting clerk",
+  "record": {
+   "applicant": {
+    "first_name": "Jonah",
+    "last_name": "Feld",
+    "ssn": "000-58-3301",
+    "address": {
+     "street": "1708 Example Avenue",
+     "city": "Yakima",
+     "state": "WA",
+     "postal_code": "98902"
+    },
+    "home_phone": "509-555-0120",
+    "mobile_phone": "509-555-0121",
+    "email": "jonah.feld@example.com",
+    "may_contact_at_work": true,
+    "legally_eligible": true,
+    "willing_to_relocate": true,
+    "willing_to_travel": false,
+    "willing_to_work_overtime": true,
+    "meets_attendance_requirements": "yes",
+    "can_perform_essential_functions": "yes",
+    "has_been_bonded": true
+   },
+   "positions_applied_for": ["Accounting Clerk", "Utility Billing Clerk"],
+   "referral": {
+    "source": "advertisement",
+    "detail": "Example Valley Herald"
+   },
+   "previous_application": {
+    "submitted": false
+   },
+   "previous_employment": {
+    "employed_here": false
+   },
+   "available_from": "2026-12-01",
+   "desired_pay": {
+    "amount": 48000,
+    "period": "year"
+   },
+   "employment_types_desired": ["full_time"],
+   "criminal_history": {
+    "convicted_last_10_years": false
+   },
+   "employment_history": [
+    {
+     "employer": "Example Orchard Cooperative",
+     "phone": "509-555-0139",
+     "street": "400 Sample Road",
+     "city": "Yakima",
+     "state": "WA",
+     "start_date": "2022-01-10",
+     "starting_title": "Accounts payable clerk",
+     "final_title": "Senior accounts payable clerk",
+     "starting_pay_basis": "hourly",
+     "starting_pay_amount": 19,
+     "starting_pay_period": "hour",
+     "final_pay_basis": "salary",
+     "final_pay_amount": 45000,
+     "final_pay_period": "year",
+     "supervisor_name": "Hana Brooks",
+     "supervisor_title": "Controller",
+     "may_contact": "later",
+     "reason_for_leaving": "Looking for public-sector work",
+     "duties": "Vendor invoices, payment runs and month-end reconciliations"
+    }
+   ],
+   "terminated_or_asked_to_resign": false,
+   "skills_summary": "Accounts payable, reconciliations, 10-key",
+   "computer_skills": {
+    "word_processing": {
+     "software": "Word",
+     "years": 8
+    },
+    "spreadsheet": {
+     "software": "Excel",
+     "years": 8
+    },
+    "email": {
+     "software": "Outlook",
+     "years": 8
+    },
+    "other": [
+     {
+      "software": "QuickBooks",
+      "years": 4
+     }
+    ]
+   },
+   "education": [
+    {
+     "school": "Example State University",
+     "city": "Ellensburg",
+     "state": "WA",
+     "years_completed": 4,
+     "credential": "degree",
+     "degree": "B.A.",
+     "major": "Accounting",
+     "minor": "Economics"
+    }
+   ],
+   "references": [
+    {
+     "name": "Hana Brooks",
+     "title": "Controller",
+     "relationship": "Supervisor",
+     "phone": "509-555-0140",
+     "years_known": 4
+    },
+    {
+     "name": "Carl Mendez",
+     "title": "Professor of accounting",
+     "relationship": "Former instructor",
+     "phone": "509-555-0156",
+     "years_known": 7
+    }
+   ],
+   "organizations": [
+    {
+     "name": "Example Bookkeepers Association",
+     "offices_held": "Treasurer"
+    }
+   ],
+   "wrote_instructions": "yes",
+   "wrote_instructions_explanation": "Wrote the vendor setup guide used by the purchasing team",
+   "signed_on": "2026-10-21"
+  }
+ }
+]
