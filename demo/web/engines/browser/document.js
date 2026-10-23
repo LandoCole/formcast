@@ -2,6 +2,7 @@
 // kind, a page renderer and text lines for seed labels. Rects come out as the library's: PDF
 // points, origin top-left, unrotated crop-box space (converted by geometry.js).
 
+import "./streams.js"; // before pdf.js: Safari 26.0 cannot iterate a ReadableStream
 import { AnnotationMode, GlobalWorkerOptions, getDocument } from "../../vendor/pdfjs/build/pdf.min.mjs";
 import { fromUserSpace, normRect } from "../../core/geometry.js";
 
