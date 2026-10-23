@@ -277,32 +277,9 @@
     <h2 class="label" id="l-results">Results</h2>
     <div class="body">
       <p class="lead" id="results-lead">Loading the results…</p>
-      <p>Each agent session gets one form, as published or as a fake scan, with its JSON Schema, and its template is scored against an answer key for that form. The development (dev) forms are the ones the agent was tuned on; the held-out forms were kept back to test it. Every figure here is read from results.json when the page loads, and results.json is built from the committed eval files.</p>
-      <h3 class="sub">The agent on the dev forms</h3>
       <div class="tablebox" id="agent-table"></div>
-      <div id="caveats"></div>
-      <p class="note" id="agent-reading"></p>
-      <details class="more" id="agent-groups-more">
-        <summary>The same runs by form kind: fillable, flat digital and scanned</summary>
-        <div class="tablebox" id="agent-groups"></div>
-      </details>
       <dl class="defs" id="agent-defs"></dl>
-      <div id="agent-notes"></div>
-      <h3 class="sub">Held-out forms</h3>
-      <div id="heldout"></div>
-      <h3 class="sub">The detector in your browser</h3>
-      <p>On pages as published, the two models this page can run are close to each other and a little behind the detector as the library runs it. On fake scans neither is reliable, so scanned pages need the Python pipeline.</p>
-      <div class="tablebox" id="browser-table"></div>
-      <div id="browser-notes"></div>
-      <h3 class="sub">Bare detectors, dev and held-out</h3>
-      <p>Each detector on its own, before any seeding or agent, on the dev and the held-out forms. These are the floor the rest builds on.</p>
-      <details class="more" id="detection-more">
-        <summary>Show the dev and held-out tables</summary>
-        <div class="tablebox" id="detection-dev"></div>
-        <div class="tablebox" id="detection-heldout"></div>
-      </details>
-      <div id="detection-notes"></div>
-      <p class="note sources" id="sources"></p>
+      <p class="note" id="agent-note"></p>
     </div>
   </section>
 

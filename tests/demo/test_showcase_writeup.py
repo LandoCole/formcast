@@ -226,110 +226,47 @@ def agent(run: str, group: str, sessions_of: str | None = None) -> dict:
     )
 
 
-def test_the_agent_table_shows_the_headline_and_the_comparison_rows(open_page):
+def headline(group: str) -> dict:
+    return next(r for r in RESULTS["agent_dev"] if r["headline"] and r["group"] == group and r["sessions_of"] is None)
+
+
+def test_the_results_table_shows_the_headline_run_by_form_type(open_page):
     page = open_page()
     assert page.eval_on_selector("#results", "el => el.dataset.state") == "ready"
-    # headline first: the all-sessions table is visible, the breakdowns sit in a closed disclosure
+    heads = page.eval_on_selector_all("#agent-table thead th", "ths => ths.map(th => th.textContent)")
+    assert heads == ["Form type", "Blanks found", "Linked to the right field", "Filled correctly"]
     rows = rows_text(page, "#agent-table")
-    assert len(rows) == sum(1 for r in RESULTS["agent_dev"] if r["group"] == "all") == 6
-    groups = rows_text(page, "#agent-groups")
-    assert len(rows) + len(groups) == len(RESULTS["agent_dev"])  # every group and run
-    assert page.eval_on_selector("#agent-groups-more", "d => d.open") is False
-    assert page.is_visible("#agent-table table") and not page.is_visible("#agent-groups table")
-    order = page.evaluate(
-        "() => ['#agent-table', '#caveats', '#agent-reading', '#agent-groups-more']"
-        ".map(s => document.querySelector(s)).every((el, i, a) => i === 0 ||"
-        " (a[i - 1].compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING))"
-    )
-    assert order  # the caveats and the reading come right after the headline table
-    head = agent("2026-10-21_defer-placement", "all")
-    shown = page.eval_on_selector_all(
-        "#agent-table tbody tr.pick, #agent-groups tbody tr.pick", "trs => trs.map(tr => tr.closest('tbody').dataset.group)"
-    )
-    assert shown == ["all", "fillable", "digital", "scanned"]
-    page.click("#agent-groups-more > summary")
-    assert page.is_visible("#agent-groups table")
-    rows = rows + groups
-    first = page.eval_on_selector("#agent-table tbody[data-group='all'] tr.pick", f"tr => {CELLS}")
-    assert first[0].startswith("Haiku 5.5") and "current code" in first[0]
-    want = [str(head["sessions"]), *(f"{head[k]:.2f}" for k in ("recall_50", "precision_30", "path", "joint", "fill_acc"))]
-    assert first[1:7] == want
-    assert first[7] == f"{head['steps']:.1f}" and first[8] == f"{round(head['input_tokens'] / 1000)}K"
-    labels = " | ".join(r[0] for r in rows)
-    for run in RESULTS["agent_dev"]:
-        assert run["detail"] in labels
-    # the paired Luna row sits right after the partial round
-    all_rows = [r[0] for r in rows_text(page, "#agent-table", "tbody[data-group='all']")]
-    i = next(i for i, r in enumerate(all_rows) if "14 of 24 sessions" in r)
-    assert "round 1 on the same 14 sessions" in all_rows[i + 1]
+    assert [r[0] for r in rows] == ["Fillable PDFs", "Flat PDFs", "Scanned copies", "All forms"]
+    for row, group in zip(rows, ("fillable", "digital", "scanned", "all")):
+        h = headline(group)
+        assert row[1:] == [f"{round(h[k] * 100)}%" for k in ("recall_50", "path", "fill_acc")], group
 
 
-def test_explanations_and_caveats_come_from_results_json(open_page):
+def test_the_lead_says_what_was_tested(open_page):
     page = open_page()
-    results = page.inner_text("#results")
-    for caveat in RESULTS["caveats"]:
-        assert caveat in results
-    for part in ("groups", "metrics", "detectors"):
-        for entry in RESULTS[part].values():
-            assert entry["text"] in results, entry
-    for key, note in RESULTS["notes"].items():
-        for text in note if isinstance(note, list) else [note]:
-            assert text in results, key
-    assert "14 of 24 sessions" in results
-    caveats_after_table = page.evaluate(
-        "() => !!(document.querySelector('#agent-table').compareDocumentPosition(document.querySelector('#caveats'))"
-        " & Node.DOCUMENT_POSITION_FOLLOWING)"
-    )
-    assert caveats_after_table
-    for source in RESULTS["generated_from"]:
-        assert source in results
-
-
-def test_the_heldout_status_is_stated_plainly(open_page):
-    page = open_page()
-    text = page.inner_text("#heldout")
-    assert "1 of 9" in text
-    assert RESULTS["heldout_status"]["note"] in text
-    assert RESULTS["heldout_status"]["source"] in text
-
-
-def test_the_browser_models_table_shows_all_three_setups(open_page):
-    page = open_page()
-    rows = rows_text(page, "#browser-table")
-    assert len(rows) == len(RESULTS["browser_models"]) == 12
-    for detector in ("FFDNet-L", "FFDNet-L-onnx", "FFDNet-S-onnx"):
-        label = RESULTS["detectors"][detector]["label"]
-        assert sum(1 for r in rows if r[0].startswith(label)) == 4, detector
-    s = next(
-        r for r in RESULTS["browser_models"]
-        if (r["kind"], r["variant"], r["detector"]) == ("flat", "fake_scan", "FFDNet-S-onnx")
-    )  # fmt: skip
-    groups = page.eval_on_selector_all("#browser-table tbody", "bs => bs.map(b => b.querySelector('tr.grp').textContent)")
-    i = groups.index(s["label"])
-    row = rows_text(page, "#browser-table", f"tbody:nth-of-type({i + 1})")[2]
-    assert row[1:] == [f"{s[k]:.2f}" for k in ("recall_50", "recall_30", "precision_30")]
-
-
-def test_the_detection_tables_cover_both_splits(open_page):
-    page = open_page()
-    assert len(rows_text(page, "#detection-dev")) == len(RESULTS["detection"]["dev"])
-    assert len(rows_text(page, "#detection-heldout")) == len(RESULTS["detection"]["heldout"])
-    assert "Native scan" in page.text_content("#detection-heldout")
-    assert not page.is_visible("#detection-dev table")  # behind a disclosure until asked for
-    page.click("#detection-more > summary")
-    assert page.is_visible("#detection-dev table") and page.is_visible("#detection-heldout table")
-
-
-def test_the_lead_and_reading_are_worked_out_from_the_numbers(open_page):
-    page = open_page()
-    head = agent("2026-10-21_defer-placement", "all")
     lead = page.inner_text("#results-lead")
-    assert lead.startswith("On the dev forms")
-    assert f"{round(head['path'] * 100)}%" in lead
-    for g in ("fillable", "digital", "scanned"):
-        assert f"{round(agent('2026-10-21_defer-placement', g)['path'] * 100)}%" in lead
-    reading = page.inner_text("#agent-reading")
-    assert f"{head['recall_50']:.2f}" in reading and f"{agent('2026-10-21_seed-fill', 'all')['recall_50']:.2f}" in reading
+    forms = headline("fillable")["sessions"] + headline("digital")["sessions"]
+    assert lead == (
+        f"Scored box by box against an answer key on {forms} public forms, "
+        f"with Claude {headline('fillable')['label']} as the agent."
+    )
+
+
+def test_every_measure_and_form_type_is_explained(open_page):
+    page = open_page()
+    terms = page.eval_on_selector_all("#agent-defs dt", "dts => dts.map(dt => dt.textContent)")
+    assert terms == ["Blanks found", "Linked to the right field", "Filled correctly",
+                     "Fillable PDFs", "Flat PDFs", "Scanned copies"]  # fmt: skip
+    assert "found by design" in page.inner_text("#agent-note")
+
+
+def test_the_results_leave_out_the_development_detail(open_page):
+    page = open_page()
+    text = page.inner_text("#results")
+    for gone in ("held-out", "Held-out", "Caveats", "round", "Luna", "tokens", "@", "results.json", "dev forms"):
+        assert gone not in text, gone
+    for note in RESULTS["caveats"]:
+        assert note not in text
 
 
 def test_the_rendered_copy_follows_the_site_rules(open_page):
@@ -396,5 +333,3 @@ def test_the_agent_section_lists_what_its_tools_are_for_not_results(parsed):
     assert "That is enough to" not in agent
     assert "looks like a blank" not in agent
     assert "How well it does these is measured under Results." in agent
-    results = text_of(parsed.sections[SECTIONS.index("Results")])
-    assert "read from results.json when the page loads, and results.json is built from the committed eval files" in results
