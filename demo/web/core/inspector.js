@@ -1,4 +1,4 @@
-// The inspector: the selected box's label, type, data field, transform chain and style, plus its
+// The inspector: the selected box's label, type, data fields, transform chain and style, plus its
 // warnings. Every edit is emitted as an op on the bus (`set_label`, `set_type`, `set_source`,
 // `set_style`); the inspector never edits the template. The host applies the op and calls `show`
 // again with the new field.
@@ -27,8 +27,19 @@ const TYPE_LABELS = {
 const ALIGNS = ["left", "center", "right"];
 const NO_STYLE = ["checkbox", "radio_option"];
 const DEFAULT_FIXED_SIZE = 10;
+// Boxes that print text, so several data fields can be joined into one value.
+const JOINABLE = ["text", "signature"];
+const DEFAULT_JOIN = " ";
 
 const pathOf = (p) => (typeof p === "string" ? p : p.path);
+
+/** What the joiner puts between values, for the joiners an input box doesn't show plainly. */
+function joinHint(join) {
+  if (join === null) return 'Not set: the values are joined with ", ".';
+  if (join === "") return "Nothing: the values run together.";
+  if (/^ +$/.test(join)) return join.length === 1 ? "A space." : `${join.length} spaces.`;
+  return "";
+}
 
 /** Mappable paths for a field of this type, as a path-list: tables take arrays of objects, others take the rest. */
 function choosable(schemaPaths, fieldType) {
@@ -214,6 +225,7 @@ export class Inspector {
     row("Type", type);
 
     row("Data field", ...this.#dataField(f, orphans));
+    if (used.length > 1 && JOINABLE.includes(f.type)) row("Joined with", ...this.#joiner(f));
 
     if (f.type === "table") row("Table", this.#segments(f));
     if (!NO_STYLE.includes(f.type) && f.type !== "table") this.#style(f, row);
@@ -223,21 +235,77 @@ export class Inspector {
     this.#el.replaceChildren(...parts);
   }
 
+  /**
+   * The data field select, or one row per path when the source combines several, plus "Add another
+   * field" on boxes that print text. Each change emits one `set_source` with the whole new source.
+   */
   #dataField(f, orphans) {
     const used = f.source?.paths ?? [];
-    const options = [["", "not linked"]];
-    for (const sp of choosable(this.#schemaPaths, f.type)) options.push([pathOf(sp), pathOf(sp)]);
-    for (const p of orphans) options.push([p, `${p} (not in schema)`]);
-    const s = select("path", options, used[0] ?? "");
-    s.addEventListener("change", () => {
-      if (s.value === "") {
-        this.#emit({ op: "set_source", id: f.id, source: null });
-        return;
-      }
-      this.#emit({ op: "set_source", id: f.id, source: { ...(f.source ?? { transforms: [] }), paths: [s.value, ...used.slice(1)] } });
+    const choices = choosable(this.#schemaPaths, f.type).map(pathOf);
+    const options = [...choices.map((p) => [p, p]), ...orphans.map((p) => [p, `${p} (not in schema)`])];
+    const nodes = [];
+
+    if (used.length <= 1) {
+      const s = select("path", [["", "not linked"], ...options], used[0] ?? "");
+      s.addEventListener("change", () => {
+        if (s.value === "") this.#emit({ op: "set_source", id: f.id, source: null });
+        else this.#setPaths(f, [s.value]);
+      });
+      nodes.push(s);
+    } else {
+      const list = el("ol", "fc-ins-paths");
+      used.forEach((p, i) => {
+        const li = el("li", "fc-ins-path");
+        const s = select(i === 0 ? "path" : `path-${i}`, options, p);
+        s.setAttribute("aria-label", `Data field ${i + 1}`);
+        s.addEventListener("change", () => this.#setPaths(f, used.map((q, j) => (j === i ? s.value : q))));
+        const del = iconButton("×", `Remove ${p}`, `path-remove-${i}`);
+        del.addEventListener("click", () => this.#setPaths(f, used.filter((_, j) => j !== i)));
+        li.append(s, del);
+        list.append(li);
+      });
+      nodes.push(list);
+    }
+
+    if (used.length > 0 && JOINABLE.includes(f.type)) {
+      const rest = choices.filter((p) => !used.includes(p));
+      const add = select("path-add", [["", "Add another field…"], ...rest.map((p) => [p, p])], "");
+      add.classList.add("fc-ins-add");
+      add.setAttribute("aria-label", "Add another field");
+      add.disabled = rest.length === 0;
+      add.addEventListener("change", () => {
+        if (add.value !== "") this.#setPaths(f, [...used, add.value]);
+      });
+      nodes.push(add);
+    }
+    return nodes;
+  }
+
+  /**
+   * Emit the source with these paths. Going from one path to two joins the values with a space
+   * unless a joiner is already set; going back to one path drops the joiner the second path needed.
+   */
+  #setPaths(f, paths) {
+    const before = f.source?.paths ?? [];
+    const source = { ...(f.source ?? { transforms: [] }), paths };
+    if (paths.length > 1 && before.length <= 1) source.join = f.source?.join ?? DEFAULT_JOIN;
+    if (paths.length <= 1 && before.length > 1) source.join = null;
+    this.#emit({ op: "set_source", id: f.id, source });
+  }
+
+  /** The "Joined with" input: the text put between the values of a multi-path source. */
+  #joiner(f) {
+    const join = f.source.join ?? null;
+    const input = el("input", "fc-in");
+    input.type = "text";
+    input.dataset.ctl = "join";
+    input.value = join ?? "";
+    input.addEventListener("change", () => {
+      if (input.value !== (join ?? "")) this.#emit({ op: "set_source", id: f.id, source: { ...f.source, join: input.value } });
     });
-    const nodes = [s];
-    if (used.length > 1) nodes.push(el("p", "fc-ins-hint", `Also uses ${used.slice(1).join(", ")}`));
+    const nodes = [input];
+    const hint = joinHint(join);
+    if (hint) nodes.push(el("p", "fc-ins-hint", hint));
     return nodes;
   }
 

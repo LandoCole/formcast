@@ -311,6 +311,11 @@
   line-height: 36px;
 }
 .fc-ins-dl dd { margin: 0; padding: 4px 0; box-shadow: inset 0 -.5px 0 0 var(--rule); min-width: 0; }
+.fc-ins-paths { margin: 0; padding: 0; list-style: none; }
+.fc-ins-path { display: flex; gap: 4px; }
+.fc-ins-path + .fc-ins-path { margin-top: 4px; }
+.fc-ins-path select { flex: 1; min-width: 0; }
+.fc-ins-add { margin-top: 4px; }
 .fc-ins-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .fc-ins-check { display: flex; align-items: center; gap: 8px; min-height: 28px; font: 14px var(--serif); }
 .fc-ins-lab {
