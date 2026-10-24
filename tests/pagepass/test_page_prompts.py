@@ -75,3 +75,50 @@ def test_system_prompt_has_split_value_rule():
         "the transform that picks its part (slice, date_part)."
     )
     assert sentence in " ".join(SYSTEM_PROMPT.split())
+
+
+# --- final review: each page's call carries its whole page map ---------------------------------------
+
+
+def _dense_page(index: int, n: int) -> PageMap:
+    from formcast.pagemap.model import Candidate
+
+    cands = [
+        Candidate(id=f"c{index}_{i}", kind="text", rect=(50, 10 + i * 3, 250, 12 + i * 3), conf=0.9, detector="fake")
+        for i in range(n)
+    ]
+    return _page(index).model_copy(update={"candidates": cands})
+
+
+def _page_map_text(form_map: FormMap, page: int) -> str:
+    template = Template(
+        template_id="t", schema=SCHEMA,
+        form=FormInfo(fingerprint="fp", page_count=len(form_map.pages), page_sizes=[(612, 792)] * len(form_map.pages),
+                      kinds=["digital"] * len(form_map.pages)),
+        fields=[Field(id=f"c{page}_0", type="text", page=page, rect=(50, 10, 250, 12))],
+    )  # fmt: skip
+    _, user = page_messages(template, form_map, page, b"png", {f"c{page}_0": "0"})
+    return user.content[2].text.split(f"PAGE MAP (extracted text and geometry, page {page}):\n", 1)[1]
+
+
+def test_a_page_gets_its_whole_page_map_when_the_form_summary_is_truncated():
+    from formcast.pagemap.summarize import _page_body, _page_header, summarize
+
+    fm = FormMap(pages=[_dense_page(i, 250) for i in range(3)])
+    assert "[truncated" in summarize(fm)  # the whole form is over 24000 chars
+    text = _page_map_text(fm, 1)
+    page = fm.pages[1]
+    for line in _page_header(page) + _page_body(page):
+        assert line in text.splitlines()
+    assert "== page 0 |" not in text and "== page 2 |" not in text
+    assert "truncated" not in text and "query helpers" not in text
+    assert text.startswith("FORM MAP: 3 page(s).")
+
+
+def test_a_page_longer_than_the_cap_is_cut_with_a_note_that_names_no_query_helpers():
+    fm = FormMap(pages=[_dense_page(0, 900)])
+    text = _page_map_text(fm, 0).rstrip("\n")
+    assert len(text) <= 24000
+    note = text.splitlines()[-1]
+    assert note.startswith("[truncated: ") and note.endswith(" of 900 item lines on this page dropped]")
+    assert "query helpers" not in text and "c0_0 text" in text

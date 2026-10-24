@@ -225,14 +225,51 @@ def _is_item(line: str) -> bool:
     return line not in _SECTION_TITLES
 
 
-def summarize(form_map: FormMap, *, max_chars: int = 24000) -> str:
-    """The form map as compact text of at most ``max_chars`` characters."""
+def _preamble(form_map: FormMap) -> str:
+    """The summary's first line, without the pointer to the query helpers."""
     source = f" ({form_map.source_name})" if form_map.source_name else ""
-    preamble = (
+    return (
         f"FORM MAP{source}: {len(form_map.pages)} page(s). Rects are [x0,y0,x1,y1] in PDF"
         " points, origin top-left of the unrotated page. Ids: c=detected candidate,"
-        " w=widget, l=text line. Use the query helpers for all text and geometry."
+        " w=widget, l=text line."
     )
+
+
+def summarize_page(form_map: FormMap, page: int, *, max_chars: int = 24000) -> str:
+    """One page of the form map as text, for a reader without the query helpers.
+
+    The preamble (without its pointer to the query helpers), then the page's whole section, as
+    :func:`summarize` writes it. Only a page whose own text runs past ``max_chars`` is cut, at an
+    item line, with a note saying how many item lines were dropped. A page the form map lacks
+    gives the preamble alone.
+    """
+    preamble = _preamble(form_map)
+    pm = next((p for p in form_map.pages if p.index == page), None)
+    if pm is None:
+        return preamble
+    top = [preamble] + _page_header(pm)
+    body = _page_body(pm)
+    full = "\n".join(top + body)
+    if len(full) <= max_chars:
+        return full
+    budget = max_chars - len("\n".join(top)) - PAGE_NOTE_RESERVE
+    kept, used = [], 0
+    for ln in body:
+        if used + len(ln) + 1 > budget:
+            break
+        kept.append(ln)
+        used += len(ln) + 1
+    while kept and not _is_item(kept[-1]):
+        kept.pop()
+    items = sum(_is_item(ln) for ln in body)
+    dropped = items - sum(_is_item(ln) for ln in kept)
+    note = f"[truncated: {dropped} of {items} item lines on this page dropped]"
+    return "\n".join(top + kept + [note])[:max_chars]
+
+
+def summarize(form_map: FormMap, *, max_chars: int = 24000) -> str:
+    """The form map as compact text of at most ``max_chars`` characters."""
+    preamble = _preamble(form_map) + " Use the query helpers for all text and geometry."
     pages = [(_page_header(p), _page_body(p)) for p in form_map.pages]
     full = "\n".join([preamble] + [ln for head, body in pages for ln in head + body])
     if len(full) <= max_chars:

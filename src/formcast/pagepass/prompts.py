@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from formcast.llm import ImagePart, Message, TextPart
 from formcast.pagemap.model import FormMap
-from formcast.pagemap.summarize import summarize
+from formcast.pagemap.summarize import summarize_page
 from formcast.schema import flatten_schema
 from formcast.template.model import Template
 from formcast.transforms import _REGISTRY
@@ -72,14 +72,6 @@ def transforms_ref() -> str:
     return "\n".join(lines)
 
 
-def page_section(summary: str, page: int) -> str:
-    """The summary's preamble and the section of one page."""
-    parts = summary.split("== page ")
-    keep = [p for p in parts if p.startswith(f"{page} |")]
-    head = parts[0].strip()
-    return (head + "\n" if head else "") + "".join("== page " + p for p in keep)
-
-
 def page_messages(
     template: Template, form_map: FormMap, page: int, image: bytes, marks: dict[str, str]
 ) -> list[Message]:
@@ -95,7 +87,7 @@ def page_messages(
     text = (
         f"SCHEMA PATHS:\n{paths}\n\nTRANSFORMS:\n{transforms_ref()}\n\n"
         f"BOXES ON THIS PAGE ({len(fields)}; ids as in the page map):\n{boxes}\n\n"
-        f"PAGE MAP (extracted text and geometry, page {page}):\n{page_section(summarize(form_map), page)}\n"
+        f"PAGE MAP (extracted text and geometry, page {page}):\n{summarize_page(form_map, page)}\n"
     )
     return [
         Message("system", SYSTEM_PROMPT),
