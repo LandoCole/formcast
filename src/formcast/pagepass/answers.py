@@ -7,6 +7,7 @@ import re
 from dataclasses import dataclass
 
 from formcast.errors import OpError
+from formcast.pagepass.marks import marks_for
 from formcast.template.model import Template
 from formcast.template.ops import OpContext, apply
 
@@ -47,24 +48,43 @@ def parse_answer(text: str) -> dict | None:
     return out
 
 
+def _box_ids(template: Template, page: int):
+    """A resolver from the model's box reference to a field id on ``page`` (None when it names none).
+
+    The model is asked for full ids but sometimes answers with the mark drawn on the image
+    ("27" or 27 for ``c0_27``); a mark names exactly one box on its page (``marks_for``).
+    """
+    fields = {f.id for f in template.fields if f.page == page}
+    by_mark = {mark: fid for fid, mark in marks_for([f for f in template.fields if f.page == page and f.rect]).items()}
+
+    def resolve(ref: object) -> str | None:
+        if isinstance(ref, bool) or not isinstance(ref, (str, int)):
+            return None
+        ref = str(ref).strip()
+        return ref if ref in fields else by_mark.get(ref)
+
+    return resolve
+
+
 def mapping_ops(template: Template, answer: dict, page: int) -> tuple[list[dict], list[TableSpec]]:
     """Ops for the answer's plain mappings on ``page``, and the page's table specs with their rows cleaned."""
     fields = {f.id: f for f in template.fields if f.page == page}
+    resolve = _box_ids(template, page)
     tables = [t for t in _list(answer.get("tables")) if isinstance(t, dict)]
     in_tables = {
-        v
+        fid
         for t in tables
         for row in _list(t.get("rows"))
         if isinstance(row, dict)
-        for v in row.values()
-        if isinstance(v, str)
+        for fid in map(resolve, row.values())
+        if fid is not None
     }
     ops: list[dict] = []
     for m in _list(answer.get("mappings")):
         if not isinstance(m, dict):
             continue
-        fid, src = m.get("id"), m.get("source")
-        if not isinstance(fid, str) or fid in in_tables or fid not in fields:
+        fid, src = resolve(m.get("id")), m.get("source")
+        if fid is None or fid in in_tables:
             continue
         if not isinstance(src, dict) or not _list(src.get("paths")):
             continue
@@ -74,10 +94,10 @@ def mapping_ops(template: Template, answer: dict, page: int) -> tuple[list[dict]
         if choice and fields[fid].type == "text":
             ops.append({"op": "set_type", "id": fid, "type": "checkbox"})
         ops.append({"op": "set_source", "id": fid, "source": src})
-    return ops, _table_specs(tables, set(fields), page)
+    return ops, _table_specs(tables, resolve, page)
 
 
-def _table_specs(tables: list[dict], page_ids: set[str], page: int) -> list[TableSpec]:
+def _table_specs(tables: list[dict], resolve, page: int) -> list[TableSpec]:
     specs: list[TableSpec] = []
     used: set[str] = set()
     for t in tables:
@@ -86,8 +106,9 @@ def _table_specs(tables: list[dict], page_ids: set[str], page: int) -> list[Tabl
             if not isinstance(row, dict):
                 continue
             kept = {}
-            for key, fid in row.items():
-                if isinstance(fid, str) and fid in page_ids and fid not in used:
+            for key, ref in row.items():
+                fid = resolve(ref)
+                if fid is not None and fid not in used:
                     kept[key] = fid
                     used.add(fid)
             if kept:

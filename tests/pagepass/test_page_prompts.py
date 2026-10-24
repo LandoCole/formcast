@@ -72,7 +72,9 @@ def test_system_prompt_keeps_heading_rows_out_of_tables():
     text = " ".join(SYSTEM_PROMPT.split())
     assert (
         "A table's rows are only the printed rows meant for record values: leave out boxes in a heading row, "
-        "a row of column letters or numbers, and a totals row."
+        "a row of column letters or numbers, and a totals row. A box drawn in the empty space of a column "
+        "heading cell (under the heading's text) is not a row: the first row starts below the heading's "
+        "bottom rule."
     ) in text
 
 

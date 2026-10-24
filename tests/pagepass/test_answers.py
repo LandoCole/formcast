@@ -86,6 +86,19 @@ def test_mapping_with_unknown_or_other_page_id_is_dropped():
     assert mapping_ops(_template(), answer, 0)[0] == []
 
 
+def test_bare_marks_from_the_image_resolve_to_the_page_box_ids():
+    # The model sometimes answers with the mark drawn on the image ("3", or 3) instead of the id.
+    answer = {
+        "mappings": [_mapping("1", "name"), _mapping(3, "rows[].a")],
+        "tables": [_table([{"a": "3", "b": 4}, {"a": "w0_5", "b": " 6 "}])],
+    }
+    ops, specs = mapping_ops(_template(), answer, 0)
+    assert [o["id"] for o in ops] == ["w0_1"]  # mark 3 is a table cell, so it is not also mapped
+    assert specs[0].rows == [{"a": "w0_3", "b": "w0_4"}, {"a": "w0_5", "b": "w0_6"}]
+    assert mapping_ops(_template(), {"mappings": [_mapping("1", "name")]}, 1)[0][0]["id"] == "w1_1"
+    assert mapping_ops(_template(), {"mappings": [_mapping(True, "name"), _mapping("9", "name")]}, 0)[0] == []
+
+
 def test_box_in_a_table_is_not_also_mapped():
     answer = {
         "mappings": [_mapping("w0_3", "rows[].a"), _mapping("w0_1", "name")],
@@ -237,7 +250,7 @@ def test_malformed_values_never_raise_and_good_parts_still_apply():
         "tables": [
             {"source_path": "rows", "columns": "a", "rows": "w0_3"},
             {"source_path": "rows", "columns": [{"key": "a", "transforms": "upper"}, 7, {"key": ["b"]}],
-             "rows": [{"a": "w0_3", "b": ["w0_4"]}, "junk", 3, {"a": 5}]},
+             "rows": [{"a": "w0_3", "b": ["w0_4"]}, "junk", 3, {"a": 5.5}]},
             {"source_path": ["rows"], "columns": None, "rows": None},
             "junk",
         ],

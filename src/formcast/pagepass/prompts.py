@@ -41,7 +41,9 @@ Rules:
   a year) gets one table per part, all with the same list path and column key, each column with the
   transform that picks its part (slice, date_part).
   A table's rows are only the printed rows meant for record values: leave out boxes in a heading row,
-  a row of column letters or numbers, and a totals row.
+  a row of column letters or numbers, and a totals row. A box drawn in the empty space of a column
+  heading cell (under the heading's text) is not a row: the first row starts below the heading's
+  bottom rule.
 
 Reply with one JSON object and nothing else:
 {"mappings": [{"id": "<box id>", "source": {"paths": ["a.b"], "transforms": [{"op": "...", "args": {...}}],
