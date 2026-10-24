@@ -455,6 +455,14 @@ def test_run_one_keeps_the_step_log_when_scoring_fails(tmp_path, monkeypatch):
 # ---------- pipelines, reachable score, spend guard ----------
 
 
+def test_the_env_fallback_needs_a_checkout_three_levels_below_the_root(tmp_path, monkeypatch):
+    assert agent_eval.env_fallback(Path("/main/.claude/worktrees/w")) == Path("/main/.env")
+    assert agent_eval.env_fallback(Path("/repo")) is None and agent_eval.env_fallback(Path("/a/b")) is None
+    monkeypatch.setattr(agent_eval, "ENV_PATH", tmp_path / ".env")  # missing
+    monkeypatch.setattr(agent_eval, "ENV_FALLBACK", None)
+    assert agent_eval.load_eval_env(["ZZ_EVAL"]) == []
+
+
 def test_load_eval_env_falls_back_to_the_main_checkouts_env(tmp_path, monkeypatch):
     fallback = tmp_path / "main" / ".env"
     fallback.parent.mkdir()

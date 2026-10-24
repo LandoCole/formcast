@@ -109,8 +109,17 @@ RESULTS = ROOT / "eval" / "results"
 # The saved templates are committed as one archive (the directory itself is git-ignored).
 TEMPLATES_ARCHIVE = RESULTS / "templates.tar.gz"
 ENV_PATH = ROOT / ".env"
-# In a worktree (<main checkout>/.claude/worktrees/<name>) the .env lives in the main checkout.
-ENV_FALLBACK = ROOT.parents[2] / ".env"
+
+
+def env_fallback(root: Path) -> Path | None:
+    """The main checkout's ``.env`` for a worktree ``root`` (<main checkout>/.claude/worktrees/<name>).
+
+    ``None`` when ``root`` is too close to the filesystem root to be one.
+    """
+    return root.parents[2] / ".env" if len(root.parents) > 2 else None
+
+
+ENV_FALLBACK = env_fallback(ROOT)
 DPI = baseline_detection.DPI
 IOUS = (0.3, 0.5)
 IOU_KEYS = tuple(f"iou{t}" for t in IOUS)
@@ -186,7 +195,7 @@ def load_eval_env(prefixes: Iterable[str], path: Path | None = None) -> list[str
     wanted = tuple(f"{p}_" for p in prefixes)
     loaded: list[str] = []
     if path is None:
-        path = ENV_PATH if ENV_PATH.is_file() else ENV_FALLBACK
+        path = ENV_PATH if ENV_PATH.is_file() or ENV_FALLBACK is None else ENV_FALLBACK
     if not path.is_file():
         return loaded
     for line in path.read_text().splitlines():
