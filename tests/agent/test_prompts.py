@@ -62,6 +62,7 @@ def test_system_prompt_contains_no_corpus_labels():
 # summary, coverage and transform docs. Module docstrings are skipped (never shown).
 MODEL_FACING = [
     "src/formcast/agent/prompts.py", "src/formcast/agent/session.py", "src/formcast/agent/report.py",
+    "src/formcast/pagepass/prompts.py",
     "src/formcast/template/ops.py", "src/formcast/template/coverage.py", "src/formcast/sandbox/worker.py",
     "src/formcast/pagemap/query.py", "src/formcast/pagemap/summarize.py", "src/formcast/transforms.py",
 ]  # fmt: skip
