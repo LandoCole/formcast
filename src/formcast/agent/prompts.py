@@ -9,6 +9,7 @@ from __future__ import annotations
 import inspect
 
 from formcast.geometry import Rect, intersect
+from formcast.llm import ContentPart, ImagePart, TextPart
 from formcast.pagemap.query import FormMapQuery
 from formcast.schema import SchemaPath
 from formcast.template.model import Field, Template
@@ -230,6 +231,24 @@ def starting_note(template: Template) -> str:
     )
 
 
+PAGE_PASS_NOTE = (
+    "PAGE PASS: a first pass has already mapped the boxes from the page images above, one page at a "
+    "time. Your job now: check its work against the images; map the schema paths still unmapped; add "
+    "a box for each blank that has none; split a box that holds several answers into one box per "
+    "answer; and make sure every printed line of a record block is in a table. Keep the page pass's "
+    "mappings unless you can show one is wrong."
+)
+
+
+def page_image_parts(images: list[tuple[int, bytes]]) -> list[ContentPart]:
+    """A one-line ``PAGE <n>`` note, then the marked image, for each (page, PNG) pair."""
+    parts: list[ContentPart] = []
+    for n, png in images:
+        parts.append(TextPart(f"PAGE {n}: marked image (boxes as at the start of this session)"))
+        parts.append(ImagePart(png))
+    return parts
+
+
 def first_user_message(
     summary_text: str,
     schema_paths: list[SchemaPath],
@@ -238,12 +257,15 @@ def first_user_message(
     *,
     template: Template | None = None,
     fresh: bool = False,
+    after_page_pass: bool = False,
     api_reference: str | None = None,
 ) -> str:
     """The opening user message: task, schema paths, optional instruction/region, form map.
 
     ``template`` is the starting template. A ``fresh`` one (seeded with a field per
     widget and candidate) gets a one-paragraph note; otherwise its fields are listed.
+    With ``after_page_pass`` (a page pass mapped the template) :data:`PAGE_PASS_NOTE`
+    comes before the listing.
     """
     parts: list[str] = []
     if instruction:
@@ -262,7 +284,10 @@ def first_user_message(
         )
         if template is not None:
             parts.append(_region_fields(template, page, rect))
-    if template is not None and fresh:
+    if template is not None and after_page_pass:
+        parts.append(PAGE_PASS_NOTE)
+        parts.append(_template_note(template))
+    elif template is not None and fresh:
         parts.append(starting_note(template))
     elif template is not None and template.fields:
         parts.append(_template_note(template))

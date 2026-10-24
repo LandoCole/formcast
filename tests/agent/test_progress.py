@@ -152,14 +152,16 @@ def test_build_template_and_revise_pass_on_step_through(monkeypatch):
     events: list[StepEvent] = []
     provider = ScriptedProvider([code(ADD_NAME), finish("ok", NONE_PLACEABLE)])
     result = build_template(
-        SCHEMA, b"unused", provider, form_map=_form_map(), seed_candidates=False, on_step=events.append
+        SCHEMA, b"unused", provider, form_map=_form_map(), seed_candidates=False, on_step=events.append,
+        vision=False,
     )
     assert result.finished and [e.step for e in events] == [1, 2]
 
     revise_events: list[StepEvent] = []
     provider = ScriptedProvider([code(NOOP), finish("revised")])
     revised = formcast.revise(
-        result.template, b"unused", "tidy", provider, form_map=_form_map(), on_step=revise_events.append
+        result.template, b"unused", "tidy", provider, form_map=_form_map(), on_step=revise_events.append,
+        vision=False,
     )
     assert revised.finished and [e.step for e in revise_events] == [1, 2]
 

@@ -187,6 +187,7 @@ def test_a_running_job_shows_its_steps_so_far_and_no_template_yet(start_demo_ser
     assert wait_ended(base, job_id)["status"] == "done"
 
 
+@pytest.mark.usefixtures("text_only_agent")
 def test_a_build_job_takes_the_name_of_a_stored_schema(start_demo_server):
     factory = Factory([finish("stop", [{"path": "vendor_id", "reason": "t"}])])
     base = start_demo_server(provider_factory=factory)
@@ -211,6 +212,7 @@ def test_an_adapt_job_starts_from_the_template_and_rebinds_it_to_the_new_pdf(sta
     assert [f.source.paths for f in adapted.fields] == [["name"]]
 
 
+@pytest.mark.usefixtures("text_only_agent")
 def test_a_revise_job_with_a_region_appends_agent_history_and_sends_the_instruction(start_demo_server):
     factory = Factory([code(ADD_NOTE), finish("added a note field")])
     base = start_demo_server(provider_factory=factory)

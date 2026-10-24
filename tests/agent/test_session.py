@@ -4,16 +4,21 @@ import json
 import pytest
 
 from formcast.agent import api as agent_api
+from formcast.agent import prompts
 from formcast.agent import session as session_mod
 from formcast.agent.api import build_template, revise
 from formcast.agent.prompts import NO_TOOL_CALL
 from formcast.agent.session import Session, SessionBudget
 from formcast.errors import FormcastError
 from formcast.geometry import points_to_norm
-from formcast.llm import LLMConfig, LLMResponse, ToolCall, Usage
+from formcast.llm import ImagePart, LLMConfig, LLMResponse, TextPart, ToolCall, Usage
 from formcast.pagemap.build import build_form_map
 from formcast.pagemap.model import Candidate, FormMap, PageMap, TextLine, Word
+from formcast.pagemap.summarize import summarize
 from formcast.sandbox import Sandbox
+from formcast.sandbox.worker import api_text
+from formcast.schema import flatten_schema
+from formcast.template.model import new_template
 
 SCHEMA = {
     "type": "object",
@@ -400,7 +405,7 @@ def _flat_map(pdf):
 def test_build_template_with_fake_detector_form_map(flat_form_pdf):
     fm = _flat_map(flat_form_pdf)
     provider = ScriptedProvider([code('set_source("c0_0", source={"paths": ["name"]})'), finish("d", NONE_PLACEABLE)])
-    result = build_template(SCHEMA, flat_form_pdf, provider, form_map=fm)
+    result = build_template(SCHEMA, flat_form_pdf, provider, form_map=fm, vision=False)
     # the template starts with one field per candidate, named after it
     assert result.finished and [f.id for f in result.template.fields] == ["c0_0", "c0_1"]
     assert [f.origin for f in result.template.fields] == ["detector", "detector"]
@@ -418,7 +423,7 @@ def test_build_template_builds_the_form_map_when_not_given(flat_form_pdf, monkey
         return _flat_map(flat_form_pdf)
 
     monkeypatch.setattr(agent_api, "build_form_map", fake_build)
-    result = build_template(SCHEMA, flat_form_pdf, ScriptedProvider([finish("d", NONE_PLACEABLE)]))
+    result = build_template(SCHEMA, flat_form_pdf, ScriptedProvider([finish("d", NONE_PLACEABLE)]), vision=False)
     assert seen["pdf"] == flat_form_pdf and result.finished
 
 
@@ -426,7 +431,7 @@ def test_revise_puts_instruction_and_region_in_first_message(flat_form_pdf):
     fm = _flat_map(flat_form_pdf)
     first = build_template(
         SCHEMA, flat_form_pdf, ScriptedProvider([code(ADD_NAME), finish("d", NONE_PLACEABLE)]), form_map=fm,
-        seed_candidates=False,
+        seed_candidates=False, vision=False,
     )
     base_len = len(first.template.history)
     provider = ScriptedProvider([code('move("f1", dy=2)'), finish("moved")])
@@ -437,6 +442,7 @@ def test_revise_puts_instruction_and_region_in_first_message(flat_form_pdf):
         provider,
         region=(0, (110.0, 80.0, 310.5, 105.0)),
         form_map=fm,
+        vision=False,
     )
     msg = provider.calls[0][1].content
     assert "The name box sits too high." in msg
@@ -485,7 +491,7 @@ def test_printing_api_reaches_the_model_in_full():
 def test_fillable_form_widget_fields_are_named_after_the_widgets_in_the_first_message(fillable_form_pdf):
     fm = build_form_map(fillable_form_pdf, detectors={})
     provider = ScriptedProvider([finish("d", NONE_PLACEABLE)])
-    result = build_template(SCHEMA, fillable_form_pdf, provider, form_map=fm)
+    result = build_template(SCHEMA, fillable_form_pdf, provider, form_map=fm, vision=False)
     assert result.finished
     msg = provider.calls[0][1].content
     assert "STARTING TEMPLATE: 2 unmapped field(s), 2 for the existing widgets" in msg
@@ -545,7 +551,7 @@ def test_revise_region_lists_overlapping_template_fields(flat_form_pdf):
     src = ADD_NAME + 'add_field(type="text", page=0, rect=[72, 204, 250, 212], label="When")\n'
     first = build_template(
         SCHEMA, flat_form_pdf, ScriptedProvider([code(src), finish("d", NONE_PLACEABLE)]), form_map=fm,
-        seed_candidates=False,
+        seed_candidates=False, vision=False,
     )
     provider = ScriptedProvider([finish()])
     revise(
@@ -555,6 +561,7 @@ def test_revise_region_lists_overlapping_template_fields(flat_form_pdf):
         provider,
         region=(0, (100, 80, 320, 110)),
         form_map=fm,
+        vision=False,
     )
     msg = provider.calls[0][1].content
     region_part = msg.split("TEMPLATE FIELDS IN THE REGION (1):", 1)[1].split("\n\n", 1)[0]
@@ -606,3 +613,159 @@ def test_the_default_session_checks_unaccounted_paths_once():
     import inspect
 
     assert inspect.signature(Session).parameters["unaccounted_refusals"].default == 1
+
+
+# --- vision: page pass and page images ---------------------------------------------
+
+PAGE_ANSWER = json.dumps({"mappings": [{"id": "c0_0", "source": {"paths": ["name"]}}], "tables": []})
+PAGE_USAGE = Usage(input_tokens=1000, output_tokens=50)
+DATE_UNPLACEABLE = [{"path": "date", "reason": "test"}]
+
+
+class PagePassProvider(ScriptedProvider):
+    """Answers page-pass calls (no tools) with ``page_answer`` and agent calls from the script."""
+
+    def __init__(self, responses, page_answer=PAGE_ANSWER):
+        super().__init__(responses)
+        self.page_answer = page_answer
+        self.page_calls: list[list] = []
+        self.close_count = 0
+
+    def complete(self, messages, tools, **kwargs):
+        assert not self.closed, "called after close"
+        if tools == []:
+            self.page_calls.append(messages)
+            return LLMResponse(text=self.page_answer, tool_calls=[], usage=PAGE_USAGE, raw={})
+        return super().complete(messages, tools)
+
+    def close(self):
+        self.close_count += 1
+        super().close()
+
+
+def _first_text(fm: FormMap, template, **kwargs) -> str:
+    return prompts.first_user_message(
+        summarize(fm), flatten_schema(SCHEMA), kwargs.pop("instruction", None), None, template=template,
+        api_reference=api_text(), **kwargs,
+    )  # fmt: skip
+
+
+def test_vision_false_first_message_is_unchanged():
+    fm = _form_map()
+    t = new_template(SCHEMA, fm, candidates=True)
+    session = Session(fm, SCHEMA, ScriptedProvider([]), page_images=None)
+    content = session._first.content
+    assert isinstance(content, str)
+    assert content == _first_text(fm, t, fresh=True)
+
+
+def test_vision_first_message_has_page_images_then_text():
+    fm = _form_map()
+    t = new_template(SCHEMA, fm, candidates=True)
+    session = Session(fm, SCHEMA, ScriptedProvider([]), page_images=[(0, b"png0"), (2, b"png2")])
+    assert session._first.content == [
+        TextPart("PAGE 0: marked image (boxes as at the start of this session)"),
+        ImagePart(b"png0"),
+        TextPart("PAGE 2: marked image (boxes as at the start of this session)"),
+        ImagePart(b"png2"),
+        TextPart(_first_text(fm, t, fresh=True)),
+    ]
+
+
+def test_build_template_runs_page_pass_then_agent_from_its_template(flat_form_pdf):
+    fm = _flat_map(flat_form_pdf)
+    provider = PagePassProvider([finish("d", DATE_UNPLACEABLE)])
+    result = build_template(SCHEMA, flat_form_pdf, provider, form_map=fm)
+    assert len(provider.page_calls) == 1 and len(provider.calls) == 1
+    first = provider.calls[0][1].content
+    assert [type(p) for p in first] == [TextPart, ImagePart, TextPart]
+    assert first[0].text.startswith("PAGE 0: ") and first[1].data.startswith(b"\x89PNG")
+    text = first[-1].text
+    assert prompts.PAGE_PASS_NOTE in text and "STARTING TEMPLATE" not in text
+    line = next(ln for ln in text.splitlines() if ln.strip().startswith("c0_0 "))
+    assert "source=name" in line  # the page pass's mapping is in the field listing
+    assert result.page_pass is not None
+    assert result.page_pass.template.fields[0].source.paths == ["name"]
+    assert result.template.fields[0].source.paths == ["name"]
+    assert result.finished and result.summary == "d"
+    assert result.usage == Usage(PAGE_USAGE.input_tokens + 100, PAGE_USAGE.output_tokens + 10)
+    assert result.page_pass.usage == PAGE_USAGE  # not changed by adding the session's usage
+
+
+def test_build_template_agent_false_stops_after_page_pass(flat_form_pdf):
+    fm = _flat_map(flat_form_pdf)
+    provider = PagePassProvider([])
+    result = build_template(SCHEMA, flat_form_pdf, provider, form_map=fm, agent=False)
+    assert provider.calls == [] and len(provider.page_calls) == 1
+    assert result.stop_reason == "finish" and result.finished and result.summary == "page pass only"
+    assert result.steps == [] and result.usage == PAGE_USAGE
+    assert result.page_pass is not None and result.template is result.page_pass.template
+    assert result.template.fields[0].source.paths == ["name"]
+
+
+def test_build_template_agent_false_needs_a_page_pass(flat_form_pdf):
+    fm = _flat_map(flat_form_pdf)
+    provider = PagePassProvider([])
+    with pytest.raises(ValueError, match="agent=False"):
+        build_template(SCHEMA, flat_form_pdf, provider, form_map=fm, agent=False, vision=False)
+    with pytest.raises(ValueError, match="agent=False"):
+        build_template(SCHEMA, flat_form_pdf, provider, form_map=fm, agent=False, start_from=new_template(SCHEMA, fm))
+    assert provider.page_calls == [] and provider.calls == []
+
+
+def test_build_template_vision_false_makes_no_page_pass_call(flat_form_pdf):
+    fm = _flat_map(flat_form_pdf)
+    provider = PagePassProvider([finish("d", NONE_PLACEABLE)])
+    result = build_template(SCHEMA, flat_form_pdf, provider, form_map=fm, vision=False)
+    assert provider.page_calls == [] and result.page_pass is None
+    assert isinstance(provider.calls[0][1].content, str)
+    assert result.usage == Usage(100, 10)
+
+
+def test_start_from_skips_the_page_pass_but_sends_images(flat_form_pdf):
+    fm = _flat_map(flat_form_pdf)
+    start = new_template(SCHEMA, fm, candidates=True)
+    provider = PagePassProvider([finish("d", NONE_PLACEABLE)])
+    result = build_template(SCHEMA, flat_form_pdf, provider, form_map=fm, start_from=start)
+    assert provider.page_calls == [] and result.page_pass is None
+    first = provider.calls[0][1].content
+    assert [type(p) for p in first] == [TextPart, ImagePart, TextPart]
+    assert first[0].text.startswith("PAGE 0: ") and first[1].data.startswith(b"\x89PNG")
+    assert "CURRENT TEMPLATE: 2 field(s)" in first[-1].text and prompts.PAGE_PASS_NOTE not in first[-1].text
+
+
+def test_revise_sends_images_when_vision(flat_form_pdf):
+    fm = _flat_map(flat_form_pdf)
+    built = build_template(
+        SCHEMA, flat_form_pdf, ScriptedProvider([code(ADD_NAME), finish("d", NONE_PLACEABLE)]), form_map=fm,
+        seed_candidates=False, vision=False,
+    )  # fmt: skip
+    provider = PagePassProvider([finish("ok")])
+    result = revise(built.template, flat_form_pdf, "Check the name box.", provider, form_map=fm)
+    assert result.finished and provider.page_calls == []
+    first = provider.calls[0][1].content
+    assert [type(p) for p in first] == [TextPart, ImagePart, TextPart]
+    assert first[0].text.startswith("PAGE 0: ") and first[1].data.startswith(b"\x89PNG")
+    assert "Check the name box." in first[-1].text
+
+    plain = ScriptedProvider([finish("ok")])
+    revise(built.template, flat_form_pdf, "Check the name box.", plain, form_map=fm, vision=False)
+    assert isinstance(plain.calls[0][1].content, str)
+
+
+def test_config_llm_uses_one_provider_and_closes_it(flat_form_pdf, monkeypatch):
+    from formcast.pagepass import run as run_mod
+
+    made: list[PagePassProvider] = []
+
+    def fake_make(cfg):
+        made.append(PagePassProvider([finish("d", DATE_UNPLACEABLE)]))
+        return made[-1]
+
+    for mod in (agent_api, session_mod, run_mod):
+        monkeypatch.setattr(mod, "make_provider", fake_make)
+    cfg = LLMConfig(base_url="http://x", api_key="k", model="m")
+    result = build_template(SCHEMA, flat_form_pdf, cfg, form_map=_flat_map(flat_form_pdf))
+    assert result.finished
+    assert len(made) == 1 and made[0].close_count == 1
+    assert len(made[0].page_calls) == 1 and len(made[0].calls) == 1

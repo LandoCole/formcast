@@ -354,6 +354,7 @@ def test_build_with_ai_lists_the_steps_loads_the_result_and_one_undo_returns_to_
     assert b.template() == seed
 
 
+@pytest.mark.usefixtures("text_only_agent")
 def test_area_select_revise_runs_a_job_and_loads_its_result(start_demo_server, bench):
     factory = Factory([code(ADD_NOTE), finish("added a note field")])
     base = start_demo_server(provider_factory=factory)

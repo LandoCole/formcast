@@ -305,3 +305,26 @@ def test_step_report_shortens_long_reasons_after_the_first_few():
                         warnings=[], usage=Usage())  # fmt: skip
     report = step_report(record, Coverage(), template=_template(), form_map=_form_map())
     assert report.count(long) == 3 and "r4 " in report
+
+
+def test_page_pass_note_is_in_the_after_page_pass_message():
+    from formcast.agent.prompts import PAGE_PASS_NOTE
+
+    paths = flatten_schema(SCHEMA)
+    msg = first_user_message("MAP", paths, None, None, template=_template(), after_page_pass=True)
+    assert PAGE_PASS_NOTE in msg and "STARTING TEMPLATE" not in msg
+    assert msg.index(PAGE_PASS_NOTE) < msg.index("CURRENT TEMPLATE: 2 field(s), 1 with a source")
+    assert "f1 text page 0 [1, 1, 50, 20] label='' source=person.full_name" in msg
+    plain = first_user_message("MAP", paths, None, None, template=_template())
+    assert PAGE_PASS_NOTE not in plain and "CURRENT TEMPLATE" in plain
+
+
+def test_page_image_parts_put_a_page_line_before_each_image():
+    from formcast.agent.prompts import page_image_parts
+    from formcast.llm import ImagePart, TextPart
+
+    assert page_image_parts([(1, b"a"), (3, b"b")]) == [
+        TextPart("PAGE 1: marked image (boxes as at the start of this session)"), ImagePart(b"a"),
+        TextPart("PAGE 3: marked image (boxes as at the start of this session)"), ImagePart(b"b"),
+    ]  # fmt: skip
+    assert page_image_parts([]) == []

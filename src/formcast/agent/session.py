@@ -19,13 +19,24 @@ from __future__ import annotations
 import time
 from dataclasses import dataclass, field
 from collections.abc import Callable
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from formcast.agent import prompts
 from formcast.agent.report import step_report
 from formcast.errors import FormcastError, OpError, SessionCancelled
 from formcast.geometry import Rect
-from formcast.llm import LLMConfig, LLMResponse, Message, Provider, ToolCall, ToolSpec, Usage, make_provider
+from formcast.llm import (
+    ContentPart,
+    LLMConfig,
+    LLMResponse,
+    Message,
+    Provider,
+    TextPart,
+    ToolCall,
+    ToolSpec,
+    Usage,
+    make_provider,
+)
 from formcast.pagemap.model import FormMap
 from formcast.pagemap.summarize import summarize
 from formcast.sandbox import ExecResult, Sandbox
@@ -34,6 +45,9 @@ from formcast.schema import flatten_schema
 from formcast.template.coverage import Coverage, coverage
 from formcast.template.model import Template, new_template
 from formcast.template.ops import apply, op_context
+
+if TYPE_CHECKING:
+    from formcast.pagepass import PagePassResult
 
 VERBATIM_STEPS = 6
 # Of the verbatim steps, only the latest FULL_OUTPUT_STEPS keep their printed output in
@@ -128,6 +142,7 @@ class SessionResult:
     stop_reason: Literal["finish", "budget", "error", "cancelled"]
     unplaceable: list[dict] = field(default_factory=list)
     error: str | None = None  # set when stop_reason == "error"
+    page_pass: PagePassResult | None = None  # set when build_template ran a page pass first
 
 
 def _hit_token_limit(raw: dict[str, Any]) -> bool:
@@ -203,6 +218,10 @@ class Session:
     ``finish`` is refused while mappable schema paths are neither mapped nor
     listed in its ``unplaceable``, unless fewer than 2 steps are left.
 
+    ``page_images`` are (page, PNG) marked images of the starting template's boxes; when
+    given, the first message carries them ahead of its text. ``after_page_pass`` says a
+    page pass mapped ``template``: the first message says so and lists its fields.
+
     ``on_step`` is called with a :class:`StepEvent` after every model reply. It may
     raise :class:`SessionCancelled` to stop the run: the sandbox is closed and the
     result has ``finished=False``, ``summary="cancelled"`` and the working template.
@@ -223,6 +242,8 @@ class Session:
         seed_candidates: bool = True,
         unaccounted_refusals: int = 1,
         on_step: Callable[[StepEvent], None] | None = None,
+        page_images: list[tuple[int, bytes]] | None = None,
+        after_page_pass: bool = False,
     ):
         self.form_map = form_map
         self.schema = schema
@@ -246,13 +267,14 @@ class Session:
         # Per group: the same messages with shortened printed output, for older verbatim steps.
         self._short_groups: list[list[Message]] = []
         self._system = Message(role="system", content=prompts.SYSTEM_PROMPT)
-        self._first = Message(
-            role="user",
-            content=prompts.first_user_message(
-                summarize(form_map), self.schema_paths, instruction, region, template=self.template,
-                fresh=fresh, api_reference=api_text(),
-            ),
-        )
+        first_text = prompts.first_user_message(
+            summarize(form_map), self.schema_paths, instruction, region, template=self.template,
+            fresh=fresh, after_page_pass=after_page_pass, api_reference=api_text(),
+        )  # fmt: skip
+        content: str | list[ContentPart] = first_text
+        if page_images is not None:
+            content = [*prompts.page_image_parts(page_images), TextPart(first_text)]
+        self._first = Message(role="user", content=content)
 
     # -- public ----------------------------------------------------------------
 
