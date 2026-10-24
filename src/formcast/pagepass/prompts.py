@@ -46,12 +46,18 @@ List only boxes you map ("tables" may be empty). Use only box ids from the list 
 from the list given.
 """
 
-IMAGE_NOTE = (
-    "The image shows this page with every box outlined (blue: text box, green: checkbox). The text drawn "
-    "in or next to a box is its mark, which names the box's id: on this page {example}. Use the image to "
-    "understand the form as a person reading it would; use the page map for exact wording. Answer with "
-    "full box ids."
+_NOTE_START = "The image shows this page with every box outlined (blue: text box, green: checkbox). "
+_NOTE_END = (
+    " Use the image to understand the form as a person reading it would; use the page map for exact "
+    "wording. Answer with full box ids."
 )
+IMAGE_NOTE = (
+    _NOTE_START
+    + "The number drawn in or next to a box is the part of its id after the underscore: on this page {example}."
+    + _NOTE_END
+)
+# When two boxes would share a mark, the marks are the full ids.
+IMAGE_NOTE_FULL_IDS = _NOTE_START + "The text drawn in or next to a box is its id: on this page {example}." + _NOTE_END
 
 
 def transforms_ref() -> str:
@@ -80,6 +86,7 @@ def page_messages(
     fields = [f for f in template.fields if f.page == page]
     first = next((f.id for f in fields if f.id in marks), None)
     example = f"a box marked {marks[first]} is {first}" if first else "no box has a mark"
+    note = IMAGE_NOTE_FULL_IDS if first and marks[first] == first else IMAGE_NOTE
     paths = "\n".join(_schema_line(sp) for sp in flatten_schema(template.schema_))
     boxes = "\n".join(f"- {f.id}: {f.type}" for f in fields)
     text = (
@@ -89,5 +96,5 @@ def page_messages(
     )
     return [
         Message("system", SYSTEM_PROMPT),
-        Message("user", [ImagePart(image), TextPart(IMAGE_NOTE.format(example=example)), TextPart(text)]),
+        Message("user", [ImagePart(image), TextPart(note.format(example=example)), TextPart(text)]),
     ]

@@ -222,3 +222,33 @@ def test_end_to_end_answer_applies_and_scores():
     (table,) = [f for f in t.fields if f.type == "table"]
     assert table.source.paths == ["rows"]
     assert [c.fields for c in table.segments[0].columns] == [["w0_3", "w0_5"], ["w0_4", "w0_6"]]
+
+
+def test_malformed_values_never_raise_and_good_parts_still_apply():
+    answer = {
+        "mappings": [
+            _mapping("w0_1", "name"),
+            {"id": "w0_2", "source": "ok"},
+            {"id": "w0_2", "source": {"paths": "ok"}},
+            {"id": "w0_2", "source": {"paths": ["ok"], "transforms": "bool_to_check"}},
+            {"id": ["w0_2"], "source": {"paths": ["ok"]}},
+            5,
+        ],
+        "tables": [
+            {"source_path": "rows", "columns": "a", "rows": "w0_3"},
+            {"source_path": "rows", "columns": [{"key": "a", "transforms": "upper"}, 7, {"key": ["b"]}],
+             "rows": [{"a": "w0_3", "b": ["w0_4"]}, "junk", 3, {"a": 5}]},
+            {"source_path": ["rows"], "columns": None, "rows": None},
+            "junk",
+        ],
+    }  # fmt: skip
+    t = _template()
+    ops, specs = mapping_ops(t, answer, 0)
+    assert [o["op"] for o in ops] == ["set_source", "set_source"]
+    assert [o["id"] for o in ops] == ["w0_1", "w0_2"]
+    assert [(s.source_path, s.transforms, s.rows) for s in specs] == [("rows", {"a": []}, [{"a": "w0_3"}])]
+    t, applied, rejected = apply_ops(t, ops + table_ops(t, specs), 0, None)
+    assert applied == 2  # the name mapping and the table; the scalar transforms are a recorded rejection
+    assert [r["op"]["id"] for r in rejected] == ["w0_2"]
+    assert parse_answer('{"mappings": "x", "tables": {"a": 1}}') == {"mappings": [], "tables": []}
+    assert mapping_ops(_template(), {"mappings": 3, "tables": "x"}, 0) == ([], [])

@@ -3,7 +3,7 @@ from __future__ import annotations
 from formcast.llm import ImagePart, TextPart
 from formcast.pagemap.model import FormMap, PageMap
 from formcast.pagepass.marks import marks_for
-from formcast.pagepass.prompts import SYSTEM_PROMPT, page_messages
+from formcast.pagepass.prompts import IMAGE_NOTE, IMAGE_NOTE_FULL_IDS, SYSTEM_PROMPT, page_messages
 from formcast.template.model import Field, FormInfo, Template
 
 SCHEMA = {"type": "object", "properties": {"name": {"type": "string"}}}
@@ -34,7 +34,8 @@ def test_page_messages_carry_image_note_and_page_text():
     image, note, text = user.content
     assert [type(p) for p in user.content] == [ImagePart, TextPart, TextPart]
     assert image.data == b"png-bytes"
-    assert "a box marked 4 is c0_4" in note.text
+    assert note.text == IMAGE_NOTE.format(example="a box marked 4 is c0_4")
+    assert "The number drawn in or next to a box is the part of its id after the underscore: on this page a box marked 4 is c0_4. Use the image" in note.text
     assert "SCHEMA PATHS:\n- name: string" in text.text
     assert "TRANSFORMS:\n- " in text.text
     assert "BOXES ON THIS PAGE (2; ids as in the page map):\n- c0_4: text\n- c0_9: checkbox" in text.text
@@ -48,3 +49,20 @@ def test_system_prompt_has_the_table_block_rule_and_no_agent_aside():
         SYSTEM_PROMPT.split()
     )
     assert "formcast agent" not in SYSTEM_PROMPT
+
+
+def test_note_names_full_ids_when_marks_fell_back_to_them():
+    fields = [
+        Field(id="w0_3", type="text", page=0, rect=(100, 100, 200, 120)),
+        Field(id="c0_3", type="text", page=0, rect=(100, 140, 200, 160)),
+    ]
+    template = Template(
+        template_id="t", schema=SCHEMA,
+        form=FormInfo(fingerprint="fp", page_count=1, page_sizes=[(612, 792)], kinds=["digital"]),
+        fields=fields,
+    )  # fmt: skip
+    marks = marks_for(fields)
+    assert marks == {"w0_3": "w0_3", "c0_3": "c0_3"}
+    _, user = page_messages(template, FormMap(pages=[_page(0)]), 0, b"png", marks)
+    assert user.content[1].text == IMAGE_NOTE_FULL_IDS.format(example="a box marked w0_3 is w0_3")
+    assert "after the underscore" not in user.content[1].text

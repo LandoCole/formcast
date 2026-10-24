@@ -24,6 +24,11 @@ class TableSpec:
     rows: list[dict[str, str]]  # column key -> box id, one dict per printed row
 
 
+def _list(v: object) -> list:
+    """``v`` if it is a list, else an empty list: the model's JSON values can be of any type."""
+    return v if isinstance(v, list) else []
+
+
 def parse_answer(text: str) -> dict | None:
     """The outermost ``{...}`` of ``text`` as ``{"mappings": [...], "tables": [...]}``; None if it does not parse."""
     m = re.search(r"\{.*\}", text, re.S)
@@ -45,26 +50,26 @@ def parse_answer(text: str) -> dict | None:
 def mapping_ops(template: Template, answer: dict, page: int) -> tuple[list[dict], list[TableSpec]]:
     """Ops for the answer's plain mappings on ``page``, and the page's table specs with their rows cleaned."""
     fields = {f.id: f for f in template.fields if f.page == page}
-    tables = [t for t in answer.get("tables") or [] if isinstance(t, dict)]
+    tables = [t for t in _list(answer.get("tables")) if isinstance(t, dict)]
     in_tables = {
         v
         for t in tables
-        for row in t.get("rows") or []
+        for row in _list(t.get("rows"))
         if isinstance(row, dict)
         for v in row.values()
         if isinstance(v, str)
     }
     ops: list[dict] = []
-    for m in answer.get("mappings") or []:
+    for m in _list(answer.get("mappings")):
         if not isinstance(m, dict):
             continue
         fid, src = m.get("id"), m.get("source")
         if not isinstance(fid, str) or fid in in_tables or fid not in fields:
             continue
-        if not isinstance(src, dict) or not src.get("paths"):
+        if not isinstance(src, dict) or not _list(src.get("paths")):
             continue
         choice = src.get("when") or any(
-            isinstance(t, dict) and t.get("op") == "bool_to_check" for t in src.get("transforms") or []
+            isinstance(t, dict) and t.get("op") == "bool_to_check" for t in _list(src.get("transforms"))
         )
         if choice and fields[fid].type == "text":
             ops.append({"op": "set_type", "id": fid, "type": "checkbox"})
@@ -77,7 +82,7 @@ def _table_specs(tables: list[dict], page_ids: set[str], page: int) -> list[Tabl
     used: set[str] = set()
     for t in tables:
         rows = []
-        for row in t.get("rows") or []:
+        for row in _list(t.get("rows")):
             if not isinstance(row, dict):
                 continue
             kept = {}
@@ -90,8 +95,8 @@ def _table_specs(tables: list[dict], page_ids: set[str], page: int) -> list[Tabl
         if not rows:
             continue
         transforms = {
-            c["key"]: c.get("transforms") if isinstance(c.get("transforms"), list) else []
-            for c in t.get("columns") or []
+            c["key"]: _list(c.get("transforms"))
+            for c in _list(t.get("columns"))
             if isinstance(c, dict) and isinstance(c.get("key"), str)
         }
         source_path = t.get("source_path")
