@@ -40,6 +40,8 @@ Rules:
   A record value split over several boxes on one printed line (an area code and a number, a month and
   a year) gets one table per part, all with the same list path and column key, each column with the
   transform that picks its part (slice, date_part).
+  A table's rows are only the printed rows meant for record values: leave out boxes in a heading row,
+  a row of column letters or numbers, and a totals row.
 
 Reply with one JSON object and nothing else:
 {"mappings": [{"id": "<box id>", "source": {"paths": ["a.b"], "transforms": [{"op": "...", "args": {...}}],

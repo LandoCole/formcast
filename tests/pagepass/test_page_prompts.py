@@ -68,6 +68,14 @@ def test_note_names_full_ids_when_marks_fell_back_to_them():
     assert "after the underscore" not in user.content[1].text
 
 
+def test_system_prompt_keeps_heading_rows_out_of_tables():
+    text = " ".join(SYSTEM_PROMPT.split())
+    assert (
+        "A table's rows are only the printed rows meant for record values: leave out boxes in a heading row, "
+        "a row of column letters or numbers, and a totals row."
+    ) in text
+
+
 def test_system_prompt_has_split_value_rule():
     sentence = (
         "A record value split over several boxes on one printed line (an area code and a number, a month "

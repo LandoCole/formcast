@@ -319,6 +319,15 @@ def test_page_pass_note_is_in_the_after_page_pass_message():
     assert PAGE_PASS_NOTE not in plain and "CURRENT TEMPLATE" in plain
 
 
+def test_page_pass_note_names_the_structural_work_left_to_the_agent():
+    from formcast.agent.prompts import PAGE_PASS_NOTE
+
+    note = " ".join(PAGE_PASS_NOTE.split())
+    assert "split that box into one box per label" in note
+    assert "add a box for it" in note
+    assert "a heading-row box taken as row 1 shifts every record by one row" in note
+
+
 def test_page_image_parts_put_a_vision_note_then_a_page_line_before_each_image():
     from formcast.agent.prompts import VISION_NOTE, page_image_parts
     from formcast.llm import ImagePart, TextPart

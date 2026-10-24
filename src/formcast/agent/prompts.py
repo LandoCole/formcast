@@ -237,7 +237,13 @@ PAGE_PASS_NOTE = (
     "Your job now: check its work (against the page images, when this session has them); map the schema "
     "paths still unmapped; add a box for each blank that has none; split a box that holds several answers "
     "into one box per answer; and make sure every printed line of a record block is in a table. Keep the "
-    "page pass's mappings unless you can show one is wrong."
+    "page pass's mappings unless you can show one is wrong. The page pass could only map the boxes it was "
+    "given, so two kinds of work are left to you: (1) where it put several schema paths into one long box "
+    "but the form prints a separate label or column for each part (an address line with a label under "
+    "each part, say), split that box into one box per label and give each its own path; (2) a schema "
+    "path the step report lists as unmapped often marks a blank with no box yet: find it on the page and "
+    "add a box for it. Check the first rows of each table too: a heading-row box taken as row 1 shifts "
+    "every record by one row."
 )
 VISION_NOTE = (
     "PAGE IMAGES: this session also has an image of each page with boxes, below, so here you can see "
