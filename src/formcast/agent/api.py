@@ -17,10 +17,13 @@ from formcast.template.model import Template, form_info_for, new_template
 PdfInput = str | Path | bytes
 
 
-def _page_images(pdf: PdfInput, template: Template) -> list[tuple[int, bytes]]:
-    """A marked image of each page that has boxed fields, with those fields drawn on it."""
+def _page_images(pdf: PdfInput, template: Template, form_map: FormMap) -> list[tuple[int, bytes]]:
+    """A marked image of each page of the PDF that has boxed fields, with those fields drawn on it.
+
+    Fields on a page the PDF does not have (a template from a longer revision) get no image.
+    """
     boxed = [f for f in template.fields if f.page is not None and f.rect is not None]
-    pages = sorted({f.page for f in boxed})
+    pages = sorted({f.page for f in boxed} & set(range(len(form_map.pages))))
     return [(n, render_marked_page(pdf, n, [f for f in boxed if f.page == n])) for n in pages]
 
 
@@ -75,7 +78,7 @@ def build_template(
         if start is not None:  # already mapped: no page pass
             return Session(
                 fm, schema, provider, template=start, budget=budget, on_step=on_step,
-                page_images=_page_images(pdf, start),
+                page_images=_page_images(pdf, start, fm),
             ).run()
         pp = map_pages(new_template(schema, fm, candidates=seed_candidates), fm, pdf, provider)
         if not agent:
@@ -85,7 +88,7 @@ def build_template(
             )  # fmt: skip
         result = Session(
             fm, schema, provider, template=pp.template, budget=budget, on_step=on_step,
-            page_images=_page_images(pdf, pp.template), after_page_pass=True,
+            page_images=_page_images(pdf, pp.template, fm), after_page_pass=True,
         ).run()
     finally:
         if owns_provider:
@@ -119,5 +122,5 @@ def revise(
     fm = form_map if form_map is not None else build_form_map(pdf)
     return Session(
         fm, template.schema_, llm, template=template, instruction=instruction, region=region, budget=budget,
-        on_step=on_step, page_images=_page_images(pdf, template) if vision else None,
+        on_step=on_step, page_images=_page_images(pdf, template, fm) if vision else None,
     ).run()

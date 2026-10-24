@@ -319,12 +319,30 @@ def test_page_pass_note_is_in_the_after_page_pass_message():
     assert PAGE_PASS_NOTE not in plain and "CURRENT TEMPLATE" in plain
 
 
-def test_page_image_parts_put_a_page_line_before_each_image():
-    from formcast.agent.prompts import page_image_parts
+def test_page_image_parts_put_a_vision_note_then_a_page_line_before_each_image():
+    from formcast.agent.prompts import VISION_NOTE, page_image_parts
     from formcast.llm import ImagePart, TextPart
 
-    assert page_image_parts([(1, b"a"), (3, b"b")]) == [
-        TextPart("PAGE 1: marked image (boxes as at the start of this session)"), ImagePart(b"a"),
-        TextPart("PAGE 3: marked image (boxes as at the start of this session)"), ImagePart(b"b"),
+    t = _template()
+    t.fields += [Field(id="c1_7", type="checkbox", page=1, rect=(1, 1, 9, 9)),
+                 Field(id="c1_8", type="text", page=1, rect=(20, 1, 90, 9))]  # fmt: skip
+    assert page_image_parts([(0, b"a"), (1, b"b")], t) == [
+        TextPart(VISION_NOTE),
+        TextPart("PAGE 0: marked image (boxes as at the start of this session); boxes are tagged with their full ids"),
+        ImagePart(b"a"),
+        TextPart("PAGE 1: marked image (boxes as at the start of this session); a box marked 7 is c1_7"),
+        ImagePart(b"b"),
     ]  # fmt: skip
-    assert page_image_parts([]) == []
+    assert page_image_parts([], t) == []
+
+
+def test_vision_note_explains_the_images_and_their_marks():
+    from formcast.agent.prompts import VISION_NOTE
+
+    note = " ".join(VISION_NOTE.split()).lower()
+    assert "this session also has an image of each page" in note
+    assert "replaces what the system prompt says about not seeing the page image" in note
+    assert "cannot see" in SYSTEM_PROMPT and "the page image" in SYSTEM_PROMPT  # the statement it overrides
+    colours = ("blue a text box", "green a checkbox", "teal a radio option", "purple a signature", "red any remaining")
+    assert all(c in note for c in colours)
+    assert "mark" in note

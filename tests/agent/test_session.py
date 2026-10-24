@@ -1,5 +1,6 @@
 import copy
 import json
+import re
 
 import pytest
 
@@ -662,14 +663,19 @@ def test_vision_false_first_message_is_unchanged():
 def test_vision_first_message_has_page_images_then_text():
     fm = _form_map()
     t = new_template(SCHEMA, fm, candidates=True)
-    session = Session(fm, SCHEMA, ScriptedProvider([]), page_images=[(0, b"png0"), (2, b"png2")])
+    session = Session(fm, SCHEMA, ScriptedProvider([]), page_images=[(0, b"png0")])
     assert session._first.content == [
-        TextPart("PAGE 0: marked image (boxes as at the start of this session)"),
+        TextPart(prompts.VISION_NOTE),
+        TextPart("PAGE 0: marked image (boxes as at the start of this session); a box marked 0 is c0_0"),
         ImagePart(b"png0"),
-        TextPart("PAGE 2: marked image (boxes as at the start of this session)"),
-        ImagePart(b"png2"),
         TextPart(_first_text(fm, t, fresh=True)),
     ]
+
+
+def test_no_page_images_keep_the_first_message_text():
+    fm = _form_map()
+    session = Session(fm, SCHEMA, ScriptedProvider([]), page_images=[])
+    assert session._first.content == _first_text(fm, new_template(SCHEMA, fm, candidates=True), fresh=True)
 
 
 def test_build_template_runs_page_pass_then_agent_from_its_template(flat_form_pdf):
@@ -678,8 +684,9 @@ def test_build_template_runs_page_pass_then_agent_from_its_template(flat_form_pd
     result = build_template(SCHEMA, flat_form_pdf, provider, form_map=fm)
     assert len(provider.page_calls) == 1 and len(provider.calls) == 1
     first = provider.calls[0][1].content
-    assert [type(p) for p in first] == [TextPart, ImagePart, TextPart]
-    assert first[0].text.startswith("PAGE 0: ") and first[1].data.startswith(b"\x89PNG")
+    assert [type(p) for p in first] == [TextPart, TextPart, ImagePart, TextPart]
+    assert first[0].text == prompts.VISION_NOTE
+    assert first[1].text.startswith("PAGE 0: ") and first[2].data.startswith(b"\x89PNG")
     text = first[-1].text
     assert prompts.PAGE_PASS_NOTE in text and "STARTING TEMPLATE" not in text
     line = next(ln for ln in text.splitlines() if ln.strip().startswith("c0_0 "))
@@ -690,6 +697,16 @@ def test_build_template_runs_page_pass_then_agent_from_its_template(flat_form_pd
     assert result.finished and result.summary == "d"
     assert result.usage == Usage(PAGE_USAGE.input_tokens + 100, PAGE_USAGE.output_tokens + 10)
     assert result.page_pass.usage == PAGE_USAGE  # not changed by adding the session's usage
+    assert provider.close_count == 0 and not provider.closed  # the caller's provider stays open
+
+
+def test_build_template_with_no_boxes_sends_text_only(flat_form_pdf):
+    fm = _flat_map(flat_form_pdf)
+    provider = PagePassProvider([finish("d", NONE_PLACEABLE)])
+    result = build_template(SCHEMA, flat_form_pdf, provider, form_map=fm, seed_candidates=False)
+    assert result.finished and provider.page_calls == []  # no boxes: nothing for the page pass
+    first = provider.calls[0][1].content
+    assert isinstance(first, str) and prompts.PAGE_PASS_NOTE in first and "images above" not in first
 
 
 def test_build_template_agent_false_stops_after_page_pass(flat_form_pdf):
@@ -729,9 +746,24 @@ def test_start_from_skips_the_page_pass_but_sends_images(flat_form_pdf):
     result = build_template(SCHEMA, flat_form_pdf, provider, form_map=fm, start_from=start)
     assert provider.page_calls == [] and result.page_pass is None
     first = provider.calls[0][1].content
-    assert [type(p) for p in first] == [TextPart, ImagePart, TextPart]
-    assert first[0].text.startswith("PAGE 0: ") and first[1].data.startswith(b"\x89PNG")
+    assert [type(p) for p in first] == [TextPart, TextPart, ImagePart, TextPart]
+    assert first[0].text == prompts.VISION_NOTE
+    assert first[1].text.startswith("PAGE 0: ") and first[2].data.startswith(b"\x89PNG")
     assert "CURRENT TEMPLATE: 2 field(s)" in first[-1].text and prompts.PAGE_PASS_NOTE not in first[-1].text
+
+
+def test_start_from_with_a_page_the_pdf_lacks_gets_no_image_for_it(flat_form_pdf):
+    from formcast.template.model import Field
+
+    fm = _flat_map(flat_form_pdf)
+    start = new_template(SCHEMA, fm, candidates=True)
+    start.fields.append(Field(id="c5_0", type="text", page=5, rect=(72, 72, 200, 90)))
+    provider = PagePassProvider([finish("d", NONE_PLACEABLE)])
+    result = build_template(SCHEMA, flat_form_pdf, provider, form_map=fm, start_from=start)
+    assert result.finished
+    first = provider.calls[0][1].content
+    pages = [p.text.split(":")[0] for p in first if isinstance(p, TextPart) and re.match(r"PAGE \d", p.text)]
+    assert pages == ["PAGE 0"] and sum(isinstance(p, ImagePart) for p in first) == 1
 
 
 def test_revise_sends_images_when_vision(flat_form_pdf):
@@ -744,8 +776,9 @@ def test_revise_sends_images_when_vision(flat_form_pdf):
     result = revise(built.template, flat_form_pdf, "Check the name box.", provider, form_map=fm)
     assert result.finished and provider.page_calls == []
     first = provider.calls[0][1].content
-    assert [type(p) for p in first] == [TextPart, ImagePart, TextPart]
-    assert first[0].text.startswith("PAGE 0: ") and first[1].data.startswith(b"\x89PNG")
+    assert [type(p) for p in first] == [TextPart, TextPart, ImagePart, TextPart]
+    assert first[0].text == prompts.VISION_NOTE
+    assert first[1].text.startswith("PAGE 0: ") and first[2].data.startswith(b"\x89PNG")
     assert "Check the name box." in first[-1].text
 
     plain = ScriptedProvider([finish("ok")])

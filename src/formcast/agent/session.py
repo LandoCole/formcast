@@ -219,7 +219,8 @@ class Session:
     listed in its ``unplaceable``, unless fewer than 2 steps are left.
 
     ``page_images`` are (page, PNG) marked images of the starting template's boxes; when
-    given, the first message carries them ahead of its text. ``after_page_pass`` says a
+    there are any, the first message carries them (with a note on reading them) ahead of
+    its text, otherwise it is text only. ``after_page_pass`` says a
     page pass mapped ``template``: the first message says so and lists its fields.
 
     ``on_step`` is called with a :class:`StepEvent` after every model reply. It may
@@ -272,8 +273,8 @@ class Session:
             fresh=fresh, after_page_pass=after_page_pass, api_reference=api_text(),
         )  # fmt: skip
         content: str | list[ContentPart] = first_text
-        if page_images is not None:
-            content = [*prompts.page_image_parts(page_images), TextPart(first_text)]
+        if page_images:
+            content = [*prompts.page_image_parts(page_images, self.template), TextPart(first_text)]
         self._first = Message(role="user", content=content)
 
     # -- public ----------------------------------------------------------------
