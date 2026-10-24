@@ -31,14 +31,17 @@ def _list(v: object) -> list:
 
 
 def parse_answer(text: str) -> dict | None:
-    """The outermost ``{...}`` of ``text`` as ``{"mappings": [...], "tables": [...]}``; None if it does not parse."""
+    """The outermost ``{...}`` of ``text`` as ``{"mappings": [...], "tables": [...]}``; None if it does not parse.
+
+    An answer cut off at the output limit keeps every list item that was complete (``_salvage``).
+    """
     m = re.search(r"\{.*\}", text, re.S)
-    if m is None:
-        return None
     try:
-        data = json.loads(m.group(0))
+        data = json.loads(m.group(0)) if m is not None else None
     except json.JSONDecodeError:
-        return None
+        data = None
+    if data is None:
+        data = _salvage(text)
     if not isinstance(data, dict):
         return None
     out = {}
@@ -46,6 +49,28 @@ def parse_answer(text: str) -> dict | None:
         value = data.get(key)
         out[key] = value if isinstance(value, list) else []
     return out
+
+
+def _salvage(text: str) -> dict | None:
+    """The complete items of the ``mappings`` and ``tables`` lists of a cut-off answer; None when there are none."""
+    decoder = json.JSONDecoder()
+    out: dict = {}
+    for key in ("mappings", "tables"):
+        m = re.search(rf'"{key}"\s*:\s*\[', text)
+        if m is None:
+            continue
+        items, pos = [], m.end()
+        while True:
+            pos = len(text) - len(text[pos:].lstrip(" \t\r\n,"))
+            if pos >= len(text) or text[pos] == "]":
+                break
+            try:
+                item, pos = decoder.raw_decode(text, pos)
+            except json.JSONDecodeError:
+                break  # the item the output limit cut off
+            items.append(item)
+        out[key] = items
+    return out if any(out.values()) else None
 
 
 def _box_ids(template: Template, page: int):

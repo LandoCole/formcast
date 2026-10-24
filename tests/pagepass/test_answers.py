@@ -56,6 +56,14 @@ def test_parse_answer_takes_the_outermost_json_object():
     assert parse_answer("{}") == {"mappings": [], "tables": []}
 
 
+def test_an_answer_cut_off_at_the_output_limit_keeps_its_complete_items():
+    cut = '{"mappings": [{"id": "w0_1", "source": {"paths": ["name"]}}, {"id": "w0_2", "source": {"pa'
+    assert parse_answer(cut) == {"mappings": [{"id": "w0_1", "source": {"paths": ["name"]}}], "tables": []}
+    cut = '{"mappings": [], "tables": [{"source_path": "rows", "rows": [{"a": "w0_3"}]}, {"source_path": "ro'
+    assert parse_answer(cut)["tables"] == [{"source_path": "rows", "rows": [{"a": "w0_3"}]}]
+    assert parse_answer('{"mappings": [{"id": "w0_1", "sou') is None  # nothing complete: unparsed
+
+
 def test_choice_on_a_text_box_sets_type_checkbox_first():
     when = {"op": "equals", "args": {"value": True}}
     ops, specs = mapping_ops(_template(), {"mappings": [_mapping("w0_2", "ok", when=when)]}, 0)
