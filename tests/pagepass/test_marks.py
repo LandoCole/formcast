@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import io
 
+import pytest
 from PIL import Image
 
+from formcast.errors import FormcastError
 from formcast.pagepass.marks import marks_for, page_dpi, render_marked_page
 from formcast.template.model import Field
 
@@ -55,3 +57,19 @@ def test_fields_without_rect_are_skipped(flat_form_pdf):
 def test_accepts_pdf_bytes(flat_form_pdf):
     png = render_marked_page(flat_form_pdf.read_bytes(), 0, [_field("w0_1")])
     assert png.startswith(b"\x89PNG")
+
+
+def test_boxes_follow_page_rotation(rotated_form_pdf):
+    # /Rotate 90 (clockwise) on a 612x792 page maps unrotated (x, y) to (792 - y, x).
+    rect = (100, 300, 160, 330)
+    img = _image(render_marked_page(rotated_form_pdf, 0, [_field("c0_1", "checkbox", rect)]))
+    assert img.size == (round(792 * 140 / 72), round(612 * 140 / 72))
+    z = 140 / 72
+    left, mid_y = (792 - 330) * z, (100 + 160) / 2 * z
+    assert img.getpixel((round(left), round(mid_y))) == (44, 160, 44)
+    assert img.getpixel((round(rect[0] * z), round(rect[1] * z))) != (44, 160, 44)
+
+
+def test_page_out_of_range_raises_formcast_error(flat_form_pdf):
+    with pytest.raises(FormcastError, match="page 3 out of range"):
+        render_marked_page(flat_form_pdf, 3, [])

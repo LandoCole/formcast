@@ -5,8 +5,10 @@ from __future__ import annotations
 import io
 from pathlib import Path
 
+import pymupdf
 from PIL import Image, ImageDraw, ImageFont
 
+from formcast.errors import FormcastError
 from formcast.pagemap.extract import open_pdf
 from formcast.template.model import Field
 
@@ -49,7 +51,10 @@ def render_marked_page(pdf: str | Path | bytes, page: int, fields: list[Field]) 
     """PNG of one page with each field's box outlined in its type colour and tagged with its mark."""
     doc = open_pdf(pdf)
     try:
+        if not 0 <= page < doc.page_count:
+            raise FormcastError(f"page {page} out of range: the PDF has {doc.page_count} page(s)")
         pg = doc[page]
+        rotation = pg.rotation_matrix
         dpi = page_dpi(pg.rect.width, pg.rect.height)
         pix = pg.get_pixmap(dpi=dpi)
         img = Image.open(io.BytesIO(pix.tobytes("png"))).convert("RGB")
@@ -62,7 +67,9 @@ def render_marked_page(pdf: str | Path | bytes, page: int, fields: list[Field]) 
     for f in fields:
         if f.rect is None:
             continue
-        x0, y0, x1, y1 = (v * zoom for v in f.rect)
+        r = pymupdf.Rect(f.rect) * rotation  # unrotated page points -> the rendered (rotated) page
+        r.normalize()
+        x0, y0, x1, y1 = (v * zoom for v in (r.x0, r.y0, r.x1, r.y1))
         colour = OUTLINE_COLOURS.get(f.type, OTHER_COLOUR)
         draw.rectangle([x0, y0, x1, y1], outline=colour, width=2)
         mark = marks[f.id]
