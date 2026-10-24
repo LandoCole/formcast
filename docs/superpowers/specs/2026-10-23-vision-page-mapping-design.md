@@ -247,3 +247,56 @@ Measured on the whole dev split (all scored pages, both variants), Haiku, one ru
 - **Targets measured against a fresh `agent` run** on the full dev split, not against the spike's subset or the archive (§8). The spike's 0.96 is checked only on its own 34 pages.
 - **One run per pipeline, one fix allowed** for the `pages+agent` brief, all within $6. Estimated cost: `agent` about $1.65, `pages+agent` about $2, `pages` about $0.15.
 - **`Provider.complete` gains keyword-only `max_output_tokens` and `timeout_s` overrides.** This is a public protocol change; existing two-argument implementations keep working for the agent. The page pass asks for 32,000 tokens and a 300 s timeout, because a dense page's reply can take more than 120 s without streaming.
+
+## 11. Results (2026-10-23, interim: the eval stopped at the API usage limit)
+
+All runs on Haiku 5.5, dev split, both variants, final code (`849f144`). Results files are `eval/results/agent_anthropic_eval_dev_2026-10-23_final-{pages,agent,pages-agent}.{json,md}`.
+
+**Stopped early.** The Anthropic account hit its usage limit partway through the `agent` baseline. Every later call returns HTTP 400: "You have reached your specified API usage limits. You will regain access on 2026-11-01 at 00:00 UTC." Results so far:
+- `agent` finished 10 of 24 sessions;
+- `pages+agent` finished 11 of 24;
+- held-out was not run (§8.5).
+
+Spend today: about $1.27 on the judged runs, plus about $0.17 on smoke tests and the first, invalid `pages` run, which hit the dpi bug.
+
+**`pages`, complete (24 of 24 sessions, no page errors, $0.14):**
+
+| | Reachable path | Reachable joint | All-GT path | All-GT joint | Fill |
+|---|---|---|---|---|---|
+| All (1,844 reachable GT) | 0.960 | 0.901 | 0.750 | 0.704 | 0.573 |
+| Published | 0.979 | 0.922 | 0.860 | 0.811 | 0.702 |
+| Fake scan | 0.938 | 0.875 | 0.640 | 0.597 | 0.445 |
+
+- On the spike's 34 pages, reachable path is **0.976**: fillable 0.996, digital 0.96, scanned 0.969. The spike scored 0.96, so the §8.1 subset check passes.
+- On the full split, all-GT path is 0.750, against 0.695 for the archived round3-gen agent.
+
+**Paired comparison on the 9 sessions all three runs finished** (coleman_pir ×2, f8949 ×2, i9 published, ndguard ×2, wadoc_auth ×2; 535 reachable GT boxes):
+
+| | All-GT path | All-GT joint | Reachable path | Reachable joint | Fill | Cost |
+|---|---|---|---|---|---|---|
+| `pages` | 0.945 | 0.936 | 0.996 | 0.987 | 0.674 | $0.03 |
+| `agent` | 0.954 | 0.929 | 0.976 | 0.950 | **0.841** | $0.30 |
+| `pages+agent` | **0.972** | **0.954** | **1.000** | 0.981 | 0.684 | $0.24 |
+
+**Open problem: fill.** Mapping beats the agent, but fill is lower: 0.68 against 0.84 on the paired set. The cause found so far is in the page pass's table rows.
+- On the Form 8949 fake scan, the detector seeds a box in the column-heading row. The page pass made it row 1 of the transactions table, so every record fills one row too high: cells 426 of 924 right, against 840 of 924 for the agent.
+- Path scoring can't see this, because the cells are in the right columns.
+- The published 8949 has exact rows and fill 1.00.
+- The agent did not correct the shifted rows.
+- ndguard text fill (50 of 105 against 85 of 105) is not diagnosed yet.
+
+**Proposed next step,** to measure once API access returns:
+- Add one sentence to the page-pass table rule: rows are only the printed data rows; leave out boxes in heading, column-letter and totals rows.
+- Diagnose ndguard.
+- Then finish the `agent` and `pages+agent` dev runs, and the one held-out run.
+
+Under §8 this is a page-pass change, not the one allowed agent-brief fix, so it needs the user's go-ahead.
+
+**Bugs the eval found and fixed:**
+- Fractional dpi crashed rendering on pages larger than letter (cms1500): `59ba320`.
+- The final review found four more problems, all fixed in `7421aa7..849f144`:
+  - a page pass that failed silently was still reported to the agent as done;
+  - PyMuPDF was called from several threads against the demo's lock;
+  - each page's call got a truncated page map;
+  - cancel was ignored during the page pass.
+- A Haiku reply can occasionally carry a near-empty JSON answer after long hidden output; one Grandview scan page did this once. That page then scores as unmapped.
