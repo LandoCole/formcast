@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 
+import pymupdf
 import pytest
 from PIL import Image
 
@@ -73,3 +74,15 @@ def test_boxes_follow_page_rotation(rotated_form_pdf):
 def test_page_out_of_range_raises_formcast_error(flat_form_pdf):
     with pytest.raises(FormcastError, match="page 3 out of range"):
         render_marked_page(flat_form_pdf, 3, [])
+
+
+def test_oversize_page_renders_with_capped_edge_and_aligned_box(tmp_path):
+    doc = pymupdf.open()
+    doc.new_page(width=612, height=1008)
+    pdf = doc.tobytes()
+    doc.close()
+    rect = (100, 600, 160, 640)
+    img = _image(render_marked_page(pdf, 0, [_field("c0_1", "checkbox", rect)]))
+    assert max(img.size) <= 1568
+    z = img.height / 1008  # pixels per point actually rendered
+    assert img.getpixel((round(rect[0] * z), round((rect[1] + rect[3]) / 2 * z))) == (44, 160, 44)

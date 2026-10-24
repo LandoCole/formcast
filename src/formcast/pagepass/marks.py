@@ -55,7 +55,7 @@ def render_marked_page(pdf: str | Path | bytes, page: int, fields: list[Field]) 
             raise FormcastError(f"page {page} out of range: the PDF has {doc.page_count} page(s)")
         pg = doc[page]
         rotation = pg.rotation_matrix
-        dpi = page_dpi(pg.rect.width, pg.rect.height)
+        dpi = int(page_dpi(pg.rect.width, pg.rect.height))  # get_pixmap needs an int; flooring keeps the edge <= 1568
         pix = pg.get_pixmap(dpi=dpi)
         img = Image.open(io.BytesIO(pix.tobytes("png"))).convert("RGB")
     finally:
