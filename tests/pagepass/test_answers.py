@@ -62,6 +62,7 @@ def test_an_answer_cut_off_at_the_output_limit_keeps_its_complete_items():
     cut = '{"mappings": [], "tables": [{"source_path": "rows", "rows": [{"a": "w0_3"}]}, {"source_path": "ro'
     assert parse_answer(cut)["tables"] == [{"source_path": "rows", "rows": [{"a": "w0_3"}]}]
     assert parse_answer('{"mappings": [{"id": "w0_1", "sou') is None  # nothing complete: unparsed
+    assert parse_answer('{"mappings": ' + "[" * 100_000) is None  # deeply nested junk does not raise
 
 
 def test_choice_on_a_text_box_sets_type_checkbox_first():

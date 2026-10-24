@@ -38,7 +38,7 @@ def parse_answer(text: str) -> dict | None:
     m = re.search(r"\{.*\}", text, re.S)
     try:
         data = json.loads(m.group(0)) if m is not None else None
-    except json.JSONDecodeError:
+    except (json.JSONDecodeError, RecursionError):  # RecursionError: deeply nested junk
         data = None
     if data is None:
         data = _salvage(text)
@@ -66,7 +66,7 @@ def _salvage(text: str) -> dict | None:
                 break
             try:
                 item, pos = decoder.raw_decode(text, pos)
-            except json.JSONDecodeError:
+            except (json.JSONDecodeError, RecursionError):
                 break  # the item the output limit cut off
             items.append(item)
         out[key] = items
