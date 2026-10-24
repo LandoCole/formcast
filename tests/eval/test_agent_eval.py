@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "eval"))
 import agent_eval  # noqa: E402  (eval/agent_eval.py)
 import baseline_detection  # noqa: E402
 import score  # noqa: E402
-from formcast.llm import LLMResponse, Message, ToolCall, Usage  # noqa: E402
+from formcast.llm import ImagePart, LLMResponse, Message, TextPart, ToolCall, Usage  # noqa: E402
 from formcast.pagemap.ocr import render  # noqa: E402
 from formcast.template.model import Field, FormInfo, Source, Template  # noqa: E402
 
@@ -208,8 +208,9 @@ def test_recording_provider_keeps_each_reply_and_the_report_it_got_back():
     inner = _FakeProvider([_reply("print(1)"), _reply("print(2)")])
     rec = agent_eval.RecordingProvider(inner)
     sys_msg, first = Message(role="system", content="S"), Message(role="user", content="FIRST")
-    r1 = rec.complete([sys_msg, first], [])
-    rec.complete([sys_msg, first, r1.to_message(), Message(role="tool", content="STEP 1 REPORT", tool_call_id="1")], [])
+    tools = [object()]  # session calls carry tools; a call with none is a page-pass call
+    r1 = rec.complete([sys_msg, first], tools)
+    rec.complete([sys_msg, first, r1.to_message(), Message(role="tool", content="STEP 1 REPORT", tool_call_id="1")], tools)
     rec.close()
     assert inner.closed
     assert rec.first_user_message == "FIRST"
@@ -449,3 +450,303 @@ def test_run_one_keeps_the_step_log_when_scoring_fails(tmp_path, monkeypatch):
     log = tmp_path / "logs" / "x_eval" / "ff_as_published.json"
     assert log.is_file() and json.loads(log.read_text())["summary"] == "done"  # the session's log survived
     assert row["log_path"] and row["template_path"]
+
+
+# ---------- pipelines, reachable score, spend guard ----------
+
+
+def test_load_eval_env_falls_back_to_the_main_checkouts_env(tmp_path, monkeypatch):
+    fallback = tmp_path / "main" / ".env"
+    fallback.parent.mkdir()
+    fallback.write_text("ZZ_EVAL_API_KEY=sk-from-main\n")
+    monkeypatch.delenv("ZZ_EVAL_API_KEY", raising=False)
+    monkeypatch.setattr(agent_eval, "ENV_PATH", tmp_path / "worktree" / ".env")  # missing
+    monkeypatch.setattr(agent_eval, "ENV_FALLBACK", fallback)
+    assert agent_eval.load_eval_env(["ZZ_EVAL"]) == ["ZZ_EVAL_API_KEY"]
+    monkeypatch.delenv("ZZ_EVAL_API_KEY")
+    own = tmp_path / "worktree" / ".env"
+    own.parent.mkdir()
+    own.write_text("ZZ_EVAL_API_KEY=sk-own\n")  # the repo's own .env wins when it exists
+    agent_eval.load_eval_env(["ZZ_EVAL"])
+    import os
+
+    assert os.environ["ZZ_EVAL_API_KEY"] == "sk-own"
+    monkeypatch.delenv("ZZ_EVAL_API_KEY")
+    assert agent_eval.load_eval_env(["ZZ_EVAL"], tmp_path / "nowhere" / ".env") == []  # an explicit path has no fallback
+
+
+def test_env_fallback_is_the_main_checkout_above_the_worktree():
+    assert agent_eval.ENV_FALLBACK == agent_eval.ROOT.parents[2] / ".env"
+
+
+def test_pipeline_flags():
+    assert agent_eval.pipeline_flags("agent") == {"vision": False}
+    assert agent_eval.pipeline_flags("pages") == {"vision": True, "agent": False}
+    assert agent_eval.pipeline_flags("pages+agent") == {"vision": True}
+    assert set(agent_eval.PIPELINES) == {"agent", "pages", "pages+agent"}
+
+
+def test_parse_args_pipeline_and_max_usd():
+    base = ["--split", "dev", "--model-env", "A_EVAL"]
+    default = agent_eval.parse_args(base)
+    assert (default.pipeline, default.max_usd) == ("agent", None)
+    args = agent_eval.parse_args([*base, "--pipeline", "pages+agent", "--max-usd", "1.5"])
+    assert (args.pipeline, args.max_usd) == ("pages+agent", 1.5)
+    for bad in (["--pipeline", "vision"], ["--max-usd", "0"], ["--max-usd", "lots"]):
+        with pytest.raises(SystemExit):
+            agent_eval.parse_args([*base, *bad])
+
+
+def test_run_cost_haiku_and_unknown_model():
+    haiku = {"model": "claude-haiku-5-5", "input_tokens": 2_000_000, "output_tokens": 1_000_000}
+    assert agent_eval.run_cost([haiku]) == pytest.approx(0.2 + 0.5)
+    assert agent_eval.run_cost([haiku, haiku]) == pytest.approx(1.4)
+    assert agent_eval.run_cost([]) == 0.0
+    assert agent_eval.run_cost([haiku, {"form": "no-session", "error": "prepare: boom"}]) == pytest.approx(0.7)
+    assert agent_eval.run_cost([haiku, {"model": "other-model", "input_tokens": 1, "output_tokens": 1}]) is None
+
+
+def test_reachable_scores_count_only_gt_a_seed_box_overlaps():
+    gt = [score.GTField(0, A, "text", path="p.a", transforms=["upper"]), score.GTField(0, B, "text", path="p.b"),
+          score.GTField(0, FAR_BOX, "text", path="p.far")]  # fmt: skip
+    seed = _template([Field(id="s1", type="text", page=0, rect=A), Field(id="s2", type="text", page=0, rect=B)])
+    done = _template([Field(id="s1", type="text", page=0, rect=A, source=Source(paths=["p.a"])),
+                      Field(id="s2", type="text", page=0, rect=B, source=Source(paths=["p.x"])),
+                      Field(id="new", type="text", page=0, rect=FAR_BOX, source=Source(paths=["p.far"]))])  # fmt: skip
+    out = agent_eval.reachable_scores(gt, done, seed)
+    # p.a: path right, transform missing; p.b: wrong path; p.far: right but no seed box there
+    assert out == {"n": 2, "path_ok": 1, "joint_ok": 0, "path_acc": 0.5, "joint_acc": 0.0}
+
+
+FAR_BOX = (300.0, 300.0, 400.0, 320.0)
+
+
+def test_score_row_adds_mapping_reachable_only_with_a_seed(tmp_path, monkeypatch, flat_form_pdf):
+    forms, gt_dir = tmp_path / "forms", tmp_path / "gt"
+    (forms / "dev").mkdir(parents=True)
+    (forms / "schemas").mkdir()
+    gt_dir.mkdir()
+    (forms / "dev" / "ff.pdf").write_bytes(flat_form_pdf.read_bytes())
+    schema = {"type": "object", "properties": {"name": {"type": "string"}}}
+    (forms / "schemas" / "ff.json").write_text(json.dumps(schema))
+    name_box = [120.0, 86.0, 300.0, 100.0]
+    (gt_dir / "ff.json").write_text(json.dumps(
+        {"form": "ff", "fields": [{"page": 0, "rect": name_box, "type": "text", "path": "name"}]}))  # fmt: skip
+    monkeypatch.setattr(agent_eval, "FORMS", forms)
+    monkeypatch.setattr(score, "GT_DIR", gt_dir)
+    form = {"id": "ff", "split": "dev", "kind": "flat"}
+    box = tuple(name_box)
+    t = _template([Field(id="n", type="text", page=0, rect=box, source=Source(paths=["name"]))]).model_copy(
+        update={"schema_": schema})
+    seed = _template([Field(id="n", type="text", page=0, rect=box)])
+    bare = {"form": "ff", "variant": "as_published"}
+    agent_eval.score_row(bare, t, form)
+    assert "mapping_reachable" not in bare
+    row = {"form": "ff", "variant": "as_published"}
+    agent_eval.score_row(row, t, form, seed=seed)
+    assert row["mapping_reachable"] == {"n": 1, "path_ok": 1, "joint_ok": 1, "path_acc": 1.0, "joint_acc": 1.0}
+
+
+def test_totals_micro_average_mapping_reachable():
+    def reach(n, path_ok, joint_ok):
+        return {"n": n, "path_ok": path_ok, "joint_ok": joint_ok, "path_acc": 0.0, "joint_acc": 0.0}
+
+    rows = [
+        {**_row("as_published", 10, 10, 9, 4, 4, 100, 10), "mapping_reachable": reach(4, 4, 3)},
+        {**_row("as_published", 10, 10, 9, 6, 3, 100, 10), "mapping_reachable": reach(6, 3, 3)},
+        {**_row("fake_scan", 10, 10, 9, 4, 4, 100, 10), "mapping_reachable": reach(10, 5, 0)},
+        _row("fake_scan", 10, 10, 9, 4, 4, 100, 10),  # an old row without the figure is left out
+        {**_row("fake_scan", 10, 10, 9, 4, 4, 100, 10), "mapping_reachable": reach(99, 99, 99), "error": "cut"},
+    ]
+    out = agent_eval.totals(rows)
+    ap = out["as_published"]["mapping_reachable"]
+    assert ap == {"n": 10, "path_ok": 7, "joint_ok": 6, "path_acc": 0.7, "joint_acc": 0.6}
+    assert out["fake_scan"]["mapping_reachable"]["n"] == 10  # the errored row's figure is not counted
+    assert out["all"]["mapping_reachable"]["path_acc"] == pytest.approx(12 / 20)
+    assert agent_eval.totals([_row("as_published", 10, 10, 9, 4, 4, 100, 10)])["all"]["mapping_reachable"] is None
+
+
+def test_totals_sum_page_pass_tokens_and_page_errors():
+    rows = [{**_row("as_published", 10, 10, 9, 4, 4, 100, 10), "page_pass_input_tokens": 60,
+             "page_pass_output_tokens": 6, "page_errors": 1},
+            _row("as_published", 10, 10, 9, 4, 4, 100, 10)]  # fmt: skip
+    out = agent_eval.totals(rows)["all"]
+    assert (out["page_pass_input_tokens"], out["page_pass_output_tokens"], out["page_errors"]) == (60, 6, 1)
+
+
+def test_markdown_title_names_the_pipeline_and_totals_show_reachable():
+    row = {**_row("as_published", 10, 10, 9, 4, 4, 100, 10), "form": "x", "kind": "flat", "stop_reason": "finish",
+           "error": None, "unplaceable": 0, "page_pass_input_tokens": 60, "page_pass_output_tokens": 6,
+           "page_errors": 1, "mapping_reachable": {"n": 4, "path_ok": 3, "joint_ok": 2, "path_acc": 0.75,
+                                                    "joint_acc": 0.5}}  # fmt: skip
+    for k in ("iou0.3", "iou0.5"):
+        row["detection"][k] = {**row["detection"][k], "recall": 0.9, "precision": 0.9, "type_acc": 1.0}
+    row["mapping"] = {**row["mapping"], "path_acc": 1.0, "transform_acc": 0.0, "joint_acc": 0.5,
+                      "exact_path_set_acc": 1.0}  # fmt: skip
+    meta = {"model": "m", "model_env": "X_EVAL", "split": "dev", "run": "r_pages", "api_format": "responses",
+            "tag": None, "commit": "abc", "budget": {}, "baseline_file": "b.json", "pipeline": "pages",
+            "cost_usd": 0.1234}  # fmt: skip
+    md = agent_eval.render_markdown(meta, [row], agent_eval.totals([row]))
+    assert md.splitlines()[0].endswith("r_pages, pipeline pages")
+    assert "| 0.75 (0.50) |" in md and "mapping_reachable" in md
+    assert "Page pass: 60 in / 6 out tokens" in md and "1 page(s)" in md
+    assert "$0.12" in md
+    old = agent_eval.render_markdown({k: v for k, v in meta.items() if k != "pipeline"}, [row], agent_eval.totals([row]))
+    assert old.splitlines()[0].endswith("pipeline agent")
+
+
+def test_recording_provider_text_for_image_messages_and_page_calls():
+    class Inner:
+        def __init__(self):
+            self.seen = []
+            self.replies = [_reply("page-call"), _reply("print(1)"), _reply("print(2)")]
+
+        def complete(self, messages, tools, **kw):
+            self.seen.append((tools, kw))
+            return self.replies.pop(0)
+
+        def close(self):
+            pass
+
+    inner = Inner()
+    rec = agent_eval.RecordingProvider(inner)
+    page_msg = Message(role="user", content=[TextPart("PAGE 0"), ImagePart(b"x" * 10, "image/png")])
+    first = Message(role="user", content=[TextPart("FIRST"), ImagePart(b"y" * 7, "image/png")])
+    sys_msg = Message(role="system", content="S")
+    rec.complete([sys_msg, page_msg], [], max_output_tokens=32000, timeout_s=300)  # page pass: no tools
+    r1 = rec.complete([sys_msg, first], [object()])
+    follow_up = Message(role="user", content=[TextPart("see page"), ImagePart(b"z" * 3, "image/png")])
+    rec.complete([sys_msg, first, r1.to_message(), Message(role="tool", content="REPORT", tool_call_id="1"), follow_up],
+                 [object()])  # fmt: skip
+    assert inner.seen[0] == ([], {"max_output_tokens": 32000, "timeout_s": 300})  # keyword arguments forwarded
+    assert rec.first_user_message == "FIRST\n\n[image: 7 bytes]"  # the first session message, not the page's
+    assert [c["text"] for c in rec.page_calls] == ["thinking"] and set(rec.page_calls[0]) == {"text", "usage", "seconds"}
+    assert rec.page_calls[0]["usage"] == {"input_tokens": 100, "output_tokens": 10}
+    assert len(rec.calls) == 2 and rec.calls[1]["feedback"] == ["REPORT", "see page\n\n[image: 3 bytes]"]
+    assert rec.reports() == ["REPORT\n---\nsee page\n\n[image: 3 bytes]", None]
+    assert "x" * 10 not in json.dumps(rec.calls + rec.page_calls)
+
+
+def test_run_jobs_stops_submitting_once_the_cost_passes_max_usd():
+    from concurrent.futures import ThreadPoolExecutor
+
+    ran = []
+
+    def fake_run(job):
+        ran.append(job["form"]["id"])
+        return {"form": job["form"]["id"], "model": "claude-haiku-5-5", "model_env": "A_EVAL", "variant": "v",
+                "input_tokens": 10_000_000, "output_tokens": 0}  # $1 each  # fmt: skip
+
+    def job(i, prepared=None):
+        return {"form": {"id": f"f{i}", "split": "dev", "kind": "flat"}, "variant": "v", "model_env": "A_EVAL",
+                "baseline": None, "prepared": prepared or {}, "pipeline": "pages"}  # fmt: skip
+
+    jobs = [job(0), job(1, {"error": "prepare: boom"}), job(2), job(3), job(4)]
+    seen = []
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        rows = agent_eval.run_jobs(pool, jobs, 1, 1.5, run=fake_run, on_row=seen.append)
+    assert ran == ["f0", "f2"]  # $1.00 then $2.00 passes the cap before f3
+    by_form = {r["form"]: r for r in rows}
+    assert by_form["f1"]["error"] == "prepare: boom"
+    assert by_form["f3"]["error"] == by_form["f4"]["error"] == agent_eval.SKIPPED == "skipped: spend limit"
+    assert by_form["f3"]["pipeline"] == "pages" and by_form["f3"]["detection"] is None
+    assert seen == rows and len(rows) == 5
+    # no cap: everything runs; an unpriced model: nothing is skipped either
+    ran.clear()
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        rows = agent_eval.run_jobs(pool, [job(i) for i in range(4)], 2, None, run=fake_run)
+    assert sorted(ran) == ["f0", "f1", "f2", "f3"] and not any(r.get("error") for r in rows)
+    ran.clear()
+    unpriced = lambda j: {**fake_run(j), "model": "mystery"}  # noqa: E731
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        rows = agent_eval.run_jobs(pool, [job(i) for i in range(3)], 1, 0.01, run=unpriced)
+    assert len(ran) == 3 and not any(r.get("error") for r in rows)
+
+
+def test_run_one_passes_the_pipeline_flags_and_logs_the_page_pass_without_images(tmp_path, monkeypatch):
+    import types
+
+    import formcast
+    from formcast.agent.session import SessionResult
+    from formcast.pagemap.model import FormMap
+    from formcast.pagepass.run import PageOutcome, PagePassResult
+
+    forms = tmp_path / "forms"
+    (forms / "schemas").mkdir(parents=True)
+    schema = {"type": "object", "properties": {"name": {"type": "string"}}}
+    (forms / "schemas" / "ff.json").write_text(json.dumps(schema))
+    fm_path = tmp_path / "ff.formmap.json"
+    fm_path.write_text(FormMap(pages=[], fingerprint="x", source_name="form.pdf").model_dump_json())
+    t = Template(template_id="t", schema=schema,
+                 form=FormInfo(fingerprint="x", page_count=1, page_sizes=[(612, 792)], kinds=["digital"]))  # fmt: skip
+    pages = [PageOutcome(0, "ok", applied=3, rejected=[{"op": "set_source", "reason": "no such field"}],
+                         usage=Usage(50, 5), seconds=1.234, text='{"mappings": []}'),
+             PageOutcome(1, "unparsed", usage=Usage(40, 4), text="prose"),
+             PageOutcome(2, "error", error="timeout")]  # fmt: skip
+    result = SessionResult(template=t, finished=True, summary="page pass only", steps=[], usage=Usage(90, 9),
+                           stop_reason="finish", page_pass=PagePassResult(t, pages, Usage(90, 9)))  # fmt: skip
+    seen = {}
+
+    def fake_build(*a, **k):
+        seen["kwargs"] = k
+        return result
+
+    def fake_score(row, tpl, form, pdf=None, seed=None):
+        seen["seed"] = seed
+        return None
+
+    monkeypatch.setattr(agent_eval, "ROOT", tmp_path)
+    monkeypatch.setattr(agent_eval, "FORMS", forms)
+    monkeypatch.setattr(agent_eval.LLMConfig, "from_env", classmethod(lambda cls, p: types.SimpleNamespace(model="m")))
+    monkeypatch.setattr(agent_eval, "make_provider", lambda cfg: _FakeProvider([]))
+    monkeypatch.setattr(formcast, "build_template", fake_build, raising=False)
+    monkeypatch.setattr(agent_eval, "score_row", fake_score)
+    monkeypatch.setattr(formcast, "preview", lambda *a, **k: [])
+    monkeypatch.setattr(agent_eval, "open_pdf", lambda p: types.SimpleNamespace(close=lambda: None))
+    job = {
+        "form": {"id": "ff", "split": "dev", "kind": "flat"}, "variant": "as_published", "model_env": "X_EVAL",
+        "pipeline": "pages",
+        "prepared": {"pdf_path": str(tmp_path / "ff.pdf"), "formmap_path": str(fm_path), "formmap_s": 0.1,
+                     "page_kinds": [], "text_sources": [], "candidates": 0},
+        "run_dir": str(tmp_path / "logs"), "templates_dir": str(tmp_path / "templates"),
+        "overlays_dir": str(tmp_path / "overlays"),
+    }  # fmt: skip
+    row = agent_eval.run_one(job)
+    assert not row.get("error")
+    assert {k: v for k, v in seen["kwargs"].items() if k in ("vision", "agent")} == {"vision": True, "agent": False}
+    assert seen["seed"].fields == []  # the seed: new_template on the run's form map
+    assert row["pipeline"] == "pages" and row["formmap_path"] == "ff.formmap.json"
+    assert (row["page_pass_input_tokens"], row["page_pass_output_tokens"], row["page_errors"]) == (90, 9, 2)
+    log = json.loads((tmp_path / "logs" / "x_eval" / "ff_as_published.json").read_text())
+    assert log["pipeline"] == "pages" and log["steps"] == []
+    assert [p["page"] for p in log["page_pass"]] == [0, 1, 2]
+    assert log["page_pass"][0] == {
+        "page": 0, "status": "ok", "applied": 3, "rejected": [{"op": "set_source", "reason": "no such field"}],
+        "usage": {"input_tokens": 50, "output_tokens": 5}, "seconds": 1.23, "text": '{"mappings": []}', "error": None,
+    }  # fmt: skip
+    assert log["page_pass"][2]["error"] == "timeout"
+
+
+def test_seed_template_uses_the_saved_form_map_or_rebuilds_it(tmp_path, monkeypatch):
+    import formcast.pagemap.build as build_mod
+    from formcast.pagemap.model import FormMap
+
+    schema = {"type": "object", "properties": {"name": {"type": "string"}}}
+    fm = FormMap(pages=[], fingerprint="saved", source_name="form.pdf")
+    (tmp_path / "fm.json").write_text(fm.model_dump_json())
+    rebuilt = []
+
+    def fake_build(pdf, **kw):
+        rebuilt.append(pdf)
+        return FormMap(pages=[], fingerprint="rebuilt", source_name="real_name.pdf")
+
+    monkeypatch.setattr(agent_eval, "ROOT", tmp_path)
+    monkeypatch.setattr(build_mod, "build_form_map", fake_build)
+    monkeypatch.setattr(agent_eval, "variant_pdf", lambda form, variant: b"pdf")
+    form = {"id": "ff", "split": "dev", "kind": "flat"}
+    saved = agent_eval._seed_template({"variant": "as_published", "formmap_path": "fm.json"}, form, schema)
+    assert saved.form.fingerprint == "saved" and not rebuilt
+    old = agent_eval._seed_template({"variant": "fake_scan"}, form, schema)  # a row from before the path was kept
+    assert old.form.fingerprint == "rebuilt" and rebuilt == [b"pdf"]
+    gone = agent_eval._seed_template({"variant": "as_published", "formmap_path": "missing.json"}, form, schema)
+    assert gone.form.fingerprint == "rebuilt"

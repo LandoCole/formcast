@@ -527,6 +527,45 @@ def transforms_match(gt_ops: list[str], field_ops: list[str]) -> bool:
     return all(assign(gi, set()) for gi in range(len(need)))
 
 
+def _matched_items(gt: list[GTField], template: Template, iou_thr: float) -> tuple[list[_Item], dict[int, int]]:
+    """The template's scorable boxes and the GT index -> box index matching ``score_mapping`` uses."""
+    items = _template_items(template)
+
+    def allowed(gi: int, pi: int) -> bool:
+        g, it = gt[gi], items[pi]
+        if g.path is not None and "[]" in g.path:
+            return it.is_cell and g.path in it.paths
+        return not it.is_cell
+
+    matched = _match(
+        gt, [(i.page, i.rect) for i in items], iou_thr, allowed, multiline=multiline_flags(gt, items)
+    )
+    return items, matched
+
+
+def mapping_verdicts(gt: list[GTField], template: Template, iou_thr: float = 0.3) -> list[tuple[bool, bool]]:
+    """(path_ok, joint_ok) per GT field with a path, in GT order; the same matching as ``score_mapping``."""
+    items, matched = _matched_items(gt, template, iou_thr)
+    out = []
+    for gi, g in enumerate(gt):
+        if g.path is None:
+            continue
+        item = items[matched[gi]] if gi in matched else None
+        path_ok = bool(item and g.path in item.paths)
+        out.append((path_ok, path_ok and transforms_match(g.transforms, item.ops)))
+    return out
+
+
+def reachable(gt: list[GTField], seed: Template, iou_thr: float = 0.3) -> list[bool]:
+    """Per GT field with a path: does some seeded box (not a table) on its page overlap it at ``iou_thr``?"""
+    boxes = [(f.page, f.rect) for f in seed.fields if f.type != "table" and f.rect is not None]
+    return [
+        any(page == g.page and iou(tuple(g.rect), tuple(rect)) >= iou_thr for page, rect in boxes)
+        for g in gt
+        if g.path is not None
+    ]
+
+
 def score_mapping(gt: list[GTField], template: Template, iou_thr: float = 0.3) -> dict:
     """How well the template maps boxes to schema paths, over GT fields that have a ``path``.
 
@@ -564,17 +603,7 @@ def score_mapping(gt: list[GTField], template: Template, iou_thr: float = 0.3) -
     ``transform_acc`` (over ``n_transform``), ``joint_acc`` and
     ``exact_path_set_acc`` (over ``n_path``).
     """
-    items = _template_items(template)
-
-    def allowed(gi: int, pi: int) -> bool:
-        g, it = gt[gi], items[pi]
-        if g.path is not None and "[]" in g.path:
-            return it.is_cell and g.path in it.paths
-        return not it.is_cell
-
-    matched = _match(
-        gt, [(i.page, i.rect) for i in items], iou_thr, allowed, multiline=multiline_flags(gt, items)
-    )
+    items, matched = _matched_items(gt, template, iou_thr)
     n_path = n_transform = n_matched = path_ok = transform_ok = joint_ok = exact_ok = 0
     for gi, g in enumerate(gt):
         if g.path is None:
