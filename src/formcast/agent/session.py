@@ -33,7 +33,7 @@ from formcast.sandbox.worker import api_text
 from formcast.schema import flatten_schema
 from formcast.template.coverage import Coverage, coverage
 from formcast.template.model import Template, new_template
-from formcast.template.ops import OpContext, apply
+from formcast.template.ops import apply, op_context
 
 VERBATIM_STEPS = 6
 # Of the verbatim steps, only the latest FULL_OUTPUT_STEPS keep their printed output in
@@ -238,11 +238,7 @@ class Session:
         self.sandbox_factory = sandbox_factory
         self.on_step = on_step
         self._cov: Coverage | None = None  # coverage as of the last run_python step
-        self.context = OpContext(
-            schema_paths=self.schema_paths,
-            page_sizes=[(p.width, p.height) for p in sorted(form_map.pages, key=lambda p: p.index)],
-            widget_names=[w.name for p in form_map.pages for w in p.widgets],
-        )
+        self.context = op_context(form_map, self.schema_paths)
         self._refusals_left = unaccounted_refusals if instruction is None else 0
         self.steps: list[StepRecord] = []
         self.usage = Usage()

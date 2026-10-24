@@ -80,6 +80,25 @@ def test_package_exports():
     assert callable(coverage) and SessionBudget().max_steps > 0 and SessionResult.__name__ == "SessionResult"
 
 
+def test_map_pages_exports():
+    from formcast.pagepass import PagePassResult, map_pages
+
+    for name in ("map_pages", "PagePassResult"):
+        assert name in formcast.__all__ and name in dir(formcast)
+    assert formcast.map_pages is map_pages and formcast.PagePassResult is PagePassResult
+
+
+def test_op_context_helper_reads_page_sizes_and_widget_names(fillable_form_pdf):
+    from formcast.template.ops import op_context
+
+    fm = build_form_map(fillable_form_pdf, detectors={})
+    paths = flatten_schema(SCHEMA)
+    ctx = op_context(fm, paths)
+    assert ctx.schema_paths == paths
+    assert ctx.page_sizes == [(p.width, p.height) for p in fm.pages]
+    assert ctx.widget_names == ["applicant_name", "agree"]
+
+
 def test_fill_exports():
     from formcast.render.fill import fill, to_smart_pdf
     from formcast.render.report import FillReport

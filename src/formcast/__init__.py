@@ -17,6 +17,7 @@ _LAZY = {
     "FormSignature": "formcast.pagemap.model",
     "LLMConfig": "formcast.llm",
     "OpContext": "formcast.template.ops",
+    "PagePassResult": "formcast.pagepass.run",
     "PdfFeatures": "formcast.match",
     "SessionBudget": "formcast.agent.session",
     "SessionCancelled": "formcast.errors",
@@ -30,6 +31,7 @@ _LAZY = {
     "coverage": "formcast.template.coverage",
     "fill": "formcast.render.fill",
     "fingerprint": "formcast.match",
+    "map_pages": "formcast.pagepass.run",
     "pdf_features": "formcast.match",
     "flatten_schema": "formcast.schema",
     "preview": "formcast.render.preview",
@@ -49,6 +51,7 @@ if TYPE_CHECKING:
     from formcast.match import PdfFeatures, Similarity, fingerprint, pdf_features, similarity
     from formcast.pagemap.build import build_form_map
     from formcast.pagemap.model import FormSignature
+    from formcast.pagepass.run import PagePassResult, map_pages
     from formcast.render.fill import fill, to_smart_pdf
     from formcast.render.preview import preview
     from formcast.render.report import FillReport
@@ -76,8 +79,9 @@ def __dir__() -> list[str]:
 
 
 __all__ = [
-    "FillReport", "FormSignature", "FormcastError", "LLMConfig", "OpContext", "OpError", "PdfFeatures",
-    "SessionBudget", "SessionCancelled", "SessionResult", "Similarity", "StepEvent", "Template", "__version__",
+    "FillReport", "FormSignature", "FormcastError", "LLMConfig", "OpContext", "OpError", "PagePassResult",
+    "PdfFeatures", "SessionBudget", "SessionCancelled", "SessionResult", "Similarity", "StepEvent", "Template",
+    "__version__",
     "apply", "build_form_map", "build_template", "coverage", "errors", "fill", "fingerprint", "flatten_schema",
-    "ops", "pdf_features", "preview", "rebind", "revise", "similarity", "to_smart_pdf",
+    "map_pages", "ops", "pdf_features", "preview", "rebind", "revise", "similarity", "to_smart_pdf",
 ]  # fmt: skip

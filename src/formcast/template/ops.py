@@ -137,6 +137,15 @@ class OpContext(BaseModel):
         )
 
 
+def op_context(form_map: FormMap, schema_paths: list[SchemaPath]) -> OpContext:
+    """Context for an agent run: the schema's paths, the form map's page sizes and its widget names."""
+    return OpContext(
+        schema_paths=schema_paths,
+        page_sizes=[(p.width, p.height) for p in sorted(form_map.pages, key=lambda p: p.index)],
+        widget_names=[w.name for p in form_map.pages for w in p.widgets],
+    )
+
+
 # ------------------------------------------------------------------ public API
 
 

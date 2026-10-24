@@ -468,6 +468,8 @@ def test_package_exports_the_public_api():
         "apply",
         "fingerprint",
         "Template",
+        "map_pages",
+        "PagePassResult",
     ):
         assert name in formcast.__all__ and getattr(formcast, name) is not None
     assert formcast.build_template is bt and formcast.preview is pv
