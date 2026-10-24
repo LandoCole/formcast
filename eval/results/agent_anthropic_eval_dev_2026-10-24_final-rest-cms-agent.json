@@ -1,0 +1,416 @@
+{
+ "meta": {
+  "model_env": "ANTHROPIC_EVAL",
+  "model": "claude-haiku-5-5",
+  "api_format": "chat_completions",
+  "base_url": "https://api.anthropic.com/v1",
+  "split": "dev",
+  "variant": "as_published",
+  "forms": [
+   "cms1500"
+  ],
+  "stamp": "2026-10-24",
+  "tag": "final-rest-cms",
+  "pipeline": "agent",
+  "run": "2026-10-24_final-rest-cms-agent",
+  "commit": "39cfb74",
+  "max_usd": 0.5,
+  "cost_usd": 0.1668,
+  "budget": {
+   "max_steps": 40,
+   "max_input_tokens": 1500000,
+   "max_output_tokens": 200000,
+   "wall_clock_s": 900
+  },
+  "baseline_file": "baseline_detection_2026-10-21.json",
+  "jobs": 1,
+  "argv": [
+   "--split",
+   "dev",
+   "--model-env",
+   "ANTHROPIC_EVAL",
+   "--forms",
+   "cms1500",
+   "--variant",
+   "as_published",
+   "--pipeline",
+   "agent",
+   "--tag",
+   "final-rest-cms",
+   "--max-usd",
+   "0.5",
+   "--jobs",
+   "1",
+   "--stamp",
+   "2026-10-24"
+  ],
+  "notes": [
+   "Detection is scored on the manifest's scored pages that have at least one GT field (the baseline's pages); tables count one box per cell.",
+   "Multi-line answer areas are representation-neutral: a plain template text field with style.multiline or at least 1.8x the page's median GT text-box height also covers every unmatched GT text box at least 70% inside it (recall), counts once for precision, and gets path credit through the GT line box that carries the path. It only does so when at least two such GT boxes are stacked in one column inside it (horizontal overlap of 50% or more); a single loose box is scored by the normal IoU threshold.",
+   "Fillable forms as published: the template starts with one field per PDF widget (the real use case is mapping existing fields), and GT is the widgets, so agent-added boxes on blanks without a widget count as false positives.",
+   "fake_scan: an image-only PDF of the baseline's seeded fake-scan renders (widgets stripped), so the agent faces the scanned-page path (deskew, FFDetr, OCR); on fillable forms it is a detection + mapping test.",
+   "Baseline: bare-detector numbers from the baseline run on the same images: FFDNet-L (default for digital pages) for as_published digital/fillable forms, FFDetr (default for scanned pages) for fake_scan and scanned forms. On fillable as_published forms the baseline detects on the widget-stripped page.",
+   "Mapping is over GT fields with a schema path. Transform credit uses equivalence groups {slice, split, char_at}, {date_part, date_format}, {equals, contains}, and a when equals true also credits bool_to_check; a template's join and when count as ops. joint = path and transforms right; exact = the matched field's source paths equal GT path + also_paths.",
+   "Totals are micro-averaged over forms (sums of counts). Sessions that ended in an error (infrastructure or harness) are listed in the per-form table but excluded from the totals' detection and mapping figures; their templates are partial or untouched seeds.",
+   "The agent's form map carries the neutral source name 'form.pdf', not the file name.",
+   "mapping_reachable: path/joint accuracy over GT fields that some seeded box (widget or detector candidate, before any edit) overlaps at IoU >= 0.3 \u2014 what a mapping-only step can reach.",
+   "fill (fill_acc): the template is filled (formcast fill, real form fields) into the variant's PDF with K distinctive probe records (eval/probe.py), and every GT box with a path is checked for what its widget shows: a text or table-cell box once per record (the exact value; by provenance when GT has transforms), a choice box once across all records (right state in every record). fill_acc = correct units / units. It catches data landing in the wrong box, e.g. a table built as one segment per column, which path/joint score as right. A choice box whose expected state is the same in every probe record can't tell an always-on (or never-on) box from a right one; the json counts them as fill.static_choice."
+  ],
+  "finished_at": "2026-10-24T05:26:19+00:00"
+ },
+ "rows": [
+  {
+   "form": "cms1500",
+   "split": "dev",
+   "kind": "flat",
+   "variant": "as_published",
+   "model_env": "ANTHROPIC_EVAL",
+   "pipeline": "agent",
+   "detection": {
+    "iou0.3": {
+     "gt": 254,
+     "pred": 172,
+     "matched": 155,
+     "pred_matched": 155,
+     "recall": 0.6102,
+     "precision": 0.9012,
+     "type_ok": 151,
+     "type_acc": 0.9742,
+     "missed_by_type": {
+      "text": 95,
+      "choice": 3,
+      "signature": 1
+     }
+    },
+    "iou0.5": {
+     "gt": 254,
+     "pred": 172,
+     "matched": 126,
+     "pred_matched": 126,
+     "recall": 0.4961,
+     "precision": 0.7326,
+     "type_ok": 122,
+     "type_acc": 0.9683,
+     "missed_by_type": {
+      "text": 124,
+      "choice": 3,
+      "signature": 1
+     }
+    }
+   },
+   "baseline": {
+    "detector": "FFDNet-L",
+    "pages": [
+     0
+    ],
+    "iou0.3": {
+     "gt": 254,
+     "pred": 157,
+     "matched": 131,
+     "pred_matched": 131,
+     "type_ok": 120,
+     "recall": 0.5157,
+     "precision": 0.8344,
+     "type_acc": 0.916
+    },
+    "iou0.5": {
+     "gt": 254,
+     "pred": 157,
+     "matched": 126,
+     "pred_matched": 126,
+     "type_ok": 115,
+     "recall": 0.4961,
+     "precision": 0.8025,
+     "type_acc": 0.9127
+    }
+   },
+   "mapping": {
+    "n_path": 227,
+    "n_transform": 118,
+    "matched": 120,
+    "path_ok": 89,
+    "transform_ok": 29,
+    "joint_ok": 82,
+    "exact_ok": 88,
+    "matched_rate": 0.5286,
+    "path_acc": 0.3921,
+    "transform_acc": 0.2458,
+    "joint_acc": 0.3612,
+    "exact_path_set_acc": 0.3877
+   },
+   "formmap_s": 43.4,
+   "page_kinds": [
+    "digital",
+    "digital",
+    "digital",
+    "digital"
+   ],
+   "text_sources": [
+    "ocr",
+    "pdf",
+    "ocr",
+    "ocr"
+   ],
+   "candidates": 147,
+   "model": "claude-haiku-5-5",
+   "steps": 39,
+   "input_tokens": 1154145,
+   "output_tokens": 102786,
+   "wall_s": 514.5,
+   "page_pass_input_tokens": 0,
+   "page_pass_output_tokens": 0,
+   "page_errors": 0,
+   "stop_reason": "finish",
+   "finished": true,
+   "error": null,
+   "unplaceable": 3,
+   "fields": 148,
+   "fields_with_source": 46,
+   "schema_mapped": 45,
+   "schema_mappable": 97,
+   "template_path": "eval/results/templates/2026-10-24_final-rest-cms-agent/anthropic_eval/cms1500_as_published.json",
+   "formmap_path": "eval/results/logs/2026-10-24_final-rest-cms-agent/inputs/cms1500_as_published.formmap.json",
+   "log_path": "eval/results/logs/2026-10-24_final-rest-cms-agent/anthropic_eval/cms1500_as_published.json",
+   "mapping_reachable": {
+    "n": 118,
+    "path_ok": 71,
+    "joint_ok": 64,
+    "path_acc": 0.6017,
+    "joint_acc": 0.5424
+   },
+   "fill": {
+    "units": 1415,
+    "correct": 498,
+    "fill_acc": 0.3519,
+    "text": {
+     "units": 504,
+     "correct": 105
+    },
+    "choice": {
+     "units": 29,
+     "correct": 22
+    },
+    "cell": {
+     "units": 882,
+     "correct": 371
+    },
+    "static_choice": 0,
+    "rows_dropped_ok": null,
+    "fill_errors": []
+   },
+   "scored_pages": [
+    0
+   ]
+  }
+ ],
+ "totals": {
+  "all": {
+   "forms": 1,
+   "failed": 0,
+   "errored": [],
+   "finished": 1,
+   "detection": {
+    "iou0.3": {
+     "gt": 254,
+     "pred": 172,
+     "matched": 155,
+     "pred_matched": 155,
+     "type_ok": 151,
+     "recall": 0.6102,
+     "precision": 0.9012,
+     "type_acc": 0.9742
+    },
+    "iou0.5": {
+     "gt": 254,
+     "pred": 172,
+     "matched": 126,
+     "pred_matched": 126,
+     "type_ok": 122,
+     "recall": 0.4961,
+     "precision": 0.7326,
+     "type_acc": 0.9683
+    }
+   },
+   "baseline": {
+    "forms": 1,
+    "iou0.3": {
+     "gt": 254,
+     "pred": 157,
+     "matched": 131,
+     "pred_matched": 131,
+     "type_ok": 120,
+     "recall": 0.5157,
+     "precision": 0.8344,
+     "type_acc": 0.916
+    },
+    "iou0.5": {
+     "gt": 254,
+     "pred": 157,
+     "matched": 126,
+     "pred_matched": 126,
+     "type_ok": 115,
+     "recall": 0.4961,
+     "precision": 0.8025,
+     "type_acc": 0.9127
+    }
+   },
+   "mapping": {
+    "n_path": 227,
+    "n_transform": 118,
+    "matched": 120,
+    "path_ok": 89,
+    "transform_ok": 29,
+    "joint_ok": 82,
+    "exact_ok": 88,
+    "path_acc": 0.3921,
+    "transform_acc": 0.2458,
+    "joint_acc": 0.3612,
+    "exact_path_set_acc": 0.3877
+   },
+   "fill": {
+    "forms": 1,
+    "units": 1415,
+    "correct": 498,
+    "fill_acc": 0.3519,
+    "text": {
+     "units": 504,
+     "correct": 105,
+     "acc": 0.2083
+    },
+    "choice": {
+     "units": 29,
+     "correct": 22,
+     "acc": 0.7586
+    },
+    "cell": {
+     "units": 882,
+     "correct": 371,
+     "acc": 0.4206
+    },
+    "rows_dropped": {
+     "checked": 0,
+     "ok": 0
+    },
+    "static_choice": 0
+   },
+   "mapping_reachable": {
+    "n": 118,
+    "path_ok": 71,
+    "joint_ok": 64,
+    "path_acc": 0.6017,
+    "joint_acc": 0.5424
+   },
+   "steps": 39,
+   "input_tokens": 1154145,
+   "output_tokens": 102786,
+   "page_pass_input_tokens": 0,
+   "page_pass_output_tokens": 0,
+   "page_errors": 0,
+   "wall_s": 514.5
+  },
+  "as_published": {
+   "forms": 1,
+   "failed": 0,
+   "errored": [],
+   "finished": 1,
+   "detection": {
+    "iou0.3": {
+     "gt": 254,
+     "pred": 172,
+     "matched": 155,
+     "pred_matched": 155,
+     "type_ok": 151,
+     "recall": 0.6102,
+     "precision": 0.9012,
+     "type_acc": 0.9742
+    },
+    "iou0.5": {
+     "gt": 254,
+     "pred": 172,
+     "matched": 126,
+     "pred_matched": 126,
+     "type_ok": 122,
+     "recall": 0.4961,
+     "precision": 0.7326,
+     "type_acc": 0.9683
+    }
+   },
+   "baseline": {
+    "forms": 1,
+    "iou0.3": {
+     "gt": 254,
+     "pred": 157,
+     "matched": 131,
+     "pred_matched": 131,
+     "type_ok": 120,
+     "recall": 0.5157,
+     "precision": 0.8344,
+     "type_acc": 0.916
+    },
+    "iou0.5": {
+     "gt": 254,
+     "pred": 157,
+     "matched": 126,
+     "pred_matched": 126,
+     "type_ok": 115,
+     "recall": 0.4961,
+     "precision": 0.8025,
+     "type_acc": 0.9127
+    }
+   },
+   "mapping": {
+    "n_path": 227,
+    "n_transform": 118,
+    "matched": 120,
+    "path_ok": 89,
+    "transform_ok": 29,
+    "joint_ok": 82,
+    "exact_ok": 88,
+    "path_acc": 0.3921,
+    "transform_acc": 0.2458,
+    "joint_acc": 0.3612,
+    "exact_path_set_acc": 0.3877
+   },
+   "fill": {
+    "forms": 1,
+    "units": 1415,
+    "correct": 498,
+    "fill_acc": 0.3519,
+    "text": {
+     "units": 504,
+     "correct": 105,
+     "acc": 0.2083
+    },
+    "choice": {
+     "units": 29,
+     "correct": 22,
+     "acc": 0.7586
+    },
+    "cell": {
+     "units": 882,
+     "correct": 371,
+     "acc": 0.4206
+    },
+    "rows_dropped": {
+     "checked": 0,
+     "ok": 0
+    },
+    "static_choice": 0
+   },
+   "mapping_reachable": {
+    "n": 118,
+    "path_ok": 71,
+    "joint_ok": 64,
+    "path_acc": 0.6017,
+    "joint_acc": 0.5424
+   },
+   "steps": 39,
+   "input_tokens": 1154145,
+   "output_tokens": 102786,
+   "page_pass_input_tokens": 0,
+   "page_pass_output_tokens": 0,
+   "page_errors": 0,
+   "wall_s": 514.5
+  }
+ }
+}
