@@ -1,3 +1,4 @@
+import base64
 import json
 
 import httpx
@@ -5,10 +6,13 @@ import pytest
 
 from formcast.errors import FormcastError
 from formcast.llm import (
+    ImagePart,
     LLMConfig,
     Message,
+    TextPart,
     ToolCall,
     ToolSpec,
+    content_text,
     make_provider,
 )
 from formcast.llm import base as llm_base
@@ -574,6 +578,92 @@ def test_provider_protocol_has_close():
         p.close()
 
 
+# ---- image parts, per-call overrides ----------------------------------------
+
+PNG = b"\x89PNG"
+PNG_URL = "data:image/png;base64," + base64.b64encode(PNG).decode()
+
+
+def image_message() -> Message:
+    return Message(role="user", content=[TextPart("look"), ImagePart(PNG)])
+
+
+def test_chat_completions_sends_image_parts_as_data_urls():
+    rec = Recorder(chat_reply())
+    make_provider(cfg(), transport=rec.transport).complete([image_message()], [])
+    assert rec.body()["messages"][0]["content"] == [
+        {"type": "text", "text": "look"},
+        {"type": "image_url", "image_url": {"url": PNG_URL}},
+    ]
+
+
+def test_responses_sends_image_parts_as_input_image():
+    rec = Recorder(resp_reply([]))
+    make_provider(cfg("responses"), transport=rec.transport).complete([image_message()], [])
+    assert rec.body()["input"][0] == {
+        "role": "user",
+        "content": [
+            {"type": "input_text", "text": "look"},
+            {"type": "input_image", "image_url": PNG_URL},
+        ],
+    }
+
+
+@pytest.mark.parametrize("fmt", ["chat_completions", "responses"])
+def test_plain_string_content_is_sent_unchanged(fmt):
+    rec = Recorder(chat_reply() if fmt == "chat_completions" else resp_reply([]))
+    make_provider(cfg(fmt), transport=rec.transport).complete(
+        [Message(role="user", content="hi")], []
+    )
+    body = rec.body()
+    wire = body["messages"][0] if fmt == "chat_completions" else body["input"][0]
+    assert wire == {"role": "user", "content": "hi"}
+
+
+def test_max_output_tokens_override_per_call():
+    rec = Recorder(chat_reply())
+    p = make_provider(cfg(), transport=rec.transport)
+    msgs = [Message(role="user", content="go")]
+    p.complete(msgs, [], max_output_tokens=32000)
+    p.complete(msgs, [])
+    assert rec.body(0)["max_completion_tokens"] == 32000
+    assert rec.body(1)["max_completion_tokens"] == cfg().max_output_tokens
+
+    rec = Recorder(resp_reply([]))
+    p = make_provider(cfg("responses"), transport=rec.transport)
+    p.complete(msgs, [], max_output_tokens=32000)
+    p.complete(msgs, [])
+    assert rec.body(0)["max_output_tokens"] == 32000
+    assert rec.body(1)["max_output_tokens"] == cfg().max_output_tokens
+
+
+@pytest.mark.parametrize("fmt", ["chat_completions", "responses"])
+def test_timeout_override_per_call(fmt):
+    rec = Recorder(chat_reply() if fmt == "chat_completions" else resp_reply([]))
+    p = make_provider(cfg(fmt), transport=rec.transport)
+    msgs = [Message(role="user", content="go")]
+    p.complete(msgs, [], timeout_s=300)
+    p.complete(msgs, [])
+    assert rec.requests[0].extensions["timeout"]["read"] == 300
+    assert rec.requests[1].extensions["timeout"]["read"] == cfg().timeout_s
+
+
+def test_content_text_replaces_images_with_a_placeholder():
+    assert content_text([TextPart("a"), ImagePart(b"12345")]) == "a\n\n[image: 5 bytes]"
+    assert content_text("x") == "x"
+
+
+@pytest.mark.parametrize("fmt", ["chat_completions", "responses"])
+def test_http_400_on_a_request_with_images_suggests_vision_false(fmt, no_sleep):
+    rec = Recorder(httpx.Response(400, text="image not supported"))
+    p = make_provider(cfg(fmt), transport=rec.transport)
+    with pytest.raises(FormcastError, match="vision=False"):
+        p.complete([image_message()], [])
+    with pytest.raises(FormcastError) as exc:
+        p.complete([Message(role="user", content="text only")], [])
+    assert "vision=False" not in str(exc.value)
+
+
 # ---- real round trip --------------------------------------------------------
 
 
@@ -604,3 +694,31 @@ def test_real_round_trip_with_echo_tool(prefix, eval_env):
     history.append(Message(role="tool", content=call.arguments["text"], tool_call_id=call.id))
     second = provider.complete(history, [ECHO])
     assert second.text.strip() or second.tool_calls
+
+
+@pytest.mark.llm
+def test_live_endpoint_accepts_an_image(eval_env):
+    import io
+
+    from PIL import Image
+
+    try:
+        config = LLMConfig.from_env("ANTHROPIC_EVAL")
+    except FormcastError:
+        pytest.skip("ANTHROPIC_EVAL_* not configured")
+    buf = io.BytesIO()
+    Image.new("RGB", (64, 64), (255, 0, 0)).save(buf, format="PNG")
+    provider = make_provider(config)
+    reply = provider.complete(
+        [
+            Message(
+                role="user",
+                content=[
+                    ImagePart(buf.getvalue()),
+                    TextPart("What colour is this square? One word."),
+                ],
+            )
+        ],
+        [],
+    )
+    assert "red" in reply.text.lower()

@@ -14,7 +14,14 @@ ENV_PATH = Path(__file__).resolve().parents[2] / ".env"
 EVAL_PREFIXES = ("OPENAI_EVAL", "ANTHROPIC_EVAL")
 
 
+# A git worktree (<main>/.claude/worktrees/<name>) has no .env of its own: fall
+# back to the main checkout's.
+MAIN_ENV_PATH = Path(__file__).resolve().parents[2].parents[2] / ".env"
+
+
 def load_dotenv(path: Path = ENV_PATH) -> None:
+    if not path.is_file():
+        path = MAIN_ENV_PATH
     if not path.is_file():
         return
     for line in path.read_text().splitlines():

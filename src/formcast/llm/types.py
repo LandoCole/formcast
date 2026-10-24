@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Literal, TypeAlias
 
 
 @dataclass
@@ -30,6 +30,33 @@ class ToolCall:
     raw_arguments: str
 
 
+@dataclass(frozen=True)
+class TextPart:
+    """A text segment of a multi-part message."""
+
+    text: str
+
+
+@dataclass(frozen=True)
+class ImagePart:
+    """An image segment of a multi-part message (raw bytes, sent as a data URL)."""
+
+    data: bytes
+    media_type: str = "image/png"
+
+
+ContentPart: TypeAlias = TextPart | ImagePart
+
+
+def content_text(content: str | list[ContentPart]) -> str:
+    """Plain-text view of message content: images become `[image: N bytes]`."""
+    if isinstance(content, str):
+        return content
+    return "\n\n".join(
+        p.text if isinstance(p, TextPart) else f"[image: {len(p.data)} bytes]" for p in content
+    )
+
+
 @dataclass
 class Message:
     """One conversation turn.
@@ -40,10 +67,13 @@ class Message:
     the next turn). Providers fill it in `LLMResponse.provider_items` and read it
     back when serialising; callers just copy it onto the assistant Message.
     Leave it empty for hand-built messages.
+
+    `content` is a plain string, or a list of text/image parts (user messages
+    only; the providers send images as data URLs).
     """
 
     role: Literal["system", "user", "assistant", "tool"]
-    content: str = ""
+    content: str | list[ContentPart] = ""
     tool_calls: list[ToolCall] = field(default_factory=list)
     tool_call_id: str | None = None
     provider_items: list[dict] = field(default_factory=list)
