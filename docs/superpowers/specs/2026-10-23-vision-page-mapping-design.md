@@ -75,8 +75,8 @@ map_pages(template, form_map, pdf, llm, *, pages=None, max_parallel=4) -> PagePa
 
 - **Input:** the seeded template (`new_template(schema, fm, candidates=True)`), the form map and the PDF.
 - **One call per page** that has boxes. Pages with no seeded boxes are skipped.
-- **Concurrency:** pages run in parallel, up to `max_parallel`.
-- **Output tokens and timeout:** the call asks for 32,000 output tokens at most, with a 300 s timeout. The spike's pages used up to 22,800 tokens, which the default `LLMConfig.max_output_tokens` (8,000) can't hold, and a page took 97 s even with streaming. These are per-call overrides on `Provider.complete`; the agent's settings stay untouched.
+- **Concurrency:** every page's marked image is rendered first, one page at a time, under the library's MuPDF lock (`formcast.pagemap.extract.PDF_LOCK`). MuPDF is not safe to call from several threads. Then the calls run in parallel, up to `max_parallel`. A page that fails to render is an `error`.
+- **Output tokens and timeout:** the call asks for 32,000 output tokens at most, with a 300 s timeout. The spike's pages used up to 22,800 tokens, which the default `LLMConfig.max_output_tokens` (8,000) can't hold, and a page took 97 s even with streaming. These are per-call overrides on `Provider.complete`; the agent's settings stay untouched. They are passed only when the provider's `complete` accepts them (a named parameter or `**kwargs`). A provider written against the two-argument `complete(messages, tools)` is called without them, and its own limits apply.
 - **Prompt:** the spike's `vision2` prompt, moved into `formcast/pagepass/prompts.py`:
   - System: the mapping rules (taken from the agent prompt) plus the table rule.
   - User message, in order:
@@ -85,7 +85,7 @@ map_pages(template, form_map, pdf, llm, *, pages=None, max_parallel=4) -> PagePa
     - schema paths, in the agent's `_schema_line` form;
     - the transform reference;
     - the page's box list (`id: type`);
-    - that page's section of the form-map summary.
+    - that page's whole page map (`summarize_page`): the summary preamble and the page's section, not a slice of the whole-form summary. Only a page longer than 24,000 characters on its own is cut, and the cut note does not mention the query helpers (the page-pass model has no tools).
 - **Answer:** text JSON, `{"mappings": [...], "tables": [...]}`. It is parsed leniently: take the outermost `{...}` and ignore anything unparsable.
 - **No tool calls.** The spike got valid JSON on all 68 vision calls.
 
@@ -150,10 +150,12 @@ Other rules:
     - make sure every printed line of a record block is in a table.
   - It should keep page-pass mappings it can't show to be wrong.
   - The current field list (`_template_note`) follows as it does for any non-fresh start.
+  - When no page's call succeeded (every page failed, could not be parsed, or had no boxes), the agent gets the fresh-template note instead, as if no page pass ran. It still gets the images.
 - `SessionResult` gains `page_pass: PagePassResult | None`. `usage` includes the page pass's tokens.
-- `on_step` is not called during the page pass. The page pass can't be cancelled; it takes seconds.
+- **Progress and cancel:** `on_step` is not called during the page pass. When the pass is done, and before the agent's first call, `on_step` gets one event for it: `step=0`, summary `"page pass"`, the pass's applied and rejected op counts, the coverage it left, and its tokens. `finished` is true only with `agent=False`. Raising `SessionCancelled` from that event stops the run there, with `stop_reason="cancelled"`, summary `"cancelled"`, the page pass's template, `page_pass` set, and the pass's usage. So a cancel takes effect only once the whole pass is done. On a dense form that can take minutes: each call may run up to 300 s, plus the provider's retries.
+- **Budget:** `SessionBudget`'s token caps count the agent's tokens only, not the page pass's. The page pass's output is bounded by pages × 32,000 tokens.
 - `formcast.map_pages` and `PagePassResult` are exported lazily, like the other public names.
-- **Demo server:** no change is needed. It calls `build_template` and gets the new default. Its job progress just starts later.
+- **Demo server:** it calls `build_template` and gets the new default. A build job's progress starts with the page pass's step-0 event (the workbench shows it as "Page pass"). The server's `PYMUPDF_LOCK` is the library's `formcast.pagemap.extract.PDF_LOCK`. The page pass renders its page images one at a time under that lock, so those renders and the server's own MuPDF work exclude each other.
 
 ### 6.5 Prompt fix carried in from the spike
 

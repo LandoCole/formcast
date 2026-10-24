@@ -341,7 +341,9 @@ def test_build_with_ai_lists_the_steps_loads_the_result_and_one_undo_returns_to_
     b.page.click("#build-ai")
     expect(b.page.locator("#job")).to_be_visible()
     expect(b.page.locator("#job-load")).to_be_visible()
-    expect(b.page.locator("#job-steps li")).to_have_count(4)
+    expect(b.page.locator("#job-steps li")).to_have_count(5)  # the page pass, then the agent's four steps
+    expect(b.page.locator("#job-steps li").first).to_have_text("Page pass · 0 edits made · 2 data fields not linked yet")
+    expect(b.page.locator("#job-steps li").nth(1)).to_contain_text("Step 1 · ")
     expect(b.page.locator("#job-status")).to_contain_text("name mapped")
     b.page.click("#job-load")
     expect(b.page.locator("#job")).to_be_hidden()
@@ -403,7 +405,8 @@ def test_cancel_stops_after_the_step_leaves_the_template_and_offers_the_partial_
     before = b.template()
     b.page.click("#build-ai")
     assert gate.reached.wait(10)
-    expect(b.page.locator("#job-steps li")).to_have_count(1)
+    expect(b.page.locator("#job-steps li")).to_have_count(2)  # the page pass and step 1
+    expect(b.page.locator("#job-status")).to_have_text("Working on step 2…")
     b.page.click("#job-cancel")
     expect(b.page.locator("#job-status")).to_have_text("Stopping after this step…")
     gate.release()

@@ -244,3 +244,56 @@ def test_llm_config_provider_is_closed_when_a_page_fails(pdf, monkeypatch):
     cfg = LLMConfig(model="m", base_url="http://x", api_key="k")
     result = map_pages(_template(), _form(), pdf, cfg)
     assert result.pages[0].status == "error" and provider.closed is True
+
+
+# --- final review: two-argument providers, serial renders ------------------------------------------
+
+
+class TwoArgProvider(FakeProvider):
+    """A provider written against the plain ``complete(messages, tools)``."""
+
+    def complete(self, messages, tools):
+        return super().complete(messages, tools)
+
+
+class TimeoutOnlyProvider(FakeProvider):
+    def complete(self, messages, tools, timeout_s=None):
+        return super().complete(messages, tools, timeout_s=timeout_s)
+
+
+def test_a_two_argument_provider_is_called_without_the_limits_and_its_pages_succeed(pdf):
+    provider = TwoArgProvider({0: _reply(0), 1: _reply(1)})
+    result = map_pages(_template(with_page1_boxes=True), _form(), pdf, provider)
+    assert [o.status for o in result.pages] == ["ok", "ok"] and [o.applied for o in result.pages] == [1, 1]
+    assert [(c["max"], c["timeout"]) for c in provider.calls] == [(None, None), (None, None)]
+
+
+def test_only_the_limit_keywords_the_provider_names_are_passed(pdf):
+    provider = TimeoutOnlyProvider({0: _reply(0)})
+    result = map_pages(_template(), _form(), pdf, provider)
+    assert result.pages[0].status == "ok"
+    assert [(c["max"], c["timeout"]) for c in provider.calls] == [(None, 300)]
+
+
+def test_pages_are_rendered_one_by_one_on_the_calling_thread_before_any_call(pdf, monkeypatch):
+    events: list[tuple[str, int]] = []
+    threads: set[int] = set()
+    real = run_mod.render_marked_page
+
+    def render(pdf_, page, boxes):
+        threads.add(threading.get_ident())
+        events.append(("render", page))
+        return real(pdf_, page, boxes)
+
+    class Recording(FakeProvider):
+        def complete(self, messages, tools, **kwargs):
+            out = super().complete(messages, tools, **kwargs)
+            with self._lock:
+                events.append(("call", self.calls[-1]["page"]))
+            return out
+
+    monkeypatch.setattr(run_mod, "render_marked_page", render)
+    result = map_pages(_template(with_page1_boxes=True), _form(), pdf, Recording({0: _reply(0), 1: _reply(1)}))
+    assert [o.status for o in result.pages] == ["ok", "ok"]
+    assert threads == {threading.get_ident()}
+    assert events[:2] == [("render", 0), ("render", 1)] and sorted(events[2:]) == [("call", 0), ("call", 1)]

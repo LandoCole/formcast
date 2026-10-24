@@ -9,6 +9,7 @@ with ``page.rotation_matrix`` / ``page.derotation_matrix``.
 
 from __future__ import annotations
 
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -18,6 +19,12 @@ import pymupdf
 from formcast.errors import FormcastError
 from formcast.geometry import Rect, norm_to_points
 from formcast.pagemap.model import PageMap, Rule, TextLine, Widget, Word
+
+# MuPDF is not safe to call from several threads at once. Library code that may run beside other
+# MuPDF work (the page pass's marked page renders) holds this process-wide lock for its MuPDF calls;
+# an application calling formcast from several threads takes the same lock around its own MuPDF work.
+# Re-entrant, so code holding it may call code that takes it again on the same thread.
+PDF_LOCK = threading.RLock()
 
 # Drawn segments count as rules when this thin and at least this long.
 RULE_MAX_THICKNESS = 2.0

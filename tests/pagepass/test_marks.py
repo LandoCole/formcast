@@ -86,3 +86,28 @@ def test_oversize_page_renders_with_capped_edge_and_aligned_box(tmp_path):
     assert max(img.size) <= 1568
     z = img.height / 1008  # pixels per point actually rendered
     assert img.getpixel((round(rect[0] * z), round((rect[1] + rect[3]) / 2 * z))) == (44, 160, 44)
+
+
+def test_rendering_waits_for_the_process_wide_pdf_lock(flat_form_pdf, monkeypatch):
+    import threading
+
+    from formcast.pagemap import extract
+    from formcast.pagepass import marks as marks_mod
+
+    opened = threading.Event()
+    real_open = marks_mod.open_pdf
+
+    def open_pdf(pdf):
+        opened.set()
+        return real_open(pdf)
+
+    monkeypatch.setattr(marks_mod, "open_pdf", open_pdf)
+    done: list[bytes] = []
+    with extract.PDF_LOCK:  # held by this thread: a render on another thread must not start MuPDF work
+        worker = threading.Thread(target=lambda: done.append(render_marked_page(flat_form_pdf, 0, [_field("w0_1")])))
+        worker.start()
+        assert not opened.wait(0.3)
+    worker.join(10)
+    assert opened.is_set() and done and done[0].startswith(b"\x89PNG")
+    with extract.PDF_LOCK:  # re-entrant: the thread holding it can still render
+        assert render_marked_page(flat_form_pdf, 0, []).startswith(b"\x89PNG")

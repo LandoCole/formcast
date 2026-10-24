@@ -119,7 +119,10 @@ class StepRecord:
 
 @dataclass(frozen=True)
 class StepEvent:
-    """What ``on_step`` is told after each model reply (the step report's counts, token use so far)."""
+    """What ``on_step`` is told after each model reply (the step report's counts, token use so far).
+
+    ``build_template`` also sends one with ``step=0`` after its page pass (the pass's counts and tokens).
+    """
 
     step: int
     ops_applied: int

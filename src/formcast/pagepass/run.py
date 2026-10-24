@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import inspect
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
-from formcast.llm import LLMConfig, Provider, Usage, make_provider
+from formcast.llm import LLMConfig, Message, Provider, Usage, make_provider
 from formcast.pagemap.model import FormMap
 from formcast.pagepass.answers import TableSpec, apply_ops, mapping_ops, parse_answer, table_ops
 from formcast.pagepass.marks import marks_for, render_marked_page
@@ -49,19 +50,42 @@ def _boxes(template: Template, page: int) -> list[Field]:
     return [f for f in template.fields if f.page == page and f.rect is not None]
 
 
-def _call_page(template: Template, form_map: FormMap, pdf: PdfInput, provider: Provider, page: int) -> PageOutcome:
-    """Render and ask for one page; an exception of any kind becomes an ``error`` outcome."""
+def _call_limits(provider: Provider) -> dict[str, int]:
+    """The page pass's output-token and timeout limits, as the keywords ``provider.complete`` accepts.
+
+    A provider written against the two-argument ``complete(messages, tools)`` gets neither.
+    """
+    limits = {"max_output_tokens": PAGE_PASS_MAX_OUTPUT_TOKENS, "timeout_s": PAGE_PASS_TIMEOUT_S}
+    try:
+        params = inspect.signature(provider.complete).parameters.values()
+    except (TypeError, ValueError):  # no signature to read: call it the plain way
+        return {}
+    if any(p.kind is inspect.Parameter.VAR_KEYWORD for p in params):
+        return limits
+    by_name = (inspect.Parameter.POSITIONAL_OR_KEYWORD, inspect.Parameter.KEYWORD_ONLY)
+    named = {p.name for p in params if p.kind in by_name}
+    return {k: v for k, v in limits.items() if k in named}
+
+
+def _page_request(template: Template, form_map: FormMap, pdf: PdfInput, page: int) -> list[Message]:
+    """Render one page's marked image and build its messages."""
+    boxes = _boxes(template, page)
+    marks = marks_for(boxes)
+    image = render_marked_page(pdf, page, boxes)
+    return page_messages(template, form_map, page, image, marks)
+
+
+def _error(page: int, e: Exception, seconds: float) -> PageOutcome:
+    return PageOutcome(page, "error", seconds=seconds, error=str(e) or type(e).__name__)
+
+
+def _call_page(provider: Provider, page: int, messages: list[Message], limits: dict[str, int]) -> PageOutcome:
+    """Ask for one page; an exception of any kind becomes an ``error`` outcome."""
     start = time.monotonic()
     try:
-        boxes = _boxes(template, page)
-        marks = marks_for(boxes)
-        image = render_marked_page(pdf, page, boxes)
-        messages = page_messages(template, form_map, page, image, marks)
-        response = provider.complete(
-            messages, [], max_output_tokens=PAGE_PASS_MAX_OUTPUT_TOKENS, timeout_s=PAGE_PASS_TIMEOUT_S
-        )
+        response = provider.complete(messages, [], **limits)
     except Exception as e:  # noqa: BLE001 - a failed page keeps its boxes unmapped; the pass goes on
-        return PageOutcome(page, "error", seconds=time.monotonic() - start, error=str(e) or type(e).__name__)
+        return _error(page, e, time.monotonic() - start)
     return PageOutcome(
         page, "ok", usage=response.usage, seconds=time.monotonic() - start, text=response.text
     )
@@ -86,7 +110,11 @@ def map_pages(
     """Map the template's seeded boxes page by page with a vision model.
 
     One call per page that has boxes (``pages`` limits which pages are considered); pages
-    without boxes are ``skipped``. Calls run in parallel, up to ``max_parallel``. Answers are
+    without boxes are ``skipped``. The marked page images are rendered first, one after another
+    (under :data:`formcast.pagemap.extract.PDF_LOCK`); then the calls run in parallel, up to
+    ``max_parallel``, each with a 32,000-token output limit and a 300 s timeout when the provider's
+    ``complete`` takes those keywords (a two-argument ``complete(messages, tools)`` is called
+    without them). A page that cannot be rendered is an ``error``. Answers are
     applied afterwards in page order, so the result does not depend on which call finished first:
     every page's plain mappings, then the tables of all pages (those continuing across pages
     merged into one). A failed or unparsable page keeps its boxes unmapped; a rejected op is
@@ -100,9 +128,20 @@ def map_pages(
     owns_provider = isinstance(llm, LLMConfig)
     provider: Provider = make_provider(llm) if owns_provider else llm  # type: ignore[arg-type,assignment]
     try:
+        # Render every page first, one at a time (MuPDF is single-threaded); only the calls run in parallel.
+        requests: dict[int, tuple[list[Message], float]] = {}
+        for p in todo:
+            start = time.monotonic()
+            try:
+                requests[p] = (_page_request(template, form_map, pdf, p), time.monotonic() - start)
+            except Exception as e:  # noqa: BLE001 - a page that cannot be rendered fails alone
+                outcomes[p] = _error(p, e, time.monotonic() - start)
+        limits = _call_limits(provider)
         with ThreadPoolExecutor(max_workers=max(1, max_parallel)) as pool:
-            futures = {p: pool.submit(_call_page, template, form_map, pdf, provider, p) for p in todo}
-            outcomes.update({p: f.result() for p, f in futures.items()})
+            futures = {p: pool.submit(_call_page, provider, p, msgs, limits) for p, (msgs, _) in requests.items()}
+            for p, f in futures.items():
+                outcomes[p] = f.result()
+                outcomes[p].seconds += requests[p][1]
     finally:
         if owns_provider:
             provider.close()

@@ -83,7 +83,9 @@ accept image input.
   the work. Its first message carries one marked image per page that has boxes.
   `start_from` skips the page pass but still sends images, and so does `revise`.
 - **Result.** `result.page_pass` holds the pass's per-page outcomes, and `result.usage`
-  includes its tokens. `on_step` is not called during the pass.
+  includes its tokens. `on_step` is not called during the pass. Once the pass is done it
+  gets one event for it (`step=0`, summary `"page pass"`). Raising `SessionCancelled` there
+  stops the run with the pass's template. On a dense form the pass can take minutes.
 - **`agent=False`** stops after the page pass. The result has summary `"page pass only"`
   and no steps.
 - **`vision=False`** sends no images and runs no page pass: the agent works from the

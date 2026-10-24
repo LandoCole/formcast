@@ -24,7 +24,9 @@ Threads: ``Documents`` has one lock for its table; each ``Doc`` has its own lock
 map and for filling its image cache. MuPDF is not safe to call from several threads at once
 (PyMuPDF runs it single-threaded), so all MuPDF work in the server happens under the
 process-wide ``PYMUPDF_LOCK``: opening, rendering, form-map builds, feature computation, and (in
-``api.py``) fills, smart PDFs and rebinds. Every render also opens its own PyMuPDF document from
+``api.py``) fills, smart PDFs and rebinds. ``PYMUPDF_LOCK`` is the library's ``formcast.pagemap.extract.PDF_LOCK``,
+which the library itself takes to render the marked page images of an AI job (``jobs.py``), so those renders
+and the server's MuPDF work exclude each other. Every render also opens its own PyMuPDF document from
 the bytes. Lock order: a ``Doc``'s own lock first, ``PYMUPDF_LOCK`` second; code that holds
 ``PYMUPDF_LOCK`` must not call ``form_map()``, ``features()`` or ``match_features()``.
 
@@ -49,13 +51,14 @@ from demo.server.detectors import DetectorWarmup
 from formcast.match import PdfFeatures, pdf_features
 from formcast.pagemap.build import build_form_map
 from formcast.pagemap.detect import Detector
-from formcast.pagemap.extract import is_image_dominated, open_pdf, page_size
+from formcast.pagemap.extract import PDF_LOCK, is_image_dominated, open_pdf, page_size
 from formcast.pagemap.model import FormMap
 
 log = logging.getLogger("demo.server")
 
-# One at a time, server-wide. Re-entrant, so code holding it may call other code that takes it.
-PYMUPDF_LOCK = threading.RLock()
+# One at a time, server-wide. Re-entrant, so code holding it may call other code that takes it. It is the
+# library's own MuPDF lock, so the marked page images an AI job renders also wait for (and block) this server's work.
+PYMUPDF_LOCK = PDF_LOCK
 
 MAX_DOCUMENTS = 20
 MIN_DPI, MAX_DPI = 36, 200

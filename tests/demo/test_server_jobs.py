@@ -12,6 +12,7 @@ import logging
 import threading
 import time
 
+import pymupdf
 import pytest
 from test_server_documents import SENTINEL_KEY, get_json, http_request, small_pdf, upload
 
@@ -69,21 +70,41 @@ class Gate:
         self._release.set()
 
 
-class FakeProvider:
-    def __init__(self, script) -> None:
-        self.script = list(script)
-        self.calls: list[list] = []
-        self.closed = False
+def nothing_mapped() -> LLMResponse:
+    """A page-pass answer that maps no box (the call succeeds)."""
+    text = json.dumps({"mappings": [], "tables": []})
+    return LLMResponse(text=text, tool_calls=[], usage=Usage(input_tokens=50, output_tokens=5), raw={})
 
-    def complete(self, messages, tools):
-        self.calls.append(list(messages))
-        while self.script and isinstance(self.script[0], Gate):
-            gate = self.script.pop(0)
+
+class FakeProvider:
+    """Answers agent calls from ``script`` and page-pass calls (``tools == []``) from ``page_script``.
+
+    ``complete`` takes the page pass's keyword limits. When ``page_script`` is used up, a page-pass call
+    gets ``nothing_mapped()``: the page pass succeeds and leaves the boxes to the agent.
+    """
+
+    def __init__(self, script, page_script=()) -> None:
+        self.script = list(script)
+        self.page_script = list(page_script)
+        self.calls: list[list] = []
+        self.tools: list[list] = []  # the tools of each call, in order
+        self.closed = False
+        self._lock = threading.Lock()  # page-pass calls may come from several threads
+
+    def complete(self, messages, tools, **kwargs):
+        with self._lock:
+            self.calls.append(list(messages))
+            self.tools.append(list(tools))
+        script = self.page_script if tools == [] else self.script
+        while script and isinstance(script[0], Gate):
+            gate = script.pop(0)
             gate.reached.set()
             assert gate._release.wait(30), "the test never released the gate"
-        if not self.script:
+        if tools == [] and not script:
+            return nothing_mapped()
+        if not script:
             raise AssertionError("scripted provider ran out of responses")
-        item = self.script.pop(0)
+        item = script.pop(0)
         if isinstance(item, Exception):
             raise item
         return item
@@ -93,14 +114,15 @@ class FakeProvider:
 
 
 class Factory:
-    """A ``provider_factory``: each job gets the next script. ``providers`` are the ones it built."""
+    """A ``provider_factory``: each job gets the next script (and page script). ``providers`` are the ones it built."""
 
-    def __init__(self, *scripts) -> None:
+    def __init__(self, *scripts, pages=()) -> None:
         self.scripts = list(scripts)
+        self.pages = list(pages)
         self.providers: list[FakeProvider] = []
 
     def __call__(self) -> FakeProvider:
-        provider = FakeProvider(self.scripts.pop(0))
+        provider = FakeProvider(self.scripts.pop(0), self.pages.pop(0) if self.pages else ())
         self.providers.append(provider)
         return provider
 
@@ -165,10 +187,11 @@ def test_a_build_job_reaches_done_with_a_step_event_per_reply_and_a_template(sta
     body = wait_ended(base, job_id)
     assert body["status"] == "done" and body["error"] is None
     assert body["id"] == job_id and body["kind"] == "build" and body["summary"] == "name mapped"
-    assert [s["step"] for s in body["steps"]] == [1, 2, 3, 4]
-    assert [s["finished"] for s in body["steps"]] == [False, False, False, True]
-    assert body["steps"][0]["ops_applied"] == 2 and body["steps"][0]["unmapped_paths"] == 0
-    assert body["steps"][3]["summary"] == "name mapped" and body["steps"][3]["input_tokens"] == 400
+    assert [s["step"] for s in body["steps"]] == [0, 1, 2, 3, 4]  # step 0: the page pass (no boxes here, no call)
+    assert [s["finished"] for s in body["steps"]] == [False, False, False, False, True]
+    assert body["steps"][0]["summary"] == "page pass" and body["steps"][0]["ops_applied"] == 0
+    assert body["steps"][1]["ops_applied"] == 2 and body["steps"][1]["unmapped_paths"] == 0
+    assert body["steps"][4]["summary"] == "name mapped" and body["steps"][4]["input_tokens"] == 400
     template = Template.model_validate(body["template"])
     assert [f.source.paths for f in template.fields] == [["name"]]
     assert all(h.author == "agent" for h in template.history)
@@ -257,7 +280,7 @@ def test_cancel_during_step_2_ends_cancelled_with_the_partial_template_including
     gate.release()
     body = wait_ended(base, job_id)
     assert body["status"] == "cancelled" and body["error"] is None
-    assert [s["step"] for s in body["steps"]] == [1, 2]  # the step in flight is recorded; none after it
+    assert [s["step"] for s in body["steps"]] == [0, 1, 2]  # the step in flight is recorded; none after it
     template = Template.model_validate(body["template"])
     assert sorted(f.label for f in template.fields) == ["Name", "Note"]  # the in-flight step's ops are kept
     assert factory.providers[0].closed
@@ -305,7 +328,7 @@ def test_running_out_of_budget_is_an_error_with_the_partial_template(start_demo_
     job_id = start(base, kind="build", doc=open_doc(base), schema=SCHEMA)
     body = wait_ended(base, job_id)
     assert body["status"] == "error" and "budget" in body["error"]
-    assert len(body["steps"]) == 40
+    assert len(body["steps"]) == 41  # the page pass's event and 40 agent steps
     assert [f.label for f in Template.model_validate(body["template"]).fields] == ["Name"]
 
 
@@ -616,3 +639,58 @@ def test_a_cancel_during_the_form_map_build_ends_cancelled_without_a_model_call(
         if kind == "revise":
             assert body["template"]["template_id"] == template["template_id"]
     assert called == []
+
+
+# ------------------------------------------------------------------ the page pass in a build job
+
+
+def fillable_pdf() -> bytes:
+    doc = pymupdf.open()
+    page = doc.new_page(width=200, height=300)
+    page.insert_text((20, 40), "Name")
+    widget = pymupdf.Widget()
+    widget.field_name, widget.field_type = "applicant", pymupdf.PDF_WIDGET_TYPE_TEXT
+    widget.rect = pymupdf.Rect(60, 30, 150, 45)
+    page.add_widget(widget)
+    out = doc.tobytes()
+    doc.close()
+    return out
+
+
+def page_answer(box: str = "w0_0") -> LLMResponse:
+    text = json.dumps({"mappings": [{"id": box, "source": {"paths": ["name"]}}], "tables": []})
+    return LLMResponse(text=text, tool_calls=[], usage=Usage(input_tokens=500, output_tokens=20), raw={})
+
+
+def test_a_build_job_runs_a_page_pass_that_maps_the_boxes_before_the_agent(start_demo_server):
+    factory = Factory([finish("checked")], pages=[[page_answer()]])
+    base = start_demo_server(provider_factory=factory)
+    body = wait_ended(base, start(base, kind="build", doc=open_doc(base, fillable_pdf()), schema=SCHEMA))
+    assert body["status"] == "done", body
+    provider = factory.providers[0]
+    assert provider.tools[0] == [] and provider.tools[1] != []  # one page-pass call, then the agent
+    step0 = body["steps"][0]
+    assert (step0["step"], step0["summary"], step0["ops_applied"], step0["unmapped_paths"]) == (0, "page pass", 1, 0)
+    assert (step0["input_tokens"], step0["output_tokens"]) == (500, 20)
+    assert [s["step"] for s in body["steps"]] == [0, 1]
+    first = provider.calls[1][1].content
+    assert any("PAGE PASS:" in getattr(p, "text", "") for p in first)  # the agent is told the pass mapped the boxes
+    template = Template.model_validate(body["template"])
+    assert [(f.id, f.source.paths) for f in template.fields] == [("w0_0", ["name"])]
+    assert template.history[-1].note == "page pass p0"
+
+
+def test_a_cancel_during_the_page_pass_ends_cancelled_with_its_template_and_no_agent_call(start_demo_server):
+    gate = Gate()
+    factory = Factory([finish("never")], pages=[[gate, page_answer()]])
+    base = start_demo_server(provider_factory=factory)
+    job_id = start(base, kind="build", doc=open_doc(base, fillable_pdf()), schema=SCHEMA)
+    assert gate.reached.wait(10)  # the page-pass call is in flight
+    post(base, f"/api/jobs/{job_id}/cancel")
+    gate.release()
+    body = wait_ended(base, job_id)
+    assert body["status"] == "cancelled" and body["summary"] == "cancelled" and body["error"] is None
+    assert [s["step"] for s in body["steps"]] == [0]
+    template = Template.model_validate(body["template"])
+    assert [(f.id, f.source.paths) for f in template.fields] == [("w0_0", ["name"])]
+    assert factory.providers[0].tools == [[]] and factory.providers[0].closed  # the agent was never asked

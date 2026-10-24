@@ -706,7 +706,9 @@ def test_build_template_with_no_boxes_sends_text_only(flat_form_pdf):
     result = build_template(SCHEMA, flat_form_pdf, provider, form_map=fm, seed_candidates=False)
     assert result.finished and provider.page_calls == []  # no boxes: nothing for the page pass
     first = provider.calls[0][1].content
-    assert isinstance(first, str) and prompts.PAGE_PASS_NOTE in first and "images above" not in first
+    assert isinstance(first, str) and "images above" not in first
+    # no page answered, so the agent starts as from a fresh template, not "after a page pass"
+    assert prompts.PAGE_PASS_NOTE not in first and "STARTING TEMPLATE: empty" in first
 
 
 def test_build_template_agent_false_stops_after_page_pass(flat_form_pdf):
@@ -802,3 +804,101 @@ def test_config_llm_uses_one_provider_and_closes_it(flat_form_pdf, monkeypatch):
     assert result.finished
     assert len(made) == 1 and made[0].close_count == 1
     assert len(made[0].page_calls) == 1 and len(made[0].calls) == 1
+
+
+# --- final review: a page pass that mapped nothing, the page-pass progress event ----------------
+
+
+class FailingPagePassProvider(PagePassProvider):
+    """Every page-pass call fails; agent calls come from the script."""
+
+    def complete(self, messages, tools, **kwargs):
+        if tools == []:
+            self.page_calls.append(messages)
+            raise RuntimeError("vision endpoint down")
+        return super().complete(messages, tools, **kwargs)
+
+
+def test_a_page_pass_where_no_page_succeeded_starts_the_agent_as_from_a_fresh_template(flat_form_pdf):
+    fm = _flat_map(flat_form_pdf)
+    provider = FailingPagePassProvider([finish("d", NONE_PLACEABLE)])
+    result = build_template(SCHEMA, flat_form_pdf, provider, form_map=fm)
+    assert len(provider.page_calls) == 1 and [o.status for o in result.page_pass.pages] == ["error"]
+    first = provider.calls[0][1].content
+    assert [type(p) for p in first] == [TextPart, TextPart, ImagePart, TextPart]  # the images are still sent
+    text = first[-1].text
+    assert prompts.PAGE_PASS_NOTE not in text
+    assert prompts.starting_note(new_template(SCHEMA, fm, candidates=True)) in text
+    assert text == _first_text(fm, new_template(SCHEMA, fm, candidates=True), fresh=True)
+    assert result.finished and [f.id for f in result.template.fields] == ["c0_0", "c0_1"]
+
+
+def test_seed_candidates_false_still_applies_when_no_page_succeeded(flat_form_pdf):
+    fm = _flat_map(flat_form_pdf)
+    provider = FailingPagePassProvider([finish("d", NONE_PLACEABLE)])
+    result = build_template(SCHEMA, flat_form_pdf, provider, form_map=fm, seed_candidates=False)
+    assert result.finished and result.template.fields == []
+
+
+def test_on_step_gets_one_page_pass_event_before_the_agent_steps(flat_form_pdf):
+    from formcast.agent.session import StepEvent
+
+    fm = _flat_map(flat_form_pdf)
+    events: list[StepEvent] = []
+    provider = PagePassProvider([finish("d", DATE_UNPLACEABLE)])
+    build_template(SCHEMA, flat_form_pdf, provider, form_map=fm, on_step=events.append)
+    assert [e.step for e in events] == [0, 1]
+    assert events[0] == StepEvent(
+        step=0, ops_applied=1, ops_rejected=0, unmapped_paths=1, unfilled_blanks=0,
+        input_tokens=PAGE_USAGE.input_tokens, output_tokens=PAGE_USAGE.output_tokens, finished=False,
+        summary="page pass",
+    )  # fmt: skip
+    assert events[1].finished
+
+
+def test_page_pass_event_counts_rejected_ops(flat_form_pdf):
+    fm = _flat_map(flat_form_pdf)
+    events = []
+    bad = json.dumps({"mappings": [{"id": "c0_0", "source": {"paths": ["nope"]}}]})
+    provider = PagePassProvider([], page_answer=bad)
+    build_template(SCHEMA, flat_form_pdf, provider, form_map=fm, agent=False, on_step=events.append)
+    (event,) = events
+    assert (event.ops_applied, event.ops_rejected, event.unmapped_paths, event.finished) == (0, 1, 2, True)
+
+
+def test_cancelling_at_the_page_pass_event_stops_before_the_agent(flat_form_pdf):
+    from formcast.errors import SessionCancelled
+
+    def cancel(event):
+        raise SessionCancelled("cancelled")
+
+    fm = _flat_map(flat_form_pdf)
+    provider = PagePassProvider([finish("never")])
+    result = build_template(SCHEMA, flat_form_pdf, provider, form_map=fm, on_step=cancel)
+    assert provider.calls == [] and len(provider.page_calls) == 1  # the agent was never asked
+    assert (result.stop_reason, result.summary, result.finished, result.steps) == ("cancelled", "cancelled", False, [])
+    assert result.page_pass is not None and result.template is result.page_pass.template
+    assert result.template.fields[0].source.paths == ["name"]
+    assert result.usage == PAGE_USAGE
+    assert provider.close_count == 0  # the caller's provider stays open
+
+
+def test_cancelling_at_the_page_pass_event_closes_an_owned_provider(flat_form_pdf, monkeypatch):
+    from formcast.errors import SessionCancelled
+    from formcast.pagepass import run as run_mod
+
+    made: list[PagePassProvider] = []
+
+    def fake_make(cfg):
+        made.append(PagePassProvider([finish("never")]))
+        return made[-1]
+
+    def cancel(event):
+        raise SessionCancelled("cancelled")
+
+    for mod in (agent_api, session_mod, run_mod):
+        monkeypatch.setattr(mod, "make_provider", fake_make)
+    cfg = LLMConfig(base_url="http://x", api_key="k", model="m")
+    result = build_template(SCHEMA, flat_form_pdf, cfg, form_map=_flat_map(flat_form_pdf), on_step=cancel)
+    assert result.stop_reason == "cancelled" and len(made) == 1 and made[0].close_count == 1
+    assert made[0].calls == [] and len(made[0].page_calls) == 1

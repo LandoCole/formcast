@@ -1026,6 +1026,20 @@ def test_mupdf_work_runs_under_the_process_wide_lock(monkeypatch):
     assert hasattr(documents_mod.PYMUPDF_LOCK.real, "acquire")
 
 
+def test_the_server_mupdf_lock_is_the_library_one_so_page_pass_renders_wait_for_server_work():
+    from formcast.pagemap import extract
+    from formcast.pagepass.marks import render_marked_page
+
+    assert documents_mod.PYMUPDF_LOCK is extract.PDF_LOCK
+    done = threading.Event()
+    with documents_mod.PYMUPDF_LOCK:  # e.g. a form-map build on another thread
+        worker = threading.Thread(target=lambda: render_marked_page(small_pdf(), 0, []) and done.set())
+        worker.start()
+        assert not done.wait(0.3)
+    worker.join(10)
+    assert done.is_set()
+
+
 def test_renders_of_different_documents_do_not_overlap_inside_mupdf(monkeypatch):
     inside, peak = [0], [0]
     guard = threading.Lock()
