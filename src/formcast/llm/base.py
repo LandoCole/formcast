@@ -21,6 +21,8 @@ _VISION_HINT = (
     " (the model or endpoint may not accept images: "
     "pass vision=False to build without page images)"
 )
+# 4xx statuses that say nothing about the request's content (a timeout, a rate limit): no vision hint.
+_NO_HINT_STATUSES = frozenset({408, 429})
 
 # Indirection so tests can monkeypatch the backoff sleep (or pass `sleep=` to
 # make_provider) without waiting.
@@ -153,7 +155,7 @@ class HTTPProvider:
         """POST `body` as JSON, retrying 429/5xx and transport errors with backoff.
 
         `timeout_s` overrides the config timeout for this call; `images` marks a
-        request carrying image parts so a 4xx can suggest `vision=False`.
+        request carrying image parts so a 4xx (not 408 or 429) can suggest `vision=False`.
         """
         url = self._url(path)
         timeout = self.cfg.timeout_s if timeout_s is None else timeout_s
@@ -176,7 +178,8 @@ class HTTPProvider:
                 self._wait(attempt, response)
                 continue
             if response.status_code >= 400:
-                hint = _VISION_HINT if images and response.status_code < 500 else ""
+                code = response.status_code
+                hint = _VISION_HINT if images and code < 500 and code not in _NO_HINT_STATUSES else ""
                 raise FormcastError(
                     f"LLM request to {url} failed with HTTP {response.status_code}: "
                     f"{self._excerpt(response.text)}{hint}"

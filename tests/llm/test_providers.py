@@ -664,6 +664,15 @@ def test_http_400_on_a_request_with_images_suggests_vision_false(fmt, no_sleep):
     assert "vision=False" not in str(exc.value)
 
 
+@pytest.mark.parametrize("status", [408, 429])
+def test_a_timeout_or_rate_limit_on_a_request_with_images_gives_no_vision_hint(status, no_sleep):
+    rec = Recorder(httpx.Response(status, text="slow down"))
+    p = make_provider(cfg(), transport=rec.transport)
+    with pytest.raises(FormcastError, match=f"HTTP {status}") as exc:
+        p.complete([image_message()], [])
+    assert "vision=False" not in str(exc.value)
+
+
 # ---- real round trip --------------------------------------------------------
 
 
