@@ -37,6 +37,9 @@ Rules:
   the same blanks): one table per printed line of the block, all with the same list path, each with
   one row per record block, in record order. Every printed line of a record block that has boxes gets
   its own table; a block is done only when every line with boxes for that record is in a table.
+  A record value split over several boxes on one printed line (an area code and a number, a month and
+  a year) gets one table per part, all with the same list path and column key, each column with the
+  transform that picks its part (slice, date_part).
 
 Reply with one JSON object and nothing else:
 {"mappings": [{"id": "<box id>", "source": {"paths": ["a.b"], "transforms": [{"op": "...", "args": {...}}],

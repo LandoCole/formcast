@@ -66,3 +66,12 @@ def test_note_names_full_ids_when_marks_fell_back_to_them():
     _, user = page_messages(template, FormMap(pages=[_page(0)]), 0, b"png", marks)
     assert user.content[1].text == IMAGE_NOTE_FULL_IDS.format(example="a box marked w0_3 is w0_3")
     assert "after the underscore" not in user.content[1].text
+
+
+def test_system_prompt_has_split_value_rule():
+    sentence = (
+        "A record value split over several boxes on one printed line (an area code and a number, a month "
+        "and a year) gets one table per part, all with the same list path and column key, each column with "
+        "the transform that picks its part (slice, date_part)."
+    )
+    assert sentence in " ".join(SYSTEM_PROMPT.split())
