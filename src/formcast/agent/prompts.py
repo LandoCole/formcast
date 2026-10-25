@@ -9,7 +9,9 @@ from __future__ import annotations
 import inspect
 
 from formcast.geometry import Rect, intersect
+from formcast.llm import ContentPart, ImagePart, TextPart
 from formcast.pagemap.query import FormMapQuery
+from formcast.pagepass.marks import marks_for
 from formcast.schema import SchemaPath
 from formcast.template.model import Field, Template
 from formcast.template.op_models import OP_NAMES
@@ -230,6 +232,53 @@ def starting_note(template: Template) -> str:
     )
 
 
+PAGE_PASS_NOTE = (
+    "PAGE PASS: a page pass has already mapped the boxes, one page at a time, from images of the pages. "
+    "Your job now: check its work (against the page images, when this session has them); map the schema "
+    "paths still unmapped; add a box for each blank that has none; split a box that holds several answers "
+    "into one box per answer; and make sure every printed line of a record block is in a table. Keep the "
+    "page pass's mappings unless you can show one is wrong. The page pass could only map the boxes it was "
+    "given, so two kinds of work are left to you: (1) where it put several schema paths into one long box "
+    "but the form prints a separate label or column for each part (an address line with a label under "
+    "each part, say), split that box into one box per label and give each its own path; (2) a schema "
+    "path the step report lists as unmapped often marks a blank with no box yet: find it on the page and "
+    "add a box for it. Check the first rows of each table too: a heading-row box taken as row 1 shifts "
+    "every record by one row."
+)
+VISION_NOTE = (
+    "PAGE IMAGES: this session also has an image of each page with boxes, below, so here you can see "
+    "the page: this replaces what the system prompt says about not seeing the page image. Each field box "
+    "is outlined in the colour of its type: blue a text box, green a checkbox, teal a radio option, "
+    "purple a signature, red any remaining type. The tag drawn inside a box's top-left corner (or just left "
+    "of a small box) is its mark, which names the field: each page's line says how."
+)
+
+
+def _marks_line(fields: list[Field]) -> str:
+    """How the marks on one page name its fields: an example mark and id, or full ids."""
+    marks = marks_for(fields)
+    example = next((f for f in fields if marks[f.id] != f.id), None)
+    if example is None:
+        return "boxes are tagged with their full ids"
+    return f"a box marked {marks[example.id]} is {example.id}"
+
+
+def page_image_parts(images: list[tuple[int, bytes]], template: Template) -> list[ContentPart]:
+    """:data:`VISION_NOTE`, then for each (page, PNG) pair a ``PAGE <n>`` line and the image.
+
+    ``template`` is the one the images were drawn from: its boxes on each page say how the marks read.
+    """
+    if not images:
+        return []
+    parts: list[ContentPart] = [TextPart(VISION_NOTE)]
+    for n, png in images:
+        fields = [f for f in template.fields if f.page == n and f.rect is not None]
+        line = f"PAGE {n}: marked image (boxes as at the start of this session); {_marks_line(fields)}"
+        parts.append(TextPart(line))
+        parts.append(ImagePart(png))
+    return parts
+
+
 def first_user_message(
     summary_text: str,
     schema_paths: list[SchemaPath],
@@ -238,12 +287,15 @@ def first_user_message(
     *,
     template: Template | None = None,
     fresh: bool = False,
+    after_page_pass: bool = False,
     api_reference: str | None = None,
 ) -> str:
     """The opening user message: task, schema paths, optional instruction/region, form map.
 
     ``template`` is the starting template. A ``fresh`` one (seeded with a field per
     widget and candidate) gets a one-paragraph note; otherwise its fields are listed.
+    With ``after_page_pass`` (a page pass mapped the template) :data:`PAGE_PASS_NOTE`
+    comes before the listing.
     """
     parts: list[str] = []
     if instruction:
@@ -262,7 +314,10 @@ def first_user_message(
         )
         if template is not None:
             parts.append(_region_fields(template, page, rect))
-    if template is not None and fresh:
+    if template is not None and after_page_pass:
+        parts.append(PAGE_PASS_NOTE)
+        parts.append(_template_note(template))
+    elif template is not None and fresh:
         parts.append(starting_note(template))
     elif template is not None and template.fields:
         parts.append(_template_note(template))

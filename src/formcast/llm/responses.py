@@ -2,9 +2,32 @@
 
 from __future__ import annotations
 
+import base64
+
 from formcast.errors import FormcastError
-from formcast.llm.base import HTTPProvider, make_tool_call, wire_arguments
-from formcast.llm.types import LLMResponse, Message, ToolSpec, Usage
+from formcast.llm.base import HTTPProvider, has_images, make_tool_call, wire_arguments
+from formcast.llm.types import (
+    ImagePart,
+    LLMResponse,
+    Message,
+    TextPart,
+    ToolSpec,
+    Usage,
+    content_text,
+)
+
+
+def _content_to_wire(content: str | list) -> str | list[dict]:
+    if isinstance(content, str):
+        return content
+    wire: list[dict] = []
+    for part in content:
+        if isinstance(part, TextPart):
+            wire.append({"type": "input_text", "text": part.text})
+        elif isinstance(part, ImagePart):
+            url = f"data:{part.media_type};base64,{base64.b64encode(part.data).decode()}"
+            wire.append({"type": "input_image", "image_url": url})
+    return wire
 
 
 def _input_items(messages: list[Message]) -> tuple[str | None, list[dict]]:
@@ -13,10 +36,14 @@ def _input_items(messages: list[Message]) -> tuple[str | None, list[dict]]:
     items: list[dict] = []
     for m in messages:
         if m.role == "system":
-            instructions.append(m.content)
+            instructions.append(content_text(m.content))
         elif m.role == "tool":
             items.append(
-                {"type": "function_call_output", "call_id": m.tool_call_id, "output": m.content}
+                {
+                    "type": "function_call_output",
+                    "call_id": m.tool_call_id,
+                    "output": content_text(m.content),
+                }
             )
         elif m.role == "assistant" and m.provider_items:
             # Echo the provider's own output items verbatim: reasoning items must
@@ -24,7 +51,7 @@ def _input_items(messages: list[Message]) -> tuple[str | None, list[dict]]:
             items.extend(m.provider_items)
         elif m.role == "assistant":
             if m.content:
-                items.append({"role": "assistant", "content": m.content})
+                items.append({"role": "assistant", "content": content_text(m.content)})
             for c in m.tool_calls:
                 items.append(
                     {
@@ -35,18 +62,25 @@ def _input_items(messages: list[Message]) -> tuple[str | None, list[dict]]:
                     }
                 )
         else:
-            items.append({"role": m.role, "content": m.content})
+            items.append({"role": m.role, "content": _content_to_wire(m.content)})
     return ("\n\n".join(instructions) or None), items
 
 
 class ResponsesProvider(HTTPProvider):
-    def complete(self, messages: list[Message], tools: list[ToolSpec]) -> LLMResponse:
+    def complete(
+        self,
+        messages: list[Message],
+        tools: list[ToolSpec],
+        *,
+        max_output_tokens: int | None = None,
+        timeout_s: float | None = None,
+    ) -> LLMResponse:
         cfg = self.cfg
         instructions, items = _input_items(messages)
         body: dict = {
             "model": cfg.model,
             "input": items,
-            "max_output_tokens": cfg.max_output_tokens,
+            "max_output_tokens": cfg.max_output_tokens if max_output_tokens is None else max_output_tokens,
         }
         if instructions:
             body["instructions"] = instructions
@@ -65,7 +99,7 @@ class ResponsesProvider(HTTPProvider):
         if cfg.reasoning_effort is not None:
             body["reasoning"] = {"effort": cfg.reasoning_effort}
 
-        raw = self.post_json("responses", body)
+        raw = self.post_json("responses", body, timeout_s=timeout_s, images=has_images(messages))
         if raw.get("status") == "failed":
             error = raw.get("error") or {}
             raise FormcastError(f"responses call failed: {self.redact(str(error.get('message') or raw))[:300]}")

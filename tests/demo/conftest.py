@@ -7,7 +7,8 @@ is reachable as ``{server}/demo/web/...`` exactly as the demo is served in use. 
 ``demo_server`` is the workbench server (``demo.server``) on an ephemeral port, over a throwaway copy of
 ``demo/data`` so nothing a test saves reaches the repository. The copy leaves out ``demo/data/local/`` (the
 templates a developer saved in the workbench), so every test sees the shipped data only. ``start_demo_server(**kw)`` starts another
-one with different settings, a provider factory, a store or records.
+one with different settings, a provider factory, a store or records. ``text_only_agent`` makes AI jobs run the
+agent with ``vision=False``.
 """
 
 from __future__ import annotations
@@ -27,6 +28,15 @@ DEMO_DATA = ROOT / "demo" / "data"
 def copy_demo_data(src: Path, dst: Path) -> None:
     """Copy the demo data folder ``src`` to ``dst``, without its ``local/`` folder (a developer's own saves)."""
     shutil.copytree(src, dst, ignore=lambda folder, names: ["local"] if Path(folder) == Path(src) and "local" in names else [])
+
+
+@pytest.fixture
+def text_only_agent(monkeypatch):
+    """AI jobs run the agent with ``vision=False``: for tests that read its first message as text."""
+    from demo.server import jobs as jobs_mod
+
+    monkeypatch.setattr(jobs_mod, "build_template", partial(jobs_mod.build_template, vision=False))
+    monkeypatch.setattr(jobs_mod, "revise", partial(jobs_mod.revise, vision=False))
 
 
 @pytest.fixture

@@ -51,6 +51,13 @@ Usage:
     python eval/agent_eval.py --split dev --model-env ANTHROPIC_EVAL,OPENAI_EVAL
         [--forms id,...] [--variant as_published|fake_scan|both] [--jobs 3]
         [--stamp YYYY-MM-DD] [--tag round1] [--max-steps N]
+        [--pipeline agent|pages|pages+agent] [--max-usd USD]
+
+``--pipeline`` picks what builds the template: ``agent`` (the default, today's run: the agent alone on
+text), ``pages`` (the vision page pass only, no agent) or ``pages+agent`` (the page pass, then the agent).
+The pipeline is appended to the run name, so result files and directories carry it. ``--max-usd`` is a
+soft spend cap: once the finished rows' cost (``PRICES``) passes it, no further session is started and
+the remaining ones get rows with ``error="skipped: spend limit"``; sessions already running finish.
 
 No-model modes (no API calls):
     python eval/agent_eval.py --split dev|heldout --seed-only [--forms ...] [--variant ...] [--tag ...]
@@ -77,7 +84,8 @@ import time
 import traceback
 import zlib
 from collections.abc import Iterable
-from concurrent.futures import ProcessPoolExecutor
+from collections import deque
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, wait
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -92,7 +100,7 @@ import baseline_detection  # noqa: E402
 import fill_score  # noqa: E402
 import probe  # noqa: E402
 import score  # noqa: E402
-from formcast.llm import LLMConfig, LLMResponse, Message, ToolSpec, make_provider  # noqa: E402
+from formcast.llm import LLMConfig, LLMResponse, Message, ToolSpec, content_text, make_provider  # noqa: E402
 from formcast.pagemap.extract import open_pdf  # noqa: E402
 from formcast.pagemap.ocr import render  # noqa: E402
 
@@ -101,6 +109,17 @@ RESULTS = ROOT / "eval" / "results"
 # The saved templates are committed as one archive (the directory itself is git-ignored).
 TEMPLATES_ARCHIVE = RESULTS / "templates.tar.gz"
 ENV_PATH = ROOT / ".env"
+
+
+def env_fallback(root: Path) -> Path | None:
+    """The main checkout's ``.env`` for a worktree ``root`` (<main checkout>/.claude/worktrees/<name>).
+
+    ``None`` when ``root`` is too close to the filesystem root to be one.
+    """
+    return root.parents[2] / ".env" if len(root.parents) > 2 else None
+
+
+ENV_FALLBACK = env_fallback(ROOT)
 DPI = baseline_detection.DPI
 IOUS = (0.3, 0.5)
 IOU_KEYS = tuple(f"iou{t}" for t in IOUS)
@@ -108,6 +127,10 @@ VARIANTS = ("as_published", "fake_scan")
 PREVIEW_DPI = 110
 GT_COLOR = (0, 170, 0)
 DEFAULT_BASELINE_STAMP = "2026-10-21"
+# What builds the template: the agent alone (today's run), the page pass alone, or both.
+PIPELINES = ("agent", "pages", "pages+agent")
+# USD per million input / output tokens, by model name; a model not listed has no spend guard.
+PRICES = {"claude-haiku-5-5": (0.10, 0.50)}
 
 # The agent sees the form map's source name in its summary; in the eval every input gets the
 # same neutral name so the file name (a form id) cannot cue prior knowledge of a public form.
@@ -138,6 +161,8 @@ NOTES = [
     "harness) are listed in the per-form table but excluded from the totals' detection and mapping figures; "
     "their templates are partial or untouched seeds.",
     f"The agent's form map carries the neutral source name {ANON_SOURCE_NAME!r}, not the file name.",
+    "mapping_reachable: path/joint accuracy over GT fields that some seeded box (widget or detector candidate, "
+    "before any edit) overlaps at IoU >= 0.3 — what a mapping-only step can reach.",
     "fill (fill_acc): the template is filled (formcast fill, real form fields) into the variant's PDF with K "
     "distinctive probe records (eval/probe.py), and every GT box with a path is checked for what its widget shows: "
     "a text or table-cell box once per record (the exact value; by provenance when GT has transforms), a choice "
@@ -151,8 +176,11 @@ NOTES = [
 # ---------- secrets ----------
 
 
-def load_eval_env(prefixes: Iterable[str], path: Path = ENV_PATH) -> list[str]:
+def load_eval_env(prefixes: Iterable[str], path: Path | None = None) -> list[str]:
     """Copy ``<PREFIX>_*`` lines of ``path`` into os.environ (existing values win); returns the names.
+
+    Without ``path`` the repo's ``.env`` is read, or ``ENV_FALLBACK`` (the main checkout's, when run
+    from a worktree) if that is missing.
 
     Only ``*_EVAL`` prefixes are allowed, so nothing but the eval configs is
     ever read from ``.env``. Values are never printed.
@@ -166,6 +194,8 @@ def load_eval_env(prefixes: Iterable[str], path: Path = ENV_PATH) -> list[str]:
         raise ValueError(f"model env prefixes must end in _EVAL, got {bad}")
     wanted = tuple(f"{p}_" for p in prefixes)
     loaded: list[str] = []
+    if path is None:
+        path = ENV_PATH if ENV_PATH.is_file() or ENV_FALLBACK is None else ENV_FALLBACK
     if not path.is_file():
         return loaded
     for line in path.read_text().splitlines():
@@ -213,6 +243,34 @@ def _write(path: Path, text: str, redactor: Redactor) -> None:
 
 def _write_json(path: Path, data, redactor: Redactor) -> None:
     _write(path, json.dumps(redactor.scrub(data), indent=1, default=str), redactor)
+
+
+# ---------- pipelines and spend ----------
+
+
+def pipeline_flags(name: str) -> dict:
+    """``build_template`` keyword flags for a pipeline (``agent`` is today's run: no page pass)."""
+    return {
+        "agent": {"vision": False},
+        "pages": {"vision": True, "agent": False},
+        "pages+agent": {"vision": True},
+    }[name]
+
+
+def run_cost(rows: Iterable[dict]) -> float | None:
+    """USD spent by ``rows`` (their input and output tokens, page pass included, at ``PRICES``).
+
+    None when a row's model has no price. A row without a model (it never got a session) costs nothing.
+    """
+    total = 0.0
+    for r in rows:
+        if "model" not in r:
+            continue
+        price = PRICES.get(r["model"])
+        if price is None:
+            return None
+        total += (r.get("input_tokens") or 0) / 1e6 * price[0] + (r.get("output_tokens") or 0) / 1e6 * price[1]
+    return total
 
 
 # ---------- inputs ----------
@@ -311,6 +369,28 @@ def _mapping_totals(parts: list[dict]) -> dict:
     }
 
 
+def _reach_totals(parts: list[dict]) -> dict | None:
+    """Micro-averaged ``mapping_reachable`` figures (None when no row has one)."""
+    if not parts:
+        return None
+    n, path_ok, joint_ok = (sum(p[k] for p in parts) for k in ("n", "path_ok", "joint_ok"))
+    return {
+        "n": n, "path_ok": path_ok, "joint_ok": joint_ok,
+        "path_acc": round(score._ratio(path_ok, n), 4), "joint_acc": round(score._ratio(joint_ok, n), 4),
+    }  # fmt: skip
+
+
+def reachable_scores(gt: list[score.GTField], t, seed) -> dict:
+    """Path and joint accuracy of ``t`` over the GT fields some box of ``seed`` can reach (IoU >= 0.3)."""
+    reach = score.reachable(gt, seed)
+    verdicts = [v for v, r in zip(score.mapping_verdicts(gt, t), reach) if r]
+    n, path_ok, joint_ok = len(verdicts), sum(p for p, _ in verdicts), sum(j for _, j in verdicts)
+    return {
+        "n": n, "path_ok": path_ok, "joint_ok": joint_ok,
+        "path_acc": round(score._ratio(path_ok, n), 4), "joint_acc": round(score._ratio(joint_ok, n), 4),
+    }  # fmt: skip
+
+
 def _fill_totals(parts: list[dict]) -> dict | None:
     """Micro-averaged fill figures over rows' ``fill`` dicts (None when no row has one)."""
     if not parts:
@@ -335,7 +415,9 @@ def totals(rows: list[dict]) -> dict:
     in an error (``error`` set: cut off by the provider, partial template) count as
     ``failed`` and are left out of the detection, baseline, mapping and fill figures (``fill``
     sums the scored rows that have a fill score: None when none do);
-    ``errored`` lists them as "form/variant". ``baseline`` sums the scored rows that have baseline numbers (None when none do).
+    ``errored`` lists them as "form/variant". ``mapping_reachable`` sums the scored rows that have one
+    (None when none do). Token figures include the page pass (``page_pass_*`` break it out).
+    ``baseline`` sums the scored rows that have baseline numbers (None when none do).
     """
     groups = {"all": rows}
     for v in VARIANTS:
@@ -357,9 +439,13 @@ def totals(rows: list[dict]) -> dict:
             ),
             "mapping": _mapping_totals([r["mapping"] for r in ok]),
             "fill": _fill_totals([r["fill"] for r in ok if r.get("fill")]),
+            "mapping_reachable": _reach_totals([r["mapping_reachable"] for r in ok if r.get("mapping_reachable")]),
             "steps": sum(r.get("steps", 0) for r in rs),
             "input_tokens": sum(r.get("input_tokens", 0) for r in rs),
             "output_tokens": sum(r.get("output_tokens", 0) for r in rs),
+            "page_pass_input_tokens": sum(r.get("page_pass_input_tokens", 0) for r in rs),
+            "page_pass_output_tokens": sum(r.get("page_pass_output_tokens", 0) for r in rs),
+            "page_errors": sum(r.get("page_errors", 0) for r in rs),
             "wall_s": round(sum(r.get("wall_s", 0.0) for r in rs), 1),
         }  # fmt: skip
     return out
@@ -373,21 +459,35 @@ class RecordingProvider:
 
     The session sends the previous reply's tool results (the step report) as
     the messages after the last assistant message, so call ``i + 1`` carries
-    the report for reply ``i``. The caller owns and closes it.
+    the report for reply ``i``. Page-pass calls (no tools; they may come from several threads)
+    are kept apart in ``page_calls`` so ``calls`` and ``reports()`` line up with the session's
+    steps. Images are never stored: ``first_user_message`` is the text view of the first
+    session message. The caller owns and closes it.
     """
 
     def __init__(self, inner):
         self.inner = inner
         self.calls: list[dict] = []
+        self.page_calls: list[dict] = []
         self.first_user_message: str | None = None
 
-    def complete(self, messages: list[Message], tools: list[ToolSpec]) -> LLMResponse:
+    def complete(self, messages: list[Message], tools: list[ToolSpec], **kw) -> LLMResponse:
+        if not tools:
+            started = time.monotonic()
+            response = self.inner.complete(messages, tools, **kw)
+            self.page_calls.append({
+                "text": response.text,
+                "usage": {"input_tokens": response.usage.input_tokens, "output_tokens": response.usage.output_tokens},
+                "seconds": round(time.monotonic() - started, 2),
+            })  # fmt: skip
+            return response
         if self.first_user_message is None:
-            self.first_user_message = next((m.content for m in messages if m.role == "user"), None)
+            first = next((m.content for m in messages if m.role == "user"), None)
+            self.first_user_message = None if first is None else content_text(first)
         last = max((i for i, m in enumerate(messages) if m.role == "assistant"), default=None)
-        feedback = [m.content for m in messages[last + 1 :]] if last is not None else []
+        feedback = [content_text(m.content) for m in messages[last + 1 :]] if last is not None else []
         started = time.monotonic()
-        response = self.inner.complete(messages, tools)
+        response = self.inner.complete(messages, tools, **kw)
         self.calls.append({
             "seconds": round(time.monotonic() - started, 2),
             "feedback": feedback,
@@ -474,11 +574,12 @@ def fill_scores(gt: list[score.GTField], t, form: dict, pdf: str | Path | bytes)
     return {**out, "fill_acc": round(out["fill_acc"], 4)}
 
 
-def score_row(row: dict, t, form: dict, pdf: str | Path | bytes | None = None):
+def score_row(row: dict, t, form: dict, pdf: str | Path | bytes | None = None, seed=None):
     """Fill ``row``'s detection, mapping, fill and scored pages from template ``t``; returns the GT (None without any).
 
     ``pdf`` is the variant's input PDF (default: ``variant_pdf`` of ``row["variant"]``); GT always
-    comes from the original.
+    comes from the original. With ``seed`` (the untouched seeded template) the row also gets
+    ``mapping_reachable``.
     """
     gt = score.load_gt(form, FORMS / form["split"] / f"{form['id']}.pdf")
     if gt:
@@ -486,6 +587,8 @@ def score_row(row: dict, t, form: dict, pdf: str | Path | bytes | None = None):
         row["mapping"] = {
             k: (round(v, 4) if isinstance(v, float) else v) for k, v in score.score_mapping(gt, t).items()
         }
+        if seed is not None:
+            row["mapping_reachable"] = reachable_scores(gt, t, seed)
         row["fill"] = fill_scores(gt, t, form, variant_pdf(form, row["variant"]) if pdf is None else pdf)
         row["scored_pages"] = sorted({g.page for g in gt})
     return gt
@@ -502,6 +605,17 @@ def _draw_gt(png: bytes, page: pymupdf.Page, gt: list[score.GTField]) -> bytes:
     buf = io.BytesIO()
     image.save(buf, format="PNG")
     return buf.getvalue()
+
+
+def _page_pass_log(result) -> list[dict]:
+    """Per page of the page pass: its status, op counts, usage, time and the model's raw answer (no images)."""
+    pp = getattr(result, "page_pass", None)
+    return [
+        {"page": o.page, "status": o.status, "applied": o.applied, "rejected": o.rejected,
+         "usage": {"input_tokens": o.usage.input_tokens, "output_tokens": o.usage.output_tokens},
+         "seconds": round(o.seconds, 2), "text": o.text, "error": o.error}
+        for o in (pp.pages if pp else [])
+    ]  # fmt: skip
 
 
 def _step_log(result, recorder: RecordingProvider) -> list[dict]:
@@ -522,12 +636,14 @@ def _step_log(result, recorder: RecordingProvider) -> list[dict]:
 
 
 def run_one(job: dict) -> dict:
-    """One agent session on one form/variant with one model; writes its files and returns its result row."""
+    """One build (``job["pipeline"]``) on one form/variant with one model; writes its files and returns its row."""
     form, variant, prefix = job["form"], job["variant"], job["model_env"]
+    pipeline = job.get("pipeline", "agent")
     redactor = _redactor_for([prefix])
     row: dict = {
         "form": form["id"], "split": form["split"], "kind": form["kind"], "variant": variant,
-        "model_env": prefix, "detection": None, "baseline": job.get("baseline"), "mapping": None,
+        "model_env": prefix, "pipeline": pipeline, "detection": None, "baseline": job.get("baseline"),
+        "mapping": None,
     }  # fmt: skip
     stem = f"{form['id']}_{variant}"
     tag_dir = prefix.lower()
@@ -538,6 +654,7 @@ def run_one(job: dict) -> dict:
         from formcast.pagemap.model import FormMap
         from formcast.schema import flatten_schema
         from formcast.template.coverage import coverage
+        from formcast.template.model import new_template
 
         prep = job["prepared"]
         row.update({k: prep[k] for k in ("formmap_s", "page_kinds", "text_sources", "candidates")})
@@ -549,15 +666,21 @@ def run_one(job: dict) -> dict:
         recorder = RecordingProvider(make_provider(cfg))
         started = time.monotonic()
         try:
-            result = build_template(schema, prep["pdf_path"], recorder, form_map=fm, budget=budget)
+            result = build_template(
+                schema, prep["pdf_path"], recorder, form_map=fm, budget=budget, **pipeline_flags(pipeline)
+            )
         finally:
             recorder.close()
         wall = time.monotonic() - started
         t = result.template
         cov = coverage(t, fm, flatten_schema(schema))
+        pp = getattr(result, "page_pass", None)
         row.update({
             "steps": len(result.steps), "input_tokens": result.usage.input_tokens,
             "output_tokens": result.usage.output_tokens, "wall_s": round(wall, 1),
+            "page_pass_input_tokens": pp.usage.input_tokens if pp else 0,
+            "page_pass_output_tokens": pp.usage.output_tokens if pp else 0,
+            "page_errors": sum(o.status in ("error", "unparsed") for o in pp.pages) if pp else 0,
             "stop_reason": result.stop_reason, "finished": result.finished, "error": result.error,
             "unplaceable": len(result.unplaceable), "fields": len(t.fields),
             "fields_with_source": sum(1 for f in t.fields if f.source and f.source.paths),
@@ -567,17 +690,19 @@ def run_one(job: dict) -> dict:
         template_path = Path(job["templates_dir"]) / tag_dir / f"{stem}.json"
         _write(template_path, t.to_json(), redactor)
         row["template_path"] = str(template_path.relative_to(ROOT))
+        row["formmap_path"] = str(Path(prep["formmap_path"]).relative_to(ROOT))
         # the session's log is written before scoring, so a scorer failure can't lose it
         _write_json(log_path, {
             "form": form["id"], "variant": variant, "model_env": prefix, "model": cfg.model,
             "stop_reason": result.stop_reason, "error": result.error, "summary": result.summary,
             "unplaceable": result.unplaceable,
             "usage": {"input_tokens": result.usage.input_tokens, "output_tokens": result.usage.output_tokens},
-            "first_user_message": recorder.first_user_message, "steps": _step_log(result, recorder),
+            "pipeline": pipeline, "first_user_message": recorder.first_user_message,
+            "page_pass": _page_pass_log(result), "steps": _step_log(result, recorder),
         }, redactor)  # fmt: skip
         row["log_path"] = str(log_path.relative_to(ROOT))
 
-        gt = score_row(row, t, form, prep["pdf_path"])
+        gt = score_row(row, t, form, prep["pdf_path"], seed=new_template(schema, fm, candidates=True))
 
         overlay_dir = Path(job["overlays_dir"]) / tag_dir
         overlay_dir.mkdir(parents=True, exist_ok=True)
@@ -610,7 +735,8 @@ def _det_cell(d: dict | None) -> tuple[str, str, str]:
 
 
 def render_markdown(meta: dict, rows: list[dict], tot: dict) -> str:
-    title = f"# Agent eval: {meta['model']} ({meta['model_env']}), {meta['split']}, {meta['run']}"
+    title = (f"# Agent eval: {meta['model']} ({meta['model_env']}), {meta['split']}, {meta['run']}, "
+             f"pipeline {meta.get('pipeline', 'agent')}")
     lines = [
         title, "",
         f"- model: `{meta['model']}` via `{meta['api_format']}`; tag: {meta['tag'] or '–'}; "
@@ -644,24 +770,33 @@ def render_markdown(meta: dict, rows: list[dict], tot: dict) -> str:
     lines += [
         "", "## Totals (micro-averaged)", "",
         "| variant | forms (failed) | finished | GT | boxes | recall@.3 (.5) | precision@.3 | type acc | "
-        "baseline recall@.3 (.5) | baseline precision@.3 | path | transform | joint | fill | exact | steps | "
-        "tokens in / out | wall s |",
-        "|" + "---|" * 18,
+        "baseline recall@.3 (.5) | baseline precision@.3 | path | transform | joint | fill | exact | "
+        "reachable path (joint) | steps | tokens in / out | wall s |",
+        "|" + "---|" * 19,
     ]  # fmt: skip
     for name, t in tot.items():
         d, m, b = t["detection"], t["mapping"], t["baseline"]
         rec, prec, tacc = _det_cell(d) if t["forms"] else ("–", "–", "–")
         brec, bprec, _ = _det_cell(b)
+        reach = t.get("mapping_reachable")
+        reach_cell = f"{_pct(reach['path_acc'])} ({_pct(reach['joint_acc'])})" if reach else "–"
         lines.append(
             f"| {name} | {t['forms']} ({t['failed']}) | {t['finished']} | {d['iou0.3']['gt']} | {d['iou0.3']['pred']} | "
             f"{rec} | {prec} | {tacc} | {brec} | {bprec} | {_pct(m['path_acc'])} | {_pct(m['transform_acc'])} | "
             f"{_pct(m['joint_acc'])} | {_pct((t.get('fill') or {}).get('fill_acc'))} | "
-            f"{_pct(m['exact_path_set_acc'])} | {t['steps']} | "
+            f"{_pct(m['exact_path_set_acc'])} | {reach_cell} | {t['steps']} | "
             f"{t['input_tokens']:,} / {t['output_tokens']:,} | {t['wall_s']:.0f} |"
         )
+    all_ = tot.get("all") or {}
+    if all_.get("page_pass_input_tokens") or all_.get("page_pass_output_tokens") or all_.get("page_errors"):
+        lines += ["", f"Page pass: {all_['page_pass_input_tokens']:,} in / {all_['page_pass_output_tokens']:,} out "
+                      f"tokens (included in the totals above), {all_['page_errors']} page(s) with an error or "
+                      "unparsed answer."]
+    if meta.get("cost_usd") is not None:
+        lines += ["", f"Cost at the built-in prices: ${meta['cost_usd']:.2f}."]
     errored = tot["all"].get("errored") if "all" in tot else None
     if errored:
-        lines += ["", f"Excluded from the totals above (session ended in an error): {', '.join(errored)}."]
+        lines += ["", f"Excluded from the totals above (session ended in an error or skipped): {', '.join(errored)}."]
     if meta.get("rescored"):
         lines += ["", f"Re-scored: {meta['rescored']}"]
     return "\n".join(lines) + "\n"
@@ -702,6 +837,12 @@ def parse_args(argv=None) -> argparse.Namespace:
     ap.add_argument("--tag", default=None, help="free-text run label, recorded and appended to file names")
     ap.add_argument("--max-steps", type=int, default=None, help="override SessionBudget.max_steps")
     ap.add_argument("--baseline-stamp", default=DEFAULT_BASELINE_STAMP)
+    ap.add_argument("--pipeline", choices=PIPELINES, default="agent",
+                    help="agent: the agent alone (today's run); pages: the vision page pass only; "
+                         "pages+agent: the page pass, then the agent")  # fmt: skip
+    ap.add_argument("--max-usd", type=float, default=None,
+                    help="soft spend cap in USD: once finished rows cost more, remaining sessions are skipped "
+                         "(needs a price in PRICES for the model)")  # fmt: skip
     args = ap.parse_args(argv)
     args.model_env = _split_list(args.model_env)
     if args.rescore and args.seed_only:
@@ -712,6 +853,8 @@ def parse_args(argv=None) -> argparse.Namespace:
         ap.error("--model-env is required (or use --seed-only / --rescore)")
     if args.jobs < 1:
         ap.error("--jobs must be at least 1")
+    if args.max_usd is not None and args.max_usd <= 0:
+        ap.error("--max-usd must be positive")
     return args
 
 
@@ -746,6 +889,24 @@ def _load_baseline_rows(stamp: str) -> tuple[Path, list[dict]]:
     return path, rows
 
 
+def _seed_template(row: dict, form: dict, schema: dict):
+    """The untouched seeded template (``mapping_reachable``'s reference) on the form map the row's run used.
+
+    The map comes from the run's saved file when the row has its path (rows of this version on), otherwise
+    it is rebuilt from the variant's PDF.
+    """
+    from formcast.pagemap.build import build_form_map
+    from formcast.pagemap.model import FormMap
+    from formcast.template.model import new_template
+
+    saved = ROOT / row["formmap_path"] if row.get("formmap_path") else None
+    if saved is not None and saved.is_file():
+        fm = FormMap.model_validate_json(saved.read_text())
+    else:
+        fm = anonymized(build_form_map(variant_pdf(form, row["variant"])))
+    return new_template(schema, fm, candidates=True)
+
+
 def rescore_main(args) -> None:
     """Re-score the saved templates of a results file in place (no model, no API calls)."""
     from formcast.template.model import Template
@@ -766,6 +927,7 @@ def rescore_main(args) -> None:
     baseline_file, baseline_rows = _load_baseline_rows(args.baseline_stamp)
     manifest = {f["id"]: f for f in json.loads((FORMS / "manifest.json").read_text())["forms"]}
     done = 0
+    schemas: dict[str, dict] = {}
     for r in rows:
         tp = r.get("template_path")
         if not tp or not (ROOT / tp).is_file():
@@ -775,7 +937,8 @@ def rescore_main(args) -> None:
         r["baseline"] = baseline_scores(baseline_rows, form["id"], r["variant"],
                                         baseline_detector(form["kind"], r["variant"]))
         r["detection"] = r["mapping"] = r["fill"] = None
-        score_row(r, Template.from_json((ROOT / tp).read_text()), form)
+        schema = schemas.setdefault(form["id"], json.loads((FORMS / "schemas" / f"{form['id']}.json").read_text()))
+        score_row(r, Template.from_json((ROOT / tp).read_text()), form, seed=_seed_template(r, form, schema))
         done += 1
     tot = totals(rows)
     meta.update({
@@ -823,7 +986,7 @@ def seed_main(args) -> None:
         }  # fmt: skip
         t = new_template(schema, fm, candidates=True)
         row["fields"] = len(t.fields)
-        score_row(row, t, f, prep["pdf_path"])
+        score_row(row, t, f, prep["pdf_path"], seed=t)
         rows.append(row)
         d, m = row["detection"]["iou0.3"], row["detection"]["iou0.5"]
         print(f"  {f['id']} {v}: seeded recall@.5={m['recall']} recall@.3={d['recall']} precision@.3={d['precision']} "
@@ -832,7 +995,8 @@ def seed_main(args) -> None:
     meta = {
         "model_env": "SEED", "model": "seed-only (no model; untouched seeded template)", "api_format": "none",
         "split": args.split, "variant": args.variant, "forms": [f["id"] for f in forms], "stamp": stamp,
-        "tag": args.tag, "run": run, "commit": _git_commit(), "budget": {}, "baseline_file": baseline_file.name,
+        "pipeline": "none", "tag": args.tag, "run": run, "commit": _git_commit(), "budget": {},
+        "baseline_file": baseline_file.name,
         "jobs": args.jobs, "argv": sys.argv[1:], "notes": NOTES,
         "finished_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
     }  # fmt: skip
@@ -840,6 +1004,50 @@ def seed_main(args) -> None:
     _write_json(base.with_suffix(".json"), {"meta": meta, "rows": rows, "totals": tot}, Redactor([]))
     _write(base.with_suffix(".md"), render_markdown(meta, rows, tot), Redactor([]))
     print(f"wrote {base.with_suffix('.json').relative_to(ROOT)} and .md", flush=True)
+
+
+SKIPPED = "skipped: spend limit"
+
+
+def _stub_row(job: dict, error: str) -> dict:
+    """A row for a job that never ran a session (inputs failed to prepare, or skipped by the spend guard)."""
+    form = job["form"]
+    return {"form": form["id"], "split": form["split"], "kind": form["kind"], "variant": job["variant"],
+            "model_env": job["model_env"], "pipeline": job.get("pipeline", "agent"), "detection": None,
+            "mapping": None, "baseline": job["baseline"], "error": error}  # fmt: skip
+
+
+def run_jobs(pool, jobs: list[dict], width: int, max_usd: float | None, run=run_one, on_row=None) -> list[dict]:
+    """Run ``jobs`` on ``pool`` with at most ``width`` in flight; returns the rows in completion order.
+
+    Before a job is submitted, the finished rows' cost (``run_cost``) is checked against ``max_usd``: once it
+    is over, the job and every later one get a row with ``error=SKIPPED`` instead of a session. The cap is
+    soft: sessions already in flight finish. Without a price for a row's model (``run_cost`` is None) nothing
+    is skipped.
+    """
+    pending, inflight, rows = deque(jobs), set(), []
+
+    def add(row: dict) -> None:
+        rows.append(row)
+        if on_row:
+            on_row(row)
+
+    while pending or inflight:
+        while pending and len(inflight) < width:
+            job = pending.popleft()
+            if "error" in job["prepared"]:
+                add(_stub_row(job, job["prepared"]["error"]))
+                continue
+            spent = run_cost(rows) if max_usd is not None else None
+            if spent is not None and spent > max_usd:
+                add(_stub_row(job, SKIPPED))
+                continue
+            inflight.add(pool.submit(run, job))
+        if inflight:
+            finished, inflight = wait(inflight, return_when=FIRST_COMPLETED)
+            for fut in finished:
+                add(fut.result())
+    return rows
 
 
 def main(argv=None) -> None:
@@ -854,8 +1062,12 @@ def main(argv=None) -> None:
     redactor = _redactor_for(args.model_env)
     configs = {p: LLMConfig.from_env(p) for p in args.model_env}  # fail fast on a missing config
 
+    unpriced = [c.model for c in configs.values() if c.model not in PRICES]
+    if args.max_usd is not None and unpriced:
+        print(f"warning: no price for {', '.join(unpriced)}; --max-usd cannot be enforced for it", flush=True)
+
     stamp = args.stamp or dt.date.today().isoformat()
-    run = _run_name(stamp, args.tag)
+    run = _run_name(stamp, f"{args.tag}-{args.pipeline}" if args.tag else args.pipeline)
     manifest = json.loads((FORMS / "manifest.json").read_text())["forms"]
     forms = select_forms(manifest, args.split, args.forms)
     pairs = [(f, v) for f in forms for v in variants_for(f, args.variant)]
@@ -890,30 +1102,26 @@ def main(argv=None) -> None:
             jobs.append({
                 "form": f, "variant": v, "model_env": prefix, "prepared": prepared[(f["id"], v)],
                 "baseline": baseline_scores(baseline_rows, f["id"], v, det), "max_steps": args.max_steps,
-                "run_dir": str(run_dir), "templates_dir": str(templates_dir), "overlays_dir": str(overlays_dir),
+                "pipeline": args.pipeline, "run_dir": str(run_dir), "templates_dir": str(templates_dir),
+                "overlays_dir": str(overlays_dir),
             })  # fmt: skip
-    print(f"running {len(jobs)} sessions with {args.jobs} jobs", flush=True)
-    rows: list[dict] = []
+    print(f"running {len(jobs)} sessions ({args.pipeline}) with {args.jobs} jobs", flush=True)
+
+    def report(row: dict) -> None:
+        d = (row.get("detection") or {}).get("iou0.3") or {}
+        m = row.get("mapping") or {}
+        print(f"  {row['model_env']} {row['form']} {row['variant']}: stop={row.get('stop_reason')} "
+              f"steps={row.get('steps')} recall@.3={d.get('recall')} precision@.3={d.get('precision')} "
+              f"path={m.get('path_acc')} joint={m.get('joint_acc')} fill={(row.get('fill') or {}).get('fill_acc')} "
+              f"tokens={row.get('input_tokens')}/"
+              f"{row.get('output_tokens')} wall={row.get('wall_s')}s"
+              + (f" error={redactor.scrub(row['error'])}" if row.get("error") else ""), flush=True)
+
     with ProcessPoolExecutor(max_workers=args.jobs, mp_context=ctx) as pool:
-        futures = []
-        for job in jobs:
-            if "error" in job["prepared"]:
-                rows.append({"form": job["form"]["id"], "split": job["form"]["split"], "kind": job["form"]["kind"],
-                             "variant": job["variant"], "model_env": job["model_env"], "detection": None,
-                             "mapping": None, "baseline": job["baseline"], "error": job["prepared"]["error"]})
-                continue
-            futures.append(pool.submit(run_one, job))
-        for fut in futures:
-            row = fut.result()
-            rows.append(row)
-            d = (row.get("detection") or {}).get("iou0.3") or {}
-            m = row.get("mapping") or {}
-            print(f"  {row['model_env']} {row['form']} {row['variant']}: stop={row.get('stop_reason')} "
-                  f"steps={row.get('steps')} recall@.3={d.get('recall')} precision@.3={d.get('precision')} "
-                  f"path={m.get('path_acc')} joint={m.get('joint_acc')} fill={(row.get('fill') or {}).get('fill_acc')} "
-                  f"tokens={row.get('input_tokens')}/"
-                  f"{row.get('output_tokens')} wall={row.get('wall_s')}s"
-                  + (f" error={redactor.scrub(row['error'])}" if row.get("error") else ""), flush=True)
+        rows = run_jobs(pool, jobs, args.jobs, args.max_usd, on_row=report)
+    skipped = sum(r.get("error") == SKIPPED for r in rows)
+    if skipped:
+        print(f"spend limit ${args.max_usd} passed: skipped {skipped} session(s)", flush=True)
 
     order = {(f["id"], v): i for i, (f, v) in enumerate(pairs)}
     budget = SessionBudget(**({"max_steps": args.max_steps} if args.max_steps else {}))
@@ -922,11 +1130,14 @@ def main(argv=None) -> None:
         cfg = configs[prefix]
         mine = sorted((r for r in rows if r["model_env"] == prefix), key=lambda r: order[(r["form"], r["variant"])])
         tot = totals(mine)
+        cost = run_cost(mine)
+        cost = None if cost is None else round(cost, 4)
         meta = {
             "model_env": prefix, "model": cfg.model, "api_format": cfg.api_format,
             "base_url": cfg.base_url.split("?")[0], "split": args.split, "variant": args.variant,
-            "forms": [f["id"] for f in forms], "stamp": stamp, "tag": args.tag, "run": run, "commit": commit,
-            "budget": vars(budget), "baseline_file": baseline_file.name, "jobs": args.jobs,
+            "forms": [f["id"] for f in forms], "stamp": stamp, "tag": args.tag, "pipeline": args.pipeline,
+            "run": run, "commit": commit, "max_usd": args.max_usd, "cost_usd": cost, "budget": vars(budget),
+            "baseline_file": baseline_file.name, "jobs": args.jobs,
             "argv": sys.argv[1:] if argv is None else list(argv), "notes": NOTES,
             "finished_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
         }  # fmt: skip

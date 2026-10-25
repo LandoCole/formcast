@@ -62,6 +62,7 @@ def test_system_prompt_contains_no_corpus_labels():
 # summary, coverage and transform docs. Module docstrings are skipped (never shown).
 MODEL_FACING = [
     "src/formcast/agent/prompts.py", "src/formcast/agent/session.py", "src/formcast/agent/report.py",
+    "src/formcast/pagepass/prompts.py",
     "src/formcast/template/ops.py", "src/formcast/template/coverage.py", "src/formcast/sandbox/worker.py",
     "src/formcast/pagemap/query.py", "src/formcast/pagemap/summarize.py", "src/formcast/transforms.py",
 ]  # fmt: skip
@@ -304,3 +305,53 @@ def test_step_report_shortens_long_reasons_after_the_first_few():
                         warnings=[], usage=Usage())  # fmt: skip
     report = step_report(record, Coverage(), template=_template(), form_map=_form_map())
     assert report.count(long) == 3 and "r4 " in report
+
+
+def test_page_pass_note_is_in_the_after_page_pass_message():
+    from formcast.agent.prompts import PAGE_PASS_NOTE
+
+    paths = flatten_schema(SCHEMA)
+    msg = first_user_message("MAP", paths, None, None, template=_template(), after_page_pass=True)
+    assert PAGE_PASS_NOTE in msg and "STARTING TEMPLATE" not in msg
+    assert msg.index(PAGE_PASS_NOTE) < msg.index("CURRENT TEMPLATE: 2 field(s), 1 with a source")
+    assert "f1 text page 0 [1, 1, 50, 20] label='' source=person.full_name" in msg
+    plain = first_user_message("MAP", paths, None, None, template=_template())
+    assert PAGE_PASS_NOTE not in plain and "CURRENT TEMPLATE" in plain
+
+
+def test_page_pass_note_names_the_structural_work_left_to_the_agent():
+    from formcast.agent.prompts import PAGE_PASS_NOTE
+
+    note = " ".join(PAGE_PASS_NOTE.split())
+    assert "split that box into one box per label" in note
+    assert "add a box for it" in note
+    assert "a heading-row box taken as row 1 shifts every record by one row" in note
+
+
+def test_page_image_parts_put_a_vision_note_then_a_page_line_before_each_image():
+    from formcast.agent.prompts import VISION_NOTE, page_image_parts
+    from formcast.llm import ImagePart, TextPart
+
+    t = _template()
+    t.fields += [Field(id="c1_7", type="checkbox", page=1, rect=(1, 1, 9, 9)),
+                 Field(id="c1_8", type="text", page=1, rect=(20, 1, 90, 9))]  # fmt: skip
+    assert page_image_parts([(0, b"a"), (1, b"b")], t) == [
+        TextPart(VISION_NOTE),
+        TextPart("PAGE 0: marked image (boxes as at the start of this session); boxes are tagged with their full ids"),
+        ImagePart(b"a"),
+        TextPart("PAGE 1: marked image (boxes as at the start of this session); a box marked 7 is c1_7"),
+        ImagePart(b"b"),
+    ]  # fmt: skip
+    assert page_image_parts([], t) == []
+
+
+def test_vision_note_explains_the_images_and_their_marks():
+    from formcast.agent.prompts import VISION_NOTE
+
+    note = " ".join(VISION_NOTE.split()).lower()
+    assert "this session also has an image of each page" in note
+    assert "replaces what the system prompt says about not seeing the page image" in note
+    assert "cannot see" in SYSTEM_PROMPT and "the page image" in SYSTEM_PROMPT  # the statement it overrides
+    colours = ("blue a text box", "green a checkbox", "teal a radio option", "purple a signature", "red any remaining")
+    assert all(c in note for c in colours)
+    assert "mark" in note

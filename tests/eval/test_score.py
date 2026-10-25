@@ -192,6 +192,57 @@ def test_mapping_table_gt_is_not_matched_by_a_plain_field():
     assert out["matched"] == 0 and out["path_acc"] == 0.0
 
 
+def _verdict_fixture():
+    gt = [
+        score.GTField(0, A, "text", path="person.first", transforms=["upper"]),  # path and transform right
+        score.GTField(0, B, "text", path="person.dob", transforms=["date_format"]),  # path right, transform wrong
+        score.GTField(0, C, "text", path="person.ssn"),  # wrong path
+        score.GTField(0, FAR, "text", path="person.zip"),  # nothing there
+        score.GTField(0, (500, 500, 560, 520), "text"),  # no path: no verdict
+        score.GTField(0, (50, 100, 150, 120), "text", path="items[].name", transforms=["upper"]),
+        score.GTField(0, (150, 100, 200, 120), "text", path="items[].qty"),
+        score.GTField(0, (150, 120, 200, 140), "text", path="items[].price"),  # wrong column key
+    ]
+    t = _template([
+        _field("f1", A, ["person.first"], ["upper"]),
+        _field("f2", B, ["person.dob"], ["upper"]),
+        _field("f3", C, ["person.last"]),
+        _table({"name": (50, 150), "qty": (150, 200)}, col_transforms={"name": ["upper"]}),
+    ])  # fmt: skip
+    return gt, t
+
+
+def test_mapping_verdicts_agree_with_score_mapping():
+    gt, t = _verdict_fixture()
+    verdicts = score.mapping_verdicts(gt, t)
+    out = score.score_mapping(gt, t)
+    assert len(verdicts) == out["n_path"] == 7  # GT order, the pathless box left out
+    assert sum(p for p, _ in verdicts) == out["path_ok"]
+    assert sum(j for _, j in verdicts) == out["joint_ok"]
+    assert verdicts[:4] == [(True, True), (True, False), (False, False), (False, False)]
+    assert verdicts[4:] == [(True, True), (True, True), (False, False)]
+
+
+def test_reachable_uses_seed_boxes_on_the_same_page():
+    gt = [
+        score.GTField(0, A, "text", path="p.a"),
+        score.GTField(0, B, "text", path="p.b"),  # seed box here is on another page
+        score.GTField(0, C, "text", path="p.c"),  # seed box overlaps at IoU < 0.3
+        score.GTField(0, FAR, "text"),  # no path: not listed
+        score.GTField(0, (50, 100, 150, 120), "text", path="items[].name"),  # only the seed's table covers it
+        score.GTField(1, A, "text", path="p.d"),
+    ]
+    seed = _template([
+        _field("a", _shift(A, 10)),  # IoU 1800 / 2200 = 0.82 with A
+        _field("b", B, page=1),
+        _field("c", (60.0, 90.0, 210.0, 110.0)),  # IoU 0.25 with C
+        _table({"name": (50, 150)}),
+        _field("d", A, page=1),
+    ])  # fmt: skip
+    assert score.reachable(gt, seed) == [True, False, False, False, True]
+    assert score.reachable(gt, seed, iou_thr=0.9) == [False, False, False, False, True]
+
+
 # ---------- load_gt ----------
 
 

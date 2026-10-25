@@ -15,12 +15,16 @@ const TITLES = { build: "AI build", adapt: "AI adapt", revise: "AI revision" };
 
 const plural = (n, word, many = `${word}s`) => `${n} ${n === 1 ? word : many}`;
 
-/** One step in words. */
+/** One step in words. Step 0 is a build's page pass, reported once it is done, before the agent's steps. */
 function stepText(s) {
-  if (s.finished) return `Step ${s.step} · finished${s.summary ? `: ${s.summary}` : ""}`;
+  const name = s.step === 0 ? "Page pass" : `Step ${s.step}`;
+  if (s.finished) return `${name} · finished${s.summary ? `: ${s.summary}` : ""}`;
   const refused = s.ops_rejected ? `, ${s.ops_rejected} refused` : "";
-  return `Step ${s.step} · ${plural(s.ops_applied, "edit")} made${refused} · ${plural(s.unmapped_paths, "data field")} not linked yet`;
+  return `${name} · ${plural(s.ops_applied, "edit")} made${refused} · ${plural(s.unmapped_paths, "data field")} not linked yet`;
 }
+
+/** The agent's steps so far (the page pass is not one). */
+const agentSteps = (job) => job.steps.filter((s) => s.step > 0).length;
 
 /**
  * @param {object} app see workbench.js
@@ -52,7 +56,8 @@ export function mountJobs(app) {
         return li;
       }),
     );
-    if (job.status === "running" && !stopping) status.textContent = `${refused}Working on step ${job.steps.length + 1}…`;
+    const next = job.kind === "build" && job.steps.length === 0 ? "the page pass" : `step ${agentSteps(job) + 1}`;
+    if (job.status === "running" && !stopping) status.textContent = `${refused}Working on ${next}…`;
   }
 
   function setButtons({ cancel = false, load = false, close = false, background = false }) {
@@ -159,7 +164,7 @@ export function mountJobs(app) {
       return;
     }
     panel.hidden = true;
-    const n = plural(job.steps.length, "step");
+    const n = plural(agentSteps(job), "step");
     const text =
       job.status === "cancelled"
         ? `The AI ${NOUNS[jobKind]} was cancelled after ${n}. The template is unchanged.`

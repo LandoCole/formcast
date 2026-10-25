@@ -250,7 +250,7 @@
         <figcaption>Fig. 2 · From a blank form to a filled one. In this page step 2 is the agent's saved run for a sample form, or you, by hand.</figcaption>
       </figure>
       <p><b>1 · Page map.</b> The form first becomes a page map: its words and lines of text with their positions, the form fields it already has, the printed rules near each blank, and the boxes the CommonForms detector proposes. Each box comes with its nearest label. A page without a usable text layer is read with OCR.</p>
-      <p><b>2 · Agent.</b> An AI model gets the page map as compact text and writes Python that runs against it. Query helpers find words, the text to the right of or below an item, and the candidate boxes on a page. Edit operations link a box to a schema path, add or split boxes, group choices and build tables. The agent starts from a seeded template, one box per form field and per detector box, and edits it step by step; each step reports what changed and what was refused.</p>
+      <p><b>2 · Agent.</b> It starts from a seeded template, one box per form field and per detector box. A page pass maps each page first: one AI model call gets an image of the page with every box outlined and tagged, plus that page's map as text, and links the boxes to schema paths. The agent then gets the page map as compact text, with the same marked images, and writes Python that runs against it. Query helpers find words, the text to the right of or below an item, and the candidate boxes on a page. Edit operations link a box to a schema path, add or split boxes, group choices and build tables. The agent checks the page pass's work and edits it step by step; each step reports what changed and what was refused.</p>
       <p><b>3 · Template.</b> The result is JSON: every box with its page, position and type, the schema path it reads, and any transforms, such as a date format or a tick when a value is true. A person reviews and corrects it, and it reruns on new records with no model call.</p>
       <p><b>4 · Fill.</b> Filling writes real PDF form fields, so the output is still a form. The fill report lists text that had to shrink or didn't fit, and record data with no box to go in.</p>
     </div>
@@ -259,8 +259,8 @@
   <section class="sec" aria-labelledby="l-agent">
     <h2 class="label" id="l-agent">What the AI agent adds</h2>
     <div class="body">
-      <p><b>Here, the agent's work is replayed, not run.</b> The detector only proposes boxes. For each sample form, the agent built a template in the eval on the form as published; Auto map takes that mapping and pairs each of its fields with the box the detector found on the same blank. What it can't pair, and every box on a PDF of your own, you link by hand, and you can add the boxes the detector missed and fix or remove the wrong ones.</p>
-      <p><b>In the library, the agent does it with tools, without vision.</b> It never sees the page image. It reads the page map as text and geometry and works through the edit operations. Its tools are built for:</p>
+      <p><b>Here, the agent's work is replayed, not run.</b> The detector only proposes boxes. For each sample form, the agent built a template in the eval on the form as published; Those runs came from the earlier, text-only agent, before it was given page images. Auto map takes that mapping and pairs each of its fields with the box the detector found on the same blank. What it can't pair, and every box on a PDF of your own, you link by hand, and you can add the boxes the detector missed and fix or remove the wrong ones.</p>
+      <p><b>In the library, the model looks at the page, and the agent finishes with tools.</b> Reading which label belongs to which blank from coordinates alone went wrong most often on tables, scans and boxes far from their labels, so each page is now mapped from its image first. The page pass sees every box outlined in the colour of its type and tagged with a mark; it maps boxes only and never adds any. The agent then starts from that template, with the same images and the page map as text and geometry, and works through the edit operations. Its tools are built for:</p>
       <ul class="list">
         <li>linking each box to a schema path, with transforms where the form needs them;</li>
         <li>adding the fields the detector missed, most often checkboxes, signature lines and date lines;</li>
@@ -268,8 +268,8 @@
         <li>splitting one long line into parts using the small labels under it, such as street, city, state and ZIP;</li>
         <li>marking “circle one” choices, grouping choices, and building tables from rows of cells.</li>
       </ul>
-      <p>How well it does these is measured under Results.</p>
-      <p><b>It keeps the detector's boxes.</b> Without the image, the agent placed boxes worse than the detector: in earlier runs most of its moves and resizes left a box further from its blank. With the current code it can't move or resize a detected box, and it is told to add a box only where none sits on or next to a blank. Its job is the mapping.</p>
+      <p>How well it does these is measured under Results. Those runs are from the text-only agent; runs with page images aren't in them yet.</p>
+      <p><b>It keeps the detector's boxes.</b> In earlier, text-only runs the agent placed boxes worse than the detector: most of its moves and resizes left a box further from its blank. With the current code it can't move or resize a detected box, and it is told to add a box only where none sits on or next to a blank. Its job is the mapping.</p>
     </div>
   </section>
 

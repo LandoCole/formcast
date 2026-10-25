@@ -113,7 +113,7 @@ def test_a_build_job_with_the_fake_provider_reaches_done(start_demo_server, engi
     job = run({"op": "jobDone", "id": started["id"]})
     assert job["status"] == "done" and job["error"] is None and job["summary"] == "name mapped"
     assert [f["source"]["paths"] for f in job["template"]["fields"]] == [["name"]]
-    assert [s["step"] for s in job["steps"]] == [1, 2]
+    assert [s["step"] for s in job["steps"]] == [0, 1, 2]  # step 0: the page pass
     assert all(h["author"] == "agent" for h in job["template"]["history"])
 
 

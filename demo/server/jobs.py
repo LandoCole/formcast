@@ -20,13 +20,16 @@ Limits and lifetime:
   * At most ``MAX_RUNNING`` (2) jobs run at once; a third ``start`` raises ``JobsBusy`` (429 ``busy``).
   * Jobs live in memory only. Running jobs are never dropped; once finished, the last ``KEEP_FINISHED`` (20)
     are kept so the browser can fetch a result after the job ends, and older ones are forgotten.
-  * Cancel sets a flag; the session checks it after each model reply, so a cancel takes effect when the
-    current model call returns (a call already in flight is not interrupted). A cancel that arrives while the
+  * Cancel sets a flag; the session checks it after each model reply, and a build also after its page pass
+    (step 0, reported once every page's call has returned), so a cancel takes effect when the current model
+    call, or the whole page pass, returns (a call already in flight is not interrupted). A cancel that arrives while the
     final reply (the one that finishes the session) is being handled does not undo it: the job is ``done``.
 
 Locks: a job takes the document's form map once (``Doc.form_map()``, which takes ``PYMUPDF_LOCK`` only while
 it builds) and then runs the whole session WITHOUT holding ``PYMUPDF_LOCK`` or any document lock, so fills,
-page images and edits on the same document stay responsive while a job runs.
+page images and edits on the same document stay responsive while a job runs. The library takes
+``PYMUPDF_LOCK`` (its own ``PDF_LOCK``) briefly for each marked page image it renders, one page at a time,
+holding no other lock.
 
 The text of a provider's error is never shown to the client and the traceback of an unexpected one goes to
 the server log only, with the configured API key removed.

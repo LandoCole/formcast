@@ -11,12 +11,18 @@ import httpx
 
 from formcast.errors import FormcastError
 from formcast.llm.config import LLMConfig
-from formcast.llm.types import LLMResponse, Message, ToolCall, ToolSpec
+from formcast.llm.types import ImagePart, LLMResponse, Message, ToolCall, ToolSpec
 
 MAX_BACKOFF_S = 60.0
 BASE_BACKOFF_S = 1.0
 _BODY_EXCERPT = 500
 _RETRY_STATUSES = frozenset({429}) | frozenset(range(500, 600))
+_VISION_HINT = (
+    " (the model or endpoint may not accept images: "
+    "pass vision=False to build without page images)"
+)
+# 4xx statuses that say nothing about the request's content (a timeout, a rate limit): no vision hint.
+_NO_HINT_STATUSES = frozenset({408, 429})
 
 # Indirection so tests can monkeypatch the backoff sleep (or pass `sleep=` to
 # make_provider) without waiting.
@@ -24,11 +30,27 @@ _sleep: Callable[[float], None] = time.sleep
 
 
 class Provider(Protocol):
-    def complete(self, messages: list[Message], tools: list[ToolSpec]) -> LLMResponse: ...
+    def complete(
+        self,
+        messages: list[Message],
+        tools: list[ToolSpec],
+        *,
+        max_output_tokens: int | None = None,
+        timeout_s: float | None = None,
+    ) -> LLMResponse:
+        """One model turn. `None` overrides fall back to the config's limits."""
+        ...
 
     def close(self) -> None:
         """Release network resources. Safe to call more than once."""
         ...
+
+
+def has_images(messages: list[Message]) -> bool:
+    return any(
+        isinstance(m.content, list) and any(isinstance(p, ImagePart) for p in m.content)
+        for m in messages
+    )
 
 
 def parse_arguments(raw: str | None) -> tuple[dict | None, str]:
@@ -122,14 +144,28 @@ class HTTPProvider:
         delay = min(delay, MAX_BACKOFF_S)
         (self._sleep or _sleep)(delay)
 
-    def post_json(self, path: str, body: dict) -> dict:
-        """POST `body` as JSON, retrying 429/5xx and transport errors with backoff."""
+    def post_json(
+        self,
+        path: str,
+        body: dict,
+        *,
+        timeout_s: float | None = None,
+        images: bool = False,
+    ) -> dict:
+        """POST `body` as JSON, retrying 429/5xx and transport errors with backoff.
+
+        `timeout_s` overrides the config timeout for this call; `images` marks a
+        request carrying image parts so a 4xx (not 408 or 429) can suggest `vision=False`.
+        """
         url = self._url(path)
+        timeout = self.cfg.timeout_s if timeout_s is None else timeout_s
         attempts = self.cfg.max_retries + 1
         for attempt in range(attempts):
             last = attempt == attempts - 1
             try:
-                response = self._client.post(url, headers=self._headers(), json=body)
+                response = self._client.post(
+                    url, headers=self._headers(), json=body, timeout=timeout
+                )
             except httpx.TransportError as exc:
                 if last:
                     raise FormcastError(
@@ -142,9 +178,11 @@ class HTTPProvider:
                 self._wait(attempt, response)
                 continue
             if response.status_code >= 400:
+                code = response.status_code
+                hint = _VISION_HINT if images and code < 500 and code not in _NO_HINT_STATUSES else ""
                 raise FormcastError(
                     f"LLM request to {url} failed with HTTP {response.status_code}: "
-                    f"{self._excerpt(response.text)}"
+                    f"{self._excerpt(response.text)}{hint}"
                 )
             try:
                 payload = response.json()

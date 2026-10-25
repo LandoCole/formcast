@@ -1,8 +1,9 @@
 # formcast
 
 formcast turns blank PDF forms into field templates. It detects form fields with
-`commonforms`, then uses an LLM agent to name, type and structure them. The agent
-never sees the page image: it works from the text and geometry of a page map.
+`commonforms`, then uses an LLM to name, type and structure them: a page pass maps
+each page from a marked image of it, and an agent finishes the work from the page
+images and the text and geometry of a page map (`vision=False` keeps it text-only).
 The result is a JSON template of placed fields, each mapped to a path of your
 JSON Schema.
 
@@ -70,6 +71,26 @@ tpl = Template.from_json(Path("intake.template.json").read_text())
 - **What the model sees.** The page-map summary given to the model includes the
   PDF's file name (from a path; bytes have none). Pass the PDF as bytes, or rename
   the file, if the name itself is sensitive.
+
+### Page images
+
+By default (`vision=True`) the model also looks at the pages. The endpoint's model must
+accept image input.
+
+- **Page pass.** For a fresh template, `build_template` first runs a page pass
+  (`formcast.map_pages`): one vision call per page, which maps the seeded boxes from a
+  marked image of the page. The pass maps boxes only. It never adds any.
+- **Agent.** The agent then starts from the page pass's template, checks it, and finishes
+  the work. Its first message carries one marked image per page that has boxes.
+  `start_from` skips the page pass but still sends images, and so does `revise`.
+- **Result.** `result.page_pass` holds the pass's per-page outcomes, and `result.usage`
+  includes its tokens. `on_step` is not called during the pass. Once the pass is done it
+  gets one event for it (`step=0`, summary `"page pass"`). Raising `SessionCancelled` there
+  stops the run with the pass's template. On a dense form the pass can take minutes.
+- **`agent=False`** stops after the page pass. The result has summary `"page pass only"`
+  and no steps.
+- **`vision=False`** sends no images and runs no page pass: the agent works from the
+  text page map alone, as before. Use it for a model without image input.
 
 ## Filling
 
