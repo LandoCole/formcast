@@ -1,8 +1,9 @@
 # formcast
 
 formcast turns blank PDF forms into field templates. It detects form fields with
-`commonforms`, then uses an LLM agent to name, type and structure them. The agent
-never sees the page image: it works from the text and geometry of a page map.
+`commonforms`, then uses an LLM to name, type and structure them: a page pass maps
+each page from a marked image of it, and an agent finishes the work from the page
+images and the text and geometry of a page map (`vision=False` keeps it text-only).
 The result is a JSON template of placed fields, each mapped to a path of your
 JSON Schema.
 
