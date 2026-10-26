@@ -88,8 +88,8 @@ LABELLED = {
 }  # fmt: skip
 RESULTS_SCHEMA = {
     "type": "object",
-    "required": ["generated_from", "detection", "browser_models", "agent_dev", "heldout_status", "caveats",
-                 "groups", "detectors", "metrics", "notes"],
+    "required": ["generated_from", "detection", "browser_models", "agent_dev", "text_only_run", "heldout_status",
+                 "caveats", "groups", "detectors", "metrics", "notes"],
     "additionalProperties": False,
     "properties": {
         "generated_from": {"type": "array", "items": {"type": "string", "pattern": "^eval/results/"}, "minItems": 1},
@@ -133,6 +133,7 @@ RESULTS_SCHEMA = {
                 },
             },
         },  # fmt: skip
+        "text_only_run": TEXT,
         "heldout_status": {
             "type": "object",
             "required": ["sessions_planned", "sessions_completed", "luna_heldout", "note", "source"],
@@ -182,6 +183,36 @@ def test_every_source_file_exists(results):
 
 
 def test_the_headline_row_equals_the_committed_totals(results):
+    totals = load("agent_anthropic_eval_dev_2026-10-24_v3-pages-agent.json")["totals"]["all"]
+    row = agent_row(results, "2026-10-24_v3-pages-agent", "all")
+    assert row["sessions"] == totals["forms"] == 24
+    assert row["recall_50"] == totals["detection"]["iou0.5"]["recall"]
+    assert row["path"] == totals["mapping"]["path_acc"]
+    assert row["joint"] == totals["mapping"]["joint_acc"]
+    assert row["fill_acc"] == totals["fill"]["fill_acc"]
+    # the figures vision spec section 11 quotes
+    assert (round(row["path"], 3), round(row["joint"], 3), round(row["fill_acc"], 3)) == (0.791, 0.720, 0.662)
+
+
+def test_the_page_pass_alone_matches_the_vision_spec(results):
+    row = agent_row(results, "2026-10-24_v3-pages", "all")
+    assert row["sessions"] == 24 and row["steps"] == 0
+    assert (round(row["path"], 3), round(row["fill_acc"], 2)) == (0.739, 0.57)  # the spec writes 0.5735 as 0.573
+
+
+def test_the_text_only_run_merges_the_reruns(results):
+    """10-23's usage limit cut off 14 sessions; the three 10-24 files rerun them (vision spec section 11)."""
+    assert results["text_only_run"] == "2026-10-23_final-agent"
+    row = agent_row(results, "2026-10-23_final-agent", "all")
+    assert row["sessions"] == 24
+    assert (round(row["path"], 3), round(row["joint"], 3), round(row["fill_acc"], 3)) == (0.630, 0.581, 0.538)
+    assert "text only" in row["detail"] and "of 24 sessions" not in row["detail"]
+    sources = results["generated_from"]
+    for name in bs.TEXT_ONLY_RESULTS:
+        assert f"eval/results/{name}" in sources
+
+
+def test_the_sample_run_row_equals_its_committed_totals(results):
     totals = load("agent_anthropic_eval_dev_2026-10-21_defer-placement.json")["totals"]["all"]
     row = agent_row(results, "2026-10-21_defer-placement", "all")
     assert row["sessions"] == totals["forms"] == 24
@@ -197,7 +228,7 @@ def test_the_headline_row_equals_the_committed_totals(results):
     assert round(row["fill_acc"], 2) == 0.58
 
 
-def test_the_headline_groups_match_ruling_b(results):
+def test_the_sample_run_groups_match_ruling_b(results):
     groups = {g: agent_row(results, "2026-10-21_defer-placement", g) for g in ("fillable", "digital", "scanned")}
     assert {g: r["sessions"] for g, r in groups.items()} == {"fillable": 7, "digital": 5, "scanned": 12}
     assert {g: round(r["fill_acc"], 2) for g, r in groups.items()} == {"fillable": 0.93, "digital": 0.58, "scanned": 0.45}
@@ -225,10 +256,10 @@ def test_partial_luna_round_counts_only_finished_sessions(results):
 def test_heldout_status_and_caveats(results):
     status = results["heldout_status"]
     assert status["sessions_planned"] == 9
-    assert status["sessions_completed"] == 1
+    assert status["sessions_completed"] == 9
     assert status["luna_heldout"] is False
-    assert "usage limit" in status["note"]
-    assert status["source"] == "docs/superpowers/specs/2026-10-20-form-projection-design.md, section 14.3"
+    assert "page images" in status["note"] and "usage limit" in status["note"]
+    assert status["source"] == "docs/superpowers/specs/2026-10-23-vision-page-mapping-design.md, section 11"
     assert (ROOT / status["source"].split(",")[0]).is_file()
     assert results["caveats"] == [
         "Dev results were tuned on over several rounds.",  # spec 10.3; several Haiku dev rounds came first
@@ -238,8 +269,10 @@ def test_heldout_status_and_caveats(results):
 
 def test_only_the_headline_run_is_marked(results):
     marked = {r["run"] for r in results["agent_dev"] if r["headline"]}
-    assert marked == {"2026-10-21_defer-placement"}
-    assert agent_row(results, "2026-10-21_defer-placement", "all")["detail"] == "current code"
+    assert marked == {"2026-10-24_v3-pages-agent"}
+    assert agent_row(results, "2026-10-24_v3-pages-agent", "all")["detail"] == (
+        "current code, page pass and agent with page images"
+    )
 
 
 def test_the_partial_run_count_comes_from_the_data(results, monkeypatch):
@@ -257,7 +290,7 @@ def test_the_partial_run_count_comes_from_the_data(results, monkeypatch):
 
     def one_more_error(name):
         data = real_load(name)
-        if name.endswith("_round2.json"):
+        if isinstance(name, str) and name.endswith("_round2.json"):
             first_ok = next(r for r in data["rows"] if not r.get("error"))
             first_ok["error"] = "FormcastError: test"
         return data

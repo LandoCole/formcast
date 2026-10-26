@@ -252,6 +252,21 @@ def test_the_lead_says_what_was_tested(open_page):
     )
 
 
+def test_a_line_compares_the_text_only_run(open_page):
+    page = open_page()
+    text = next(
+        r for r in RESULTS["agent_dev"]
+        if r["run"] == RESULTS["text_only_run"] and r["group"] == "all" and r["sessions_of"] is None
+    )
+    vision = headline("all")
+    pct = lambda v: f"{round(v * 100)}%"  # noqa: E731
+    assert page.inner_text("#agent-compare") == (
+        "The model sees each page as an image. Run on the same forms from the page's text and positions alone, "
+        f"it linked {pct(text['path'])} of the blanks to the right field, against {pct(vision['path'])}, "
+        f"and filled {pct(text['fill_acc'])} correctly, against {pct(vision['fill_acc'])}."
+    )
+
+
 def test_every_measure_and_form_type_is_explained(open_page):
     page = open_page()
     terms = page.eval_on_selector_all("#agent-defs dt", "dts => dts.map(dt => dt.textContent)")

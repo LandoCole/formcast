@@ -17,7 +17,7 @@ This is a **library**, not an application. It turns *(data schema + blank form)*
 
 ## 2. Goals
 
-- Build a template for a form the system has never seen, using only text and geometry pulled from the PDF. No vision model is required.
+- Build a template for a form the system has never seen, using only text and geometry pulled from the PDF. No vision model is required. (Since 2026-10-23 page images are on by default and this text-only path is `vision=False`; see the [vision page mapping design](2026-10-23-vision-page-mapping-design.md).)
 - Handle all three kinds of form:
   1. **Fillable**: the PDF already has form fields. Map schema fields onto them.
   2. **Digital flat**: real text, but blanks are only drawn lines and boxes. Add fields.
@@ -60,7 +60,7 @@ These would count as failure even if tests pass:
 ## 5. Constraints
 
 - Python ≥ 3.10.
-- **No vision model assumed.** Form understanding must work from extracted text and geometry.
+- **No vision model assumed.** Form understanding must work from extracted text and geometry. (Replaced on 2026-10-23 by the [vision page mapping design](2026-10-23-vision-page-mapping-design.md), §5: `build_template` and `revise` send page images by default, and `vision=False` keeps this constraint.)
 - Any OpenAI-compatible provider: base URL + API key + model name + API format (`chat_completions` | `responses`).
 - **Frontier models only.** Small and local models are out of scope: the tool surface and reasoning demands are too much for them. The endpoint is still pluggable, so a custom provider works if its model is capable enough. Reference models for testing: **OpenAI Luna 6** (Responses format) and **Anthropic Haiku 5.5** (`claude-haiku-5-5`, Chat Completions-compatible endpoint). API keys come from the user's `ontoo 2/backend/.env` (`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`), copied into this project's git-ignored `.env` at build time.
 - Runs entirely on the user's machine.

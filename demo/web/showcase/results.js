@@ -1,6 +1,7 @@
 // The Results section of the showcase page, rendered from results.json (demo/tools/build_showcase.py
 // writes it from the committed eval files). Every number on it comes from that file: the headline
-// run (the current code), one row per kind of form, in three plain measures.
+// run (the current code, with page images), one row per kind of form, in three plain measures, and
+// a line comparing it with the same code run text-only.
 
 const GROUP_ORDER = ["fillable", "digital", "scanned", "all"];
 
@@ -50,6 +51,23 @@ export function leadText(res) {
   return `Scored box by box against an answer key on ${forms} public forms, with ${model} as the agent.`;
 }
 
+/**
+ * How the text-only run compares, in one sentence over all forms; "" when results.json has no such run.
+ * @param {object} res results.json
+ * @returns {string}
+ */
+export function compareText(res) {
+  const all = (run) => res.agent_dev.find((r) => r.run === run && r.group === "all" && r.sessions_of === null);
+  const vision = headlineRows(res).find((r) => r.group === "all");
+  const text = res.text_only_run && all(res.text_only_run);
+  if (!vision || !text) return "";
+  return (
+    `The model sees each page as an image. Run on the same forms from the page's text and positions alone, ` +
+    `it linked ${percent(text.path)} of the blanks to the right field, against ${percent(vision.path)}, ` +
+    `and filled ${percent(text.fill_acc)} correctly, against ${percent(vision.fill_acc)}.`
+  );
+}
+
 function resultsTable(res) {
   const head = el("tr", {}, [
     el("th", { scope: "col" }, ["Form type"]),
@@ -86,6 +104,7 @@ export function renderResults(res, $) {
   );
   $("agent-note").textContent =
     "On a fillable form the template starts from the form's own fields, so every blank is found by design.";
+  $("agent-compare").textContent = compareText(res);
 }
 
 /**

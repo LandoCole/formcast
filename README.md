@@ -36,7 +36,7 @@ llm = LLMConfig(
     api_format="responses",                # or "chat_completions" (the default)
 )
 
-# 1. The agent builds a template (tool calling is required).
+# 1. The agent builds a template (tool calling is required, and image input unless vision=False).
 result = build_template(schema, "intake.pdf", llm)
 tpl = result.template                      # also: result.finished, .summary, .steps, .usage, .unplaceable
 
@@ -90,7 +90,27 @@ accept image input.
 - **`agent=False`** stops after the page pass. The result has summary `"page pass only"`
   and no steps.
 - **`vision=False`** sends no images and runs no page pass: the agent works from the
-  text page map alone, as before. Use it for a model without image input.
+  text page map alone, as before. Use it for a model without image input: with images on,
+  such a model's endpoint rejects the first call, and the error suggests `vision=False`.
+- **Cost.** The page pass is one call per page with boxes, up to 32,000 output tokens and a
+  300 s timeout each, run up to four pages at a time. `SessionBudget`'s token caps count the
+  agent's tokens only. The agent's images are resent with its first message every turn, about
+  1.6k input tokens per page per step on Haiku 5.5.
+- **Privacy.** Images go to the model endpoint only. They are never written to step reports,
+  results, logs or the template.
+
+How much the images help, on the eval corpus with Haiku 5.5 (dev, all 24 sessions per pipeline;
+[vision design, section 11](docs/superpowers/specs/2026-10-23-vision-page-mapping-design.md#11-results-2026-10-24)):
+
+| Pipeline | Path, all boxes | Path, reachable boxes | Fill | Cost |
+|---|---|---|---|---|
+| `vision=False` (text-only agent) | 0.630 | 0.793 | 0.538 | $1.64 |
+| `agent=False` (page pass only) | 0.739 | 0.947 | 0.573 | $0.15 |
+| default (page pass, then agent) | 0.791 | 0.955 | 0.662 | $1.46 |
+
+The gains are largest on scans (fill 0.41 to 0.63 on the fake scans). The one held-out run of the
+default pipeline scored 0.804 path and 0.695 fill. "Reachable" boxes are the ones some seeded box
+overlaps, which is all a mapping step can reach.
 
 ## Filling
 
@@ -202,12 +222,17 @@ ground truth in `forms/gt`). The scripts are in `eval/`:
 python eval/baseline_detection.py --split dev          # detectors alone, no LLM
 python eval/agent_eval.py --split dev --seed-only      # the untouched seeded template, no LLM
 python eval/agent_eval.py --split dev --model-env ANTHROPIC_EVAL --variant both   # agent runs (paid)
+python eval/agent_eval.py --split dev --model-env ANTHROPIC_EVAL --pipeline pages+agent --max-usd 3   # with page images
 python eval/agent_eval.py --rescore eval/results/agent_<...>.json                # re-score, no LLM
 ```
 
-Results go to `eval/results/` (json and md per run). The saved templates of the
-committed runs are archived in `eval/results/templates.tar.gz`; extract it with
-`tar -xzf eval/results/templates.tar.gz` from the repo root before `--rescore`.
+`--pipeline` picks what builds each template: `agent` (the default; text only, as `vision=False`),
+`pages` (the page pass only, `agent=False`) or `pages+agent` (the library's default). The pipeline is
+appended to the run name. `--max-usd` stops starting sessions once the finished ones cost more than
+that (prices are built in for Haiku 5.5). Results go to `eval/results/` (json and md per run). The
+saved templates of the committed runs up to 2026-10-21 are archived in `eval/results/templates.tar.gz`
+(the page-image runs' templates are local-only); extract it with `tar -xzf eval/results/templates.tar.gz`
+from the repo root before `--rescore`.
 Step logs and overlays are local-only.
 
 ## Demo
@@ -218,8 +243,10 @@ pdf.js, pdf-lib and onnxruntime-web vendored in `demo/web/vendor/`. The detector
 from Hugging Face on first use and cached by the browser. It is a review tool, not the whole pipeline:
 there is no AI in the browser, and scanned pages are not supported there (the page has no OCR, so
 scans get boxes but no labels). The agent's work is shown through templates it already built: on a
-sample form, Auto map pairs the agent's mapping with the boxes the detector found, by position. Fill
-shows the filled PDF on the page before it is downloaded.
+sample form, Auto map pairs the agent's mapping with the boxes the detector found, by position. Those
+templates come from an earlier, text-only eval run (`2026-10-21_defer-placement`), before the page pass;
+the page's Results table is the current code with page images, with a line for the same code run
+text-only. Fill shows the filled PDF on the page before it is downloaded.
 
 To open it locally, serve `demo/web` and visit the showcase:
 
@@ -295,7 +322,9 @@ tries again when such a PDF is opened.
 
 Settings come from the git-ignored `.env` and the environment. `FORMCAST_DEMO_BASE_URL`,
 `FORMCAST_DEMO_API_KEY` and `FORMCAST_DEMO_MODEL` turn the AI features on, and `FORMCAST_DEMO_API_FORMAT`
-(`chat_completions`, the default, or `responses`) picks the API. `FORMCAST_DEMO_HOST`,
+(`chat_completions`, the default, or `responses`) picks the API. The server calls the library with its
+defaults, so the model must accept image input: a build runs the page pass first, and build, adapt and
+revise send page images. There is no setting for `vision=False` yet. `FORMCAST_DEMO_HOST`,
 `FORMCAST_DEMO_PORT` and `FORMCAST_DEMO_DATA_DIR` set the rest. With the three AI values missing, the
 AI controls are hidden; hand editing, matching, saving and filling still work. The key stays on the
 server and no response contains it.
@@ -321,8 +350,9 @@ The flow:
    fingerprint) or *Fill anyway*. Templates made in the browser have no fingerprint and fill with a note.
 
 AI work runs as a background job with a step-by-step panel and a Cancel button; cancel takes effect
-between steps. If you close the panel, the finished result is offered as *Load result* until you load
-or discard it.
+between steps. A build's panel starts with "Page pass" once the whole pass is done (on a dense form that
+can take minutes), then the agent's steps; a cancel during the pass takes effect when it ends. If you
+close the panel, the finished result is offered as *Load result* until you load or discard it.
 
 Where the app layer ends: the library knows nothing about a store, records or HTTP. The server
 reaches them through two small interfaces, so you can swap them for your own database.
@@ -366,4 +396,6 @@ Design spec: [docs/superpowers/specs/2026-10-20-form-projection-design.md](docs/
 (results of the first eval in section 14.3).
 Review apps (browser demo and workbench): [docs/superpowers/specs/2026-10-21-formcast-review-apps-design.md](docs/superpowers/specs/2026-10-21-formcast-review-apps-design.md).
 Fill design: [docs/superpowers/specs/2026-10-21-formcast-fill-design.md](docs/superpowers/specs/2026-10-21-formcast-fill-design.md).
+Vision page mapping (the page pass and page images, with results in section 11):
+[docs/superpowers/specs/2026-10-23-vision-page-mapping-design.md](docs/superpowers/specs/2026-10-23-vision-page-mapping-design.md).
 Plan: [docs/superpowers/plans/2026-10-20-formcast-agent-layer.md](docs/superpowers/plans/2026-10-20-formcast-agent-layer.md)

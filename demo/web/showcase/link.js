@@ -167,8 +167,8 @@ export function mountLink(app) {
     const model = sample?.scores?.model_label ?? sample?.scores?.model ?? "an AI model";
     $("automap-note").textContent = sample === null
       ? ""
-      : `These sample forms are pre-mapped. The mapping was built by the AI agent (${model}) in the formcast eval and is ` +
-        "matched to your boxes by position. In the full library the agent maps any form for you, reading the labels on the page.";
+      : `These sample forms are pre-mapped. The mapping was built by the AI agent (${model}) in an earlier, text-only formcast ` +
+        "eval run and is matched to your boxes by position. In the full library the model maps any form for you from images of its pages.";
     $("automap-note").hidden = sample === null;
     if (!busy) {
       const done = mapped !== null && mapped.token === session.generation ? mapped.text : "";

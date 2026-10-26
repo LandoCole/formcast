@@ -377,13 +377,29 @@ BASELINE_DEV = "baseline_detection_2026-10-21.json"
 BASELINE_HELDOUT = "baseline_detection_2026-10-21_heldout.json"
 BASELINE_ONNX = "baseline_detection_2026-10-21_onnx.json"
 
-# (results file, label, detail, headline) in table order: the seed floor, the current code, the
-# best earlier mapping, Luna 6. A run with sessions that ended in an error gets "; N of M sessions"
-# appended to its detail, counted from the file.
+# The text-only agent on the current code (``vision=False``), the comparison for the page images. The
+# usage limit cut off 14 of its sessions on 10-23; the 10-24 files rerun them (vision spec section 11).
+TEXT_ONLY_RESULTS = (
+    "agent_anthropic_eval_dev_2026-10-23_final-agent.json",
+    "agent_anthropic_eval_dev_2026-10-24_final-rest-agent.json",
+    "agent_anthropic_eval_dev_2026-10-24_final-rest-cms-agent.json",
+    "agent_anthropic_eval_dev_2026-10-24_final-rest-i9-agent.json",
+)
+# The library's default pipeline: the page pass on marked page images, then the agent (vision spec 11).
+VISION_RESULTS = "agent_anthropic_eval_dev_2026-10-24_v3-pages-agent.json"
+
+# (results file or files, label, detail, headline) in table order: the seed floor, the current code
+# with page images, the page pass alone, the current code text-only, the earlier text-only runs, Luna 6.
+# Several files are one run: a later file's sessions replace the same sessions of an earlier one. A run
+# with sessions that ended in an error gets "; N of M sessions" appended to its detail, counted from
+# the file.
 AGENT_RUNS = (
     ("agent_seed_dev_2026-10-21_seed-fill.json", "Seeded template", "no agent", False),
-    (AGENT_RESULTS.name, AGENT_MODEL_LABEL, "current code", True),
-    ("agent_anthropic_eval_dev_2026-10-21_round3-gen.json", AGENT_MODEL_LABEL, "round3-gen, earlier code, best mapping so far", False),
+    (VISION_RESULTS, AGENT_MODEL_LABEL, "current code, page pass and agent with page images", True),
+    ("agent_anthropic_eval_dev_2026-10-24_v3-pages.json", AGENT_MODEL_LABEL, "current code, page pass only (agent=False)", False),
+    (TEXT_ONLY_RESULTS, AGENT_MODEL_LABEL, "current code, text only (vision=False)", False),
+    (AGENT_RESULTS.name, AGENT_MODEL_LABEL, "defer-placement, earlier code, text only; the sample forms' mapping", False),
+    ("agent_anthropic_eval_dev_2026-10-21_round3-gen.json", AGENT_MODEL_LABEL, "round3-gen, earlier code, best text-only mapping", False),
     ("agent_openai_eval_dev_2026-10-21_round1.json", "Luna 6", "round 1, earlier code", False),
     ("agent_openai_eval_dev_2026-10-21_round2.json", "Luna 6", "round 2, earlier code", False),
 )  # fmt: skip
@@ -487,19 +503,19 @@ NOTES = {
     ),
 }  # fmt: skip
 
-# main spec 14.3, "Read this first": 1 of 9 Haiku sessions finished; stated, not recomputed, because
-# the held-out agent results are not read for anything but this status.
+# Vision spec section 11: the one held-out run of the current code, 9 of 9 sessions; stated, not
+# recomputed, because the held-out agent results are not read for anything but this status.
 HELDOUT_STATUS = {
-    "source": "docs/superpowers/specs/2026-10-20-form-projection-design.md, section 14.3",
+    "source": "docs/superpowers/specs/2026-10-23-vision-page-mapping-design.md, section 11",
     "sessions_planned": 9,
-    "sessions_completed": 1,
+    "sessions_completed": 9,
     "luna_heldout": False,
     "note": (
-        "The Anthropic account hit its API usage limit during the one held-out Haiku run. "
-        "Of 9 held-out sessions, one finished (ics211, as published). Three were cut off mid-session, "
-        "five never made a call, and one retry hit the same limit. There is no Luna held-out run "
-        "(the OpenAI credits were already used up). No code or prompt changed after the dev rounds. "
-        "The held-out agent numbers are one session, which says nothing about generalization."
+        "The current code (page pass and agent with page images, Haiku 5.5) ran once on the held-out "
+        "split after the dev numbers were final, and all 9 sessions finished. Its path accuracy over "
+        "every answer-key box was 0.80, against 0.79 on dev, and nothing changed in response. The "
+        "earlier text-only held-out run (2026-10-21) hit the API usage limit and finished 1 of 9 "
+        "sessions (main spec 14.3). There is no Luna held-out run (the OpenAI credits were used up)."
     ),
 }
 CAVEATS = [
@@ -512,8 +528,20 @@ def _ratio(num: float, den: float) -> float:
     return round(num / den, 4) if den else 0.0
 
 
-def _load(name: str) -> Any:
-    return json.loads((RESULTS_DIR / name).read_text(encoding="utf-8"))
+def _load(name: str | tuple[str, ...]) -> Any:
+    """One results file, or several files of one run merged: the first file's meta, and its rows with
+    each session that a later file reran replaced by the later row."""
+    if isinstance(name, str):
+        return json.loads((RESULTS_DIR / name).read_text(encoding="utf-8"))
+    first, *rest = (_load(n) for n in name)
+    rows = {(r["form"], r["variant"]): r for r in first["rows"]}
+    for data in rest:
+        rows.update({(r["form"], r["variant"]): r for r in data["rows"]})
+    return {**first, "rows": list(rows.values())}
+
+
+def _files(name: str | tuple[str, ...]) -> list[str]:
+    return [name] if isinstance(name, str) else list(name)
 
 
 def detection_totals(rows: list[dict]) -> list[dict]:
@@ -556,7 +584,7 @@ def _completed(rows: list[dict]) -> list[dict]:
 
 
 def agent_group_rows(
-    name: str,
+    name: str | tuple[str, ...],
     label: str,
     detail: str,
     *,
@@ -617,7 +645,7 @@ def agent_rows_and_notes() -> tuple[list[dict], list[str], list[str]]:
     notes: list[str] = []
     files: list[str] = []
     for name, label, detail, headline in AGENT_RUNS:
-        files.append(name)
+        files += _files(name)
         sessions = _load(name)["rows"]
         done = _completed(sessions)
         partial = PARTIAL_RUNS.get(name) if len(done) < len(sessions) else None
@@ -659,6 +687,7 @@ def build_results() -> dict:
         },
         "browser_models": onnx,
         "agent_dev": agent_dev,
+        "text_only_run": _load(TEXT_ONLY_RESULTS)["meta"]["run"],
         "heldout_status": dict(HELDOUT_STATUS),
         "caveats": list(CAVEATS),
         "groups": GROUP_TEXT,
