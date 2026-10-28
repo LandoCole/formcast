@@ -25,7 +25,13 @@
 // `fingerprint_mismatch`; the workbench then offers `rebind(template, doc)` or refills with
 // `{checkFingerprint: false}`.
 //
-// Jobs (`build`, `revise`) return a JobHandle {id, kind, poll(), cancel(), done, onUpdate}. `done`
+// The one-shot flow: `data.file(file)` / `data.text(text)` send the data to fill with and resolve its
+// summary (a table's columns with types and samples, or free text); `oneshot(doc, opts)` starts the job
+// that designs the schema, maps the boxes and maps that data (see demo/server/oneshot.py);
+// `open({template: name})` opens the PDF a saved template keeps; `templates.put(name, template, {doc,
+// mapping})` saves that PDF and the data mapping with it; `templates.schemaUrl(name)` is its schema file.
+//
+// Jobs (`build`, `revise`, `oneshot`) return a JobHandle {id, kind, poll(), cancel(), done, onUpdate}. `done`
 // polls `GET /api/jobs/{id}` (first at once, then every `pollMs`, 1000 by default) and resolves with
 // the job when its status is done, cancelled or error. It rejects only if the server cannot be
 // reached several polls in a row. Set `onUpdate` to a function to see the job after every poll
@@ -230,6 +236,9 @@ export async function createServerEngine({
      */
     async open(source, { name } = {}) {
       if (typeof source === "string") return makeDoc(await call("POST", "/api/documents", { json: { form: source } }));
+      if (isObject(source) && typeof source.template === "string") {
+        return makeDoc(await call("POST", "/api/documents", { json: { template: source.template }, timeout: uploadTimeoutMs }));
+      }
       const blob = source instanceof Blob ? source : new Blob([source], { type: "application/pdf" });
       const form = new FormData();
       form.append("file", blob, name ?? source.name ?? "document.pdf");
@@ -335,6 +344,35 @@ export async function createServerEngine({
       return startJob(body);
     },
 
+    /**
+     * Start a one-shot job: design the schema (unless `schema` or `template` is given), map the boxes
+     * (unless `template` is given) and map the data (when `data`, a dataset id, is given).
+     * @param {object} doc
+     * @param {{schema?: object | string | null, template?: object | null, data?: string | null,
+     *   saved?: string | null, check?: boolean, instructions?: string}} [opts] `saved`: a stored template
+     *   whose saved data mappings are tried first; `check: false` skips the agent's check of the page pass
+     * @returns {Promise<JobHandle>}
+     */
+    async oneshot(doc, { schema = null, template = null, data = null, saved = null, check = true, instructions = "" } = {}) {
+      const body = { kind: "oneshot", doc: doc.id, check, instructions };
+      if (template !== null) body.template = template;
+      else if (schema !== null) body.schema = schema;
+      if (data !== null) body.data = data;
+      if (saved !== null) body.saved = saved;
+      return startJob(body);
+    },
+
+    data: {
+      /** A table file (CSV, TSV, XLSX, JSON); resolves its summary {id, name, kind, rows, columns, preview, ...}. */
+      async file(file) {
+        const form = new FormData();
+        form.append("file", file, file.name ?? "data");
+        return call("POST", "/api/data", { form, timeout: uploadTimeoutMs });
+      },
+      /** Pasted text: a table when it is JSON records or a delimited table, else free text. */
+      text: (text) => call("POST", "/api/data", { json: { text } }),
+    },
+
     /** Stored templates scored against `doc`, best first: `[{name, template_id, score, basis, explanation, action}]`. */
     async matches(doc) {
       return call("GET", `/api/documents/${doc.id}/matches`, { timeout: formMapTimeoutMs }); // may wait behind the form map
@@ -344,8 +382,18 @@ export async function createServerEngine({
       /** `[{name, ...}]`, as the store lists them. */
       list: async () => (await call("GET", "/api/templates")).templates,
       get: async (name) => (await call("GET", `/api/templates/${encodeURIComponent(name)}`)).template,
-      /** @returns {Promise<{name: string, template_id: string}>} */
-      put: (name, template) => call("PUT", `/api/templates/${encodeURIComponent(name)}`, { json: { template } }),
+      /**
+       * Save `template`; with `doc` the store keeps that PDF too, with `mapping` that data mapping.
+       * @returns {Promise<{name: string, template_id: string}>}
+       */
+      put: (name, template, { doc = null, mapping = null } = {}) => {
+        const body = { template };
+        if (doc !== null) body.doc = doc.id;
+        if (mapping !== null) body.mapping = mapping;
+        return call("PUT", `/api/templates/${encodeURIComponent(name)}`, { json: body });
+      },
+      /** The URL of a saved template's data schema (a JSON file). */
+      schemaUrl: (name) => `${root}/api/templates/${encodeURIComponent(name)}/schema`,
       /** @returns {Promise<string>} the deleted name */
       delete: async (name) => (await call("DELETE", `/api/templates/${encodeURIComponent(name)}`, { json: {} })).deleted,
     },
@@ -363,8 +411,9 @@ export async function createServerEngine({
 /**
  * @typedef {object} JobHandle
  * @property {string} id
- * @property {"build" | "adapt" | "revise"} kind
- * @property {() => Promise<object>} poll the job now: {id, kind, status, steps, template, summary, error, unplaceable, started, ended}
+ * @property {"build" | "adapt" | "revise" | "oneshot"} kind
+ * @property {() => Promise<object>} poll the job now: {id, kind, status, steps, template, summary, error, unplaceable, started,
+ *   ended, stages, result, usage}
  * @property {() => Promise<object>} cancel
  * @property {Promise<object>} done the job once it is done, cancelled or error
  * @property {((job: object) => void) | null} onUpdate set it to see the job after every poll of `done`

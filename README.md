@@ -186,6 +186,70 @@ The report also has:
 - `preview(tpl, "intake.pdf", data=record)` draws the template's boxes over the
   filled PDF.
 
+## One-shot: a PDF and your data
+
+You don't need a schema or a template to start. Give formcast a blank PDF and the data you have (a CSV,
+an Excel sheet, JSON records or plain text), and the model does the three things a person would:
+
+```python
+from pathlib import Path
+
+from formcast import (
+    build_form_map, build_template, derive_schema, extract_records, fill, map_table, read_table, records_from,
+)
+
+pdf = Path("application.pdf").read_bytes()
+fm = build_form_map(pdf)                    # llm: an LLMConfig, as in Usage above
+
+# 1. The model designs the form's data schema from its pages (one call, page images included).
+schema = derive_schema(pdf, llm, form_map=fm).schema
+
+# 2. It links the form's boxes to that schema: the page pass, then the agent checks it (agent=False: faster).
+tpl = build_template(schema, pdf, llm, form_map=fm).template
+
+# 3a. A table: the model writes a DataMapping from the column names and a few samples per column.
+#     The mapping (not the model) then turns every row into a record, so the rows are never sent.
+table = read_table(Path("applicants.xlsx").read_bytes(), "applicants.xlsx")    # .csv .tsv .xlsx .json
+mapping = map_table(schema, table, llm).mapping
+records = records_from(mapping, schema, table)
+
+# 3b. Free text: the model reads it into records of the schema.
+records = extract_records(schema, "Priya Raman, 19 Cedar Lane, Menomonie WI ...", llm).records
+
+pdf_bytes, report = fill(tpl, pdf, records[0])
+```
+
+- **`derive_schema`** follows the form: nested objects for its sections, `format: date` for dates,
+  booleans for yes/no questions, enums for choose-one options, arrays of objects (with `maxItems`) for
+  tables and repeated blocks, and the printed label as each property's `description`. Signatures and
+  office-use boxes are left out. `instructions="..."` passes your own words along.
+- **A `DataMapping`** is plain JSON: one rule per schema path, taking a `column`, a `template` of
+  `{Column}` placeholders, or a fixed `value`, then `transforms` (`split`, `date`, `map`, `boolean`,
+  `number`, `list`, `regex`, `digits`, `default`, ...). Values are then coerced to the schema's types
+  (`"Y"` to `true`, `"$41,200"` to `41200`, `"MARRIED"` to the enum's `"married"`). Store it next to the
+  template and the next file with those columns fills with no model call (`mapping.fits(columns)`).
+  `direct_mapping(schema, columns)` needs no model at all when the columns are named by schema path
+  (`applicant.name`, `employers[0].salary`). `check_mapping` drops rules that can't apply and says why.
+- **What the model sees.** `derive_schema`: the page images and page-map text. `map_table`: per column,
+  its name, inferred type and up to five sample values, never the full rows. `extract_records`: the
+  whole text. A reply that isn't the JSON asked for is asked for once more, then raises `FormcastError`.
+- `profile(table)` and `data_schema(table)` describe the data's own shape (types, fill, samples).
+  Excel needs `pip install -e ".[xlsx]"` (openpyxl).
+
+Measured on the 3-page Menomonie job application with Haiku 5.5 (one run each, 2026-10-27):
+
+| Step | Time | Tokens (in / out) |
+|---|---|---|
+| `derive_schema` (37 fields) | 10 s | 11k / 2.3k |
+| `build_template`, page pass only (`agent=False`) | 12 s | 19k / 5k |
+| `build_template`, page pass then agent (default) | 90-100 s | 300k / 20k |
+| `map_table`, 22-column CSV | 8 s | 2.7k / 2k |
+| `extract_records`, one paragraph | 3 s | 2.8k / 0.7k |
+| refill from a saved mapping | instant | none |
+
+On that form the page pass alone stacked the two repeated "Previous Employment" blocks onto one line;
+the agent's check fixed them. That is why the agent runs by default.
+
 ## The sandbox is not a security boundary
 
 The agent's Python runs in a separate worker process (`formcast.sandbox`) with a
@@ -295,9 +359,10 @@ or the "Landon Thornton" link in `showcase/index.html` change; update the script
 ## Workbench
 
 The workbench (`demo/server/` and `demo/web/workbench/`) is the browser demo's review screen backed by a
-small Python server that calls the library: detect and seed a template, match a PDF against stored
-templates, build, adapt or revise with the agent, edit by hand with undo, save, and fill a record into
-the PDF. The server uses only the standard library. It is a local, single-user tool and not a product.
+small Python server that calls the library. Its front door is the [one-shot flow](#one-shot-a-pdf-and-your-data):
+give it a PDF and your data, and it designs the schema, links the boxes, maps the data and shows the
+filled PDF. Behind that: match a PDF against stored templates, build, adapt or revise with the agent,
+edit by hand with undo, save as a template, and fill records into the PDF, from the page or from code. The server uses only the standard library. It is a local, single-user tool and not a product.
 **Run it on your own machine only: the agent's sandbox is not a security boundary** (see above), and the
 server holds your model API key. It binds `127.0.0.1`, and it refuses requests whose `Origin` or `Host`
 is not its own, so another web page open in your browser cannot drive it or spend your API credits.
@@ -331,23 +396,58 @@ server and no response contains it.
 
 The flow:
 
-1. **Start.** Pick a demo form or drop a PDF, then pick a schema. The server starts reading the PDF
-   (its form map: text, widgets and detected boxes) in the background as soon as it opens. While a
-   reading runs, other PDF work on the server (page images, filling) waits for it; matching does not.
+1. **Start: the form, your data, and (folded away) the schema.** The form is a *saved template* (it
+   keeps its PDF, boxes and schema: no detection, no AI), a demo form, or your own PDF. Your data is
+   optional: a CSV, TSV, Excel or JSON file, or pasted text (records, a table, or plain prose). A demo form
+   picks its own stored schema; your own PDF defaults to *the AI designs it from the form*. You also pick
+   how the boxes are linked: by the AI with the agent checking its page pass (the default), by the page
+   pass alone (faster), or by hand. The server starts reading the PDF (its form map: text, widgets and
+   detected boxes) in the background as soon as it opens. While a reading runs, other PDF work on the
+   server (page images, filling) waits for it; matching does not.
 2. **Match.** The PDF is scored against every stored template (`formcast.similarity`). The scores come
    from the PDF's fingerprint, text and layout, which the server reads first, before the form map, so
    the match prompt appears at once even while detection runs. The server
    offers *Reuse* at 0.95 or above, *Adapt* at 0.60 or above (an agent job that starts from the stored
    template), or *Build new*. The thresholds are in `demo/server/settings.py` and were calibrated on the
    dev forms only.
-3. **Edit or revise.** Edit by hand, or draw an area and type an instruction for the agent. Undo and
+3. **One-shot mapping.** On *Build new* the seed goes on screen, and a `oneshot` job runs its stages:
+   read the form, design the schema, link the boxes, read your data, map it. The panel lists each stage
+   as it runs, the agent's steps, and the tokens used. The result loads as one undo step (back to the
+   seed), and the fill drawer opens on your data's records with the first one filled. A saved template,
+   or *Reuse*, runs only the data stages: columns named by schema path, or matching a mapping saved with
+   the template, need no AI at all.
+4. **Edit or revise.** Edit by hand, or draw an area and type an instruction for the agent. Undo and
    redo cover both.
-4. **Save** to the template store. Saves go to `local/templates/` in the data folder
-   (`demo/data/local/templates/`, git-ignored), never into the shipped `demo/data/templates/`. A saved
-   template hides a shipped one with the same name; the shipped ones cannot be deleted.
-5. **Fill.** Pick a record and fill. If the stored template was made for a different version of the PDF,
-   the server answers 409 and the page offers *Rebind* (`formcast.rebind`: the same pages, this PDF's
-   fingerprint) or *Fill anyway*. Templates made in the browser have no fingerprint and fill with a note.
+5. **Fill.** *Your data* lists the mapped records: each shows as JSON you can edit before filling, under
+   the data mapping that made it (form field ← column, template or value, with transforms; the columns
+   left out; the AI's notes). *Add data* maps another file or text for the template on screen. *Data
+   schema* downloads the schema as a JSON file. Stored records and a sample record are there too. If
+   the stored template was made for a different version of the PDF, the server answers 409 and the page
+   offers *Rebind* (`formcast.rebind`: the same pages, this PDF's fingerprint) or *Fill anyway*.
+   Templates made in the browser have no fingerprint and fill with a note.
+6. **Save** to the template store, with the PDF and, when the AI (or a saved mapping) mapped your data,
+   that data mapping. Saves go to `local/templates/` in the data folder (`demo/data/local/templates/`,
+   git-ignored; the PDF and mappings in `assets/<name>/`), never into the shipped `demo/data/templates/`.
+   A saved template hides a shipped one with the same name; the shipped ones cannot be deleted.
+
+Filling from code. A saved template takes data without the browser:
+
+```sh
+curl -X POST http://127.0.0.1:8765/api/templates/NAME/fill -H 'Content-Type: application/json' \
+     -d '{"record": {"applicant": {"name": "Ann Lee"}}}' -o filled.pdf
+curl -X POST http://127.0.0.1:8765/api/templates/NAME/fill -F file=@applicants.csv -o filled.zip
+curl -X POST http://127.0.0.1:8765/api/templates/NAME/fill -H 'Content-Type: application/json' \
+     -d '{"text": "Priya Raman, 19 Cedar Lane, ..."}' -o filled.pdf
+curl http://127.0.0.1:8765/api/templates/NAME/schema -o NAME.schema.json   # what records must look like
+```
+
+The body is one `record`, a list of `records`, free `text` (read by the model), or a table `file`
+(mapped by schema path, then by a saved mapping, then by the model). One record answers a PDF; several
+answer a zip with one PDF per record and `reports.json`. `X-Formcast-Records` and `X-Formcast-Warnings`
+carry the counts. The server's routes for the one-shot flow are `POST /api/data` (a file or `{"text"}`,
+answering the data's columns, types and samples), the `oneshot` job kind of `POST /api/jobs`,
+`POST /api/documents {"template": name}` (open a saved template's PDF), and `PUT /api/templates/{name}`
+with `doc` and `mapping`.
 
 AI work runs as a background job with a step-by-step panel and a Cancel button; cancel takes effect
 between steps. A build's panel starts with "Page pass" once the whole pass is done (on a dense form that
@@ -356,7 +456,8 @@ close the panel, the finished result is offered as *Load result* until you load 
 
 Where the app layer ends: the library knows nothing about a store, records or HTTP. The server
 reaches them through two small interfaces, so you can swap them for your own database.
-`TemplateStore` (`demo/server/store.py`: `list`, `get`, `put`, `delete`; the default keeps one JSON
+`TemplateStore` (`demo/server/store.py`: `list`, `get`, `put`, `delete`, and optionally `get_file` and
+`put_file` for the PDF and data mappings kept with a template; the default keeps one JSON
 file per template and raises `StoredTemplateError` for a file that is not a valid template) and
 `RecordSource` (`demo/server/records.py`: `schemas`, `list`, `get`; the defaults read CSV files and a
 SQLite file, and raise `RecordSourceError` when a source cannot be read at all). To use your own,

@@ -12,12 +12,21 @@
 // the server refuses (409 fingerprint_mismatch); the drawer then says so and offers to rebind the
 // template to this PDF (one undo step) or to fill anyway. The server's note on a skipped check
 // (a template with no fingerprint, or Fill anyway) is shown with the result.
+//
+// Your data. The one-shot flow's records (`app.data`, a job's `result.data`) are the first source when
+// there are any: each record is shown as JSON, editable before filling, and the data mapping that made
+// them (or the AI's reading of free text) sits above. `app.showData(data)` opens the drawer on them and
+// fills the first one. "Add data" sends another file or text and maps it for the template on screen;
+// data given on the start screen that is still waiting (`app.pendingData`) is mapped when the drawer
+// opens. "Data schema" saves the template's schema as a JSON file: what records for it must look like.
 
 import { renderReport } from "../core/report.js";
 import { placeholderRecord } from "../core/schema.js";
 import { downloadBytes } from "../core/store.js";
+import { describeData, mappingSummary, renderMapping, sendData } from "./data.js";
 
 const SAMPLE = "__sample__";
+const DATA = "__data__";
 
 /** @param {object} app see workbench.js */
 export function mountFill(app) {
@@ -34,11 +43,14 @@ export function mountFill(app) {
   let fills = 0; // bumps on Clear, closing the drawer and a new document: a fill still running is then dropped
 
   const sampling = () => $("fill-schema").value === SAMPLE;
+  const fromData = () => $("fill-schema").value === DATA;
+  /** The record in the JSON box: the sample, or one of your data's records. */
+  const editing = () => sampling() || fromData();
 
   function setBusy(on) {
     busy = on;
     for (const id of ["fill-go", "smart-go", "rebind", "fill-anyway"]) $(id).disabled = on;
-    $("fill-go").disabled = on || (!sampling() && !$("fill-record").value);
+    $("fill-go").disabled = on || (!editing() && !$("fill-record").value);
     $("fill-download").disabled = on || filled === null;
     $("fill-clear").disabled = filled === null;
   }
@@ -52,6 +64,7 @@ export function mountFill(app) {
   /** What the filled PDF is shown under: the stored record's title, or the sample record. */
   function recordTitle() {
     if (sampling()) return "the sample record";
+    if (fromData()) return $("fill-record").selectedOptions[0]?.textContent || "your record";
     const select = $("fill-record");
     return select.selectedOptions[0]?.textContent || select.value;
   }
@@ -79,13 +92,31 @@ export function mountFill(app) {
     $("fill-sample").value = JSON.stringify(record, null, 2);
   }
 
+  /** Your data's record now picked, as JSON in the box. */
+  function showDataRecord() {
+    const record = app.data?.records?.[Number($("fill-record").value)] ?? {};
+    $("fill-sample").value = JSON.stringify(record, null, 2);
+    sampleFor = null; // the box no longer holds the sample
+  }
+
   async function showRecords() {
     const name = $("fill-schema").value;
     const select = $("fill-record");
-    $("fill-sample-group").hidden = name !== SAMPLE;
+    $("fill-sample-group").hidden = name !== SAMPLE && name !== DATA;
     $("fill-record-group").hidden = name === SAMPLE;
+    $("fill-sample-hint").textContent =
+      name === DATA
+        ? "This record as your data mapping made it. Edit it before filling if you like."
+        : "Sample values for every field of this template's schema. Edit them as you like.";
     if (name === SAMPLE) {
       makeSample();
+      setBusy(busy);
+      return;
+    }
+    if (name === DATA) {
+      const titles = app.data?.titles ?? [];
+      select.replaceChildren(...(titles.length ? titles.map((t, i) => new Option(t, String(i))) : [new Option("No records", "")]));
+      showDataRecord();
       setBusy(busy);
       return;
     }
@@ -107,19 +138,58 @@ export function mountFill(app) {
     setBusy(busy);
   }
 
-  function open() {
-    if (app.template === null) return;
+  /** The sources on offer: your data, the stored records of the template's own schema, a sample. */
+  function sources() {
     // only the stored schema that is exactly the template's own has records that fit it
     const own = app.schemaNameOf(app.template.schema);
-    const options = own === null ? [] : [new Option(`Stored records (${own})`, own)];
+    const data = app.data?.records?.length ? app.data : null;
+    const options = [];
+    if (data) options.push(new Option(`Your data · ${data.dataset?.name ?? "records"} (${data.total ?? data.records.length})`, DATA));
+    if (own !== null) options.push(new Option(`Stored records (${own})`, own));
     $("fill-schema").replaceChildren(...options, new Option("A sample record", SAMPLE));
-    $("fill-schema").value = own ?? SAMPLE;
+    $("fill-schema").value = data ? DATA : own ?? SAMPLE;
+    $("mapping-box").hidden = app.data === null;
+    if (app.data !== null) {
+      $("mapping-sum").textContent = mappingSummary(app.data);
+      renderMapping($("mapping"), app.data);
+      $("mapping-box").open = Boolean(app.data.error);
+    }
+  }
+
+  function open() {
+    if (app.template === null) return;
+    sources();
     // below the toolbar, so Undo and Redo stay in reach while the drawer is open
     drawer.style.top = `${Math.max(0, $("toolbar").getBoundingClientRect().bottom)}px`;
     drawer.hidden = false;
     showRecords();
     $("fill-record").focus();
+    if (app.pendingData) {
+      const waiting = app.pendingData;
+      app.pendingData = null;
+      mapData(waiting);
+    }
   }
+
+  /** Map a dataset for the template on screen (a one-shot job that maps only the data). */
+  async function mapData(dataset) {
+    say(msg, `Mapping ${describeData(dataset)}…`);
+    await app.track(session.idle());
+    app.jobs.oneshot({ template: session.template, dataset, saved: app.state.savedName });
+  }
+
+  /** Your data's records are in: show them, open on the first one and fill it. */
+  app.showData = (data) => {
+    app.data = data;
+    if (app.template === null) return;
+    open();
+    if (data.error) {
+      say(msg, `Your data couldn't be mapped: ${data.error}`);
+      return;
+    }
+    say(msg, "");
+    if (data.records.length) run("fill");
+  };
 
   async function run(action, { checkFingerprint } = {}) {
     if (busy || app.template === null) return;
@@ -133,7 +203,7 @@ export function mountFill(app) {
       const doc = session.doc;
       if (action === "fill") {
         let out;
-        if (sampling()) {
+        if (editing()) {
           let record;
           try {
             record = JSON.parse($("fill-sample").value);
@@ -212,8 +282,41 @@ export function mountFill(app) {
     refill();
   });
   $("fill-record").addEventListener("change", () => {
+    if (fromData()) showDataRecord();
     setBusy(busy);
     refill();
+  });
+  $("add-data-file").addEventListener("change", () => {
+    const file = $("add-data-file").files?.[0];
+    $("add-data-label").textContent = file ? file.name : "Choose a CSV, Excel or JSON file";
+  });
+  $("add-data-go").addEventListener("click", async () => {
+    if (app.template === null) return;
+    let dataset;
+    $("add-data-go").disabled = true;
+    try {
+      dataset = await sendData(engine, { file: $("add-data-file").files?.[0] ?? null, text: $("add-data-text").value });
+    } catch (e) {
+      say(msg, `That data can't be used: ${e.message}`);
+      return;
+    } finally {
+      $("add-data-go").disabled = false;
+    }
+    if (dataset === null) {
+      say(msg, "Choose a file or paste some data first.");
+      return;
+    }
+    $("add-data-file").value = "";
+    $("add-data-label").textContent = "Choose a CSV, Excel or JSON file";
+    $("add-data-text").value = "";
+    $("add-data").open = false;
+    mapData(dataset);
+  });
+  $("schema-download").addEventListener("click", () => {
+    if (app.template === null) return;
+    const text = JSON.stringify(app.template.schema ?? {}, null, 2);
+    downloadBytes(new TextEncoder().encode(text), `${app.state.savedName ?? app.stem()}.schema.json`, "application/schema+json");
+    say(msg, "The data schema is downloading: records shaped like it (or a CSV with its paths as column names) fill this form without AI.");
   });
   $("fill-download").addEventListener("click", () => {
     if (filled === null) return;
@@ -254,6 +357,8 @@ export function mountFill(app) {
     run(last);
   });
   app.onReset(() => {
+    app.data = null;
+    app.pendingData = null;
     sampleFor = null;
     again = false;
     checked = undefined;

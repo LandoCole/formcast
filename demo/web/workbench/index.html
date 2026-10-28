@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>formcast workbench</title>
-<meta name="description" content="The formcast workbench: open a PDF form, link its boxes to a JSON Schema by hand or with an AI agent, save the template and fill the form from your records.">
+<meta name="description" content="The formcast workbench: give it a PDF form and your data (a CSV, an Excel sheet, JSON or plain text). The AI designs the form's data schema, links its boxes and maps your data onto it; save the result as a template to fill the form again without AI.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -91,20 +91,28 @@
 <!-- start screen -->
 <div class="overlay" id="start" role="dialog" aria-modal="true" aria-labelledby="start-title">
   <div class="sheet">
-    <h1 id="start-title">Open a form</h1>
+    <h1 id="start-title">Fill a form</h1>
+    <p class="lede" id="start-lede">Give it a PDF and your data. The AI reads the form, designs its data schema, links every box and maps your data onto it. Save the result as a template and the next fill skips all of that.</p>
     <div class="group">
-      <p class="label"><label for="form-pick">Demo form</label></p>
+      <p class="label"><label for="form-pick">1 · The form</label></p>
       <select id="form-pick"><option value="">Loading…</option></select>
+      <label class="btn quiet file below"><span id="file-label">Or choose a PDF</span><input type="file" id="file" accept=".pdf,application/pdf"></label>
     </div>
     <div class="group">
-      <p class="label">Or your own PDF</p>
-      <label class="btn quiet file"><span id="file-label">Choose a PDF</span><input type="file" id="file" accept=".pdf,application/pdf"></label>
+      <p class="label">2 · Your data <span class="opt">optional</span></p>
+      <label class="btn quiet file"><span id="data-label">Choose a CSV, Excel or JSON file</span><input type="file" id="data-file" accept=".csv,.tsv,.txt,.xlsx,.xlsm,.json,text/csv,application/json"></label>
+      <textarea id="data-text" rows="4" spellcheck="false" aria-label="Or paste your data" placeholder="Or paste records, a table, or plain text: “Priya Raman, 19 Cedar Lane, Menomonie WI, applying for Library Assistant…”"></textarea>
     </div>
-    <div class="group">
-      <p class="label"><label for="schema-pick">Schema</label></p>
-      <select id="schema-pick"><option value="">Loading…</option></select>
+    <details class="group more" id="schema-group">
+      <summary class="label">3 · Schema and AI · <span id="schema-sum">the AI designs it from the form</span></summary>
+      <select id="schema-pick" aria-label="Schema"><option value="">Loading…</option></select>
       <textarea id="schema-text" rows="7" spellcheck="false" aria-label="Your JSON Schema" placeholder='{"type": "object", "properties": {...}}' hidden></textarea>
-    </div>
+      <select id="ai-mode" class="below" aria-label="How the boxes are linked">
+        <option value="check">The AI links the boxes, and the agent checks its work</option>
+        <option value="fast">The AI links the boxes in one pass (faster, less thorough)</option>
+        <option value="off">Open the boxes unlinked, to link them by hand</option>
+      </select>
+    </details>
     <p class="msg" id="start-msg" role="alert" hidden></p>
     <div class="row">
       <button type="button" class="btn quiet" id="start-close" hidden>Back</button>
@@ -135,6 +143,7 @@
 <div class="overlay" id="job" role="dialog" aria-modal="true" aria-labelledby="job-title" hidden>
   <div class="sheet">
     <h2 id="job-title">AI build</h2>
+    <ol class="stages" id="job-stages" hidden></ol>
     <ol class="steps" id="job-steps"></ol>
     <p class="readout" id="job-status" aria-live="polite"></p>
     <div class="row">
@@ -154,6 +163,7 @@
       <input type="text" class="text" id="save-name" maxlength="80" autocomplete="off" spellcheck="false">
       <p class="hint">Letters, digits, spaces, dots, dashes and underscores. A template with the same name is replaced.</p>
     </div>
+    <p class="hint" id="save-what">Saves the boxes and their links, the data schema and this PDF, so the form opens from Saved templates without detection or AI.</p>
     <p class="msg" id="save-msg" role="alert" hidden></p>
     <div class="row">
       <button type="button" class="btn quiet" id="save-cancel">Cancel</button>
@@ -172,6 +182,10 @@
     <p class="label"><label for="fill-schema">Fill with</label></p>
     <select id="fill-schema"></select>
   </div>
+  <details class="group more" id="mapping-box" hidden>
+    <summary class="label">Data mapping · <span id="mapping-sum"></span></summary>
+    <div id="mapping"></div>
+  </details>
   <div class="group" id="fill-record-group">
     <p class="label"><label for="fill-record">Record</label></p>
     <select id="fill-record"></select>
@@ -179,7 +193,7 @@
   <div class="group" id="fill-sample-group" hidden>
     <p class="label"><label for="fill-sample">Record (JSON)</label></p>
     <textarea id="fill-sample" rows="12" spellcheck="false"></textarea>
-    <p class="hint">Sample values for every field of this template's schema. Edit them as you like.</p>
+    <p class="hint" id="fill-sample-hint">Sample values for every field of this template's schema. Edit them as you like.</p>
   </div>
   <div class="row">
     <button type="button" class="btn dark" id="fill-go">Fill</button>
@@ -199,6 +213,14 @@
   </div>
   <p class="msg" id="fill-msg" role="status" aria-live="polite" hidden></p>
   <div id="report"></div>
+  <details class="group more" id="add-data">
+    <summary class="label">Add data to fill with</summary>
+    <label class="btn quiet file"><span id="add-data-label">Choose a CSV, Excel or JSON file</span><input type="file" id="add-data-file" accept=".csv,.tsv,.txt,.xlsx,.xlsm,.json,text/csv,application/json"></label>
+    <textarea id="add-data-text" rows="3" spellcheck="false" aria-label="Or paste data" placeholder="Or paste records, a table, or plain text"></textarea>
+    <div class="row"><button type="button" class="btn" id="add-data-go">Map this data</button></div>
+    <p class="hint">Columns named by the schema's paths, or matching a mapping saved with this template, need no AI.</p>
+  </details>
+  <div class="row"><button type="button" class="btn quiet" id="schema-download">Data schema (JSON)</button></div>
 </aside>
 
 <script type="module" src="workbench.js"></script>
