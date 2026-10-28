@@ -225,6 +225,8 @@ class Session:
     there are any, the first message carries them (with a note on reading them) ahead of
     its text, otherwise it is text only. ``after_page_pass`` says a
     page pass mapped ``template``: the first message says so and lists its fields.
+    ``focus_pages`` limits the first message's page-map text to those pages (the others show
+    their header line only; the query helpers still read every page).
 
     ``on_step`` is called with a :class:`StepEvent` after every model reply. It may
     raise :class:`SessionCancelled` to stop the run: the sandbox is closed and the
@@ -248,6 +250,7 @@ class Session:
         on_step: Callable[[StepEvent], None] | None = None,
         page_images: list[tuple[int, bytes]] | None = None,
         after_page_pass: bool = False,
+        focus_pages: set[int] | None = None,
     ):
         self.form_map = form_map
         self.schema = schema
@@ -272,7 +275,7 @@ class Session:
         self._short_groups: list[list[Message]] = []
         self._system = Message(role="system", content=prompts.SYSTEM_PROMPT)
         first_text = prompts.first_user_message(
-            summarize(form_map), self.schema_paths, instruction, region, template=self.template,
+            summarize(form_map, focus=focus_pages), self.schema_paths, instruction, region, template=self.template,
             fresh=fresh, after_page_pass=after_page_pass, api_reference=api_text(),
         )  # fmt: skip
         content: str | list[ContentPart] = first_text

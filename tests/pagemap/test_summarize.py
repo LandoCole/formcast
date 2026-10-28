@@ -138,3 +138,20 @@ def test_tiny_budget_still_respects_max_chars():
     text = summarize(_big_map(pages=5), max_chars=200)
     assert len(text) <= 200
     assert "truncated" in text
+
+
+def test_a_focus_leaves_out_the_text_of_other_pages():
+    import pymupdf
+
+    from formcast.pagemap.build import DetectPolicy, build_form_map
+    from formcast.pagemap.summarize import FOCUS_NOTE, summarize
+
+    doc = pymupdf.open()
+    for text in ("Effective date:", "Name of Investor:"):
+        doc.new_page(width=300, height=200).insert_text((20, 40), text)
+    fm = build_form_map(doc.tobytes(), detectors={}, policy=DetectPolicy(digital=(), scanned=()), ocr="never")
+    doc.close()
+    text = summarize(fm, focus={1})
+    assert "Name of Investor" in text and "Effective date" not in text
+    assert text.count(FOCUS_NOTE) == 1 and "== page 0 |" in text  # the page keeps its header
+    assert "Effective date" in summarize(fm)

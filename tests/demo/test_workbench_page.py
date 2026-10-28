@@ -30,7 +30,7 @@ SCHEMA_TEXT = '{"type": "object", "properties": {"name": {"type": "string"}, "no
 def no_model_loads(monkeypatch):
     real = documents_mod.build_form_map
     policy = DetectPolicy(digital=(), scanned=())
-    monkeypatch.setattr(documents_mod, "build_form_map", lambda pdf, detectors=None: real(pdf, detectors={}, policy=policy, ocr="never"))
+    monkeypatch.setattr(documents_mod, "build_form_map", lambda pdf, detectors=None, **kw: real(pdf, detectors={}, policy=policy, ocr="never"))
 
 
 def widget_pdf(*, width: float = 300, height: float = 200, rect=(20, 120, 120, 140), rotation: int = 0, fill=None) -> bytes:
@@ -993,3 +993,30 @@ def test_with_the_demo_off_the_start_screen_offers_a_pdf_then_your_saved_templat
     expect(page.locator("#form-pick option[value='saved:mine']")).to_have_count(1)
     expect(page.locator("#form-pick option").first).to_have_text("Choose a saved template")
     assert b.errors == []
+
+
+def test_a_pdf_alone_opens_with_ai_off_its_boxes_detected_and_unnamed(start_demo_server, page):
+    b = Bench(page, start_demo_server(demo_enabled=False))  # AI off and no stored schemas: nothing but the PDF
+    page.goto(f"{b.base}/workbench/?poll=50")
+    page.set_input_files("#file", files=[{"name": "form.pdf", "mimeType": "application/pdf", "buffer": widget_pdf()}])
+    expect(page.locator("#schema-pick")).to_have_value("__none__")
+    page.click("#open")
+    b.build_new()
+    expect(b.boxes()).to_have_count(1)  # the form's own widget, detected
+    expect(page.locator("#notice")).to_contain_text("AI is off")
+    expect(page.locator("#start-msg")).to_be_hidden()
+    assert b.errors == []
+
+
+def test_a_pdf_alone_with_ai_on_runs_the_one_shot_schema_design(start_demo_server, bench):
+    from test_server_oneshot import DERIVED, Model
+
+    model = Model()
+    b = bench(start_demo_server(provider_factory=model))
+    b.page.set_input_files("#file", files=[{"name": "form.pdf", "mimeType": "application/pdf", "buffer": widget_pdf()}])
+    b.link_by("fast")
+    b.page.click("#open")  # no data, no schema: just the PDF
+    b.build_new()
+    b.page.wait_for_function("window.__workbench.template?.schema?.title === 'Tiny form'")
+    assert b.template()["schema"] == DERIVED
+    assert model.calls == {"derive": 1, "page": 1}

@@ -40,7 +40,7 @@ def no_model_loads(monkeypatch):
     """Adding a document starts its form map in the background: build it without detectors or OCR here."""
     real = documents_mod.build_form_map
     policy = DetectPolicy(digital=(), scanned=())
-    monkeypatch.setattr(documents_mod, "build_form_map", lambda pdf, detectors=None: real(pdf, detectors={}, policy=policy, ocr="never"))
+    monkeypatch.setattr(documents_mod, "build_form_map", lambda pdf, detectors=None, **kw: real(pdf, detectors={}, policy=policy, ocr="never"))
 
 
 class GatedBuilder:
@@ -56,7 +56,7 @@ class GatedBuilder:
         self.calls: list[tuple[str, bool]] = []
         self.detectors: list = []
 
-    def __call__(self, pdf, detectors=None):
+    def __call__(self, pdf, detectors=None, **kw):
         self.calls.append((threading.current_thread().name, documents_mod.PYMUPDF_LOCK._is_owned()))
         self.detectors.append(detectors)
         self.started.set()
@@ -379,7 +379,7 @@ def test_the_form_map_is_built_once_even_when_asked_for_concurrently(monkeypatch
     calls = []
     gate = threading.Event()
 
-    def slow_build(pdf, detectors=None):
+    def slow_build(pdf, detectors=None, **kw):
         calls.append(1)
         gate.wait(timeout=5)
         return object()
@@ -397,7 +397,7 @@ def test_the_form_map_is_built_once_even_when_asked_for_concurrently(monkeypatch
 def test_a_failed_form_map_build_is_not_kept(monkeypatch):
     attempts = []
 
-    def flaky(pdf, detectors=None):
+    def flaky(pdf, detectors=None, **kw):
         attempts.append(1)
         if len(attempts) == 1:
             raise FormcastError("detector missing")
@@ -429,7 +429,7 @@ def test_form_map_waits_for_the_background_build_instead_of_starting_another(mon
 def test_a_failed_background_build_is_reported_once_then_built_again(monkeypatch):
     attempts = []
 
-    def flaky(pdf, detectors=None):
+    def flaky(pdf, detectors=None, **kw):
         attempts.append(threading.current_thread().name)
         if len(attempts) == 1:
             raise OSError("cannot fetch the detection weights")

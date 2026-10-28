@@ -21,6 +21,7 @@ import { describeData, sendData } from "./data.js";
 
 const PASTE = "__paste__";
 const DERIVE = "__derive__";
+const NONE = "__none__"; // AI off: open the form's detected boxes with no schema yet
 const EMPTY_SCHEMA = { type: "object", properties: {} };
 // The server reads a PDF (its form map) once, starting when the document opens; the first time it also
 // downloads the detector weights. Matching and seeding wait for that reading.
@@ -94,7 +95,7 @@ export function mountStart(app) {
     if (!fileInput.files?.[0]) $("file-label").textContent = groups.length ? "Or choose a PDF" : "Choose a PDF";
     const schemaBefore = $("schema-pick").value;
     $("schema-pick").replaceChildren(
-      ...(ai ? [new Option("The AI designs it from the form", DERIVE)] : []),
+      ai ? new Option("The AI designs it from the form", DERIVE) : new Option("None yet: detect the boxes only", NONE),
       ...Object.entries(app.schemas).map(([name, schema]) => new Option(schema?.title ? `${name} · ${schema.title}` : name, name)),
       new Option("Paste a JSON Schema", PASTE),
     );
@@ -117,8 +118,8 @@ export function mountStart(app) {
     $("schema-group").hidden = fromSaved;
     $("ai-mode").hidden = !ai;
     const how = !ai ? "" : { check: "", fast: " · one pass", off: " · link by hand" }[$("ai-mode").value];
-    $("schema-sum").textContent =
-      (value === DERIVE ? "the AI designs it from the form" : value === PASTE ? "pasted" : value ? `stored · ${value}` : "") + how;
+    const what = { [DERIVE]: "the AI designs it from the form", [NONE]: "none yet", [PASTE]: "pasted" }[value];
+    $("schema-sum").textContent = (what ?? (value ? `stored · ${value}` : "")) + how;
     if (fromSaved) $("open").textContent = hasData() ? "Open and fill" : "Open";
     else $("open").textContent = mapping() ? "Map with AI" : "Open";
   }
@@ -136,7 +137,7 @@ export function mountStart(app) {
     $("file-label").textContent = file ? file.name : forms.length || saved.length ? "Or choose a PDF" : "Choose a PDF";
     if (file) {
       $("form-pick").value = "";
-      if (ai) $("schema-pick").value = DERIVE; // your own PDF: the one-shot default
+      $("schema-pick").value = ai ? DERIVE : NONE; // your own PDF: needs nothing else
     }
     sync();
   });
@@ -151,10 +152,15 @@ export function mountStart(app) {
   $("doc-name").addEventListener("click", () => showStart());
   $("start-close").addEventListener("click", hideAll);
 
-  /** The schema chosen on the start screen: {schema, schemaName} (schema null: the AI designs it), or a message. */
+  /**
+   * The schema chosen on the start screen: {schema, schemaName}, or a message. `schema` null means none
+   * was given (the AI designs one, or with AI off the boxes open unlinked); so does an empty paste box,
+   * because a PDF alone is always enough.
+   */
   function chosenSchema() {
     const value = $("schema-pick").value;
-    if (value === DERIVE) return { schema: null, schemaName: null };
+    if (value === DERIVE || value === NONE || value === "") return { schema: null, schemaName: null };
+    if (value === PASTE && !$("schema-text").value.trim()) return { schema: null, schemaName: null };
     if (value !== PASTE) {
       const schema = app.schemas[value];
       return schema ? { schema, schemaName: value } : { error: "Choose a schema." };
@@ -343,10 +349,6 @@ export function mountStart(app) {
    * job. Resolves false (with a message) when the seed fails.
    */
   async function buildNew({ doc, schema, schemaName, dataset = null, check = true, ai: runAi = ai }) {
-    if (schema == null && !runAi) {
-      showStart("Only the AI can design the schema. Pick a schema to link the boxes by hand, or let the AI link them.");
-      return false;
-    }
     if (match.hidden) say(msg, READING);
     else $("match-hint").textContent = READING; // asked from the match prompt, which stays up while it waits
     let template;
@@ -360,8 +362,17 @@ export function mountStart(app) {
     app.setDocument({ doc, template, source: { kind: "seed", text: "The form's own fields and detected boxes" }, schemaName });
     if (runAi) {
       app.jobs.oneshot({ schema: schemaName ?? schema, dataset, check });
+      return true;
+    }
+    if (dataset !== null) app.pendingData = dataset;
+    const waiting = dataset !== null ? ` Your data (${describeData(dataset)}) waits in Fill.` : "";
+    if (schema == null && !schemaName) {
+      app.notice(
+        ai
+          ? `The form's boxes are detected but not named yet. Build with AI designs the schema and links them.${waiting}`
+          : `The form's boxes are detected but not named: AI is off. Set FORMCAST_DEMO_BASE_URL, FORMCAST_DEMO_API_KEY and FORMCAST_DEMO_MODEL in .env to have the AI name and link them, or paste a schema.${waiting}`,
+      );
     } else if (dataset !== null) {
-      app.pendingData = dataset;
       app.notice(`Your data (${describeData(dataset)}) is waiting: link the boxes, then open Fill to map it.`);
     }
     return true;

@@ -267,10 +267,20 @@ def summarize_page(form_map: FormMap, page: int, *, max_chars: int = 24000) -> s
     return "\n".join(top + kept + [note])[:max_chars]
 
 
-def summarize(form_map: FormMap, *, max_chars: int = 24000) -> str:
-    """The form map as compact text of at most ``max_chars`` characters."""
+FOCUS_NOTE = "[text left out: no blanks were found on this page; the query helpers have its text]"
+
+
+def summarize(form_map: FormMap, *, max_chars: int = 24000, focus: set[int] | None = None) -> str:
+    """The form map as compact text of at most ``max_chars`` characters.
+
+    With ``focus`` (page indexes), pages outside it show only their header line and a note, so a long
+    document's prose does not take the budget from its form pages.
+    """
     preamble = _preamble(form_map) + " Use the query helpers for all text and geometry."
-    pages = [(_page_header(p), _page_body(p)) for p in form_map.pages]
+    pages = [
+        (_page_header(p), _page_body(p) if focus is None or p.index in focus else [FOCUS_NOTE])
+        for p in form_map.pages
+    ]
     full = "\n".join([preamble] + [ln for head, body in pages for ln in head + body])
     if len(full) <= max_chars:
         return full

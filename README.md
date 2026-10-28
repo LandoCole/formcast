@@ -95,7 +95,9 @@ accept image input.
 - **Cost.** The page pass is one call per page with boxes, up to 32,000 output tokens and a
   300 s timeout each, run up to four pages at a time. `SessionBudget`'s token caps count the
   agent's tokens only. The agent's images are resent with its first message every turn, about
-  1.6k input tokens per page per step on Haiku 5.5.
+  1.6k input tokens per page per step on Haiku 5.5. On a document of more than 12 pages with more
+  than 12 pages of boxes, the agent gets images of the 12 pages the page pass left the most boxes
+  unlinked on, and page-map text only for pages with boxes (`formcast.agent.api.LONG_DOCUMENT_PAGES`).
 - **Privacy.** Images go to the model endpoint only. They are never written to step reports,
   results, logs or the template.
 
@@ -249,6 +251,40 @@ Measured on the 3-page Menomonie job application with Haiku 5.5 (one run each, 2
 
 On that form the page pass alone stacked the two repeated "Previous Employment" blocks onto one line;
 the agent's check fixed them. That is why the agent runs by default.
+
+**Only the PDF is required.** With no data and no schema, the model designs the schema and links the
+boxes; data can come later. Without a model, `build_form_map` still detects the boxes.
+
+### Long documents
+
+A subscription package is mostly agreement text, with the forms in sections (a cover page, signature
+pages, a questionnaire, annexes). Three things keep that affordable:
+
+- `build_form_map(pdf, skip_prose=True)` runs no detection on pages that read as running text
+  (`looks_like_prose`: most lines span the page, almost no "Label:" lines, few rules). It is off by
+  default in the library and on in the workbench. On the eval corpus it skips no page with fields.
+- `derive_schema` sends images of one page per section of forms (largest sections first), then of the
+  pages with the most blanks, up to 12; full page-map text for pages with blanks and a short excerpt of
+  every other page.
+- After the page pass, the agent works from the 12 pages it left most unlinked (see *Cost* above).
+
+Measured on a public 90-page fund subscription package (flat, no form fields; 30 pages of agreement
+skipped as prose), Haiku 5.5, 2026-10-28:
+
+| Step | Time | Tokens (in / out) |
+|---|---|---|
+| Page map, 60 pages detected | 198 s | none |
+| `derive_schema` (90-130 fields across runs) | 35-75 s | 57k / 8-17k |
+| Page pass, 37 pages | about 50 s | 330-450k / 26-37k |
+| Agent check | 2-3 min | 1.2-1.5M / 15-20k |
+| `extract_records`, one paragraph | 10-12 s | 9-13k / 2-3k |
+
+Without the agent check, the free-text investor filled 31 fields: the cover page, signature-page date and
+fund choice, and the first questionnaire page complete. The agent check linked more boxes in one run
+(212 against 195) and in another stopped at `SessionBudget`'s 1.5M input-token cap with its template
+kept. On a long package the faster `agent=False` (the workbench's "one pass") is the better trade.
+Known gaps: detection misses some signature-block lines (name and title under the signature), so
+nothing fills them.
 
 ## The sandbox is not a security boundary
 

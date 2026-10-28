@@ -57,7 +57,7 @@ def no_model_loads(request, monkeypatch):
     if request.node.get_closest_marker("slow"):
         return
     real = documents_mod.build_form_map
-    monkeypatch.setattr(documents_mod, "build_form_map", lambda pdf, detectors=None: real(pdf, detectors={}, policy=NO_DETECT, ocr="never"))
+    monkeypatch.setattr(documents_mod, "build_form_map", lambda pdf, detectors=None, **kw: real(pdf, detectors={}, policy=NO_DETECT, ocr="never"))
 
 
 def tpl(name: str) -> str:
@@ -763,7 +763,7 @@ def test_apply_falls_back_to_template_only_checks_when_the_form_map_cannot_be_bu
     _, body = post(demo_server, "/api/seed", {"doc": doc, "schema": "fw9"})
     template = body["template"]
 
-    def offline(pdf, detectors=None):
+    def offline(pdf, detectors=None, **kw):
         raise OSError("cannot fetch the detection weights")
 
     monkeypatch.setattr(documents_mod, "build_form_map", offline)

@@ -472,3 +472,39 @@ def test_field_blind_fingerprint_ignores_filled_values(fillable_form_pdf):
     assert fingerprint_document(filled) != blank  # widget text is part of the text layer
     assert fingerprint_document(filled, ignore_field_values=True) == blank
     assert len(filled[0].widgets().__next__().field_value) > 0  # the copy left the input alone
+
+
+# --- prose pages (skip_prose) ---------------------------------------------
+
+
+def _prose_and_form_pdf() -> bytes:
+    """Page 0: a page of running text (an agreement). Page 1: the flat form (labels and rules)."""
+    doc = pymupdf.open()
+    prose = doc.new_page(width=612, height=792)
+    sentence = "The Subscriber acknowledges that the Interests have not been registered and agrees to hold them. "
+    prose.insert_textbox(pymupdf.Rect(72, 72, 540, 720), sentence * 40, fontsize=10)
+    form = doc.new_page(width=612, height=792)
+    for i, label in enumerate(("Name:", "Address:", "Telephone:", "Tax ID:")):
+        y = 100 + 40 * i
+        form.insert_text((72, y), label, fontsize=11)
+        form.draw_line((160, y + 2), (500, y + 2), width=0.75)
+    out = doc.tobytes()
+    doc.close()
+    return out
+
+
+def test_looks_like_prose_tells_running_text_from_a_form():
+    fm = build_form_map(_prose_and_form_pdf(), detectors={}, policy=build.DetectPolicy(digital=(), scanned=()), ocr="never")
+    assert build.looks_like_prose(fm.pages[0]) is True
+    assert build.looks_like_prose(fm.pages[1]) is False
+
+
+def test_skip_prose_runs_no_detection_on_prose_pages_and_says_so():
+    pdf = _prose_and_form_pdf()
+    det = FakeDetector("FFDNet-L", [])
+    fm = build_form_map(pdf, detectors={"FFDNet-L": det}, ocr="never", skip_prose=True)
+    assert det.calls == 1  # the form page only
+    assert build.NOTE_PROSE in fm.pages[0].notes and build.NOTE_PROSE not in fm.pages[1].notes
+    det = FakeDetector("FFDNet-L", [])
+    build_form_map(pdf, detectors={"FFDNet-L": det}, ocr="never")
+    assert det.calls == 2  # off by default: every digital page is searched

@@ -147,7 +147,8 @@ class Doc:
             self._prime_features()
             detectors = self._detectors_for_build()  # may wait for the weights, holding no lock
             with PYMUPDF_LOCK:
-                result = builder(self.bytes, detectors=detectors)
+                # the prose of a long agreement is not searched for blanks (formcast.pagemap.build)
+                result = builder(self.bytes, detectors=detectors, skip_prose=True)
         except BaseException as exc:  # handed to whoever waits; a background thread has nobody else to tell
             future.set_exception(exc)
         else:

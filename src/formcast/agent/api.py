@@ -20,14 +20,52 @@ from formcast.template.model import Template, form_info_for, new_template
 PdfInput = str | Path | bytes
 
 
-def _page_images(pdf: PdfInput, template: Template, form_map: FormMap) -> list[tuple[int, bytes]]:
-    """A marked image of each page of the PDF that has boxed fields, with those fields drawn on it.
+# A long document (a subscription package: dozens of pages of agreement with questionnaires between)
+# would resend an image of every page with boxes at every agent step. Past this many pages the agent
+# checking a page pass sees the pages the pass left most boxes unlinked on, and page-map text only
+# for pages with boxes. Shorter documents are unchanged.
+LONG_DOCUMENT_PAGES = 12
+MAX_AGENT_IMAGE_PAGES = 12
+
+
+def _boxed_pages(template: Template, form_map: FormMap) -> set[int]:
+    """The pages with a boxed field or a table segment on them."""
+    pages = {f.page for f in template.fields if f.page is not None and f.rect is not None}
+    pages |= {seg.page for f in template.fields for seg in (getattr(f, "segments", None) or [])}
+    return pages & set(range(len(form_map.pages)))
+
+
+def _focus(template: Template, form_map: FormMap) -> set[int] | None:
+    """For a long document, the pages whose images the agent gets after a page pass; None for every boxed page.
+
+    The ``MAX_AGENT_IMAGE_PAGES`` pages with the most unlinked boxes (ties: more boxes, then earlier).
+    """
+    boxed = _boxed_pages(template, form_map)
+    if len(form_map.pages) <= LONG_DOCUMENT_PAGES or len(boxed) <= MAX_AGENT_IMAGE_PAGES:
+        return None
+    fields = [f for f in template.fields if f.page in boxed and f.rect is not None]
+
+    def rank(n: int) -> tuple[int, int, int]:
+        on = [f for f in fields if f.page == n]
+        unlinked = sum(1 for f in on if not (f.source and f.source.paths))
+        return (-unlinked, -len(on), n)
+
+    return set(sorted(boxed, key=rank)[:MAX_AGENT_IMAGE_PAGES])
+
+
+def _page_images(
+    pdf: PdfInput, template: Template, form_map: FormMap, *, pages: set[int] | None = None
+) -> list[tuple[int, bytes]]:
+    """A marked image of each page of the PDF that has boxed fields (of ``pages`` only, when given), with
+    those fields drawn on it.
 
     Fields on a page the PDF does not have (a template from a longer revision) get no image.
     """
     boxed = [f for f in template.fields if f.page is not None and f.rect is not None]
-    pages = sorted({f.page for f in boxed} & set(range(len(form_map.pages))))
-    return [(n, render_marked_page(pdf, n, [f for f in boxed if f.page == n])) for n in pages]
+    want = {f.page for f in boxed} & set(range(len(form_map.pages)))
+    if pages is not None:
+        want &= pages
+    return [(n, render_marked_page(pdf, n, [f for f in boxed if f.page == n])) for n in sorted(want)]
 
 
 def _page_pass_event(pp: PagePassResult, form_map: FormMap, schema: dict, *, finished: bool) -> StepEvent:
@@ -118,11 +156,12 @@ def build_template(
                 template=pp.template, finished=True, summary="page pass only", steps=[], usage=pp.usage,
                 stop_reason="finish", page_pass=pp,
             )  # fmt: skip
-        images = _page_images(pdf, pp.template, fm)
+        focus = _focus(pp.template, fm)
+        images = _page_images(pdf, pp.template, fm, pages=focus)
         if any(o.status == "ok" for o in pp.pages):
             session = Session(
                 fm, schema, provider, template=pp.template, budget=budget, on_step=on_step, page_images=images,
-                after_page_pass=True,
+                after_page_pass=True, focus_pages=_boxed_pages(pp.template, fm) if focus is not None else None,
             )  # fmt: skip
         else:  # no page answered: the template is the fresh one, so the agent starts as if no pass ran
             session = Session(

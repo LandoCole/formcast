@@ -289,6 +289,12 @@ export function mountJobs(app) {
 
   $("build-ai").addEventListener("click", () => {
     if (app.template === null) return;
+    // no schema yet (a PDF opened on its own): the one-shot job designs one, then links the boxes
+    const props = session.template.schema?.properties;
+    if (typeof engine.oneshot === "function" && !(props && Object.keys(props).length)) {
+      run("oneshot", () => engine.oneshot(session.doc, { check: true }), { replace: true });
+      return;
+    }
     run("build", () => engine.build(session.doc, session.template.schema));
   });
 

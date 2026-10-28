@@ -15,6 +15,12 @@ text is kept and a note is added to the page; ``ocr="always"`` OCRs every page
 and raises instead. ``ocr="never"`` keeps the PDF text and notes pages that
 needed OCR.
 
+Prose pages (``skip_prose=True``): a long document such as a subscription agreement is mostly running
+text with the forms in between. Detection costs seconds per page and finds nothing there but the odd
+stray box, so a digital page that :func:`looks_like_prose` skips detection (and says so in its notes).
+A page is prose when most of its lines run across the page and it has almost no labels ending in a
+colon and few rules. On the eval corpus no page with fields reads as prose. Off by default.
+
 After text is settled, lines are split where two words are more than
 ``LINE_SPLIT_GAP`` em apart, so "Name ____ DOB ____ Phone #" drawn as one text
 line becomes three label lines.
@@ -34,7 +40,7 @@ from formcast.pagemap.model import FormMap, PageMap, TextLine, Word
 from formcast.pagemap.ocr import ocr_available, ocr_page
 from formcast.pagemap.query import find_label
 
-__all__ = ["DetectPolicy", "build_form_map", "link_labels", "split_wide_lines"]
+__all__ = ["DetectPolicy", "build_form_map", "link_labels", "looks_like_prose", "split_wide_lines"]
 
 OcrMode = Literal["auto", "never", "always"]
 
@@ -57,11 +63,14 @@ def build_form_map(
     detectors: dict[str, Detector] | None = None,
     policy: DetectPolicy = DetectPolicy(),
     ocr: OcrMode = "auto",
+    skip_prose: bool = False,
 ) -> FormMap:
     """Page map of every page of ``pdf`` (a path or the PDF's bytes).
 
     ``detectors`` maps names (as used by ``policy``) to detectors; ``None``
     loads the stock CommonForms models when a page needs detection.
+    ``skip_prose`` runs no detection on digital pages that read as running text
+    (see the module docstring).
 
     Raises:
         FormcastError: "encrypted PDF", "cannot open PDF", an OCR error when
@@ -73,7 +82,7 @@ def build_form_map(
         raise ValueError(f"ocr must be 'auto', 'never' or 'always', not {ocr!r}")
     doc = open_pdf(pdf)
     try:
-        pages = [_build_page(page, detectors, policy, ocr) for page in doc]
+        pages = [_build_page(page, detectors, policy, ocr, skip_prose) for page in doc]
         fp = fingerprint_document(doc)
         signature = compute_signature(doc)
     finally:
@@ -87,6 +96,7 @@ def _build_page(
     detectors: dict[str, Detector] | None,
     policy: DetectPolicy,
     ocr: OcrMode,
+    skip_prose: bool = False,
 ) -> PageMap:
     pm = extract_page(page)
     if pm.widgets:
@@ -106,7 +116,9 @@ def _build_page(
     words, lines = split_wide_lines(words, lines)
 
     candidates = []
-    if kind != "fillable":
+    if kind == "digital" and skip_prose and looks_like_prose(pm):
+        notes.append(NOTE_PROSE)
+    elif kind != "fillable":
         if detectors is None:
             detectors = load_default_detectors()
         candidates = detect_page(page, kind, detectors, policy)
@@ -123,6 +135,26 @@ def _build_page(
     )
     link_labels(pm)
     return pm
+
+
+NOTE_PROSE = "detection skipped: the page reads as running text (no blanks were looked for)"
+PROSE_WIDE_SHARE = 0.6  # of a page's lines that run across most of it
+PROSE_MAX_LABELS = 1  # short lines ending in a colon
+PROSE_MAX_RULES = 8  # horizontal rules and underscore runs at least 25 pt long
+
+
+def looks_like_prose(page: PageMap) -> bool:
+    """Whether a page is running text, not a form: most lines span 60% of the page width with 60+ characters,
+    at most one short "Label:" line, and at most eight rules of 25 pt or more (footers and the odd underline).
+    Calibrated to keep every page with fields on the eval corpus, so it errs toward detecting.
+    """
+    lines = [ln for ln in page.lines if ln.text.strip()]
+    if not lines:
+        return False
+    wide = sum(1 for ln in lines if ln.rect[2] - ln.rect[0] >= 0.6 * page.width and len(ln.text) >= 60)
+    labels = sum(1 for ln in lines if len(ln.text.strip()) <= 45 and ln.text.strip().endswith(":"))
+    rules = sum(1 for r in page.rules if r.orientation == "h" and r.rect[2] - r.rect[0] >= 25)
+    return wide >= PROSE_WIDE_SHARE * len(lines) and labels <= PROSE_MAX_LABELS and rules <= PROSE_MAX_RULES
 
 
 def split_wide_lines(

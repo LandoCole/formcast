@@ -27,7 +27,7 @@ from formcast.pagemap.build import DetectPolicy
 def no_model_loads(monkeypatch):
     real = documents_mod.build_form_map
     policy = DetectPolicy(digital=(), scanned=())
-    monkeypatch.setattr(documents_mod, "build_form_map", lambda pdf, detectors=None: real(pdf, detectors={}, policy=policy, ocr="never"))
+    monkeypatch.setattr(documents_mod, "build_form_map", lambda pdf, detectors=None, **kw: real(pdf, detectors={}, policy=policy, ocr="never"))
 
 
 def name_form() -> bytes:

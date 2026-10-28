@@ -5,7 +5,8 @@
     extract_records(schema, text, llm) -> ExtractResult   records of that schema found in free text
 
 What each call sends: ``derive_schema`` the page map's text and, with ``vision``, a marked image of
-every page that has blanks (up to ``MAX_IMAGE_PAGES``); pages with no blanks (the prose of a long
+every page that has blanks (up to ``MAX_IMAGE_PAGES``: one per section of forms, then the pages with the
+most blanks); pages with no blanks (the prose of a long
 agreement) send only a short excerpt of their text. ``map_table`` the schema's paths and, per column, its name, type
 and up to five sample values: never the rows themselves, which the mapping then turns into records
 here. ``extract_records`` the schema and the whole text.
@@ -41,6 +42,7 @@ PdfInput = str | Path | bytes
 MAX_IMAGE_PAGES = 12
 _PAGE_CHARS = 12000
 _EXCERPT_CHARS = 600  # of a page with no blanks
+_SECTION_GAP = 1  # pages without blanks inside one section of forms
 _TEXT_CHARS = 60000
 _SAMPLE_TABLE_COLUMNS = 300
 
@@ -51,8 +53,8 @@ then fill the form from records, so the schema must follow the form closely.
 
 Rules:
 - The root is {"type": "object", "title": <the form's name>, "properties": {...}}.
-- Group fields as the form groups them, in nested objects named after the section (applicant,
-  employer, spouse, address, ...). Use snake_case property names that say what the value is.
+- Group fields as the form groups them, in nested objects named after the section (holder,
+  business, co_signer, vehicle, ...). Use snake_case property names that say what the value is.
 - One property per piece of information the form asks for. A single "Name" box is one property
   (name); separate First/Middle/Last boxes are separate properties. A value split over several small
   boxes (a date as MM DD YYYY, an SSN as 3-2-4 digits) is still one property.
@@ -61,10 +63,11 @@ Rules:
   checkbox); {"type": "string", "enum": [...]} for a choose-one group of options (the printed option
   labels, in order); {"type": "array", "items": {"type": "string", "enum": [...]}} for a check-all-that-
   apply group.
-- Rows of a table, or blocks printed again and again for several items (employers, references,
-  dependents, medications): one property that is an array of objects, one sub-property per column,
+- Rows of a table, or blocks printed again and again for several items (prior jobs, contacts,
+  household members, line items): one property that is an array of objects, one sub-property per column,
   with "maxItems" set to the number of printed rows or blocks.
-- Give every property a "description" with the form's printed label or question (short, as printed).
+- Give every property a "description" with the form's printed label or question, in at most ten words.
+  No "examples", "default" or "title" on properties; the schema can be long, so keep it compact.
 - Leave out: signature boxes themselves (keep their dates), boxes for official or office use only,
   page numbers and form ids.
 - Every blank on the form should be covered by some property; do not invent fields the form lacks.
@@ -92,8 +95,8 @@ Rules:
   format the samples show); booleans true/false (map or boolean); an enum one of its listed values
   exactly (map each data value seen to an enum value); numbers as numbers.
 - A list of records ("x[].col ... in table x") is set by index: "x[0].col", "x[1].col", ... for
-  columns like "Employer 1", "Employer 2".
-- Do not map a column to a path whose meaning differs (an applicant's phone is not an employer's).
+  columns like "Vehicle 1", "Vehicle 2".
+- Do not map a column to a path whose meaning differs (a holder's address is not a business's).
 - Columns you leave out go in "unmapped_columns".
 
 Reply with one JSON object and nothing else:
@@ -102,7 +105,7 @@ Reply with one JSON object and nothing else:
 """
 
 EXTRACT_SYSTEM = """\
-You read free text (notes, an email, a description) and write the data it gives as records of a
+You read free text (notes, a message, a description) and write the data it gives as records of a
 form's JSON Schema. Software fills the form from your records as they are.
 
 Rules:
@@ -115,6 +118,12 @@ Rules:
 
 Reply with one JSON object and nothing else: {"records": [{...}], "notes": "<one sentence on anything uncertain>"}
 """
+
+
+CUT_OFF_RETRY = (
+    "Your reply was cut off at the output limit. Reply again with the whole JSON object, keeping every "
+    "field, but write it more compactly: descriptions of at most six words, no examples, no whitespace."
+)
 
 
 @dataclass
@@ -142,14 +151,20 @@ class ExtractResult:
 
 
 def _answer(text: str) -> dict | None:
-    m = re.search(r"\{.*\}", text, re.S)
-    if m is None:
+    """The first JSON object in ``text``. Text after it (a stray extra brace, a sentence) is ignored, and an
+    object a few closing braces short (a long schema's last line) is closed."""
+    start = text.find("{")
+    if start < 0:
         return None
-    try:
-        value = json.loads(m.group(0))
-    except (json.JSONDecodeError, RecursionError):
-        return None
-    return value if isinstance(value, dict) else None
+    decoder = json.JSONDecoder()
+    body = text[start:].rstrip()
+    for closing in ("", "}", "}}", "}}}"):
+        try:
+            value, _ = decoder.raw_decode(body + closing)
+        except (json.JSONDecodeError, RecursionError):
+            continue
+        return value if isinstance(value, dict) else None
+    return None
 
 
 def _ask(llm: LLMConfig | Provider, messages: list[Message], check, *, long: bool = False):
@@ -163,19 +178,19 @@ def _ask(llm: LLMConfig | Provider, messages: list[Message], check, *, long: boo
             response = provider.complete(messages, [], **limits)
             usage = Usage(usage.input_tokens + response.usage.input_tokens, usage.output_tokens + response.usage.output_tokens)
             answer = _answer(response.text)
+            limit = limits.get("max_output_tokens") or getattr(getattr(provider, "config", None), "max_output_tokens", 0)
+            cut_off = answer is None and limit and response.usage.output_tokens >= limit - 64
             try:
                 if answer is None:
-                    raise ValueError("the reply was not one JSON object")
+                    raise ValueError("the reply was cut off at the output limit" if cut_off else "the reply was not one JSON object")
                 return check(answer), usage, response.text
             except (ValueError, FormcastError, pydantic.ValidationError) as exc:
                 problem = str(exc).splitlines()[0][:400]
                 if attempt == 1:
                     raise FormcastError(f"the model's answer could not be used: {problem}") from None
-                messages = [
-                    *messages,
-                    Message("assistant", response.text or "(empty)"),
-                    Message("user", f"That answer can't be used: {problem}. Reply again with the JSON object only."),
-                ]
+                # A cut-off reply is not resent (it would fill the output again): ask for the same, shorter.
+                again = CUT_OFF_RETRY if cut_off else f"That answer can't be used: {problem}. Reply again with the JSON object only."
+                messages = [*messages, Message("assistant", "(cut off)" if cut_off else response.text or "(empty)"), Message("user", again)]
     finally:
         if owns:
             provider.close()
@@ -195,14 +210,15 @@ def derive_schema(
 ) -> SchemaResult:
     """A JSON Schema for the data ``pdf`` collects, designed by the model from the form itself.
 
-    ``instructions`` adds the user's own words (say, "name the applicant section 'student'").
+    ``instructions`` adds the user's own words (say, "name the holder section 'buyer'").
     The schema is checked with :func:`formcast.flatten_schema` and must have at least one field.
     """
     fm = form_map if form_map is not None else build_form_map(pdf)
     seed = new_template({"type": "object", "properties": {}}, fm, candidates=True)
     pages = sorted(p.index for p in fm.pages)
     boxed = sorted({f.page for f in seed.fields if f.page is not None and f.rect is not None})
-    shown = boxed or pages  # a form with no boxes found: look at its pages from the start
+    counts = {n: sum(1 for f in seed.fields if f.page == n and f.rect is not None) for n in boxed}
+    shown = _image_pages(counts) if boxed else pages[:MAX_IMAGE_PAGES]
     parts: list = []
     if vision:
         for n in shown[:MAX_IMAGE_PAGES]:
@@ -230,9 +246,35 @@ def derive_schema(
     return SchemaResult(schema, usage, raw)
 
 
+def _image_pages(counts: dict[int, int]) -> list[int]:
+    """Which pages with blanks the schema step shows, at most ``MAX_IMAGE_PAGES``, in page order.
+
+    A long package's forms come in sections (a cover page, signature pages, a questionnaire, annexes),
+    and a section with few blanks matters as much as one with many. So pages with blanks are grouped
+    into runs (a gap of up to ``_SECTION_GAP`` pages without blanks continues a run); each run, the
+    largest first, gets an image of its page with the most blanks; images left over go to the pages
+    with the most blanks.
+    """
+    pages = sorted(counts)
+    runs: list[list[int]] = []
+    for n in pages:
+        if runs and n - runs[-1][-1] <= _SECTION_GAP + 1:
+            runs[-1].append(n)
+        else:
+            runs.append([n])
+    runs.sort(key=lambda run: -sum(counts[n] for n in run))
+    chosen = [max(run, key=lambda n: (counts[n], -n)) for run in runs][:MAX_IMAGE_PAGES]
+    for n in sorted(pages, key=lambda n: (-counts[n], n)):
+        if len(chosen) >= MAX_IMAGE_PAGES:
+            break
+        if n not in chosen:
+            chosen.append(n)
+    return sorted(chosen)
+
+
 def _page_text(fm: FormMap, pages: list[int], boxed: set[int]) -> str:
     """The page map's text, pages with boxes first in the budget: a long document that is mostly prose
-    (an agreement whose last pages are the forms) keeps its form pages whole, and its other pages are
+    (an agreement whose last pages are the forms) keeps its form pages whole, and the rest of its pages are
     cut to a short excerpt, kept for the names they define (the parties, the fund, the amounts).
     """
     budget = _TEXT_CHARS
@@ -248,7 +290,7 @@ def _page_text(fm: FormMap, pages: list[int], boxed: set[int]) -> str:
     if skipped:
         out += f"\n\n[pages {skipped[0]}-{skipped[-1]}: text left out, no blanks found there]"
     if boxed:
-        out = f"Blanks were found on page(s) {', '.join(str(n + 1) for n in sorted(boxed))}; the other pages are prose, shown in short.\n\n" + out
+        out = f"Blanks were found on page(s) {', '.join(str(n + 1) for n in sorted(boxed))}; the rest are prose, shown in short.\n\n" + out
     return out
 
 
