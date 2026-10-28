@@ -17,7 +17,11 @@ records or the documents: ``with missing("template"):`` makes a ``KeyError`` a 4
 ``with bad_request():`` makes a ``ValueError`` (a bad template name) a 400.
 
 Routes (see spec 11.2): documents, matches, seed, apply, rebind, AI jobs, fill, smart-pdf, the template
-store and the record source. Everything that touches MuPDF takes ``PYMUPDF_LOCK`` (directly for fills,
+store and the record source. The one-shot flow adds: ``POST /api/data`` (a table file or pasted text to
+fill with), the ``oneshot`` job kind (``demo/server/oneshot.py``), opening a saved template's own PDF
+(``POST /api/documents {"template": name}``), saving the PDF and a data mapping with a template, the
+template's schema as a file, and ``POST /api/templates/{name}/fill``, the programmatic way in: a record,
+records, a table file or free text in; a filled PDF (or a zip of them) out. Everything that touches MuPDF takes ``PYMUPDF_LOCK`` (directly for fills,
 smart PDFs and rebinds; inside ``Doc`` for the form map and the match features). Matching takes no lock:
 it scores the document's features, which ``Doc.match_features`` computes in full, so it does not wait for a build.
 
@@ -28,10 +32,12 @@ Handlers are small methods registered in ``Api._add_routes``; they return a JSON
 from __future__ import annotations
 
 import base64
+import io
 import json
 import logging
 import math
 import re
+import zipfile
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -42,14 +48,17 @@ from urllib.parse import unquote
 
 import pydantic
 
+from demo.server.datasets import Dataset, Datasets
 from demo.server.documents import MAX_DPI, MIN_DPI, PYMUPDF_LOCK, Doc, Documents
 from demo.server.jobs import KINDS, Jobs, JobsBusy
+from demo.server.oneshot import OneShotSpec, map_dataset
 from demo.server.records import MultiRecords, RecordSource, RecordSourceError
 from demo.server.settings import Settings
 from demo.server.store import NAME_RE, OverlayTemplateStore, ShippedTemplateError, StoredTemplateError, TemplateStore
 from formcast import (
     FormcastError, OpContext, OpError, Template, apply, fill, flatten_schema, rebind, similarity, to_smart_pdf,
 )
+from formcast.data import DataMapping
 from formcast.llm import Provider
 from formcast.template.model import new_template
 
@@ -144,6 +153,7 @@ class Api:
         self.store = store
         self.records = records if records is not None else _default_records(settings)
         self.documents = documents if documents is not None else Documents()
+        self.datasets = Datasets()
         self.jobs = Jobs(secrets=[settings.llm.api_key] if settings.llm is not None else [])
         self._routes: list[tuple[str, re.Pattern[str], Callable[[Request], Any]]] = []
         self._add_routes()
@@ -215,7 +225,12 @@ class Api:
         self._add("POST", r"/api/jobs/(?P<job>[0-9a-f]{32})/cancel", self.cancel_job)
         self._add("POST", r"/api/fill", self.fill_pdf)
         self._add("POST", r"/api/smart-pdf", self.smart_pdf)
+        self._add("POST", r"/api/data", self.create_dataset)
+        self._add("GET", r"/api/data/(?P<data>[0-9a-f]{32})", self.get_dataset)
         self._add("GET", r"/api/templates", self.list_templates)
+        self._add("GET", r"/api/templates/(?P<name>[^/]+)/schema", self.template_schema)
+        self._add("GET", r"/api/templates/(?P<name>[^/]+)/mappings", self.template_mappings)
+        self._add("POST", r"/api/templates/(?P<name>[^/]+)/fill", self.fill_from_template)
         self._add("GET", r"/api/templates/(?P<name>.+)", self.get_template)
         self._add("PUT", r"/api/templates/(?P<name>.+)", self.put_template)
         self._add("DELETE", r"/api/templates/(?P<name>.+)", self.delete_template)
@@ -234,10 +249,25 @@ class Api:
             "records": True,
             "scanned": True,
             "detectLive": False,
+            "oneshot": True,
+            "xlsx": _has_openpyxl(),
         }
 
     def _forms_dir(self):
         return self.settings.data_dir / "forms"
+
+    def _template_pdf(self, name: str) -> bytes:
+        """The PDF kept with a saved template, or the demo form of the same name. ``KeyError`` when neither exists."""
+        get_file = getattr(self.store, "get_file", None)
+        if get_file is not None:
+            try:
+                return get_file(name, "pdf")
+            except KeyError:
+                pass
+        if NAME_RE.fullmatch(name) and (path := self._forms_dir() / f"{name}.pdf").is_file():
+            self.store.get(name)  # only for a stored template (KeyError otherwise)
+            return path.read_bytes()
+        raise KeyError(name)
 
     def forms(self, req: Request) -> dict:
         """The demo forms in ``<data>/forms``, each with its schema name when one has the same name."""
@@ -249,11 +279,16 @@ class Api:
         return {"forms": out}
 
     def create_document(self, req: Request) -> dict:
-        """Open an uploaded PDF (multipart ``file``) or a demo form (JSON ``{"form": name}``)."""
+        """Open an uploaded PDF (multipart ``file``), a demo form (JSON ``{"form": name}``) or the PDF a saved
+        template keeps (JSON ``{"template": name}``)."""
         if req.content_type.lower().startswith("multipart/"):
             name, data = _upload(req)
+        elif isinstance(payload := req.json(), dict) and payload.get("template") is not None:
+            name = payload["template"]
+            with missing("template"), bad_request():
+                data = self._template_pdf(name)
+            name = f"{name}.pdf"
         else:
-            payload = req.json()
             form = payload.get("form") if isinstance(payload, dict) else None
             if not isinstance(form, str) or not NAME_RE.fullmatch(form):
                 raise ApiError(400, "bad_form", 'send a plain demo form name as {"form": "<name>"}, or upload a file')
@@ -402,12 +437,14 @@ class Api:
         ``region: {page, rect: [x0, y0, x1, y1]}`` in PDF points (origin top-left). A job runs on a thread,
         two at a time; a third is refused with 429 ``busy``. Every input is checked here, before a thread starts.
         """
-        if self.provider_factory is None:
-            raise ApiError(400, "ai_not_configured", "AI is not configured. Set the model endpoint, key and name in .env (see the README).")
         payload = _object(req)
         kind = payload.get("kind")
+        if kind == "oneshot":
+            return self._start_oneshot(payload)
+        if self.provider_factory is None:
+            raise ApiError(400, "ai_not_configured", "AI is not configured. Set the model endpoint, key and name in .env (see the README).")
         if kind not in KINDS:
-            raise ApiError(400, "bad_kind", "kind must be build, adapt or revise")
+            raise ApiError(400, "bad_kind", "kind must be build, adapt, revise or oneshot")
         doc = self._doc(payload)
         schema = template = instruction = region = None
         if kind == "build":
@@ -433,6 +470,45 @@ class Api:
                 kind, doc=doc, schema=schema, template=template, instruction=instruction, region=region,
                 provider_factory=self.provider_factory,
             )  # fmt: skip
+        except JobsBusy as exc:
+            raise ApiError(429, "busy", str(exc)) from None
+        return {"id": job.id}
+
+    def _start_oneshot(self, payload: dict) -> dict:
+        """``{kind: "oneshot", doc, data?, schema?, template?, saved?, check?, instructions?}`` -> ``{id}``.
+
+        With no ``schema`` and no ``template`` the model designs the schema from the form. ``template`` (an
+        object) skips the schema and boxes: only the data is mapped. ``saved`` names a stored template whose
+        saved data mappings are tried before the model. ``check`` (default true) has the agent check the
+        page pass. Without AI, only a template with data whose columns it knows can run.
+        """
+        doc = self._doc(payload)
+        spec = OneShotSpec(check=payload.get("check", True) is not False)
+        if payload.get("template") is not None:
+            spec.template = _template(payload)
+            if spec.template.form.page_count != doc.page_count:
+                raise ApiError(400, "page_count_mismatch", f"This template is for a form with {_pages(spec.template.form.page_count)} and this PDF has {_pages(doc.page_count)}.")
+            if _schema_loops(spec.template.schema_):
+                raise ApiError(400, "bad_schema", _SCHEMA_LOOP)
+            flatten_schema(spec.template.schema_)
+        elif payload.get("schema") is not None:
+            spec.schema = self._schema(payload)
+        if payload.get("data") is not None:
+            spec.dataset = self._dataset(payload["data"])
+        saved = payload.get("saved")
+        if saved is not None:
+            if not isinstance(saved, str):
+                raise ApiError(400, "bad_request", "saved must be a stored template's name")
+            spec.saved_mappings = self._mappings(saved)
+        instructions = payload.get("instructions", "")
+        if not isinstance(instructions, str):
+            raise ApiError(400, "bad_request", "instructions must be text")
+        spec.instructions = instructions[:2000]
+        needs_ai = spec.template is None or (spec.dataset is not None and spec.dataset.kind == "text")
+        if needs_ai and self.provider_factory is None:
+            raise ApiError(400, "ai_not_configured", "AI is off, so a form can't be mapped or text read. Set the model endpoint, key and name in .env (see the README), or open a saved template and give it a table.")
+        try:
+            job = self.jobs.start("oneshot", doc=doc, oneshot=spec, provider_factory=self.provider_factory)
         except JobsBusy as exc:
             raise ApiError(429, "busy", str(exc)) from None
         return {"id": job.id}
@@ -527,18 +603,178 @@ class Api:
     # ---- template store
 
     def list_templates(self, req: Request) -> dict:
-        return {"templates": self.store.list()}
+        out = self.store.list()
+        for t in out:
+            if not t.get("has_pdf") and (self._forms_dir() / f"{t['name']}.pdf").is_file():
+                t["has_pdf"] = True  # a shipped template opens with the demo form of its name
+        return {"templates": out}
 
     def get_template(self, req: Request) -> dict:
         with missing("template"), bad_request():
             return {"template": _dump(self.store.get(req.match["name"]))}
 
     def put_template(self, req: Request) -> dict:
-        """Save the body's ``template`` under this name (replacing any with that name)."""
-        template = _template(_object(req))
+        """Save the body's ``template`` under this name (replacing any with that name).
+
+        With ``doc``, the store also keeps that PDF, so the saved template opens without it; with ``mapping``
+        (a data mapping), the store keeps it among the template's mappings (one per set of columns), so a
+        table with those columns fills without the model next time.
+        """
+        payload = _object(req)
+        template = _template(payload)
+        name = req.match["name"]
+        doc = self._doc(payload) if payload.get("doc") is not None else None
+        mapping = None
+        if payload.get("mapping") is not None:
+            try:
+                mapping = DataMapping.model_validate(payload["mapping"])
+            except pydantic.ValidationError as exc:
+                raise ApiError(400, "bad_mapping", f"this is not a data mapping: {exc.errors()[0]['msg']}") from None
+        if (doc is not None or mapping is not None) and not hasattr(self.store, "put_file"):
+            raise ApiError(400, "not_supported", "this template store keeps templates only")
         with bad_request():
-            self.store.put(req.match["name"], template)
-        return {"name": req.match["name"], "template_id": template.template_id}
+            self.store.put(name, template)
+            if doc is not None:
+                self.store.put_file(name, "pdf", doc.bytes)
+            if mapping is not None:
+                kept = [m for m in self._mappings(name) if set(m.columns) != set(mapping.columns)]
+                body = {"mappings": [m.dump() for m in [mapping, *kept][:20]]}
+                self.store.put_file(name, "mappings", json.dumps(body, indent=1).encode("utf-8"))
+        return {"name": name, "template_id": template.template_id, "pdf": doc is not None, "mapping": mapping is not None}
+
+    def _mappings(self, name: str) -> list[DataMapping]:
+        """The data mappings saved with a template ([] when none, or the store keeps none)."""
+        get_file = getattr(self.store, "get_file", None)
+        if get_file is None:
+            return []
+        try:
+            with bad_request():
+                raw = json.loads(get_file(name, "mappings"))
+        except KeyError:
+            return []
+        except (ValueError, UnicodeDecodeError):
+            log.warning("the data mappings saved with %s can't be read; ignoring them", name)
+            return []
+        out = []
+        for item in raw.get("mappings", []) if isinstance(raw, dict) else []:
+            try:
+                out.append(DataMapping.model_validate(item))
+            except pydantic.ValidationError:
+                continue
+        return out
+
+    def template_schema(self, req: Request) -> Response:
+        """The saved template's data schema as a JSON file: what records for it must look like."""
+        name = req.match["name"]
+        with missing("template"), bad_request():
+            template = self.store.get(name)
+        body = json.dumps(template.schema_, indent=2, ensure_ascii=False).encode("utf-8")
+        return Response(200, {
+            "Content-Type": "application/schema+json; charset=utf-8",
+            "Content-Disposition": f'attachment; filename="{_safe_filename(name)}.schema.json"',
+            "Cache-Control": "no-store",
+        }, body)  # fmt: skip
+
+    def template_mappings(self, req: Request) -> dict:
+        name = req.match["name"]
+        with missing("template"), bad_request():
+            self.store.get(name)
+        return {"name": name, "mappings": [m.dump() for m in self._mappings(name)]}
+
+    def fill_from_template(self, req: Request) -> Response:
+        """Fill a saved template's own PDF, with no browser: the programmatic way in.
+
+        The body is JSON ``{"record": {...}}``, ``{"records": [...]}`` or ``{"text": "..."}`` (free text,
+        read by the model), or a multipart ``file`` (CSV, TSV, XLSX or JSON records; the columns are mapped
+        directly, by a saved mapping, or by the model, in that order). One record answers ``application/pdf``;
+        several answer ``application/zip`` with one PDF per record and ``reports.json``. Each response
+        carries ``X-Formcast-Records`` and ``X-Formcast-Warnings`` (counts).
+        """
+        name = req.match["name"]
+        with missing("template"), bad_request():
+            template = self.store.get(name)
+            pdf = self._template_pdf(name)
+        schema = template.schema_
+        if req.content_type.lower().startswith("multipart/"):
+            filename, data = _upload(req)
+            try:
+                dataset = self.datasets.add_file(data, filename)
+            except FormcastError as exc:
+                raise ApiError(400, "bad_data", f"This file can't be used: {exc}.") from None
+            records = self._records_for(schema, dataset, name)
+        else:
+            payload = _object(req)
+            if isinstance(payload.get("record"), dict):
+                records = [payload["record"]]
+            elif isinstance(payload.get("records"), list) and all(isinstance(r, dict) for r in payload["records"]):
+                records = payload["records"]
+            elif isinstance(payload.get("text"), str) and payload["text"].strip():
+                records = self._records_for(schema, self.datasets.add_text(payload["text"]), name)
+            else:
+                raise ApiError(400, "bad_request", 'send {"record": {...}}, {"records": [...]}, {"text": "..."} or a file')
+        if not records:
+            raise ApiError(422, "no_records", "no records were found in that data")
+        filled = []
+        try:
+            for record in records:
+                with PYMUPDF_LOCK:
+                    filled.append(fill(template, pdf, record, check_fingerprint=template.form.fingerprint is not None))
+        except RecursionError:
+            raise ApiError(422, "bad_schema", _SCHEMA_LOOP) from None
+        warnings = sum(1 for _, rep in filled for w in rep.warnings if w.severity == "warning")
+        headers = {"X-Formcast-Records": str(len(filled)), "X-Formcast-Warnings": str(warnings), "Cache-Control": "no-store"}
+        stem = _safe_filename(name)
+        if len(filled) == 1:
+            headers |= {"Content-Type": "application/pdf", "Content-Disposition": f'attachment; filename="{stem}-filled.pdf"'}
+            return Response(200, headers, filled[0][0])
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+            width = len(str(len(filled)))
+            for i, (out, _) in enumerate(filled, 1):
+                z.writestr(f"{stem}-{i:0{width}d}.pdf", out)
+            z.writestr("reports.json", json.dumps([rep.model_dump(mode="json") for _, rep in filled], indent=1))
+        headers |= {"Content-Type": "application/zip", "Content-Disposition": f'attachment; filename="{stem}-filled.zip"'}
+        return Response(200, headers, buf.getvalue())
+
+    def _records_for(self, schema: dict, dataset: Dataset, name: str) -> list[dict]:
+        provider = self.provider_factory() if self.provider_factory is not None else None
+        try:
+            return map_dataset(schema, dataset, provider, self._mappings(name)).records
+        except FormcastError as exc:
+            raise ApiError(422, "cannot_map", str(exc)) from None
+        finally:
+            if provider is not None:
+                provider.close()
+
+    # ---- data to fill with
+
+    def create_dataset(self, req: Request) -> dict:
+        """A table file (multipart ``file``: CSV, TSV, XLSX, JSON) or pasted text (JSON ``{"text": ...}``) -> its summary.
+
+        Pasted text that is JSON records or a delimited table is read as a table; anything else is free text.
+        """
+        try:
+            if req.content_type.lower().startswith("multipart/"):
+                name, data = _upload(req)
+                ds = self.datasets.add_file(data, name)
+            else:
+                text = _object(req).get("text")
+                if not isinstance(text, str) or not text.strip():
+                    raise ApiError(400, "bad_request", 'send a file, or {"text": "..."}')
+                ds = self.datasets.add_text(text)
+        except FormcastError as exc:
+            raise ApiError(400, "bad_data", f"This data can't be used: {exc}.") from None
+        return ds.summary()
+
+    def get_dataset(self, req: Request) -> dict:
+        with missing("data"):
+            return self.datasets.get(req.match["data"]).summary()
+
+    def _dataset(self, ds_id: Any) -> Dataset:
+        if not isinstance(ds_id, str):
+            raise ApiError(400, "bad_request", "send data as the id POST /api/data returned")
+        with missing("data"):
+            return self.datasets.get(ds_id)
 
     def delete_template(self, req: Request) -> dict:
         """Delete a saved template; one that ships with the demo is 409 ``read_only``."""
@@ -688,6 +924,18 @@ def _default_records(settings: Settings) -> RecordSource:
     return MultiRecords(CsvRecords(data), SqliteRecords(data / "records.sqlite", data / "schemas"))
 
 
+def _has_openpyxl() -> bool:
+    try:
+        import openpyxl  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+def _safe_filename(name: str) -> str:
+    return re.sub(r"[^A-Za-z0-9_.-]+", "_", name).strip("._") or "template"
+
+
 def _upload(req: Request) -> tuple[str, bytes]:
     """The ``file`` part of a multipart body as ``(display name, bytes)``."""
     head = b"Content-Type: " + req.content_type.encode("latin-1", "replace") + b"\r\nMIME-Version: 1.0\r\n\r\n"
@@ -700,7 +948,7 @@ def _upload(req: Request) -> tuple[str, bytes]:
         if part.get_param("name", header="content-disposition") == "file":
             data = part.get_payload(decode=True) or b""
             return _display_name(part.get_filename()), data
-    raise ApiError(400, "bad_upload", "send the PDF as a multipart form field named file")
+    raise ApiError(400, "bad_upload", "send the file as a multipart form field named file")
 
 
 def _display_name(filename: str | None) -> str:
