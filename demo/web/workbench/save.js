@@ -1,5 +1,8 @@
-// Save: put the template on screen in the server's template store under a name. A saved template is
-// scored against every PDF opened later, so the match prompt offers it.
+// Save: put the template on screen in the server's template store under a name, with the PDF it was
+// made for and, when your data was mapped by the AI or a saved mapping, that data mapping. A saved
+// template opens from the start screen's Saved templates (no detection, no AI), is scored against every
+// PDF opened later (so the match prompt offers it), fills tables with the same columns without AI, and
+// takes records programmatically: POST /api/templates/<name>/fill.
 
 /** Store names, as the server accepts them (demo/server/store.py). */
 const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9 _.-]{0,79}$/;
@@ -18,6 +21,9 @@ export function mountSave(app) {
 
   $("save").addEventListener("click", () => {
     if (app.template === null) return;
+    $("save-what").textContent =
+      "Saves the boxes and their links, the data schema and this PDF, so the form opens from Saved templates without detection or AI" +
+      (app.data?.mapping && app.data.mode !== "direct" ? ", and your data mapping, so a file with the same columns fills without AI." : ".");
     $("save-name").value = state.savedName ?? suggest(app.stem());
     say(msg, "");
     box.hidden = false;
@@ -40,10 +46,14 @@ export function mountSave(app) {
     say(msg, "Saving…");
     try {
       await app.track(session.idle()); // edits still on their way are part of what gets saved
-      await engine.templates.put(name, session.template);
+      const mapping = app.data?.mapping && app.data.mode !== "direct" ? app.data.mapping : null;
+      await engine.templates.put(name, session.template, { doc: session.doc, mapping });
       state.savedName = name;
       box.hidden = true;
-      app.notice(`Saved as “${name}”. Opening this form again offers it.`);
+      const kept = mapping ? ", its PDF and your data mapping" : " and its PDF";
+      app.notice(
+        `Saved “${name}”${kept}. Open it from Saved templates; fill it from code with POST /api/templates/${encodeURIComponent(name)}/fill (a record, records, a CSV or Excel file, or text).`,
+      );
     } catch (e) {
       say(msg, e.message);
     } finally {

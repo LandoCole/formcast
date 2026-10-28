@@ -88,6 +88,20 @@ textarea:focus-visible, .text:focus-visible { outline: 2px solid var(--ink); out
 .readout { margin: 12px 0 0; font-family: var(--mono); font-size: 11px; line-height: 20px; color: var(--ink); }
 .row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 .group { margin-bottom: 20px; min-width: 0; }
+.lede { font-size: 17px; line-height: 25px; color: var(--graphite); }
+.opt { text-transform: none; letter-spacing: .04em; font-style: italic; font-family: var(--serif); font-size: 13px; }
+.file.below, select.below { margin-top: 8px; }
+details.more > summary { cursor: pointer; list-style: none; }
+details.more > summary::-webkit-details-marker { display: none; }
+details.more > summary::before { content: "▸ "; }
+details.more[open] > summary::before { content: "▾ "; }
+details.more > select { margin-bottom: 4px; }
+.maptable { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 11px; line-height: 16px; }
+.maptable th { text-align: left; font-weight: 400; color: var(--graphite); padding: 4px 6px 4px 0; box-shadow: inset 0 -.5px 0 var(--rule); }
+.maptable td { padding: 4px 6px 4px 0; vertical-align: top; box-shadow: inset 0 -.5px 0 var(--rule); overflow-wrap: anywhere; }
+.maptable td.arrow { color: var(--graphite); padding-right: 6px; }
+.maptable .tf { color: var(--graphite); }
+.mapnote { margin: 8px 0 0; font-size: 14px; line-height: 20px; font-style: italic; color: var(--graphite); overflow-wrap: anywhere; }
 
 /* ---------- toolbar and notices ---------- */
 .toolbar {
@@ -151,6 +165,18 @@ textarea:focus-visible, .text:focus-visible { outline: 2px solid var(--ink); out
 .sheet em { font-style: italic; }
 .steps { margin: 0; padding: 0 0 0 20px; max-height: 40vh; overflow: auto; font-family: var(--mono); font-size: 11px; line-height: 22px; color: var(--graphite); }
 .steps li:last-child { color: var(--ink); }
+.stages { margin: 0 0 12px; padding: 0; list-style: none; font-family: var(--mono); font-size: 12px; line-height: 22px; }
+.stages li { display: grid; grid-template-columns: 20px minmax(0, 1fr); gap: 4px 6px; color: var(--graphite); }
+.stages li::before { content: "○"; }
+.stages li[data-status="running"] { color: var(--ink); }
+.stages li[data-status="running"]::before { content: "◐"; }
+.stages li[data-status="done"] { color: var(--ink); }
+.stages li[data-status="done"]::before { content: "●"; }
+.stages li[data-status="skipped"]::before { content: "–"; }
+.stages li[data-status="error"]::before { content: "×"; }
+.stages .detail { grid-column: 2; color: var(--graphite); font-size: 11px; line-height: 18px; overflow-wrap: anywhere; }
+.stages + .steps:empty { display: none; }
+.stages + .steps { margin: -4px 0 8px 26px; max-height: 24vh; }
 #job .readout { margin-bottom: 16px; }
 
 /* ---------- fill drawer ---------- */

@@ -65,18 +65,27 @@ class Bench:
     def goto(self) -> None:
         self.page.goto(f"{self.base}/workbench/?poll=50")
         expect(self.page.locator("#start")).to_be_visible()
-        expect(self.page.locator("#form-pick option[value='fw9']")).to_have_count(1)
+        expect(self.page.locator("#form-pick option[value='demo:fw9']")).to_have_count(1)
 
-    def open_form(self, name: str) -> None:
-        self.page.select_option("#form-pick", name)
+    def link_by(self, mode: str) -> None:
+        """How the boxes are linked: "check", "fast" (one-shot AI) or "off" (the seed, linked by hand)."""
+        self.page.evaluate(
+            "m => { const s = document.getElementById('ai-mode'); s.value = m; s.dispatchEvent(new Event('change')); }", mode
+        )
+
+    def open_form(self, name: str, link: str = "off") -> None:
+        self.page.select_option("#form-pick", f"demo:{name}")
         expect(self.page.locator("#schema-pick")).to_have_value(name)
+        self.link_by(link)
         self.page.click("#open")
 
-    def upload(self, data: bytes, name: str = "form.pdf", schema_text: str | None = SCHEMA_TEXT) -> None:
+    def upload(self, data: bytes, name: str = "form.pdf", schema_text: str | None = SCHEMA_TEXT, link: str = "off") -> None:
         self.page.set_input_files("#file", files=[{"name": name, "mimeType": "application/pdf", "buffer": data}])
         if schema_text is not None:
+            self.page.evaluate("document.getElementById('schema-group').open = true")
             self.page.select_option("#schema-pick", "__paste__")
             self.page.fill("#schema-text", schema_text)
+        self.link_by(link)
         self.page.click("#open")
 
     def boxes(self, extra: str = ""):
@@ -853,7 +862,7 @@ def test_save_puts_the_template_in_the_store_and_it_is_matched_after_a_reload(de
     assert "fw9 mine" in names
 
     b.page.reload()
-    expect(b.page.locator("#form-pick option[value='fw9']")).to_have_count(1)
+    expect(b.page.locator("#form-pick option[value='demo:fw9']")).to_have_count(1)
     b.open_form("fw9")
     expect(b.page.locator("#match")).to_be_visible()
     expect(b.page.locator("#match-pick option[value='fw9 mine']")).to_have_count(1)
@@ -931,3 +940,36 @@ def test_on_a_rotated_page_the_box_sits_over_the_painted_rect(demo_server, bench
     assert r > 180 and g < 90 and bl < 90, sample
     assert sample["imgW"] > sample["imgH"]  # the turned page is landscape
     assert sample["boxH"] > sample["boxW"]  # and the 100 x 50 pt rect stands upright on it
+
+
+# ------------------------------------------------------------------ the one-shot flow
+
+
+def test_one_shot_designs_the_schema_maps_the_data_and_opens_your_records_filled(start_demo_server, bench):
+    from test_server_oneshot import DERIVED, Model
+
+    model = Model()
+    b = bench(start_demo_server(provider_factory=model))
+    b.page.set_input_files("#file", files=[{"name": "form.pdf", "mimeType": "application/pdf", "buffer": widget_pdf()}])
+    expect(b.page.locator("#schema-pick")).to_have_value("__derive__")  # your own PDF: the AI designs the schema
+    b.page.fill("#data-text", "Full Name,Ref\nAnn Lee,1\nBo Chen,2\n")
+    b.link_by("fast")
+    expect(b.page.locator("#open")).to_have_text("Map with AI")
+    b.page.click("#open")
+    b.build_new()
+    expect(b.page.locator("#fill")).to_be_visible()  # the result loaded and the drawer opened on your data
+    assert b.template()["schema"] == DERIVED
+    expect(b.page.locator("#fill-schema")).to_have_value("__data__")
+    expect(b.page.locator("#fill-record option")).to_have_text(["1. Ann Lee", "2. Bo Chen"])
+    expect(b.page.locator("#mapping-sum")).to_have_text("2 records · mapped by the AI")
+    expect(b.page.locator("#mapping .maptable td").first).to_have_text("name")
+    expect(b.page.locator("#fill-msg")).to_contain_text("Filled 1 field")
+    assert json.loads(b.page.input_value("#fill-sample")) == {"name": "Ann Lee"}
+    assert model.calls == {"derive": 1, "page": 1, "map": 1}
+
+    b.page.click("#save")
+    expect(b.page.locator("#save-what")).to_contain_text("your data mapping")
+    b.page.fill("#save-name", "tiny")
+    b.page.click("#save-go")
+    expect(b.page.locator("#notice")).to_contain_text("/api/templates/tiny/fill")
+    assert b.errors == []

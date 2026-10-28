@@ -87,6 +87,8 @@ const app = {
   state,
   say,
   schemas: {}, // stored schema name -> JSON Schema (start.js fills it)
+  data: null, // your data's mapped records, a one-shot job's result.data (fill.js shows them)
+  pendingData: null, // a dataset given on the start screen, mapped when the fill drawer opens
 
   /** The template on screen, or null before a document is open. */
   get template() {

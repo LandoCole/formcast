@@ -1,12 +1,19 @@
-"""AI jobs: ``build``, ``adapt`` and ``revise`` agent sessions, one thread each, with progress and cancel.
+"""AI jobs: ``build``, ``adapt``, ``revise`` and ``oneshot`` sessions, one thread each, with progress and cancel.
 
-    Jobs.start(kind, doc=..., schema=..., template=..., instruction=..., region=..., provider_factory=...) -> Job
+    Jobs.start(kind, doc=..., schema=..., template=..., instruction=..., region=..., oneshot=..., provider_factory=...) -> Job
     Jobs.get(job_id) -> Job            (KeyError if unknown or already forgotten)
     Jobs.cancel(job_id) -> Job
 
 A ``Job``'s ``snapshot()`` is what ``GET /api/jobs/{id}`` returns:
 
-    {id, kind, status, steps, template, summary, error, unplaceable, started, ended}
+    {id, kind, status, steps, template, summary, error, unplaceable, started, ended, stages, result, usage}
+
+A ``oneshot`` job (``demo/server/oneshot.py``) runs the whole flow from a PDF and the person's data: it
+may design the schema, maps the boxes (a build, whose steps appear in ``steps`` as usual) and maps the
+data. ``stages`` lists its stages, each ``{key, label, status, detail}`` with status ``pending``,
+``running``, ``done``, ``skipped`` or ``error``; ``result`` holds ``schema`` once known and ``data``
+(records, the data mapping, warnings) once the data is mapped. Other kinds have no stages and an empty
+result. ``usage`` counts the model tokens the job has used so far (a oneshot job's, in full).
 
 ``status`` is ``running``, then one of ``done`` (the model finished), ``cancelled`` (stopped by a cancel
 request) or ``error`` (the model call or the sandbox failed, the budget ran out, or something unexpected
@@ -48,18 +55,19 @@ from collections.abc import Callable, Iterable
 from typing import Literal
 
 from demo.server.documents import Doc
+from demo.server.oneshot import STAGES, OneShotSpec, run_oneshot
 from formcast import FormcastError, SessionCancelled, StepEvent, Template, build_template, revise
 from formcast.agent.session import SessionResult
 from formcast.geometry import Rect
-from formcast.llm import Provider
+from formcast.llm import Provider, Usage
 
 log = logging.getLogger("demo.server")
 
 MAX_RUNNING = 2
 KEEP_FINISHED = 20
 
-Kind = Literal["build", "adapt", "revise"]
-KINDS: tuple[str, ...] = ("build", "adapt", "revise")
+Kind = Literal["build", "adapt", "revise", "oneshot"]
+KINDS: tuple[str, ...] = ("build", "adapt", "revise", "oneshot")
 
 _GENERIC_ERROR = "The job stopped because of an unexpected error. The server log has the details."
 _PROVIDER_ERROR = (
@@ -87,6 +95,10 @@ class Job:
         self.unplaceable: list[dict] = []
         self.started = time.time()
         self.ended: float | None = None
+        self.stages: list[dict] = [{"key": k, "label": label, "status": "pending", "detail": ""} for k, label in STAGES] if kind == "oneshot" else []
+        self.result: dict = {}
+        self.usage = Usage()
+        self._partial: dict | None = None  # a oneshot job's template so far
         self._cancel = threading.Event()
         self._lock = threading.Lock()
 
@@ -103,7 +115,31 @@ class Job:
                 "unplaceable": list(self.unplaceable),
                 "started": self.started,
                 "ended": self.ended,
+                "stages": [dict(st) for st in self.stages],
+                "result": dict(self.result),
+                "usage": {"input_tokens": self.usage.input_tokens, "output_tokens": self.usage.output_tokens},
             }
+
+    # the oneshot job's progress (demo/server/oneshot.py), set from its thread
+
+    def stage(self, key: str, status: str, detail: str = "") -> None:
+        with self._lock:
+            for st in self.stages:
+                if st["key"] == key:
+                    st["status"], st["detail"] = status, detail
+
+    def set_template(self, template: Template) -> None:
+        dumped = template.model_dump(by_alias=True, mode="json")
+        with self._lock:
+            self._partial = dumped
+
+    def set_result(self, **parts) -> None:
+        with self._lock:
+            self.result.update(parts)
+
+    def add_usage(self, usage: Usage) -> None:
+        with self._lock:
+            self.usage = Usage(self.usage.input_tokens + usage.input_tokens, self.usage.output_tokens + usage.output_tokens)
 
     @property
     def cancel_requested(self) -> bool:
@@ -146,12 +182,14 @@ class Jobs:
         template: Template | None = None,
         instruction: str | None = None,
         region: tuple[int, Rect] | None = None,
-        provider_factory: Callable[[], Provider],
+        oneshot: OneShotSpec | None = None,
+        provider_factory: Callable[[], Provider] | None,
     ) -> Job:
         """Start a job in its own thread. Raises ``JobsBusy`` when ``max_running`` jobs are already running.
 
         ``build`` needs ``schema``; ``adapt`` and ``revise`` need ``template`` (``adapt`` uses its schema);
-        ``revise`` also needs ``instruction`` and may carry a ``region``.
+        ``revise`` also needs ``instruction`` and may carry a ``region``; ``oneshot`` needs ``oneshot`` and is
+        the one kind that may run without a ``provider_factory`` (a saved template filled from columns it knows).
         """
         if kind == "build" and schema is None:
             raise ValueError("a build job needs a schema")
@@ -159,6 +197,10 @@ class Jobs:
             raise ValueError(f"an {kind} job needs a template")
         if kind == "revise" and not instruction:
             raise ValueError("a revise job needs an instruction")
+        if kind == "oneshot" and oneshot is None:
+            raise ValueError("a oneshot job needs its spec")
+        if kind != "oneshot" and provider_factory is None:
+            raise ValueError(f"an {kind} job needs a provider")
         job = Job(kind)
         with self._lock:
             if sum(1 for j in self._jobs.values() if j.status == "running") >= self.max_running:
@@ -166,7 +208,7 @@ class Jobs:
             self._jobs[job.id] = job
         thread = threading.Thread(
             target=self._run,
-            args=(job, doc, schema, template, instruction, region, provider_factory),
+            args=(job, doc, schema, template, instruction, region, oneshot, provider_factory),
             name=f"job-{job.id[:8]}",
             daemon=True,
         )
@@ -189,7 +231,10 @@ class Jobs:
 
     # ------------------------------------------------------------ the job thread
 
-    def _run(self, job, doc, schema, template, instruction, region, provider_factory) -> None:
+    def _run(self, job, doc, schema, template, instruction, region, oneshot, provider_factory) -> None:
+        if job.kind == "oneshot":
+            self._run_oneshot(job, doc, oneshot, provider_factory)
+            return
         provider: Provider | None = None
         try:
             try:
@@ -227,6 +272,22 @@ class Jobs:
             log.error("job %s failed unexpectedly:\n%s", job.id[:8], self._redact(traceback.format_exc()))
             self._finish(job, "error", error=_GENERIC_ERROR)
 
+    def _run_oneshot(self, job: Job, doc: Doc, spec: OneShotSpec, provider_factory) -> None:
+        try:
+            result = run_oneshot(job, doc, spec, provider_factory)
+            if result is None or result.stop_reason == "finish":
+                self._finish(job, "done", template=job._partial, summary=result.summary if result else "", unplaceable=list(result.unplaceable) if result else [])
+            else:
+                self._finish_from(job, result)
+        except SessionCancelled:
+            self._finish(job, "cancelled", template=job._partial, summary="cancelled")
+        except FormcastError as exc:
+            log.warning("job %s failed: %s", job.id[:8], self._redact(str(exc)))
+            self._finish(job, "error", template=job._partial, error=self._redact(str(exc)))
+        except Exception:  # noqa: BLE001 - nothing may escape a job thread; the client gets a generic message
+            log.error("job %s failed unexpectedly:\n%s", job.id[:8], self._redact(traceback.format_exc()))
+            self._finish(job, "error", template=job._partial, error=_GENERIC_ERROR)
+
     def _finish_from(self, job: Job, result: SessionResult) -> None:
         dumped = result.template.model_dump(by_alias=True, mode="json")
         unplaceable = list(result.unplaceable)
@@ -260,6 +321,11 @@ class Jobs:
             with job._lock:
                 job.template, job.summary, job.error = template, summary, error
                 job.unplaceable = unplaceable or []
+                for st in job.stages:  # a stage still running stopped with the job
+                    if st["status"] == "running":
+                        st["status"] = "error" if status == "error" else "skipped" if status == "cancelled" else "done"
+                    elif st["status"] == "pending" and status != "done":
+                        st["status"] = "skipped"
                 job.ended = time.time()
                 job.status = status
             finished = sorted((j for j in self._jobs.values() if j.status != "running"), key=lambda j: j.ended or 0.0)

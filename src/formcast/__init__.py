@@ -13,6 +13,7 @@ __version__ = "0.1.0"
 # Public names loaded on first use, so importing a light submodule (the sandbox
 # worker imports formcast.pagemap.query) does not pull in the whole library.
 _LAZY = {
+    "DataMapping": "formcast.data.mapping",
     "FillReport": "formcast.render.report",
     "FormSignature": "formcast.pagemap.model",
     "LLMConfig": "formcast.llm",
@@ -29,13 +30,18 @@ _LAZY = {
     "build_form_map": "formcast.pagemap.build",
     "build_template": "formcast.agent.api",
     "coverage": "formcast.template.coverage",
+    "derive_schema": "formcast.data.ai",
+    "extract_records": "formcast.data.ai",
     "fill": "formcast.render.fill",
     "fingerprint": "formcast.match",
     "map_pages": "formcast.pagepass.run",
+    "map_table": "formcast.data.ai",
     "pdf_features": "formcast.match",
     "flatten_schema": "formcast.schema",
     "preview": "formcast.render.preview",
+    "read_table": "formcast.data.table",
     "rebind": "formcast.template.rebind",
+    "records_from": "formcast.data.mapping",
     "revise": "formcast.agent.api",
     "similarity": "formcast.match",
     "to_smart_pdf": "formcast.render.fill",
@@ -46,6 +52,9 @@ _LAZY_MODULES = {"ops": "formcast.template.ops"}
 if TYPE_CHECKING:
     from formcast.agent.api import build_template, revise
     from formcast.agent.session import SessionBudget, SessionResult, StepEvent
+    from formcast.data.ai import derive_schema, extract_records, map_table
+    from formcast.data.mapping import DataMapping, records_from
+    from formcast.data.table import read_table
     from formcast.errors import SessionCancelled
     from formcast.llm import LLMConfig
     from formcast.match import PdfFeatures, Similarity, fingerprint, pdf_features, similarity
@@ -79,9 +88,10 @@ def __dir__() -> list[str]:
 
 
 __all__ = [
-    "FillReport", "FormSignature", "FormcastError", "LLMConfig", "OpContext", "OpError", "PagePassResult",
-    "PdfFeatures", "SessionBudget", "SessionCancelled", "SessionResult", "Similarity", "StepEvent", "Template",
+    "DataMapping", "FillReport", "FormSignature", "FormcastError", "LLMConfig", "OpContext", "OpError",
+    "PagePassResult", "PdfFeatures", "SessionBudget", "SessionCancelled", "SessionResult", "Similarity", "StepEvent", "Template",
     "__version__",
-    "apply", "build_form_map", "build_template", "coverage", "errors", "fill", "fingerprint", "flatten_schema",
-    "map_pages", "ops", "pdf_features", "preview", "rebind", "revise", "similarity", "to_smart_pdf",
+    "apply", "build_form_map", "build_template", "coverage", "derive_schema", "errors", "extract_records", "fill",
+    "fingerprint", "flatten_schema", "map_pages", "map_table", "ops", "pdf_features", "preview", "read_table",
+    "rebind", "records_from", "revise", "similarity", "to_smart_pdf",
 ]  # fmt: skip

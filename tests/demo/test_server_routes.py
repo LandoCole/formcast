@@ -608,12 +608,12 @@ def test_templates_list_get_put_delete(demo_server):
     status, body = get_json(demo_server, "/api/templates")
     assert status == 200
     assert {t["name"] for t in body["templates"]} == {"fw9", "menomonie_app", "wadoc_auth"}
-    assert set(body["templates"][0]) == {"name", "template_id", "page_count", "updated"}
+    assert set(body["templates"][0]) == {"name", "template_id", "page_count", "updated", "title", "fields", "has_pdf"}
     template = stored(demo_server, "fw9")
     assert Template.model_validate(template).template_id == template["template_id"]
 
     status, body = post(demo_server, tpl("My copy.v2"), {"template": template}, "PUT")
-    assert status == 200 and body == {"name": "My copy.v2", "template_id": template["template_id"]}
+    assert status == 200 and body == {"name": "My copy.v2", "template_id": template["template_id"], "pdf": False, "mapping": False}
     assert stored(demo_server, "My copy.v2") == template  # a stored template reads back unchanged
     assert any(t["name"] == "My copy.v2" for t in get_json(demo_server, "/api/templates")[1]["templates"])
     # PUT replaces

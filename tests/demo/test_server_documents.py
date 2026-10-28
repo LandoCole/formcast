@@ -128,7 +128,10 @@ def small_pdf(pages: int = 1, text: str = "hello") -> bytes:
 def test_capabilities_say_ai_is_off_without_a_model_and_on_with_a_provider_factory(demo_server, start_demo_server):
     status, caps = get_json(demo_server, "/api/capabilities")
     assert status == 200
-    assert caps == {"ai": False, "matches": True, "store": True, "records": True, "scanned": True, "detectLive": False}
+    assert caps == {
+        "ai": False, "matches": True, "store": True, "records": True, "scanned": True, "detectLive": False,
+        "oneshot": True, "xlsx": caps["xlsx"],
+    }  # fmt: skip
     with_ai = start_demo_server(provider_factory=FakeProvider)
     assert get_json(with_ai, "/api/capabilities")[1]["ai"] is True
 

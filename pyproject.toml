@@ -21,6 +21,7 @@ dependencies = [
 
 [project.optional-dependencies]
 ocr = ["pytesseract>=0.3.13"]
+xlsx = ["openpyxl>=3.1"]  # Excel data files in the one-shot flow
 dev = ["pytest>=8", "playwright>=1.50"]
 
 [tool.setuptools]
