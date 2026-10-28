@@ -46,6 +46,10 @@ def build(argv: Sequence[str] | None = None, env: Mapping[str, str] | None = Non
     parser.add_argument("--host", help="address to bind (default 127.0.0.1)")
     parser.add_argument("--port", type=_port, help="port (default 8765; 0 picks a free one)")
     parser.add_argument("--data-dir", type=Path, help="folder with forms/, schemas/, records/, templates/ (default demo/data)")
+    parser.add_argument(
+        "--no-demo", action="store_true",
+        help="leave out the demo forms, shipped templates and demo records: only your own saved templates and PDFs",
+    )  # fmt: skip
     args = parser.parse_args(argv)
     settings = Settings.from_env(env)
     if args.host:
@@ -54,6 +58,8 @@ def build(argv: Sequence[str] | None = None, env: Mapping[str, str] | None = Non
         settings.port = args.port
     if args.data_dir is not None:
         settings.data_dir = args.data_dir.expanduser().resolve()
+    if args.no_demo:
+        settings.demo_enabled = False
     return make_server(settings, detectors=DetectorWarmup())
 
 

@@ -8,8 +8,16 @@ environment. Values are never printed or logged (``LLMConfig`` masks its key in 
     FORMCAST_DEMO_BASE_URL, FORMCAST_DEMO_API_KEY, FORMCAST_DEMO_MODEL   the model endpoint
     FORMCAST_DEMO_API_FORMAT   chat_completions (default) or responses
     FORMCAST_DEMO_HOST, FORMCAST_DEMO_PORT, FORMCAST_DEMO_DATA_DIR
+    FORMCAST_DEMO_ENABLED      false (or 0, no, off) drops the demo data: see ``demo_enabled``
 
 The AI features are on only when the base URL, key and model are all set.
+
+``demo_enabled`` (default true) says whether the data that ships with the demo is part of the app:
+the demo forms (``<data>/forms``), the shipped templates (``<data>/templates``), and the schemas and
+records (``<data>/schemas``, ``<data>/records``, ``<data>/records.sqlite``). Turned off, the workbench
+offers none of them: the start screen lists only your saved templates and your own PDFs, matching
+scores only your saved templates, and fills use your data. Your saves still go to
+``<data>/local/templates``.
 
 The library only scores how alike two forms are (``formcast.similarity``). What to do with a
 score is decided here: reuse a stored template at or above ``reuse_threshold``, adapt one at or
@@ -38,6 +46,7 @@ class Settings:
     reuse_threshold: float = 0.95
     adapt_threshold: float = 0.60
     llm: LLMConfig | None = None
+    demo_enabled: bool = True
     max_upload_bytes: int = 50 * 2**20
     max_json_bytes: int = 20 * 2**20
 
@@ -57,6 +66,8 @@ class Settings:
             out.port = parse_port(port, f"{PREFIX}PORT")
         if (data_dir := get("DATA_DIR")) is not None:
             out.data_dir = Path(data_dir).expanduser().resolve()
+        if (enabled := get("ENABLED")) is not None:
+            out.demo_enabled = parse_bool(enabled, f"{PREFIX}ENABLED")
         base_url, api_key, model = get("BASE_URL"), get("API_KEY"), get("MODEL")
         if base_url and api_key and model:
             out.llm = LLMConfig(
@@ -78,6 +89,16 @@ def parse_port(text: str, what: str = "the port") -> int:
     if not 0 <= port <= 65535:
         raise ValueError(f"{what} must be {PORT_RANGE}")
     return port
+
+
+def parse_bool(text: str, what: str) -> bool:
+    """``true``/``1``/``yes``/``on`` or ``false``/``0``/``no``/``off`` (any case). Raises ``ValueError`` naming ``what``."""
+    value = text.strip().lower()
+    if value in ("true", "1", "yes", "on"):
+        return True
+    if value in ("false", "0", "no", "off"):
+        return False
+    raise ValueError(f"{what} must be true or false")
 
 
 def read_dotenv(path: Path) -> dict[str, str]:

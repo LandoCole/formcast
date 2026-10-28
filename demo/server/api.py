@@ -54,7 +54,9 @@ from demo.server.jobs import KINDS, Jobs, JobsBusy
 from demo.server.oneshot import OneShotSpec, map_dataset
 from demo.server.records import MultiRecords, RecordSource, RecordSourceError
 from demo.server.settings import Settings
-from demo.server.store import NAME_RE, OverlayTemplateStore, ShippedTemplateError, StoredTemplateError, TemplateStore
+from demo.server.store import (
+    NAME_RE, FolderTemplateStore, OverlayTemplateStore, ShippedTemplateError, StoredTemplateError, TemplateStore,
+)
 from formcast import (
     FormcastError, OpContext, OpError, Template, apply, fill, flatten_schema, rebind, similarity, to_smart_pdf,
 )
@@ -149,7 +151,8 @@ class Api:
         self.settings = settings
         self.provider_factory = provider_factory
         if store is None:  # saves go to <data>/local/templates (git-ignored), over the shipped <data>/templates
-            store = OverlayTemplateStore(settings.data_dir / "local" / "templates", settings.data_dir / "templates")
+            local = settings.data_dir / "local" / "templates"
+            store = OverlayTemplateStore(local, settings.data_dir / "templates") if settings.demo_enabled else FolderTemplateStore(local)
         self.store = store
         self.records = records if records is not None else _default_records(settings)
         self.documents = documents if documents is not None else Documents()
@@ -264,14 +267,16 @@ class Api:
                 return get_file(name, "pdf")
             except KeyError:
                 pass
-        if NAME_RE.fullmatch(name) and (path := self._forms_dir() / f"{name}.pdf").is_file():
+        if self.settings.demo_enabled and NAME_RE.fullmatch(name) and (path := self._forms_dir() / f"{name}.pdf").is_file():
             self.store.get(name)  # only for a stored template (KeyError otherwise)
             return path.read_bytes()
         raise KeyError(name)
 
     def forms(self, req: Request) -> dict:
-        """The demo forms in ``<data>/forms``, each with its schema name when one has the same name."""
+        """The demo forms in ``<data>/forms``, each with its schema name when one has the same name; none with the demo off."""
         out = []
+        if not self.settings.demo_enabled:
+            return {"forms": out}
         for path in sorted(self._forms_dir().glob("*.pdf")):
             if NAME_RE.fullmatch(path.stem):
                 has_schema = (self.settings.data_dir / "schemas" / f"{path.stem}.json").is_file()
@@ -292,6 +297,8 @@ class Api:
             form = payload.get("form") if isinstance(payload, dict) else None
             if not isinstance(form, str) or not NAME_RE.fullmatch(form):
                 raise ApiError(400, "bad_form", 'send a plain demo form name as {"form": "<name>"}, or upload a file')
+            if not self.settings.demo_enabled:
+                raise ApiError(404, "not_found", "the demo forms are off; upload a PDF or open a saved template")
             path = self._forms_dir() / f"{form}.pdf"
             if not path.is_file():
                 raise ApiError(404, "not_found", f"no such demo form: {form}")
@@ -605,7 +612,7 @@ class Api:
     def list_templates(self, req: Request) -> dict:
         out = self.store.list()
         for t in out:
-            if not t.get("has_pdf") and (self._forms_dir() / f"{t['name']}.pdf").is_file():
+            if self.settings.demo_enabled and not t.get("has_pdf") and (self._forms_dir() / f"{t['name']}.pdf").is_file():
                 t["has_pdf"] = True  # a shipped template opens with the demo form of its name
         return {"templates": out}
 
@@ -918,8 +925,11 @@ def _fingerprint_note(template: Template) -> str:
 
 
 def _default_records(settings: Settings) -> RecordSource:
+    """The demo's schemas and records; with the demo off, none (fills use the person's own data)."""
     from demo.server.records import CsvRecords, SqliteRecords
 
+    if not settings.demo_enabled:
+        return MultiRecords()
     data = settings.data_dir
     return MultiRecords(CsvRecords(data), SqliteRecords(data / "records.sqlite", data / "schemas"))
 

@@ -973,3 +973,23 @@ def test_one_shot_designs_the_schema_maps_the_data_and_opens_your_records_filled
     b.page.click("#save-go")
     expect(b.page.locator("#notice")).to_contain_text("/api/templates/tiny/fill")
     assert b.errors == []
+
+
+
+def test_with_the_demo_off_the_start_screen_offers_a_pdf_then_your_saved_templates(start_demo_server, page):
+    b = Bench(page, start_demo_server(demo_enabled=False))  # not bench(): its goto waits for the demo forms
+    page.goto(f"{b.base}/workbench/?poll=50")
+    expect(page.locator("#file-label")).to_have_text("Choose a PDF")
+    expect(page.locator("#form-pick")).to_be_hidden()  # nothing saved and no demo forms: no list to pick from
+    b.upload(widget_pdf())
+    b.build_new()
+    page.click("#save")
+    page.fill("#save-name", "mine")
+    page.click("#save-go")
+    expect(page.locator("#notice")).to_contain_text("mine")
+    page.click("#doc-name")  # back to the start screen: the list is read again
+    expect(page.locator("#form-pick")).to_be_visible()
+    expect(page.locator("#form-pick optgroup")).to_have_count(1)
+    expect(page.locator("#form-pick option[value='saved:mine']")).to_have_count(1)
+    expect(page.locator("#form-pick option").first).to_have_text("Choose a saved template")
+    assert b.errors == []

@@ -43,6 +43,7 @@ export function mountStart(app) {
   function showStart(text = "") {
     match.hidden = true;
     start.hidden = false;
+    load(); // a template saved since the page opened is offered too
     $("start-close").hidden = app.template === null;
     say(msg, text);
     $("open").disabled = false;
@@ -54,6 +55,12 @@ export function mountStart(app) {
     match.hidden = true;
   }
 
+  /**
+   * Read the demo forms, stored schemas and saved templates, and offer them. Only what exists is offered:
+   * with the demo off (no demo forms) the list is your saved templates, and with none of either the
+   * form list goes away and choosing a PDF is the way in. Run again each time the start screen opens,
+   * so a template saved since shows up; the choice made, when still there, is kept.
+   */
   async function load() {
     try {
       const [f, s, t] = await Promise.all([engine.forms(), engine.records.schemas(), engine.templates.list()]);
@@ -70,16 +77,28 @@ export function mountStart(app) {
       g.append(...saved.map((t) => new Option(t.title ? `${t.name} · ${t.title}` : t.name, `saved:${t.name}`)));
       groups.push(g);
     }
-    const demo = document.createElement("optgroup");
-    demo.label = "Demo forms";
-    demo.append(...forms.map((f) => new Option(f.name, `demo:${f.name}`)));
-    groups.push(demo);
-    $("form-pick").replaceChildren(new Option("Choose a form", ""), ...groups);
+    if (forms.length) {
+      const demo = document.createElement("optgroup");
+      demo.label = "Demo forms";
+      demo.append(...forms.map((f) => new Option(f.name, `demo:${f.name}`)));
+      groups.push(demo);
+    }
+    const formPick = $("form-pick");
+    const before = formPick.value;
+    const prompt = forms.length ? "Choose a form" : "Choose a saved template";
+    formPick.replaceChildren(new Option(prompt, ""), ...groups);
+    if ([...formPick.options].some((o) => o.value === before)) formPick.value = before;
+    formPick.hidden = groups.length === 0;
+    $("form-pick-label").textContent = groups.length ? "1 · The form" : "1 · The form (a PDF)";
+    $("file").closest(".file").classList.toggle("below", groups.length > 0);
+    if (!fileInput.files?.[0]) $("file-label").textContent = groups.length ? "Or choose a PDF" : "Choose a PDF";
+    const schemaBefore = $("schema-pick").value;
     $("schema-pick").replaceChildren(
       ...(ai ? [new Option("The AI designs it from the form", DERIVE)] : []),
       ...Object.entries(app.schemas).map(([name, schema]) => new Option(schema?.title ? `${name} · ${schema.title}` : name, name)),
       new Option("Paste a JSON Schema", PASTE),
     );
+    if ([...$("schema-pick").options].some((o) => o.value === schemaBefore)) $("schema-pick").value = schemaBefore;
     sync();
   }
 
@@ -106,7 +125,7 @@ export function mountStart(app) {
 
   $("form-pick").addEventListener("change", () => {
     fileInput.value = "";
-    $("file-label").textContent = "Or choose a PDF";
+    $("file-label").textContent = forms.length || saved.length ? "Or choose a PDF" : "Choose a PDF";
     // a demo form comes with its own schema (and records); the AI can still design one when asked
     const form = forms.find((f) => `demo:${f.name}` === $("form-pick").value);
     if (form?.schema) $("schema-pick").value = form.schema;
@@ -114,7 +133,7 @@ export function mountStart(app) {
   });
   fileInput.addEventListener("change", () => {
     const file = fileInput.files?.[0];
-    $("file-label").textContent = file ? file.name : "Or choose a PDF";
+    $("file-label").textContent = file ? file.name : forms.length || saved.length ? "Or choose a PDF" : "Choose a PDF";
     if (file) {
       $("form-pick").value = "";
       if (ai) $("schema-pick").value = DERIVE; // your own PDF: the one-shot default
@@ -157,7 +176,7 @@ export function mountStart(app) {
     const value = $("form-pick").value;
     const file = fileInput.files?.[0] ?? null;
     if (!value && file === null) {
-      say(msg, "Choose a form or a PDF first.");
+      say(msg, forms.length || saved.length ? "Choose a form or a PDF first." : "Choose a PDF first.");
       return;
     }
     const savedName = savedPick();

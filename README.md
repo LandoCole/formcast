@@ -390,7 +390,12 @@ Settings come from the git-ignored `.env` and the environment. `FORMCAST_DEMO_BA
 (`chat_completions`, the default, or `responses`) picks the API. The server calls the library with its
 defaults, so the model must accept image input: a build runs the page pass first, and build, adapt and
 revise send page images. There is no setting for `vision=False` yet. `FORMCAST_DEMO_HOST`,
-`FORMCAST_DEMO_PORT` and `FORMCAST_DEMO_DATA_DIR` set the rest. With the three AI values missing, the
+`FORMCAST_DEMO_PORT` and `FORMCAST_DEMO_DATA_DIR` set the rest.
+`FORMCAST_DEMO_ENABLED=false` (or `python -m demo.server --no-demo`) takes the demo data out of the app:
+the demo forms, the shipped templates, and the demo schemas and records. The start screen then offers
+your saved templates and your own PDFs (just *Choose a PDF* until you have saved one), matching scores
+only your saved templates, and fills come from your data or a sample record. Saves still go to
+`local/templates/` in the data folder. It is on by default. With the three AI values missing, the
 AI controls are hidden; hand editing, matching, saving and filling still work. The key stays on the
 server and no response contains it.
 
