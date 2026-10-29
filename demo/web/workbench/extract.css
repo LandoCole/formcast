@@ -1,0 +1,21 @@
+/* The workbench's extraction mode, on the workbench's tokens and controls (workbench.css): the choice of Fill or
+   Extract the page opens on, and the switch between the two modes. body[data-mode] is "fill" or "extract"; the
+   parts of the page that belong to one mode carry data-for="fill" or data-for="extract" and are shown only in it.
+   The classes are the extraction mockup's (docs/superpowers/specs/2026-10-28-pdf-extraction-mockup.html). */
+
+/* ---------- the two modes ---------- */
+body[data-mode="fill"] [data-for="extract"],
+body[data-mode="extract"] [data-for="fill"] { display: none !important; }
+.views { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+
+/* ---------- fill or extract ---------- */
+.choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.choice { display: grid; gap: 8px; align-content: start; text-align: left; padding: 16px; background: var(--paper); color: var(--ink); border: 0; outline: 1px solid var(--rule); outline-offset: -.5px; cursor: pointer; font: inherit; }
+.choice:hover { outline: 1px solid var(--ink); }
+.choice:focus-visible { outline: 2px solid var(--ink); outline-offset: -1px; }
+.choice-t { font: 11px var(--mono); letter-spacing: .14em; text-transform: uppercase; }
+.choice-d { font-size: 16px; line-height: 22px; color: var(--graphite); }
+.choices + .msg { margin: 16px 0 0; }
+
+/* ---------- the start screen's data, given from an extraction run ---------- */
+.given { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; padding: 8px 0 8px 12px; box-shadow: inset 2px 0 0 0 var(--ink); font-family: var(--mono); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }

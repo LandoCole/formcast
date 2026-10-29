@@ -16,6 +16,12 @@
 // With AI off, or linking by hand, a PDF opens on the seed with the schema picked, and data waits in the
 // fill drawer.
 //
+// The way in. The page opens on the choice of Fill or Extract (extract.js); Fill a PDF opens this screen with
+// `showStart()`, and its Back goes back to the choice while no form is open (to the form on screen otherwise).
+// `showStart({dataset, form})` opens it with data already on the server, as an extraction run sends its results:
+// the dataset is *Your data* (shown by name, with Clear), used by Open instead of a file or pasted text, and `form`
+// (a saved template or demo form name) is picked. Opening a form uses that data up.
+//
 // Reading the form. While the server reads a PDF (its form map: text, widgets, OCR, detected boxes) the
 // start screen shows what it is doing, page by page (reading.js), and asks for the seed once it is done.
 // "I'll pick the form pages myself" reads it with no detection at all, which is quick even for a long
@@ -35,7 +41,10 @@ const EMPTY_SCHEMA = { type: "object", properties: {} };
 const FIRST_TIME = "the first time can take a minute while the detector downloads";
 const READING = `Reading the form (${FIRST_TIME})…`;
 
-/** @param {object} app see workbench.js */
+/**
+ * @param {object} app see workbench.js
+ * @returns {{showStart: (opts?: {dataset?: object | null, form?: string | null}) => void}}
+ */
 export function mountStart(app) {
   const { $, engine, say } = app;
   const start = $("start");
@@ -49,16 +58,39 @@ export function mountStart(app) {
   let forms = [];
   let saved = []; // stored templates that keep their PDF
   let pick = null; // what the match prompt is about: {doc, schema, schemaName, fits, dataset, check}
+  let given = null; // a dataset the server has already (an extraction run's results): Your data
+  let wantForm = null; // the form to pick once the lists are read
 
-  function showStart(text = "") {
+  /** Show the start screen again, as it was, with a message (empty for none). */
+  function showAgain(text = "") {
     match.hidden = true;
     start.hidden = false;
     hideReading(reading);
     load(); // a template saved since the page opened is offered too
-    $("start-close").hidden = app.template === null;
     say(msg, text);
     $("open").disabled = false;
     $("form-pick").focus();
+  }
+
+  /** Your data: the dataset given (by name, with Clear), or the file and paste box. */
+  function showGiven() {
+    $("data-given").hidden = given === null;
+    $("data-given-text").textContent = given === null ? "" : describeData(given);
+    $("data-file-row").hidden = given !== null;
+    $("data-text").hidden = given !== null;
+    sync();
+  }
+
+  /**
+   * Open the start screen: `dataset` (a dataset summary on the server) becomes Your data, and `form` (a saved
+   * template or a demo form, by name) is picked; without them the screen is as it was, with no data given.
+   * @param {{dataset?: object | null, form?: string | null}} [opts]
+   */
+  function showStart({ dataset = null, form = null } = {}) {
+    given = dataset;
+    wantForm = form;
+    showGiven();
+    showAgain();
   }
 
   function hideAll() {
@@ -98,7 +130,16 @@ export function mountStart(app) {
     const before = formPick.value;
     const prompt = forms.length ? "Choose a form" : "Choose a saved template";
     formPick.replaceChildren(new Option(prompt, ""), ...groups);
-    if ([...formPick.options].some((o) => o.value === before)) formPick.value = before;
+    const has = (value) => [...formPick.options].some((o) => o.value === value);
+    if (has(before)) formPick.value = before;
+    if (wantForm !== null) {
+      const value = [`saved:${wantForm}`, `demo:${wantForm}`, wantForm].find(has);
+      wantForm = null;
+      if (value !== undefined) {
+        formPick.value = value;
+        formPicked();
+      }
+    }
     formPick.hidden = groups.length === 0;
     $("form-pick-label").textContent = groups.length ? "1 · The form" : "1 · The form (a PDF)";
     $("file").closest(".file").classList.toggle("below", groups.length > 0);
@@ -115,7 +156,7 @@ export function mountStart(app) {
 
   /** The saved template picked, or null. */
   const savedPick = () => ($("form-pick").value.startsWith("saved:") ? $("form-pick").value.slice(6) : null);
-  const hasData = () => Boolean(dataInput.files?.[0]) || $("data-text").value.trim() !== "";
+  const hasData = () => given !== null || Boolean(dataInput.files?.[0]) || $("data-text").value.trim() !== "";
 
   /** The AI links the boxes (one-shot job), rather than opening them unlinked. */
   const mapping = () => ai && $("ai-mode").value !== "off";
@@ -137,14 +178,17 @@ export function mountStart(app) {
     else $("open").textContent = mapping() && !manual() ? "Map with AI" : "Open";
   }
 
-  $("form-pick").addEventListener("change", () => {
+  /** A form picked in the list: no PDF of your own, and a demo form's own schema. */
+  function formPicked() {
     fileInput.value = "";
     $("file-label").textContent = forms.length || saved.length ? "Or choose a PDF" : "Choose a PDF";
     // a demo form comes with its own schema (and records); the AI can still design one when asked
     const form = forms.find((f) => `demo:${f.name}` === $("form-pick").value);
     if (form?.schema) $("schema-pick").value = form.schema;
     sync();
-  });
+  }
+
+  $("form-pick").addEventListener("change", formPicked);
   fileInput.addEventListener("change", () => {
     const file = fileInput.files?.[0];
     $("file-label").textContent = file ? file.name : forms.length || saved.length ? "Or choose a PDF" : "Choose a PDF";
@@ -163,8 +207,19 @@ export function mountStart(app) {
   });
   $("data-text").addEventListener("input", sync);
   $("schema-pick").addEventListener("change", sync);
-  $("doc-name").addEventListener("click", () => showStart());
-  $("start-close").addEventListener("click", hideAll);
+  $("data-given-clear").addEventListener("click", () => {
+    given = null;
+    showGiven();
+    dataInput.focus();
+  });
+  app.onReset(() => {
+    given = null; // a form opened with it: the data is used
+    showGiven();
+  });
+  $("start-close").addEventListener("click", () => {
+    hideAll();
+    if (app.template === null) app.choice.show(); // nothing open to go back to: the way in
+  });
 
   /**
    * The schema chosen on the start screen: {schema, schemaName}, or a message. `schema` null means none
@@ -206,13 +261,13 @@ export function mountStart(app) {
       return;
     }
     $("open").disabled = true;
-    let dataset = null;
-    if (hasData()) {
+    let dataset = given; // data the server has already needs no upload
+    if (dataset === null && hasData()) {
       say(msg, "Reading your data…");
       try {
         dataset = await sendData(engine, { file: dataInput.files?.[0] ?? null, text: $("data-text").value });
       } catch (e) {
-        showStart(`Your data can't be used: ${e.message}`);
+        showAgain(`Your data can't be used: ${e.message}`);
         return;
       }
     }
@@ -227,7 +282,7 @@ export function mountStart(app) {
       doc = file ? await engine.open(file, { name: file.name, detect }) : await engine.open(value.slice(5), { detect });
       await readForm(doc);
     } catch (e) {
-      showStart(e.message);
+      showAgain(e.message);
       return;
     }
     let fits = [];
@@ -269,12 +324,12 @@ export function mountStart(app) {
     try {
       [doc, template] = await Promise.all([engine.open({ template: name }), engine.templates.get(name)]);
     } catch (e) {
-      showStart(e.message);
+      showAgain(e.message);
       return;
     }
     const misfit = checkTemplateFits(template, doc);
     if (misfit) {
-      showStart(misfit);
+      showAgain(misfit);
       return;
     }
     hideAll();
@@ -387,7 +442,7 @@ export function mountStart(app) {
     try {
       template = await engine.seed(doc, schemaName ?? schema ?? EMPTY_SCHEMA);
     } catch (e) {
-      showStart(e.message);
+      showAgain(e.message);
       return false;
     }
     hideAll();
@@ -416,5 +471,5 @@ export function mountStart(app) {
     return true;
   }
 
-  load();
+  return { showStart };
 }

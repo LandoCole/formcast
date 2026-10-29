@@ -400,3 +400,159 @@ test("forms lists the demo forms", async () => {
   const { engine } = await engineWith({ "GET /api/forms": json(200, { forms: [{ name: "fw9", size: 1, schema: "fw9" }] }) });
   assert.deepEqual(await engine.forms(), [{ name: "fw9", size: 1, schema: "fw9" }]);
 });
+
+// ------------------------------------------------------------------ extraction
+
+const EXTRACT_CAPS = { ...CAPS, extract: true };
+const BATCH_ID = "b".repeat(32);
+const SETUP_ID = "5".repeat(32);
+const RUN_ID = "7".repeat(32);
+const MiB = 2 ** 20;
+
+/** The `file` parts of a multipart body, as [name, size]. */
+const parts = (form) => form.getAll("file").map((f) => [f.name, f.size]);
+
+test("engine.extract is there only when the server says extract, and passes assertEngine", async () => {
+  const { engine } = await engineWith({});
+  assert.equal(engine.extract, undefined);
+  const on = await engineWith({ "GET /api/capabilities": json(200, EXTRACT_CAPS) });
+  assertEngine(on.engine);
+  assert.equal(typeof on.engine.extract.addFiles, "function");
+  assert.deepEqual(on.engine.capabilities, { detectLive: false, ai: true, matches: true, store: true, records: true, scanned: true });
+});
+
+test("addFiles sends three files of 30 MiB in requests under 40 MiB each, to the batch's files route", async () => {
+  let count = 0;
+  const { engine, fetch } = await engineWith({
+    "GET /api/capabilities": json(200, EXTRACT_CAPS),
+    [`POST /api/batches/${BATCH_ID}/files`]: ({ body }) => json(200, { id: BATCH_ID, count: (count += body.getAll("file").length) }),
+  });
+  const files = ["a.pdf", "b.pdf", "c.pdf"].map((name) => new File([new Uint8Array(30 * MiB)], name, { type: "application/pdf" }));
+  const seen = [];
+  const out = await engine.extract.addFiles(BATCH_ID, files, { onProgress: (p) => seen.push(p) });
+  assert.equal(fetch.calls.length, 3);
+  for (const call of fetch.calls) {
+    assert.equal(call.url, `/api/batches/${BATCH_ID}/files`);
+    assert.equal(call.method, "POST");
+    assert.ok(parts(call.body).reduce((n, [, size]) => n + size, 0) < 40 * MiB);
+  }
+  assert.deepEqual(fetch.calls.map((c) => parts(c.body).map(([name]) => name)), [["a.pdf"], ["b.pdf"], ["c.pdf"]]);
+  assert.equal(out.count, 3); // the batch as the last request left it
+  assert.deepEqual(seen.map((p) => [p.done, p.total, p.bytes, p.totalBytes, p.batch.count]), [
+    [1, 3, 30 * MiB, 90 * MiB, 1],
+    [2, 3, 60 * MiB, 90 * MiB, 2],
+    [3, 3, 90 * MiB, 90 * MiB, 3],
+  ]);
+});
+
+test("addFiles puts small files together in one request and sends a file over the limit on its own", async () => {
+  const { engine, fetch } = await engineWith({
+    "GET /api/capabilities": json(200, EXTRACT_CAPS),
+    [`POST /api/batches/${BATCH_ID}/files`]: json(200, { id: BATCH_ID, count: 4 }),
+  });
+  const small = ["a.pdf", "b.pdf", "c.zip"].map((name) => new File([new Uint8Array(1000)], name));
+  const big = new File([new Uint8Array(41 * MiB)], "big.zip");
+  await engine.extract.addFiles(BATCH_ID, [...small, big]);
+  assert.deepEqual(fetch.calls.map((c) => parts(c.body).map(([name]) => name)), [["a.pdf", "b.pdf", "c.zip"], ["big.zip"]]);
+  await assert.rejects(engine.extract.addFiles(BATCH_ID, []), (e) => e instanceof EngineError && e.code === "bad_upload");
+});
+
+test("the batch, setup and saved extraction calls go to their routes with their bodies", async () => {
+  const setup = { id: SETUP_ID, batch: BATCH_ID, template: {}, proof: {}, warnings: [], samples: [] };
+  const { engine, fetch } = await engineWith({
+    "GET /api/capabilities": json(200, EXTRACT_CAPS),
+    "POST /api/batches": json(200, { id: BATCH_ID }),
+    [`GET /api/batches/${BATCH_ID}`]: json(200, { id: BATCH_ID, count: 5 }),
+    [`GET /api/batches/${BATCH_ID}/files?offset=50&limit=50`]: json(200, { total: 60, files: [{ index: 50 }] }),
+    [`POST /api/batches/${BATCH_ID}/sample`]: json(200, { samples: [{ index: 0 }, { index: 2 }, { index: 4 }] }),
+    [`GET /api/setups/${SETUP_ID}`]: json(200, setup),
+    "POST /api/setups": json(200, setup),
+    [`POST /api/setups/${SETUP_ID}/edit`]: json(200, setup),
+    [`POST /api/setups/${SETUP_ID}/learn`]: json(200, setup),
+    [`GET /api/setups/${SETUP_ID}/samples/2/marks`]: json(200, { marks: [{ path: "a", kind: "box" }] }),
+    "PUT /api/extractions/Client%20info": json(200, { name: "Client info", template_id: "t" }),
+    "GET /api/extractions": json(200, { extractions: [{ name: "Client info" }] }),
+    "DELETE /api/extractions/Client%20info": json(200, { name: "Client info" }),
+  });
+  assert.deepEqual(await engine.extract.createBatch({ folder: "/data/clients" }), { id: BATCH_ID });
+  assert.deepEqual(fetch.calls[0].body, { folder: "/data/clients" });
+  assert.equal((await engine.extract.batch(BATCH_ID)).count, 5);
+  assert.equal((await engine.extract.files(BATCH_ID, 50, 50)).total, 60);
+  assert.deepEqual(await engine.extract.pickSample(BATCH_ID, { n: 3, how: "pick", picked: [0, 2, 4] }), [{ index: 0 }, { index: 2 }, { index: 4 }]);
+  assert.deepEqual(fetch.calls[3].body, { n: 3, how: "pick", picked: [0, 2, 4] });
+  assert.equal(engine.extract.pageUrl(BATCH_ID, 3, 1), `/api/batches/${BATCH_ID}/files/3/pages/1.png?dpi=110`);
+  assert.equal(engine.extract.pageUrl(BATCH_ID, 3, 1, 72), `/api/batches/${BATCH_ID}/files/3/pages/1.png?dpi=72`);
+
+  assert.equal((await engine.extract.setup(SETUP_ID)).id, SETUP_ID);
+  await engine.extract.reopen("Client info");
+  assert.deepEqual(fetch.calls.at(-1).body, { extraction: "Client info" });
+  const edit = { op: "set_box", path: "investor.tax_id", page: 0, rect: [1, 2, 3, 4], sample: 3 };
+  await engine.extract.edit(SETUP_ID, edit);
+  assert.deepEqual(fetch.calls.at(-1).body, { edit }); // as given, its sample included
+  await engine.extract.learn(SETUP_ID, "investor.country");
+  assert.deepEqual(fetch.calls.at(-1).body, { path: "investor.country" });
+  assert.deepEqual(await engine.extract.marks(SETUP_ID, 2), [{ path: "a", kind: "box" }]);
+  assert.equal(engine.extract.samplePageUrl(SETUP_ID, 2, 0), `/api/setups/${SETUP_ID}/samples/2/pages/0.png?dpi=110`);
+
+  assert.deepEqual(await engine.extract.save("Client info", SETUP_ID), { name: "Client info", template_id: "t" });
+  assert.deepEqual(fetch.calls.at(-1).body, { setup: SETUP_ID });
+  assert.deepEqual(await engine.extract.list(), [{ name: "Client info" }]);
+  assert.equal(await engine.extract.remove("Client info"), "Client info");
+});
+
+test("the setup, line and run jobs start as extract jobs and poll like the others", async () => {
+  const { engine, fetch } = await engineWith({
+    "GET /api/capabilities": json(200, EXTRACT_CAPS),
+    "POST /api/jobs": json(200, { id: "j1" }),
+    "GET /api/jobs/j1": json(200, { id: "j1", kind: "extract-run", status: "done", stages: [], result: { run: RUN_ID } }),
+  });
+  const started = () => fetch.calls.filter((c) => c.method === "POST").at(-1).body; // the polls come after
+  const spec = { name: "Client info", start: "ai", lines: [], destination: null, detect: "auto", pages: {}, ocr: "auto", sample_how: "spread" };
+  const setupJob = await engine.extract.startSetup({ batch: BATCH_ID, samples: [0, 1, 2], spec });
+  assert.deepEqual(started(), { kind: "extract-setup", batch: BATCH_ID, samples: [0, 1, 2], spec });
+  assert.equal(setupJob.kind, "extract-setup");
+  const lineJob = await engine.extract.startLine(SETUP_ID, "wire details");
+  assert.equal(lineJob.kind, "extract-line");
+  assert.deepEqual(started(), { kind: "extract-line", setup: SETUP_ID, line: "wire details" });
+  const runJob = await engine.extract.startRun({ extraction: "Client info", batch: BATCH_ID });
+  assert.deepEqual(started(), { kind: "extract-run", extraction: "Client info", batch: BATCH_ID, ai: false });
+  assert.equal((await runJob.done).result.run, RUN_ID);
+});
+
+test("the run calls: list, open a folder, problems and set-aside paged, decisions, pages, export and to-data", async () => {
+  const run = { id: RUN_ID, name: "r", summary: {}, fields: [] };
+  const { engine, fetch } = await engineWith({
+    "GET /api/capabilities": json(200, EXTRACT_CAPS),
+    "GET /api/runs": json(200, { runs: [{ id: RUN_ID }] }),
+    "POST /api/runs": json(200, run),
+    [`GET /api/runs/${RUN_ID}`]: json(200, run),
+    [`GET /api/runs/${RUN_ID}/problems?path=investor.tax_id&status=missing&offset=0&limit=50`]: json(200, { total: 1, documents: [] }),
+    [`GET /api/runs/${RUN_ID}/problems?offset=50&limit=50`]: json(200, { total: 60, documents: [] }),
+    [`GET /api/runs/${RUN_ID}/set-aside?offset=0&limit=20`]: json(200, { total: 2, documents: [] }),
+    [`POST /api/runs/${RUN_ID}/decisions`]: json(200, run),
+    [`POST /api/runs/${RUN_ID}/to-data`]: json(200, { dataset: { id: "d", name: "r results" }, truncated: false, with_problems: 3 }),
+  });
+  assert.deepEqual(await engine.extract.runs(), [{ id: RUN_ID }]);
+  await engine.extract.openRun("/data/out");
+  assert.deepEqual(fetch.calls.at(-1).body, { folder: "/data/out" });
+  assert.equal((await engine.extract.run(RUN_ID)).id, RUN_ID);
+  assert.equal((await engine.extract.problems(RUN_ID, { path: "investor.tax_id", status: "missing" })).total, 1);
+  assert.equal((await engine.extract.problems(RUN_ID, { offset: 50 })).total, 60);
+  assert.equal((await engine.extract.setAside(RUN_ID, { limit: 20 })).total, 2);
+  const decision = { doc_id: "d1", path: "investor.tax_id", decision: "value", value: "84-2219037" };
+  await engine.extract.decide(RUN_ID, decision);
+  assert.deepEqual(fetch.calls.at(-1).body, decision);
+  assert.equal(engine.extract.runPageUrl(RUN_ID, "doc 1", 0), `/api/runs/${RUN_ID}/pages.png?doc=doc%201&page=0&dpi=110`);
+  assert.equal(engine.extract.exportUrl(RUN_ID, "parquet"), `/api/runs/${RUN_ID}/export?format=parquet`);
+  assert.deepEqual(await engine.extract.toData(RUN_ID), { dataset: { id: "d", name: "r results" }, truncated: false, with_problems: 3 });
+});
+
+test("an extraction call the server refuses rejects with its code, as every engine call does", async () => {
+  const { engine } = await engineWith({
+    "GET /api/capabilities": json(200, EXTRACT_CAPS),
+    [`POST /api/setups/${SETUP_ID}/edit`]: json(409, { error: "busy_setup", detail: "A field is being added to this setup; try again when it is done." }),
+    [`GET /api/setups/${SETUP_ID}`]: json(404, { error: "not_found", detail: `no such setup: ${SETUP_ID}` }),
+  });
+  await assert.rejects(engine.extract.edit(SETUP_ID, { op: "remove", path: "a" }), (e) => e instanceof EngineError && e.code === "busy_setup" && e.status === 409);
+  await assert.rejects(engine.extract.setup(SETUP_ID), (e) => e.code === "not_found" && /no such setup/.test(e.message));
+});

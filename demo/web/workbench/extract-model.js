@@ -1,0 +1,286 @@
+// Extraction's page logic, with no DOM (node-tested in tests/web/extract_model.test.js): what the extraction
+// screens say about a setup, a run and a batch, worked out from the server's JSON.
+//
+// A setup's proof (plan 2's formcast.extract.proof) has, for every concrete path, a FieldProof `{path, ready, absent,
+// samples: [{file, outcome, read, opinion}], suggested}`: each sample's `outcome` is `agree` (the readers read what
+// the model read), `disagree`, `missing` (neither has a value), `failed_check` (both read the same value, which fails
+// the schema's checks: the form holds a bad answer, not a bad reader) or `absent` (the path is marked not on this
+// form); `read` is the readers' FieldResult `{status, value, raw, reasons, page, rect}`. A field's row in the list
+// (`fieldState`) counts the samples proven (agree or failed_check) out of all of them, with a glyph as the mockup's
+// legend has it: ● every sample, ◐ some, ? an unsure read, × none, ○ not on this form. `outcomeLine` is one sample's
+// line under the field. A repeated group's fields are read per item (`owners[0].name` ... `owners[3].name`), and
+// `groupFields` folds them back into one row per field of the group (`owners[ ] · up to 4`).
+//
+// A field's schema says how it is checked (`checksOf`) and its reader how it is found (`readFrom`), each as lines of
+// plain words; `fieldSchema` finds a concrete path's schema node. A batch (`batchLine`, `stripCells`) is told by its
+// scan: how many of its PDFs are copies of its largest layout, the rest being set aside for another template.
+
+/** Items a repeated group has when its schema gives no `maxItems`, as the library gives it (formcast.extract.model). */
+const DEFAULT_ITEMS = 4;
+/** Outcomes that prove a reader: it read the model's answer (a failed check fails the answer, not the reader). */
+const PROVEN = new Set(["agree", "failed_check"]);
+/** Each problem status in words, as the review lists them. */
+const PROBLEM_LABELS = { missing: "Missing", failed_check: "Fails a check", unsure: "Unsure" };
+
+const number = (n) => Number(n ?? 0).toLocaleString("en-US");
+const plural = (n, word, many = `${word}s`) => `${number(n)} ${n === 1 ? word : many}`;
+const either = (words) => words.join(" or ");
+const blank = (v) => v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0);
+
+/** A read value as text: a list's items joined, yes or no for a boolean, "—" for nothing. */
+function shown(value) {
+  if (blank(value)) return "—";
+  if (Array.isArray(value)) return value.map(shown).join(" · ");
+  if (typeof value === "boolean") return value ? "yes" : "no";
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+// ------------------------------------------------------------------ a setup's fields
+
+/**
+ * A field's row state from its FieldProof: the glyph, the samples proven out of all of them, and `ready`, `weak` or
+ * `absent` (see the top).
+ * @param {{ready: boolean, absent: boolean, samples: {outcome: string, read?: {status: string}}[]}} fieldProof
+ * @returns {{glyph: string, text: string, state: "ready" | "weak" | "absent"}}
+ */
+export function fieldState(fieldProof) {
+  if (fieldProof.absent) return { glyph: "○", text: "not on this form", state: "absent" };
+  const samples = fieldProof.samples ?? [];
+  const proven = samples.filter((s) => PROVEN.has(s.outcome)).length;
+  let glyph = "×";
+  if (samples.length > 0 && proven === samples.length) glyph = "●";
+  else if (!fieldProof.ready && samples.some((s) => s.read?.status === "unsure")) glyph = "?";
+  else if (proven > 0) glyph = "◐";
+  return { glyph, text: `${proven}/${samples.length}`, state: fieldProof.ready ? "ready" : "weak" };
+}
+
+/**
+ * How a field is read, one line per strategy of its reader, in the order they are tried.
+ * @param {{strategies: object[]} | undefined} reader the template's reader for the path
+ * @param {object} [schemaProp] the path's schema: on a yes-or-no field a lone check mark reads as a checkbox
+ * @returns {string[]}
+ */
+export function readFrom(reader, schemaProp = {}) {
+  return (reader?.strategies ?? []).map((s) => {
+    switch (s.kind) {
+      case "widget":
+        return `Form field ${either(s.names)}`;
+      case "box":
+        return `A box on page ${s.page + 1}`;
+      case "anchor":
+        return `${s.side === "below" ? "Below" : "Next to"} the label ${either(s.labels)}`;
+      case "phrase":
+        return `Page text, after ${either(s.phrases)}`;
+      case "choice": {
+        const keys = Object.keys(s.options ?? {});
+        if (schemaProp?.type === "boolean" && keys.length === 1) return `A checkbox, checked for ${keys[0]}`;
+        return `Checkbox group, ${plural(keys.length, "box", "boxes")}`;
+      }
+      default:
+        return s.kind;
+    }
+  });
+}
+
+/**
+ * A field's checks in words: required, its format, a date, its allowed answers, its range.
+ * @param {object} [schemaProp] the path's schema
+ * @param {boolean} [required] whether its object requires it
+ * @returns {string[]}
+ */
+export function checksOf(schemaProp = {}, required = false) {
+  const p = schemaProp ?? {};
+  const out = [];
+  if (required) out.push("Required");
+  if (typeof p.pattern === "string") out.push(`Format ${p.pattern}`);
+  if (p.format === "date") out.push("Is a date");
+  else if (p.format === "date-time") out.push("Is a date and time");
+  else if (p.format === "email") out.push("Is an email address");
+  if (Array.isArray(p.enum)) out.push(`One of ${p.enum.map(String).join(", ")}`);
+  else if (Array.isArray(p.items?.enum)) out.push(`Any of ${p.items.enum.map(String).join(", ")}`);
+  const low = typeof p.minimum === "number" ? p.minimum : null;
+  const high = typeof p.maximum === "number" ? p.maximum : null;
+  if (low !== null && high !== null) out.push(`Between ${low} and ${high}`);
+  else if (low !== null) out.push(`At least ${low}`);
+  else if (high !== null) out.push(`At most ${high}`);
+  return out;
+}
+
+/**
+ * One sample's line under a field: ● the value read, × why not (its first reason; for a disagreement with none,
+ * what each side read), ○ not on this form.
+ * @param {{outcome: string, read?: {value: any, reasons?: string[]}, opinion?: any}} sampleProof
+ * @returns {{glyph: string, text: string}}
+ */
+export function outcomeLine(sampleProof) {
+  const { outcome, read = {}, opinion } = sampleProof;
+  if (outcome === "absent") return { glyph: "○", text: "not on this form" };
+  if (outcome === "agree") return { glyph: "●", text: shown(read.value ?? read.raw) };
+  const reason = read.reasons?.[0];
+  if (reason) return { glyph: "×", text: reason };
+  if (outcome === "disagree") {
+    const said = (v) => (blank(v) ? "nothing" : shown(v));
+    return { glyph: "×", text: `read ${said(read.value)}, the AI read ${said(opinion)}` };
+  }
+  return { glyph: "×", text: outcome === "failed_check" ? "fails a check" : "missing" };
+}
+
+// ------------------------------------------------------------------ schema paths
+
+/** `#/$defs/x`-style local references followed (once each step), so a field's node is its own. */
+function deref(schema, node) {
+  let out = node;
+  for (let hops = 0; out && typeof out.$ref === "string" && out.$ref.startsWith("#/") && hops < 8; hops++) {
+    out = out.$ref
+      .slice(2)
+      .split("/")
+      .reduce((n, key) => n?.[key.replaceAll("~1", "/").replaceAll("~0", "~")], schema);
+  }
+  return out ?? undefined;
+}
+
+/** A path's segments: `owners[2].name` -> [{key: "owners", item: true}, {key: "name", item: false}]. */
+function segments(path) {
+  return path.split(".").map((part) => {
+    const m = /^(.*?)((?:\[\d*\])*)$/.exec(part);
+    return { key: m[1], item: m[2] !== "" };
+  });
+}
+
+/**
+ * The schema of a field, by its concrete (`owners[2].name`) or generic (`owners[].name`) path, and whether the
+ * object holding it requires it. `{prop: {}, required: false}` for a path the schema does not have.
+ * @param {object} schema
+ * @param {string} path
+ * @returns {{prop: object, required: boolean}}
+ */
+export function fieldSchema(schema, path) {
+  let node = deref(schema, schema);
+  let required = false;
+  for (const { key, item } of segments(path)) {
+    required = Array.isArray(node?.required) && node.required.includes(key);
+    node = deref(schema, node?.properties?.[key]);
+    if (item) node = deref(schema, node?.items);
+    if (node === undefined) return { prop: {}, required: false };
+  }
+  return { prop: node, required };
+}
+
+/** `owners[2].name` -> `owners[].name`. */
+const genericOf = (path) => path.replace(/\[\d+\]/g, "[]");
+
+/** The array node a generic path's first `[]` is the items of, for its `maxItems`. */
+function firstArray(schema, generic) {
+  const head = generic.slice(0, generic.indexOf("[]"));
+  let node = deref(schema, schema);
+  for (const key of head.split(".")) node = deref(schema, node?.properties?.[key]);
+  return node ?? {};
+}
+
+/**
+ * A setup's fields in groups for the field list: a group per top-level object (`investor`), a repeated group's
+ * fields under `owners[ ] · up to 4` with each field's item paths folded into one row, and top-level fields of no
+ * object under the group "". A row is `{path, title, generic, items, paths}`: `path` its first concrete path (the
+ * only one for a plain field), `generic` its path with the item numbers taken out, `items` the number of items
+ * folded (null for a plain field), `paths` every concrete path in it. Groups and rows keep the proof's order.
+ * @param {{fields: {path: string}[]}} proof
+ * @param {object} schema
+ * @returns {{group: string, items: {path: string, title: string, generic: string, items: number | null, paths: string[]}[]}[]}
+ */
+export function groupFields(proof, schema) {
+  const groups = new Map();
+  const rows = new Map(); // generic path -> its row
+  for (const { path } of proof.fields ?? []) {
+    const generic = genericOf(path);
+    const repeated = generic !== path;
+    const known = rows.get(generic);
+    if (known) {
+      known.paths.push(path);
+      if (repeated) known.items = known.paths.length;
+      continue;
+    }
+    let group = path.includes(".") ? path.split(".")[0] : "";
+    if (repeated) {
+      const head = generic.slice(0, generic.indexOf("[]"));
+      const max = firstArray(schema, generic).maxItems;
+      group = `${head}[ ] · up to ${Number.isInteger(max) && max > 0 ? max : DEFAULT_ITEMS}`;
+    }
+    const { prop } = fieldSchema(schema, path);
+    const leaf = segments(generic).at(-1).key;
+    const row = { path, title: typeof prop.title === "string" && prop.title ? prop.title : leaf, generic, items: repeated ? 1 : null, paths: [path] };
+    rows.set(generic, row);
+    if (!groups.has(group)) groups.set(group, []);
+    groups.get(group).push(row);
+  }
+  return [...groups].map(([group, items]) => ({ group, items }));
+}
+
+// ------------------------------------------------------------------ runs and batches
+
+/**
+ * A review problem's status in words.
+ * @param {string} status `missing`, `failed_check` or `unsure`
+ * @returns {string}
+ */
+export function problemLabel(status) {
+  return PROBLEM_LABELS[status] ?? status;
+}
+
+/** Bytes as the batch line gives them: MB from one, else KB. */
+function size(bytes) {
+  if (bytes >= 1e6) return `${number(Math.round(bytes / 1e6))} MB`;
+  return `${number(Math.round(bytes / 1e3))} KB`;
+}
+
+/** The batch's largest scan group (its layout), or null before the scan is done or when it found none. */
+function mainGroup(batch) {
+  if (batch.scan?.phase !== "done") return null;
+  return (batch.scan.groups ?? []).reduce((best, g) => (best === null || g.size > best.size ? g : best), null);
+}
+
+/**
+ * A batch in one line: its PDFs, their size, and how many are copies of its layout (the rest set aside), or how
+ * the scan is going.
+ * @param {{count: number, bytes: number, scan: {phase: string, done: number, total: number, error: string | null,
+ *   groups: {size: number}[]}}} batch a Batch
+ * @returns {string}
+ */
+export function batchLine(batch) {
+  const parts = [plural(batch.count, "PDF"), size(batch.bytes ?? 0)];
+  const scan = batch.scan ?? {};
+  if (scan.phase === "error") parts.push(`the scan failed: ${scan.error}`);
+  else if (scan.phase !== "done") parts.push(`scanning, ${number(scan.done)} of ${number(scan.total)}`);
+  else if (batch.count > 0) {
+    const main = mainGroup(batch)?.size ?? 0;
+    const aside = batch.count - main;
+    parts.push(`${plural(main, "fillable or flattened copy", "fillable or flattened copies")} of one layout${aside > 0 ? `, ${number(aside)} set aside` : ""}`);
+  }
+  return parts.join(" · ");
+}
+
+/**
+ * The batch as a strip of at most `max` cells, in file order, each standing for about count / cells documents: a
+ * cell holding a sample document is `sample`; the layout's share of the cells comes first, with its flattened share
+ * spread through it (`flat`, else `main`), and the documents set aside (`other`) last. The scan gives the counts,
+ * not which file is which, so the strip shows proportions; before the scan is done every cell is `main`.
+ * @param {object} batch a Batch
+ * @param {number[]} [sampleIndexes] the batch's file indexes in the sample
+ * @param {number} [max]
+ * @returns {{state: "sample" | "main" | "flat" | "other"}[]}
+ */
+export function stripCells(batch, sampleIndexes = [], max = 120) {
+  const count = batch.count ?? 0;
+  if (count === 0) return [];
+  const cells = Math.min(count, max);
+  const main = mainGroup(batch);
+  const mainCells = main ? Math.round((cells * main.size) / count) : cells;
+  const flatCells = main?.size ? Math.round((mainCells * (main.flattened ?? 0)) / main.size) : 0;
+  const samples = new Set(sampleIndexes.filter((i) => i >= 0 && i < count).map((i) => Math.floor((i * cells) / count)));
+  return Array.from({ length: cells }, (_, i) => {
+    if (samples.has(i)) return { state: "sample" };
+    if (i >= mainCells) return { state: "other" };
+    const flat = Math.floor(((i + 1) * flatCells) / mainCells) > Math.floor((i * flatCells) / mainCells);
+    return { state: flat ? "flat" : "main" };
+  });
+}

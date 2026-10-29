@@ -1,8 +1,9 @@
 // The formcast workbench (layout B) on the server engine. A thin wiring layer: it creates the
 // engine, the session (core/session.js: document, template, undo, the ordered edit queue) and the
 // shared parts, renders on the session's events, and hands the overlays to their modules: the
-// start screen and match prompt (start.js), AI jobs and area revise (jobs.js), the fill drawer
-// (fill.js) and saving to the store (save.js), which call back through `app`.
+// choice of Fill or Extract the page opens on and the page's mode (extract.js), the start screen and
+// match prompt (start.js), AI jobs and area revise (jobs.js), the fill drawer (fill.js) and saving to
+// the store (save.js), which call back through `app`.
 //
 // Rendering under latency. Every edit is a round trip to the server, and the session runs edits one
 // at a time. Redrawing the page's boxes when one edit lands would put a box the person has since
@@ -15,7 +16,8 @@
 // change and any new document end it, so the page never shows a fill of an older template.
 //
 // Test hooks (localhost and 127.0.0.1 only): `?poll=<ms>` sets how often AI jobs are polled, and
-// `window.__workbench` exposes the template on screen and whether the edit queue is idle.
+// `window.__workbench` exposes the template on screen, whether the edit queue is idle, and the start
+// screen's `showStart({dataset, form})` (as an extraction run's Send to fill calls it).
 
 import { createBus } from "../core/bus.js";
 import { makeView, viewSize } from "../core/geometry.js";
@@ -27,6 +29,7 @@ import { schemaPathsOf } from "../core/schema.js";
 import { SchemaList, fieldWarnings } from "../core/schemalist.js";
 import { createSession } from "../core/session.js";
 import { createServerEngine } from "../engines/server/client.js";
+import { mountExtract } from "./extract.js";
 import { mountFill } from "./fill.js";
 import { mountJobs } from "./jobs.js";
 import { mountPages } from "./pages.js";
@@ -51,7 +54,8 @@ let engine;
 try {
   engine = await createServerEngine(pollParam > 0 ? { pollMs: pollParam } : {});
 } catch (e) {
-  say($("start-msg"), e.message);
+  say($("choose-msg"), e.message); // the page opens on the choice, which has nothing to offer without the server
+  for (const choice of document.querySelectorAll("#choose .choice")) choice.disabled = true;
   $("open").disabled = true;
   throw e;
 }
@@ -362,7 +366,7 @@ $("notice-close").addEventListener("click", () => app.notice(""));
 addEventListener("keydown", (e) => {
   if (!(e.ctrlKey || e.metaKey) || e.altKey || e.key.toLowerCase() !== "z") return;
   if (e.target.closest?.("input, textarea, select, [contenteditable]")) return;
-  if (session.template === null || document.querySelector(".overlay:not([hidden])")) return;
+  if (document.body.dataset.mode !== "fill" || session.template === null || document.querySelector(".overlay:not([hidden])")) return;
   e.preventDefault();
   if (e.shiftKey) redo();
   else undo();
@@ -378,7 +382,7 @@ addEventListener("resize", () => {
 
 // ------------------------------------------------------------------ overlays are modal
 
-// While an overlay (start, match, job, save) is open, everything else on the page is inert: no
+// While an overlay (choose, start, match, job, save) is open, everything else on the page is inert: no
 // focus, no clicks, no keys reach the boxes behind it. Focus moves into the overlay, Tab cycles
 // inside it, and focus goes back to where it was when the last overlay closes.
 const overlays = [...document.querySelectorAll(".overlay")];
@@ -464,6 +468,7 @@ if (LOCAL) {
     get idle() {
       return pending === 0;
     },
+    showStart: (opts) => app.start.showStart(opts),
   };
 }
 
@@ -471,7 +476,8 @@ $("engine-line").textContent = engine.capabilities.ai ? "Local server · AI on" 
 app.jobs = mountJobs(app);
 mountFill(app);
 mountSave(app);
-mountStart(app);
+app.start = mountStart(app);
+app.choice = mountExtract(app);
 app.pages = mountPages(app);
 syncModal();
 render();

@@ -6,12 +6,27 @@ export const CAPABILITIES = Object.freeze(["detectLive", "ai", "matches", "store
 
 /** Methods every engine has. */
 export const REQUIRED_METHODS = Object.freeze(["open", "seed", "apply", "fill", "smartPdf"]);
-/** Methods an engine may have; the UI offers them only when present. */
-export const OPTIONAL_METHODS = Object.freeze(["detect", "build", "revise", "matches", "oneshot", "readProgress", "waitForReading", "detectPage"]);
+/**
+ * Methods an engine may have; the UI offers them only when present. `extract` is a group: an object holding
+ * every one of {@link EXTRACT_METHODS} (the server engine's extraction calls, see engines/server/client.js).
+ */
+export const OPTIONAL_METHODS = Object.freeze(["detect", "build", "revise", "matches", "oneshot", "readProgress", "waitForReading", "detectPage", "extract"]);
+
+/** The methods of the optional `extract` group: batches, setups, saved extraction templates and runs. */
+export const EXTRACT_METHODS = Object.freeze([
+  "createBatch", "addFiles", "batch", "files", "pickSample", "pageUrl",
+  "startSetup", "setup", "reopen", "edit", "learn", "marks", "samplePageUrl", "startLine",
+  "save", "list", "remove",
+  "startRun", "runs", "openRun", "run", "problems", "setAside", "decide", "runPageUrl", "exportUrl", "toData",
+]);  // prettier-ignore
+
+/** Optional method groups: the group's name -> the methods it must hold. */
+const GROUPS = { extract: EXTRACT_METHODS };
 
 /**
- * Check that `engine` has the interface's methods and a `capabilities` object holding a boolean
- * for each of {@link CAPABILITIES} (and nothing else). Returns the engine.
+ * Check that `engine` has the interface's methods (each optional one a function when present, an optional group
+ * an object holding all its methods) and a `capabilities` object holding a boolean for each of
+ * {@link CAPABILITIES} (and nothing else). Returns the engine.
  * @template T
  * @param {T} engine
  * @returns {T}
@@ -23,7 +38,14 @@ export function assertEngine(engine) {
     if (typeof engine[name] !== "function") throw new TypeError(`engine.${name} must be a function`);
   }
   for (const name of OPTIONAL_METHODS) {
-    if (name in engine && engine[name] !== undefined && typeof engine[name] !== "function") {
+    const value = engine[name];
+    if (value === undefined) continue;
+    if (name in GROUPS) {
+      if (value === null || typeof value !== "object") throw new TypeError(`engine.${name} must be an object of methods when present`);
+      for (const method of GROUPS[name]) {
+        if (typeof value[method] !== "function") throw new TypeError(`engine.${name}.${method} must be a function`);
+      }
+    } else if (typeof value !== "function") {
       throw new TypeError(`engine.${name} must be a function when present`);
     }
   }

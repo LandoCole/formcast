@@ -56,6 +56,33 @@ function oneshotSummary(job) {
 }
 
 /**
+ * Show a job's stages in the list `el` (an `ol.stages`), each with its status and detail; the list is hidden when
+ * the job has none. The one-shot panel and extraction's build panel use it.
+ * @param {HTMLElement} el
+ * @param {{stages?: {key: string, label: string, status: string, detail?: string}[]}} job
+ * @returns {object | null} the stage running now, if any
+ */
+export function showStages(el, job) {
+  el.hidden = !job.stages?.length;
+  if (el.hidden) return null;
+  el.replaceChildren(
+    ...job.stages.map((st) => {
+      const li = document.createElement("li");
+      li.dataset.status = st.status;
+      li.append(st.label);
+      if (st.detail) {
+        const d = document.createElement("span");
+        d.className = "detail";
+        d.textContent = st.detail;
+        li.append(d);
+      }
+      return li;
+    }),
+  );
+  return job.stages.find((st) => st.status === "running") ?? null;
+}
+
+/**
  * @param {object} app see workbench.js
  * @returns {{adapt: (template: object) => void}}
  */
@@ -77,29 +104,8 @@ export function mountJobs(app) {
   $("build-ai").hidden = !ai;
   $("ai-note").hidden = ai;
 
-  function showStages(job) {
-    const list = $("job-stages");
-    list.hidden = !job.stages?.length;
-    if (list.hidden) return null;
-    list.replaceChildren(
-      ...job.stages.map((st) => {
-        const li = document.createElement("li");
-        li.dataset.status = st.status;
-        li.append(st.label);
-        if (st.detail) {
-          const d = document.createElement("span");
-          d.className = "detail";
-          d.textContent = st.detail;
-          li.append(d);
-        }
-        return li;
-      }),
-    );
-    return job.stages.find((st) => st.status === "running") ?? null;
-  }
-
   function showSteps(job) {
-    const current = showStages(job);
+    const current = showStages($("job-stages"), job);
     $("job-steps").replaceChildren(
       ...job.steps.map((s) => {
         const li = document.createElement("li");

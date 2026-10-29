@@ -38,7 +38,17 @@
 // alone (or one skipped as prose) and resolves the new fields for its boxes. Both exist only when the server
 // says so (its `progress` and `detectPage` capabilities).
 //
-// Jobs (`build`, `revise`, `oneshot`) return a JobHandle {id, kind, poll(), cancel(), done, onUpdate}. `done`
+// Extraction. When the server says `extract`, `engine.extract` holds its calls (the browser engine has none): a
+// batch of PDFs (`createBatch`, `addFiles`, which sends the files in requests of at most UPLOAD_CHUNK_BYTES so no
+// request passes the server's body limit, `batch`, `files`, `pickSample`, `pageUrl`), a setup built from a sample of
+// it (`startSetup` and `startLine` are jobs; `setup`, `reopen` of a saved extraction template, `edit`, `learn`,
+// `marks`, `samplePageUrl`), the saved extraction templates (`save`, `list`, `remove`) and runs (`startRun` is a job;
+// `runs`, `openRun`, `run`, `problems`, `setAside`, `decide`, `runPageUrl`, `exportUrl`, `toData`). They are the
+// server's routes (demo/server/extract_api.py) one for one, and fail with EngineError as every call does: a setup or
+// run the server no longer has (it restarted) is `not_found`, an edit while a line job runs on the setup
+// `busy_setup`, and so on.
+//
+// Jobs (`build`, `revise`, `oneshot`, and extraction's `startSetup`, `startLine`, `startRun`) return a JobHandle {id, kind, poll(), cancel(), done, onUpdate}. `done`
 // polls `GET /api/jobs/{id}` (first at once, then every `pollMs`, 1000 by default) and resolves with
 // the job when its status is done, cancelled or error. It rejects only if the server cannot be
 // reached several polls in a row. Set `onUpdate` to a function to see the job after every poll
@@ -51,6 +61,8 @@ export const REQUEST_TIMEOUT_MS = 30_000;
 export const UPLOAD_TIMEOUT_MS = 120_000;
 /** Milliseconds for a request that may wait for the server's first reading of the PDF (see the top). */
 export const FORM_MAP_TIMEOUT_MS = 120_000;
+/** The most file bytes `extract.addFiles` puts in one request (the server takes 50 MiB a request by default). */
+export const UPLOAD_CHUNK_BYTES = 40 * 2 ** 20;
 /** How often a running job is polled. */
 export const POLL_MS = 1000;
 /** Consecutive failed polls before `done` gives up. */
@@ -89,6 +101,35 @@ function fromBase64(b64) {
 }
 
 const isObject = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
+
+/** `?a=1&b=2` from the entries whose value is not null, undefined or "" (each encoded); "" when none is left. */
+function query(params) {
+  const pairs = Object.entries(params).filter(([, v]) => v !== null && v !== undefined && v !== "");
+  return pairs.length ? `?${pairs.map(([k, v]) => `${k}=${encodeURIComponent(v)}`).join("&")}` : "";
+}
+
+/**
+ * `files` in order, in runs whose sizes add up to at most `limit` bytes; a file larger than that goes alone.
+ * @param {Blob[]} files
+ * @param {number} limit
+ * @returns {Blob[][]}
+ */
+function chunks(files, limit) {
+  const out = [];
+  let run = [];
+  let bytes = 0;
+  for (const file of files) {
+    if (run.length && bytes + file.size > limit) {
+      out.push(run);
+      run = [];
+      bytes = 0;
+    }
+    run.push(file);
+    bytes += file.size;
+  }
+  if (run.length) out.push(run);
+  return out;
+}
 
 /**
  * The record argument of `fill`: a record, or a reference `{schema, id}` to one in the record
@@ -227,7 +268,142 @@ export async function createServerEngine({
     return handle;
   }
 
-  const fingerprintOption = (checkFingerprint) => (typeof checkFingerprint === "boolean" ? { check_fingerprint: checkFingerprint } : {});
+  /** The extraction calls (see the top); ids and names are encoded into the paths. */
+  function extractCalls() {
+    const batchPath = (id) => `/api/batches/${encodeURIComponent(id)}`;
+    const setupPath = (id) => `/api/setups/${encodeURIComponent(id)}`;
+    const runPath = (id) => `/api/runs/${encodeURIComponent(id)}`;
+    const savedPath = (name) => `/api/extractions/${encodeURIComponent(name)}`;
+    return {
+      /**
+       * A new batch: `{name?}` an empty one for uploads, or `{folder, name?}` the PDFs in a folder on the server's
+       * machine, scanning. Resolves the Batch `{id, name, count, bytes, skipped, folder, scan}`.
+       * @param {{name?: string, folder?: string}} [body]
+       */
+      createBatch: (body = {}) => call("POST", "/api/batches", { json: body, timeout: formMapTimeoutMs }), // a folder is listed first
+
+      /**
+       * Add PDFs and zips of PDFs to a batch, in requests of at most UPLOAD_CHUNK_BYTES (a file larger than that
+       * goes alone). Resolves the Batch as the last request left it; rejects at the first request refused, the
+       * files sent before it staying in the batch. `onProgress({done, total, bytes, totalBytes, batch})` after
+       * each request: `done` of `total` files and `bytes` of `totalBytes` sent so far.
+       * @param {string} batchId
+       * @param {File[]} files
+       * @param {{onProgress?: (progress: object) => void}} [opts]
+       */
+      async addFiles(batchId, files, { onProgress } = {}) {
+        const list = [...files];
+        if (list.length === 0) throw new EngineError("bad_upload", "Choose at least one PDF or .zip file.");
+        const totalBytes = list.reduce((n, f) => n + f.size, 0);
+        let done = 0;
+        let bytes = 0;
+        let batch = null;
+        for (const run of chunks(list, UPLOAD_CHUNK_BYTES)) {
+          const form = new FormData();
+          for (const file of run) form.append("file", file, file.name ?? "document.pdf");
+          batch = await call("POST", `${batchPath(batchId)}/files`, { form, timeout: uploadTimeoutMs });
+          done += run.length;
+          bytes += run.reduce((n, f) => n + f.size, 0);
+          onProgress?.({ done, total: list.length, bytes, totalBytes, batch });
+        }
+        return batch;
+      },
+
+      /** The Batch now, its scan's progress included. */
+      batch: (id) => call("GET", batchPath(id)),
+      /** A page of the batch's files: `{total, files: [{index, name, size, group}]}` (`limit` 1 to 200). */
+      files: (id, offset = 0, limit = 50) => call("GET", `${batchPath(id)}/files${query({ offset, limit })}`),
+      /**
+       * The documents to build a template from: `[{index, name, group}]`. 409 `scanning` until the scan is done.
+       * @param {string} id
+       * @param {{n?: number, how?: "spread" | "first" | "pick", picked?: number[]}} [opts]
+       */
+      pickSample: async (id, { n = 5, how = "spread", picked } = {}) => {
+        const body = picked === undefined ? { n, how } : { n, how, picked };
+        return (await call("POST", `${batchPath(id)}/sample`, { json: body })).samples;
+      },
+      /** The URL of page `page` (from 0) of the batch's file `index`, as a PNG. */
+      pageUrl: (batchId, index, page, dpi = DEFAULT_DPI) => `${root}${batchPath(batchId)}/files/${index}/pages/${page}.png?dpi=${Math.round(dpi)}`,
+
+      /**
+       * Start building a template from samples of a batch: `{batch, samples: [index], spec: {name, start, lines,
+       * destination, detect, pages, ocr, sample_how}}`. The done job's `result.setup` is the Setup.
+       * @param {{batch: string, samples: number[], spec: object}} body
+       * @returns {Promise<JobHandle>}
+       */
+      startSetup: (body) => startJob({ kind: "extract-setup", ...body }),
+      /** The Setup `{id, batch, template, proof, warnings, samples: [{index, name, kind, pages}]}`. */
+      setup: (id) => call("GET", setupPath(id)),
+      /** A saved extraction template opened as a new Setup: its samples read again and proven (no model call). */
+      reopen: (name) => call("POST", "/api/setups", { json: { extraction: name }, timeout: formMapTimeoutMs }),
+      /**
+       * One edit of the setup's template, sent as given (a box drawn on a sample names it: `sample`); resolves the
+       * Setup proven again. A refused edit rejects with code `bad_edit` and the library's message.
+       * @param {string} id
+       * @param {object} edit
+       */
+      edit: (id, edit) => call("POST", `${setupPath(id)}/edit`, { json: { edit }, timeout: formMapTimeoutMs }),
+      /** Accept the wordings the proof suggests for `path` into its reader's map; resolves the Setup proven again. */
+      learn: (id, path) => call("POST", `${setupPath(id)}/learn`, { json: { path }, timeout: formMapTimeoutMs }),
+      /** The marks of the setup's sample `sample` (from 0): `[{path, kind, page, rect, ...}]`, in that sample's frame. */
+      marks: async (id, sample) => (await call("GET", `${setupPath(id)}/samples/${sample}/marks`)).marks,
+      /** The URL of page `page` of the setup's sample `sample`, as a PNG. */
+      samplePageUrl: (id, sample, page, dpi = DEFAULT_DPI) => `${root}${setupPath(id)}/samples/${sample}/pages/${page}.png?dpi=${Math.round(dpi)}`,
+      /**
+       * Start adding the fields of one more line ("wire details") to a setup; the done job's `result` is
+       * `{setup, paths}`, `paths` the ones added.
+       * @returns {Promise<JobHandle>}
+       */
+      startLine: (id, line) => startJob({ kind: "extract-line", setup: id, line }),
+
+      /** Save the setup's template as `name`, with its sample PDFs: `{name, template_id}`. */
+      save: (name, setupId) => call("PUT", savedPath(name), { json: { setup: setupId } }),
+      /** The saved extraction templates: `[{name, template_id, fields, samples, updated}]`. */
+      list: async () => (await call("GET", "/api/extractions")).extractions,
+      /** @returns {Promise<string>} the deleted name */
+      remove: async (name) => (await call("DELETE", savedPath(name), { json: {} })).name,
+
+      /**
+       * Start reading every file of a batch with a saved extraction template; `ai` also asks the model about the
+       * documents whose required fields still fail. The done job's `result` is `{run, done, total, summary}`.
+       * @param {{extraction: string, batch: string, ai?: boolean}} opts
+       * @returns {Promise<JobHandle>}
+       */
+      startRun: ({ extraction, batch, ai = false }) => startJob({ kind: "extract-run", extraction, batch, ai }),
+      /** The runs the server knows: `[{id, name, extraction, started, summary}]`. */
+      runs: async () => (await call("GET", "/api/runs")).runs,
+      /** A command line run's output folder on the server's machine, opened: the Run. */
+      openRun: (folder) => call("POST", "/api/runs", { json: { folder }, timeout: formMapTimeoutMs }),
+      /** The Run `{id, name, extraction, summary, fields, seconds}`. */
+      run: (id) => call("GET", runPath(id)),
+      /**
+       * A page of the documents that still have problems: `{total, documents: [{doc_id, name, problems}]}`.
+       * @param {string} id
+       * @param {{path?: string, status?: "missing" | "failed_check" | "unsure", offset?: number, limit?: number}} [opts]
+       */
+      problems: (id, { path, status, offset = 0, limit = 50 } = {}) => call("GET", `${runPath(id)}/problems${query({ path, status, offset, limit })}`),
+      /**
+       * A page of the documents set aside: `{total, documents: [{doc_id, name, reason, closest_template, closest_score}]}`.
+       * @param {string} id
+       * @param {{offset?: number, limit?: number}} [opts]
+       */
+      setAside: (id, { offset = 0, limit = 50 } = {}) => call("GET", `${runPath(id)}/set-aside${query({ offset, limit })}`),
+      /**
+       * Record a review decision `{doc_id, path, decision: "value" | "accept" | "not_in_document", value?}`; the Run.
+       * @param {string} id
+       * @param {object} decision
+       */
+      decide: (id, decision) => call("POST", `${runPath(id)}/decisions`, { json: decision }),
+      /** The URL of page `page` (from 0) of the run's document `docId`, as a PNG. */
+      runPageUrl: (id, docId, page, dpi = DEFAULT_DPI) => `${root}${runPath(id)}/pages.png${query({ doc: docId, page, dpi: Math.round(dpi) })}`,
+      /** The URL that downloads the run's results: `xlsx`, or a zip of the `parquet` or `csv` files. */
+      exportUrl: (id, format = "xlsx") => `${root}${runPath(id)}/export${query({ format })}`,
+      /** The run's read documents as a dataset for the fill flow: `{dataset, truncated, with_problems}`. */
+      toData: (id) => call("POST", `${runPath(id)}/to-data`, { json: {}, timeout: formMapTimeoutMs }),
+    };
+  }
+
+  const fingerprintOption =(checkFingerprint) => (typeof checkFingerprint === "boolean" ? { check_fingerprint: checkFingerprint } : {});
 
   const engine = {
     capabilities: {
@@ -456,6 +632,8 @@ export async function createServerEngine({
       list: async (schema) => (await call("GET", `/api/records?schema=${encodeURIComponent(schema)}`)).records,
       get: async (schema, id) => (await call("GET", `/api/records/${encodeURIComponent(schema)}/${encodeURIComponent(id)}`)).record,
     },
+
+    extract: flag("extract") ? extractCalls() : undefined,
   };
   return assertEngine(engine);
 }
@@ -463,7 +641,7 @@ export async function createServerEngine({
 /**
  * @typedef {object} JobHandle
  * @property {string} id
- * @property {"build" | "adapt" | "revise" | "oneshot"} kind
+ * @property {"build" | "adapt" | "revise" | "oneshot" | "extract-setup" | "extract-line" | "extract-run"} kind
  * @property {() => Promise<object>} poll the job now: {id, kind, status, steps, template, summary, error, unplaceable, started,
  *   ended, stages, result, usage}
  * @property {() => Promise<object>} cancel

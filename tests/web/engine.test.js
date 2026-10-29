@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { CAPABILITIES, assertEngine } from "../../demo/web/core/engine.js";
+import { CAPABILITIES, EXTRACT_METHODS, OPTIONAL_METHODS, assertEngine } from "../../demo/web/core/engine.js";
 
 function engine(extra = {}) {
   const fn = async () => {};
@@ -31,6 +31,16 @@ test("a missing required method is named", () => {
 test("optional methods must be functions when present", () => {
   assert.throws(() => assertEngine(engine({ revise: "soon" })), /engine.revise must be a function when present/);
   assertEngine(engine({ build: undefined }));
+});
+
+test("extract, when present, is an object holding every extraction method", () => {
+  const fn = async () => {};
+  const extract = Object.fromEntries(EXTRACT_METHODS.map((name) => [name, fn]));
+  assertEngine(engine({ extract }));
+  assertEngine(engine({ extract: undefined }));
+  assert.ok(OPTIONAL_METHODS.includes("extract") && EXTRACT_METHODS.includes("addFiles") && EXTRACT_METHODS.includes("toData"));
+  assert.throws(() => assertEngine(engine({ extract: fn })), /engine.extract must be an object of methods when present/);
+  assert.throws(() => assertEngine(engine({ extract: { ...extract, addFiles: undefined } })), /engine.extract.addFiles must be a function/);
 });
 
 test("capabilities must hold a boolean for each flag and nothing else", () => {

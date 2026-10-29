@@ -62,10 +62,25 @@ class Bench:
         self.errors: list[str] = []
         page.on("pageerror", lambda e: self.errors.append(str(e)))
 
-    def goto(self) -> None:
+    def goto(self, fill: bool = True, forms: bool = True) -> None:
+        """Open the page, on the choice of Fill or Extract; ``fill`` then chooses Fill a PDF (the start screen), and
+        ``forms`` waits there for the demo forms (a server with the demo off has none)."""
         self.page.goto(f"{self.base}/workbench/?poll=50")
+        expect(self.page.locator("#choose")).to_be_visible()
+        if fill:
+            self.choose_fill(forms=forms)
+
+    def choose_fill(self, forms: bool = True) -> None:
+        """Choose Fill a PDF on the choice and wait for the start screen (and its demo forms, with ``forms``)."""
+        self.page.click('.choice[data-go="fill"]')
         expect(self.page.locator("#start")).to_be_visible()
-        expect(self.page.locator("#form-pick option[value='demo:fw9']")).to_have_count(1)
+        if forms:
+            expect(self.page.locator("#form-pick option[value='demo:fw9']")).to_have_count(1)
+
+    def start_again(self) -> None:
+        """The toolbar's form name, then Fill a PDF: the start screen over the form on screen."""
+        self.page.click("#doc-name")
+        self.choose_fill(forms=False)
 
     def link_by(self, mode: str) -> None:
         """How the boxes are linked: "check", "fast" (one-shot AI) or "off" (the seed, linked by hand)."""
@@ -207,10 +222,10 @@ def two_boxes(b: Bench) -> tuple[str, str]:
 def bench(page):
     made: list[Bench] = []
 
-    def make(base: str) -> Bench:
+    def make(base: str, **goto) -> Bench:
         b = Bench(page, base)
         made.append(b)
-        b.goto()
+        b.goto(**goto)
         return b
 
     yield make
@@ -247,7 +262,7 @@ def test_while_the_seed_waits_the_page_says_so(demo_server, bench, page):
     expect(page.locator("#start")).to_be_hidden()
     page.wait_for_function("window.__workbench.template !== null")
 
-    page.click("#doc-name")  # Build new from the match prompt: the prompt says it while it waits
+    b.start_again()  # Build new from the match prompt: the prompt says it while it waits
     b.open_form("fw9")
     expect(page.locator("#match")).to_be_visible()
     page.click("#build-new")
@@ -805,7 +820,7 @@ def test_a_pasted_schema_fills_from_an_editable_sample_record_never_from_another
 
     # a stored schema's template offers its own records first, and the sample too
     b.page.click("#fill-close")
-    b.page.click("#doc-name")
+    b.start_again()
     b.open_form("fw9")
     b.page.click("#reuse")
     b.page.wait_for_function("window.__workbench.template?.form.page_count === 6")
@@ -862,8 +877,7 @@ def test_save_puts_the_template_in_the_store_and_it_is_matched_after_a_reload(de
     names = [t["name"] for t in get_json(demo_server, "/api/templates")[1]["templates"]]
     assert "fw9 mine" in names
 
-    b.page.reload()
-    expect(b.page.locator("#form-pick option[value='demo:fw9']")).to_have_count(1)
+    b.goto()  # the page again, from the choice: Fill a PDF, the demo forms listed
     b.open_form("fw9")
     expect(b.page.locator("#match")).to_be_visible()
     expect(b.page.locator("#match-pick option[value='fw9 mine']")).to_have_count(1)
@@ -978,8 +992,8 @@ def test_one_shot_designs_the_schema_maps_the_data_and_opens_your_records_filled
 
 
 def test_with_the_demo_off_the_start_screen_offers_a_pdf_then_your_saved_templates(start_demo_server, page):
-    b = Bench(page, start_demo_server(demo_enabled=False))  # not bench(): its goto waits for the demo forms
-    page.goto(f"{b.base}/workbench/?poll=50")
+    b = Bench(page, start_demo_server(demo_enabled=False))
+    b.goto(forms=False)  # no demo forms to wait for
     expect(page.locator("#file-label")).to_have_text("Choose a PDF")
     expect(page.locator("#form-pick")).to_be_hidden()  # nothing saved and no demo forms: no list to pick from
     b.upload(widget_pdf())
@@ -988,7 +1002,7 @@ def test_with_the_demo_off_the_start_screen_offers_a_pdf_then_your_saved_templat
     page.fill("#save-name", "mine")
     page.click("#save-go")
     expect(page.locator("#notice")).to_contain_text("mine")
-    page.click("#doc-name")  # back to the start screen: the list is read again
+    b.start_again()  # back to the start screen: the list is read again
     expect(page.locator("#form-pick")).to_be_visible()
     expect(page.locator("#form-pick optgroup")).to_have_count(1)
     expect(page.locator("#form-pick option[value='saved:mine']")).to_have_count(1)
@@ -998,7 +1012,7 @@ def test_with_the_demo_off_the_start_screen_offers_a_pdf_then_your_saved_templat
 
 def test_a_pdf_alone_opens_with_ai_off_its_boxes_detected_and_unnamed(start_demo_server, page):
     b = Bench(page, start_demo_server(demo_enabled=False))  # AI off and no stored schemas: nothing but the PDF
-    page.goto(f"{b.base}/workbench/?poll=50")
+    b.goto(forms=False)
     page.set_input_files("#file", files=[{"name": "form.pdf", "mimeType": "application/pdf", "buffer": widget_pdf()}])
     expect(page.locator("#schema-pick")).to_have_value("__none__")
     page.click("#open")

@@ -10,18 +10,23 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <link rel="stylesheet" href="../core/parts.css">
 <link rel="stylesheet" href="workbench.css">
+<link rel="stylesheet" href="extract.css">
 </head>
-<body>
+<body data-mode="fill">
 <header class="topbar">
   <span>formcast · workbench</span>
   <span id="engine-line">Local server</span>
 </header>
 
+<!-- body[data-mode] shows the [data-for="fill"] or the [data-for="extract"] parts (extract.css) -->
 <div class="toolbar" id="toolbar" role="toolbar" aria-label="Template">
-  <div class="tb-left">
-    <button type="button" class="btn sel" id="doc-name" title="Open another form">No form open</button>
+  <div class="tb-left" data-for="fill">
+    <button type="button" class="btn sel" id="doc-name" title="Fill or extract other PDFs">No form open</button>
   </div>
-  <div class="tb-right">
+  <div class="tb-left" data-for="extract">
+    <button type="button" class="btn sel" id="doc-pick" title="Fill or extract other PDFs">No extraction open</button>
+  </div>
+  <div class="tb-right" data-for="fill">
     <button type="button" class="btn quiet" id="undo" disabled>Undo</button>
     <button type="button" class="btn quiet" id="redo" disabled>Redo</button>
     <button type="button" class="btn quiet" id="add-box" aria-pressed="false" disabled>+ Box</button>
@@ -35,13 +40,13 @@
   <span id="notice-text"></span>
   <button type="button" class="ib" id="notice-close" aria-label="Dismiss">×</button>
 </div>
-<div class="notice offer" id="offer" role="region" aria-label="AI result" hidden>
+<div class="notice offer" id="offer" role="region" aria-label="AI result" data-for="fill" hidden>
   <span id="offer-text"></span>
   <button type="button" class="btn small" id="offer-load">Load result</button>
   <button type="button" class="ib" id="offer-dismiss" aria-label="Discard this result">×</button>
 </div>
 
-<main class="bench" id="bench">
+<main class="bench" id="bench" data-for="fill">
   <aside class="col col-schema" id="col-schema" aria-label="Schema">
     <p class="label" id="schema-label">Schema</p>
     <div id="schemalist"></div>
@@ -90,8 +95,31 @@
   </aside>
 </main>
 
+<!-- extraction's views (extract.js) -->
+<main class="views" id="extract-views" data-for="extract" aria-label="Extraction">
+  <p class="empty" id="extract-empty">No extraction open.</p>
+</main>
+
+<!-- fill or extract: the way in -->
+<div class="overlay" id="choose" role="dialog" aria-modal="true" aria-labelledby="choose-title">
+  <div class="sheet">
+    <h1 id="choose-title">What would you like to do?</h1>
+    <div class="choices">
+      <button type="button" class="choice" data-go="fill">
+        <span class="choice-t">Fill a PDF</span>
+        <span class="choice-d">Give it a form and your data. The AI links the boxes and fills your data in.</span>
+      </button>
+      <button type="button" class="choice" data-go="extract" hidden>
+        <span class="choice-t">Extract from PDFs</span>
+        <span class="choice-d">Give it a batch of filled forms. It learns the layout from a few, then reads every one into a table.</span>
+      </button>
+    </div>
+    <p class="msg" id="choose-msg" role="alert" hidden></p>
+  </div>
+</div>
+
 <!-- start screen -->
-<div class="overlay" id="start" role="dialog" aria-modal="true" aria-labelledby="start-title">
+<div class="overlay" id="start" role="dialog" aria-modal="true" aria-labelledby="start-title" hidden>
   <div class="sheet">
     <h1 id="start-title">Fill a form</h1>
     <p class="lede" id="start-lede">Give it a PDF and your data. The AI reads the form, designs its data schema, links every box and maps your data onto it. Save the result as a template and the next fill skips all of that.</p>
@@ -103,7 +131,11 @@
     </div>
     <div class="group">
       <p class="label">2 · Your data <span class="opt">optional</span></p>
-      <label class="btn quiet file"><span id="data-label">Choose a CSV, Excel or JSON file</span><input type="file" id="data-file" accept=".csv,.tsv,.txt,.xlsx,.xlsm,.json,text/csv,application/json"></label>
+      <div class="given" id="data-given" hidden>
+        <span id="data-given-text"></span>
+        <button type="button" class="btn quiet small" id="data-given-clear">Clear</button>
+      </div>
+      <label class="btn quiet file" id="data-file-row"><span id="data-label">Choose a CSV, Excel or JSON file</span><input type="file" id="data-file" accept=".csv,.tsv,.txt,.xlsx,.xlsm,.json,text/csv,application/json"></label>
       <textarea id="data-text" rows="4" spellcheck="false" aria-label="Or paste your data" placeholder="Or paste records, a table, or plain text: “Priya Raman, 19 Cedar Lane, Menomonie WI, applying for Library Assistant…”"></textarea>
     </div>
     <details class="group more" id="schema-group">
@@ -119,7 +151,7 @@
     <p class="msg" id="start-msg" role="alert" hidden></p>
     <div class="reading" id="start-reading" aria-live="polite" hidden></div>
     <div class="row">
-      <button type="button" class="btn quiet" id="start-close" hidden>Back</button>
+      <button type="button" class="btn quiet" id="start-close">Back</button>
       <button type="button" class="btn dark" id="open">Open</button>
     </div>
   </div>
