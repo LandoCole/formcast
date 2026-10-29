@@ -1,0 +1,239 @@
+"""Edits to a template: each one changes the schema or one path's readers and gives back a template that still validates."""
+
+import pytest
+from pydantic import TypeAdapter, ValidationError
+
+from formcast.data.mapping import Transform
+from formcast.errors import FormcastError
+from formcast.extract.edit import (
+    Edit,
+    MarkAbsent,
+    RemoveField,
+    Restore,
+    SetBox,
+    SetClean,
+    SetField,
+    SetLabels,
+    SetOptionBox,
+    apply_edit,
+)
+from formcast.extract.model import ChoiceRead, SampleRecord, SetupInfo
+from tests.extract.corpus import hand_template
+
+
+def _prop(template, *names):
+    node = template.schema_
+    for name in names:
+        node = node["properties"][name]
+    return node
+
+
+def test_set_field_edits_the_schema_of_the_path_and_type_date_means_string_with_format():
+    t = apply_edit(hand_template(), SetField(op="set_field", path="investor.dob", title="Born", type="date", required=True))
+    prop = t.schema_["properties"]["investor"]["properties"]["dob"]
+    assert (prop["title"], prop["type"], prop["format"]) == ("Born", "string", "date")
+    assert "dob" in t.schema_["properties"]["investor"]["required"]
+
+
+def test_an_item_path_edits_the_items_schema_once():
+    t = apply_edit(hand_template(), SetField(op="set_field", path="owners[2].percent", type="number", maximum=100))
+    item = t.schema_["properties"]["owners"]["items"]["properties"]["percent"]
+    assert (item["type"], item["maximum"]) == ("number", 100)
+
+
+def test_clearing_a_pattern_and_an_enum():
+    t = apply_edit(hand_template(), SetField(op="set_field", path="investor.tax_id", pattern=""))
+    assert "pattern" not in t.schema_["properties"]["investor"]["properties"]["tax_id"]
+    t = apply_edit(t, SetField(op="set_field", path="investor.type", enum=[]))
+    assert "enum" not in _prop(t, "investor", "type")
+
+
+def test_a_pattern_and_an_enum_are_set_and_a_field_that_is_not_mentioned_keeps_its_other_keys():
+    t = apply_edit(hand_template(), SetField(op="set_field", path="investor.country", pattern="^[A-Z]{2}$", enum=["US", "CA", "MX"]))
+    country = _prop(t, "investor", "country")
+    assert (country["pattern"], country["enum"]) == ("^[A-Z]{2}$", ["US", "CA", "MX"])
+    assert country["title"] == "Country" and country["description"].startswith("The investor's country")
+
+
+def test_a_pattern_that_is_not_a_regular_expression_is_refused():
+    with pytest.raises(ValidationError, match="pattern"):
+        SetField(op="set_field", path="investor.tax_id", pattern="(")
+
+
+def test_changing_the_type_swaps_the_format_and_yes_no_is_a_boolean():
+    t = apply_edit(hand_template(), SetField(op="set_field", path="investor.dob", type="text"))
+    assert _prop(t, "investor", "dob")["type"] == "string" and "format" not in _prop(t, "investor", "dob")
+    t = apply_edit(t, SetField(op="set_field", path="investor.dob", type="yes/no"))
+    assert _prop(t, "investor", "dob")["type"] == "boolean"
+    t = apply_edit(t, SetField(op="set_field", path="investor.dob", type="integer", minimum=0))
+    assert (_prop(t, "investor", "dob")["type"], _prop(t, "investor", "dob")["minimum"]) == ("integer", 0)
+
+
+def test_required_false_takes_the_field_out_of_required_and_drops_an_empty_list():
+    t = apply_edit(hand_template(), SetField(op="set_field", path="investor.tax_id", required=False))
+    assert "required" not in t.schema_["properties"]["investor"]
+    t = apply_edit(t, SetField(op="set_field", path="owners[0].name", required=True))
+    assert t.schema_["properties"]["owners"]["items"]["required"] == ["name"]
+
+
+def test_an_edit_gives_back_a_copy_and_leaves_the_template_it_was_given_alone():
+    base = hand_template()
+    before = base.model_dump(by_alias=True)
+    apply_edit(base, SetField(op="set_field", path="investor.dob", title="Born"))
+    apply_edit(base, SetBox(op="set_box", path="investor.tax_id", page=0, rect=(1, 2, 3, 4)))
+    apply_edit(base, RemoveField(op="remove_field", path="investor.dob"))
+    assert base.model_dump(by_alias=True) == before
+
+
+def test_set_box_replaces_the_box_and_keeps_the_order():
+    t = apply_edit(hand_template(), SetBox(op="set_box", path="investor.tax_id", page=0, rect=(100, 100, 200, 114)))
+    kinds = [s.kind for s in t.readers["investor.tax_id"].strategies]
+    assert kinds == ["widget", "box", "anchor"] and t.readers["investor.tax_id"].strategies[1].rect == (100, 100, 200, 114)
+    t = apply_edit(hand_template(), SetBox(op="set_box", path="wire.bank", page=0, rect=(1, 2, 3, 4)))
+    assert [s.kind for s in t.readers["wire.bank"].strategies] == ["box", "phrase"]
+
+
+def test_set_box_on_a_path_with_no_reader_makes_one_and_takes_the_path_out_of_absent():
+    t = apply_edit(hand_template(), MarkAbsent(op="mark_absent", path="investor.country"))
+    t = apply_edit(t, SetBox(op="set_box", path="investor.country", page=1, rect=(5, 6, 50, 20)))
+    assert [s.kind for s in t.readers["investor.country"].strategies] == ["box"]
+    assert "investor.country" not in t.absent  # a path with a reading is on the form
+
+
+def test_set_option_box_replaces_one_answers_drawn_box_and_leaves_the_widget_marks():
+    t = apply_edit(hand_template(), SetOptionBox(op="set_option_box", path="investor.type", answer="trust", page=0, rect=(1, 2, 3, 4)))
+    widget_read, drawn = t.readers["investor.type"].strategies
+    assert all(m.widget for m in widget_read.options.values())
+    assert (drawn.options["trust"].page, drawn.options["trust"].rect) == (0, (1, 2, 3, 4))
+    assert list(drawn.options) == ["individual", "joint", "trust", "llc"]
+
+
+def test_set_option_box_adds_the_drawn_choice_read_after_the_widget_one_when_missing():
+    t = apply_edit(hand_template(), SetOptionBox(op="set_option_box", path="investor.country", answer="CA", page=0, rect=(1, 2, 3, 4)))
+    kinds = [s.kind for s in t.readers["investor.country"].strategies]
+    assert kinds == ["widget", "choice", "box", "anchor"]
+    choice = t.readers["investor.country"].strategies[1]
+    assert isinstance(choice, ChoiceRead) and choice.options["CA"].rect == (1, 2, 3, 4)
+    t = apply_edit(t, SetOptionBox(op="set_option_box", path="investor.country", answer="US", page=0, rect=(5, 6, 7, 8)))
+    assert list(t.readers["investor.country"].strategies[1].options) == ["CA", "US"]
+
+
+def test_set_option_box_refuses_an_answer_the_field_does_not_have():
+    with pytest.raises(FormcastError, match="no answer 'maybe'"):
+        apply_edit(hand_template(), SetOptionBox(op="set_option_box", path="investor.type", answer="maybe", page=0, rect=(1, 2, 3, 4)))
+    with pytest.raises(FormcastError, match="no answer"):  # no enum and no choice options at all
+        apply_edit(hand_template(), SetOptionBox(op="set_option_box", path="investor.legal_name", answer="x", page=0, rect=(1, 2, 3, 4)))
+
+
+def test_set_labels_replaces_or_removes_the_label_read():
+    t = apply_edit(hand_template(), SetLabels(op="set_labels", path="investor.tax_id", labels=["TIN"], side="below"))
+    a = t.readers["investor.tax_id"].strategies[-1]
+    assert (a.labels, a.side) == (["TIN"], "below")
+    t = apply_edit(t, SetLabels(op="set_labels", path="investor.tax_id", labels=[]))
+    assert [s.kind for s in t.readers["investor.tax_id"].strategies] == ["widget", "box"]
+
+
+def test_set_labels_keeps_the_rest_of_the_label_read_and_keeps_the_side_unless_given():
+    t = apply_edit(hand_template(), SetLabels(op="set_labels", path="address.street", labels=["Street address"]))
+    a = t.readers["address.street"].strategies[-1]
+    assert (a.labels, a.side, a.max_width, a.page) == (["Street address"], "below", 468, 0)
+
+
+def test_set_labels_appends_a_label_read_when_there_is_none_and_removing_none_changes_nothing():
+    t = apply_edit(hand_template(), SetLabels(op="set_labels", path="wire.account", labels=["Account no."], side="below"))
+    assert [s.kind for s in t.readers["wire.account"].strategies] == ["phrase", "anchor"]
+    assert t.readers["wire.account"].strategies[-1].side == "below"
+    same = apply_edit(hand_template(), SetLabels(op="set_labels", path="wire.account", labels=[]))
+    assert same.readers == hand_template().readers
+
+
+def test_blank_labels_are_refused():
+    with pytest.raises(ValidationError, match="label"):
+        SetLabels(op="set_labels", path="investor.tax_id", labels=["TIN", "  "])
+
+
+def test_set_clean_replaces_the_transforms_and_makes_a_reader_when_there_is_none():
+    clean = [Transform(op="digits")]
+    t = apply_edit(hand_template(), SetClean(op="set_clean", path="investor.dob", clean=clean))
+    assert t.readers["investor.dob"].clean == clean and len(t.readers["investor.dob"].strategies) == 3
+    t = apply_edit(t, SetClean(op="set_clean", path="investor.dob", clean=[]))
+    assert t.readers["investor.dob"].clean == []
+    t = apply_edit(t, MarkAbsent(op="mark_absent", path="wire.bank"))
+    t = apply_edit(t, SetClean(op="set_clean", path="wire.bank", clean=clean))
+    assert t.readers["wire.bank"].strategies == [] and "wire.bank" not in t.absent
+
+
+def test_mark_absent_drops_the_reader_and_restore_brings_back_an_empty_field():
+    t = apply_edit(hand_template(), MarkAbsent(op="mark_absent", path="wire.bank"))
+    assert "wire.bank" in t.absent and "wire.bank" not in t.readers
+    t = apply_edit(t, Restore(op="restore", path="wire.bank"))
+    assert "wire.bank" not in t.absent
+    assert "wire.bank" not in t.readers
+
+
+def test_marking_absent_twice_and_restoring_a_present_field_change_nothing():
+    once = apply_edit(hand_template(), MarkAbsent(op="mark_absent", path="wire.bank"))
+    assert apply_edit(once, MarkAbsent(op="mark_absent", path="wire.bank")).absent == ["wire.bank"]
+    restored = apply_edit(hand_template(), Restore(op="restore", path="wire.bank"))
+    assert restored.model_dump() == hand_template().model_dump()
+
+
+def test_remove_field_removes_every_item_path_and_its_readings():
+    t = hand_template().model_copy(update={"samples": [SampleRecord(file="a", sha256="0" * 64,
+        opinion={"owners[0].name": "Ana", "investor.tax_id": "1"})]})
+    t = apply_edit(t, RemoveField(op="remove_field", path="owners[1].name"))
+    assert not any(p.startswith("owners[") and p.endswith(".name") for p in t.readers)
+    assert t.samples[0].opinion == {"investor.tax_id": "1"}
+    assert "name" not in t.schema_["properties"]["owners"]["items"]["properties"]
+    assert any(p.endswith(".percent") for p in t.readers)
+
+
+def test_remove_field_drops_the_name_from_required_the_absent_list_and_the_lines_that_became_it():
+    base = hand_template().model_copy(update={
+        "absent": ["investor.country"],
+        "setup": SetupInfo(start="lines", lines=["tax", "owners"],
+                           line_paths={"tax": ["investor.tax_id", "investor.dob"], "owners": ["owners[].name"]}),
+    })
+    t = apply_edit(base, RemoveField(op="remove_field", path="investor.tax_id"))
+    assert "required" not in t.schema_["properties"]["investor"]
+    assert "investor.tax_id" not in t.readers
+    assert t.setup.line_paths == {"tax": ["investor.dob"], "owners": ["owners[].name"]}
+    t = apply_edit(t, RemoveField(op="remove_field", path="investor.country"))
+    assert t.absent == []
+    t = apply_edit(t, RemoveField(op="remove_field", path="owners[3].name"))
+    assert t.setup.line_paths["owners"] == []
+
+
+def test_removing_the_last_field_of_a_group_removes_the_group():
+    t = apply_edit(hand_template(), RemoveField(op="remove_field", path="wire.bank"))
+    assert "bank" not in _prop(t, "wire")["properties"]
+    t = apply_edit(t, RemoveField(op="remove_field", path="wire.account"))
+    assert "wire" not in t.schema_["properties"]
+    t = apply_edit(t, RemoveField(op="remove_field", path="owners[0].name"))
+    t = apply_edit(t, RemoveField(op="remove_field", path="owners[0].percent"))
+    assert "owners" not in t.schema_["properties"] and not any(p.startswith("owners") for p in t.readers)
+
+
+def test_an_unknown_path_is_refused():
+    with pytest.raises(FormcastError, match="no field"):
+        apply_edit(hand_template(), SetField(op="set_field", path="nope", title="x"))
+    for edit in (
+        SetBox(op="set_box", path="owners[9].name", page=0, rect=(1, 2, 3, 4)),
+        SetLabels(op="set_labels", path="investor", labels=["x"]),
+        SetClean(op="set_clean", path="nope", clean=[]),
+        MarkAbsent(op="mark_absent", path="nope"),
+        Restore(op="restore", path="nope"),
+        RemoveField(op="remove_field", path="owners"),
+    ):
+        with pytest.raises(FormcastError, match="no field"):
+            apply_edit(hand_template(), edit)
+
+
+def test_an_edit_is_read_by_its_op_and_unknown_keys_are_refused():
+    parse = TypeAdapter(Edit).validate_python
+    assert isinstance(parse({"op": "mark_absent", "path": "wire.bank"}), MarkAbsent)
+    assert isinstance(parse({"op": "set_box", "path": "wire.bank", "page": 0, "rect": [1, 2, 3, 4]}), SetBox)
+    with pytest.raises(ValidationError):
+        parse({"op": "set_field", "path": "wire.bank", "colour": "red"})
+    with pytest.raises(ValidationError):
+        parse({"op": "explode", "path": "wire.bank"})
