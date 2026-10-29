@@ -1,5 +1,7 @@
 """The extraction template and result models: shape, round trip, and the checks a template must pass."""
 
+import re
+
 import pytest
 from pydantic import ValidationError
 
@@ -16,6 +18,8 @@ from formcast.extract.model import (
     Layout,
     PhraseRead,
     Reader,
+    SampleRecord,
+    SetupInfo,
     StaticLine,
     WidgetRead,
     concrete_paths,
@@ -197,6 +201,35 @@ def test_an_absent_path_must_be_a_schema_leaf():
         _template({}, absent=["investor.nope"])
     with pytest.raises(ValueError, match="investor"):
         _template({}, absent=["investor"])
+
+
+
+def test_a_template_keeps_how_it_was_set_up_and_each_samples_reading_through_json():
+    line = "the investor's taxpayer id"
+    setup = SetupInfo(start="lines", lines=[line], line_paths={line: ["investor.tax_id"]}, detect="off",
+                      sample_how="three filled copies from the portal")  # fmt: skip
+    opinion = {"investor.tax_id": "84-2219037", "owners[1].name": None}
+    t = _template({"investor.tax_id": Reader(strategies=[WidgetRead(names=["tin"])])}).model_copy(
+        update={"setup": setup, "samples": [SampleRecord(file="a.pdf", sha256="0" * 64, opinion=opinion)]}
+    )
+    again = ExtractionTemplate.model_validate_json(t.model_dump_json(by_alias=True))
+    assert again == t and again.setup.start == "lines" and again.samples[0].opinion["owners[1].name"] is None
+
+
+def test_a_template_without_setup_or_samples_still_validates_and_both_default_empty():
+    t = _template({})
+    assert t.setup is None and t.samples == []
+    assert ExtractionTemplate.model_validate_json(t.model_dump_json(by_alias=True)) == t
+    defaults = SetupInfo(start="ai", lines=[], line_paths={}, destination=None, detect="auto", sample_how="")
+    assert SetupInfo(start="ai") == defaults
+
+
+def test_a_samples_reading_of_a_path_that_is_not_a_concrete_path_of_the_schema_is_refused():
+    data = _template({}).model_dump(by_alias=True)
+    for bad in ("investor.nope", "owners[2].name", "owners[].name", "investor"):
+        sample = {"file": "a.pdf", "sha256": "0" * 64, "opinion": {"investor.tax_id": "1", bad: "x"}}
+        with pytest.raises(ValueError, match=re.escape(repr(bad))):
+            ExtractionTemplate.model_validate({**data, "samples": [sample]})
 
 
 def test_a_choice_mark_takes_a_widget_or_a_page_and_rect_not_both():

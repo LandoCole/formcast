@@ -1,10 +1,11 @@
 """One open PDF and the lookups the extractor makes on it.
 
 ``DocText`` opens a document once and answers, for every field of that document, the questions the readers ask:
-what a form field holds, where a label sits, what is written to the right of or below it, what lies inside a box,
-whether a drawn check box is marked, and what follows a phrase in running text. Words come from
-:func:`formcast.pagemap.extract.extract_page`, so they are in unrotated crop-box points with the origin at the
-top-left, as everywhere in formcast; a page with ``/Rotate`` gives the same rectangles as the same page without it.
+what a form field holds and where its widgets are, where a label sits, what is written to the right of or below
+it, what lies inside a box, whether a drawn check box is marked, and what follows a phrase in running text. Words
+come from :func:`formcast.pagemap.extract.extract_page`, so they are in unrotated crop-box points with the origin at
+the top-left, as everywhere in formcast; a page with ``/Rotate`` gives the same rectangles as the same page without
+it.
 
 Labels and phrases are compared by :func:`label_key` (case, spacing and punctuation do not matter), a run of
 consecutive words matching when their keys joined equal the label's key.
@@ -177,6 +178,7 @@ class DocText:
         self.page_count: int = self._doc.page_count
         self._texts: dict[int, _Text] = {}
         self._fields: dict[str, list[tuple[str, object]]] | None = None  # name -> [(kind, value)] per widget
+        self._places: dict[str, list[tuple[int, Rect, str | None]]] | None = None  # name -> [(page, rect, on-state)]
 
     def close(self) -> None:
         with PDF_LOCK:
@@ -257,6 +259,26 @@ class DocText:
         if state is not None and self._is_group(entries):
             return state in selected
         return bool(selected)
+
+    def widget_places(self, name: str, state: str | None = None) -> list[tuple[int, Rect]]:
+        """Where the form field ``name``'s widgets are, as ``(page, rect)`` in unrotated crop-box points.
+
+        ``state`` keeps only the radio buttons whose on-state it is. A name that is not a field of the document gives
+        ``[]``.
+        """
+        if self._places is None:
+            places: dict[str, list[tuple[int, Rect, str | None]]] = {}
+            with PDF_LOCK:
+                for number, page in enumerate(self._doc):
+                    for w in page.widgets() or []:
+                        on_state = None
+                        if w.field_type in (pymupdf.PDF_WIDGET_TYPE_CHECKBOX, pymupdf.PDF_WIDGET_TYPE_RADIOBUTTON):
+                            on = w.on_state()
+                            on_state = on if isinstance(on, str) else None
+                        r = w.rect
+                        places.setdefault(w.field_name, []).append((number, (r.x0, r.y0, r.x1, r.y1), on_state))
+            self._places = places
+        return [(page, rect) for page, rect, on in self._places.get(name, []) if state is None or on == state]
 
     @property
     def has_values(self) -> bool:

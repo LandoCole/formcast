@@ -12,7 +12,9 @@ path a :class:`Reader`: the ordered ways to find the value (``strategies``) and 
                                           {"kind": "anchor", "labels": ["Taxpayer ID", "TIN"], "side": "right"}],
                            "clean": [{"op": "digits"}]},
        "owners[1].name": {"strategies": [{"kind": "box", "page": 0, "rect": [72, 300, 300, 318]}]}},
-     "absent": ["investor.fax"]}
+     "absent": ["investor.fax"],
+     "setup": {"start": "ai", "detect": "auto"},
+     "samples": [{"file": "a.pdf", "sha256": "...", "opinion": {"investor.tax_id": "84-2219037", ...}}]}
 
 A strategy tries one way of reading: a form field (``widget``), the words inside a rectangle (``box``), the
 words next to a label (``anchor``), the words after a phrase in running text (``phrase``) or a set of
@@ -20,6 +22,10 @@ check marks (``choice``). The first strategy that finds something wins, unless i
 later one that passes replaces it, ``unsure`` when the two differ (``formcast.extract.read``). Readers are keyed
 by concrete paths: a repeated group is an array of objects with ``maxItems`` (4 when it has none), and each item
 has its own readers (``owners[0].name`` ... ``owners[3].name``).
+
+A template built with AI from sample documents also keeps how it was set up (:class:`SetupInfo`) and, for each
+sample, what the model read on it (:class:`SampleRecord`): the readers are proven against those readings
+(``formcast.extract.proof``), and a person's edits are proven against them again, with no further model call.
 
 A :class:`DocumentResult` has one :class:`FieldResult` per schema path; every value ends with a status, and a
 value that fails its check keeps both its raw and its cleaned form and is never dropped or altered.
@@ -208,6 +214,35 @@ def concrete_paths(schema: dict) -> list[str]:
     return out
 
 
+class SetupInfo(_Model):
+    """How a template was set up: where the field list started, and how fields were looked for on the samples.
+
+    ``start`` is ``"ai"`` (the model proposed the fields), ``"lines"`` (a person described them, one ``lines`` entry
+    each, ``line_paths`` naming the schema paths each line became) or ``"destination"`` (the fields of an existing
+    schema or fill template, ``destination`` naming it). ``detect`` is the field-detection setting the samples were
+    looked at with; ``sample_how`` says, in the person's words, how the samples were chosen.
+    """
+
+    start: Literal["ai", "lines", "destination"]
+    lines: list[str] = Field(default_factory=list)
+    line_paths: dict[str, list[str]] = Field(default_factory=dict)
+    destination: str | None = None
+    detect: Literal["auto", "all", "manual", "off"] = "auto"
+    sample_how: str = ""
+
+
+class SampleRecord(_Model):
+    """One sample the template was built from, and what the model read on it.
+
+    ``opinion`` maps every concrete path the model was asked about to the value it read there (``None``: not on this
+    sample). A path left out was not asked about, and counts as ``None`` when the readers are proven.
+    """
+
+    file: str
+    sha256: str  # of the sample's bytes, so a proof is made only on the very samples the readings are of
+    opinion: dict[str, Any]
+
+
 class ExtractionTemplate(_Model):
     """A form's schema, layout and per-path readers: everything needed to read its filled copies with no model call."""
 
@@ -222,6 +257,8 @@ class ExtractionTemplate(_Model):
     readers: dict[str, Reader]
     absent: list[str] = Field(default_factory=list)  # schema paths marked "not on this form"
     fill_template: str | None = None  # id of the fill Template for the same form, if there is one
+    setup: SetupInfo | None = None  # how the template was set up; None for a template written by hand
+    samples: list[SampleRecord] = Field(default_factory=list)  # the samples it was built from, with their readings
 
     @model_validator(mode="after")
     def _paths_are_the_schemas(self) -> ExtractionTemplate:
@@ -232,6 +269,10 @@ class ExtractionTemplate(_Model):
         for path in self.absent:
             if path not in known:
                 raise ValueError(f"absent path {path!r}: not a field of the schema")
+        for sample in self.samples:
+            for path in sample.opinion:
+                if path not in known:
+                    raise ValueError(f"sample {sample.file!r}: reading of {path!r}: not a field of the schema")
         return self
 
 
