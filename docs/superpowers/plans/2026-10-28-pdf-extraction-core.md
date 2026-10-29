@@ -86,10 +86,13 @@ README.md               + "Extraction" section                                  
 **Interfaces:**
 - Produces (all pydantic `BaseModel`, `extra="forbid"`):
   - Strategies, a discriminated union on `kind`:
-    - `WidgetRead(kind="widget", name: str)`: a form field's value.
+    - `WidgetRead(kind="widget", names: list[str])`: a form field's value; the first name present wins (versions
+      of a form may rename a field).
     - `BoxRead(kind="box", page: int, rect: Rect)`: words inside a rect; used only on a matching layout.
-    - `AnchorRead(kind="anchor", label: str, page: int | None = None, side: Literal["right", "below", "inside"] = "right", max_width: float = 300.0, max_lines: int = 1)`.
-    - `PhraseRead(kind="phrase", phrase: str, page: int | None = None, stop: Literal["comma", "sentence", "line", "digits"] = "comma")`.
+    - `AnchorRead(kind="anchor", labels: list[str], page: int | None = None, side: Literal["right", "below", "inside"] = "right", max_width: float = 300.0, max_lines: int = 1)`:
+      `labels` are alternative wordings of one label ("Taxpayer ID", "TIN", "EIN / SSN").
+    - `PhraseRead(kind="phrase", phrases: list[str], page: int | None = None, stop: Literal["comma", "sentence", "line", "digits"] = "comma")`.
+    - Each of `names`, `labels`, `phrases` has at least one entry (validated).
     - `ChoiceRead(kind="choice", options: dict[str, ChoiceMark])` where `ChoiceMark = {widget: str | None, page: int | None, rect: Rect | None}` (exactly one of `widget` or `page`+`rect`).
     - `Strategy = Annotated[WidgetRead | BoxRead | AnchorRead | PhraseRead | ChoiceRead, Field(discriminator="kind")]`.
   - `Reader(strategies: list[Strategy], clean: list[Transform] = [])` (`Transform` from `formcast.data.mapping`).
@@ -151,6 +154,8 @@ def test_document_result_record_nests_the_values_it_has():
     widget positions, checkboxes as drawn squares with an "X" inside when on. `shift` moves page 0's content
     down by that many points; `rotate` sets `/Rotate`; `extra_page` appends a blank page; `painted` (fillable
     only) also draws each widget's value as page text under the widget. `client=None` makes the blank form.
+    `labels: dict[str, str] = {}` replaces label wordings (e.g. `{"Taxpayer ID:": "TIN:"}`), for copies that word
+    a label differently.
   - `other_form() -> bytes`: a different two-page layout (use `demo/data/forms/fw9.pdf` bytes).
   - `hand_template() -> ExtractionTemplate`: the template a person would make for this form, readers in the
     spec's order (widget, box, anchor; phrase for bank/account; choice for investor type), `country` cleaned
@@ -187,15 +192,17 @@ def test_the_blank_form_has_the_labels_and_no_answers(): ...
 - Test: `tests/extract/test_page.py`
 
 **Interfaces:**
-- Consumes: `formcast.pagemap.extract.open_pdf`, `extract_page` (words and lines), `formcast.match._normalize`.
+- Consumes: `formcast.pagemap.extract.open_pdf`, `extract_page` (words and lines).
+- Produces also: `label_key(text: str) -> str`: NFKC, casefolded, letters and digits only
+  (`"Taxpayer I.D.:"` and `"TAXPAYER ID"` both give `"taxpayerid"`). Labels and phrases are compared by key, a
+  run of consecutive words matching when their keys joined equal the label's key.
 - Produces: `class DocText` (opened once per document; close with `close()` or use as a context manager):
   - `DocText(pdf: str | Path | bytes)`; `.page_count: int`; `.has_values: bool` (any widget with a non-empty value).
   - `.widget_value(name: str) -> str | bool | None`: text widgets' value (`None` when empty); checkboxes and
     radio buttons `True`/`False` (on = `field_value` equals the widget's `on_state()`, else not `"Off"`/empty).
   - `.words(page: int) -> list[Word]` (from `extract_page`, cached per page).
-  - `.find_label(label: str, page: int | None) -> list[tuple[int, Rect]]`: every place the label's words occur
-    in sequence, matched on `_normalize` (case, spacing, punctuation; a trailing colon optional). Several hits
-    are returned, not resolved.
+  - `.find_label(labels: list[str], page: int | None) -> list[tuple[int, Rect]]`: every place any of the labels
+    occurs (by `label_key`), across all its wordings. Several hits are returned, not resolved.
   - `.text_right_of(page: int, rect: Rect, max_width: float) -> tuple[str, Rect] | None`: words on the same
     row (vertical overlap at least 50% of the word's height) starting after `rect`'s right edge, until a gap of
     more than 3 em, a word ending with ":", or `max_width`.
@@ -205,16 +212,18 @@ def test_the_blank_form_has_the_labels_and_no_answers(): ...
   - `.marked(page: int, rect: Rect) -> bool | None`: a drawn checkbox's mark. True when a glyph among "X x ✓ ✔ ☒ ✕"
     lies in the rect or the ink share of its inner 70% (rendered at 144 dpi, grayscale < 128) is at least
     `MARK_INK = 0.06`; `None` when the rect is off the page.
-  - `.after_phrase(phrase: str, page: int | None, stop: str) -> list[tuple[int, str, Rect]]`: every occurrence
-    of the phrase in a page's text (words joined in reading order), with the text after it up to the stop
+  - `.after_phrase(phrases: list[str], page: int | None, stop: str) -> list[tuple[int, str, Rect]]`: every
+    occurrence of any of the phrases in a page's text (words joined in reading order), with the text after it up to the stop
     (`comma`: next ","; `sentence`: next ". "; `line`: end of the line; `digits`: the run of digits and spaces).
 
 - [ ] **Step 1: Write the failing tests** (on `make_form` output)
 
 ```python
 def test_widget_values_and_checkbox_states_read_exactly(): ...
-def test_a_label_is_found_without_regard_to_case_spacing_or_the_colon():
-    # find_label("taxpayer id", 0) == one hit on page 0
+def test_a_label_is_found_without_regard_to_case_spacing_or_punctuation():
+    # find_label(["taxpayer i.d."], 0) == one hit on page 0 (the form says "Taxpayer ID:")
+def test_any_of_a_labels_wordings_finds_it():
+    # on a copy whose label reads "TIN:", find_label(["Taxpayer ID", "TIN"], 0) == one hit
 def test_a_label_found_twice_returns_both_places(): ...  # a form with "Taxpayer ID:" in a header and the row
 def test_text_right_of_a_label_stops_at_the_next_label():
     # on a flattened form: text_right_of(rect of "Taxpayer ID:") == ("84-2219037", ...), not "84-2219037 Date of birth..."
@@ -301,8 +310,8 @@ Rules `extract()` applies (the spec's *Running*, *Settled after review* 2 and 3,
 4. Checks: `validate_data_located(template.schema_, record)` on the record of all candidates; each error is
    attached to its path (a `required` error to the missing child's path) as a reason; such a field is
    `failed_check`, or `missing` when it had no value.
-5. `unsure`: an `anchor` or `phrase` value that passes its checks but whose label/phrase matched more than one
-   place, or any `anchor`/`phrase` value on a document with `matched="none"`. `widget`, `box` and `choice`
+5. `unsure`: an `anchor` or `phrase` value that passes its checks but whose labels/phrases matched more than one
+   place in all (two wordings found once each count as two places), or any `anchor`/`phrase` value on a document with `matched="none"`. `widget`, `box` and `choice`
    values that pass are `found`.
 6. Repeated items: an item whose every field is missing makes those fields `absent` (not `missing`), and the
    item is left out of the record.
@@ -321,6 +330,8 @@ def test_a_bad_tax_id_fails_its_check_and_keeps_its_value():
 def test_a_missing_required_field_is_missing_with_a_reason(): ...
 def test_two_checked_type_boxes_fail_the_enum_check(): ...  # value "individual, joint", "2 boxes checked"
 def test_a_label_found_twice_makes_the_anchor_read_unsure(): ...  # Review Focus
+def test_a_copy_that_words_the_label_differently_reads_by_its_other_wording():
+    # a flattened copy with "TIN:" instead of "Taxpayer ID:" and labels ["Taxpayer ID", "TIN"]: found, strategy "anchor"
 def test_an_unknown_country_wording_fails_the_allowed_answers_check(): ...  # "Untied States" -> failed_check
 def test_empty_owner_rows_are_absent_not_missing(): ...  # an individual with no owners
 def test_a_rotated_copy_and_a_copy_with_an_extra_page_read_like_the_original(): ...  # Review Focus

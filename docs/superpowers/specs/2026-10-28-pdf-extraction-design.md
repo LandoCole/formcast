@@ -120,6 +120,12 @@ A saved, versioned artifact per layout, stored beside fill templates:
   - `choice_group`: answers -> boxes (each a widget, or a page rect for a drawn box); reads which is marked.
   - `clean`: transforms from the existing set (`digits`, `date`, `strip`, `map`...) applied to the raw text.
 - `samples`: the sample documents' ids and, per field, what each reader read on each (kept for re-testing).
+- **More than one wording per field.** A field's label, phrase and form-field name are lists of alternatives
+  ("Taxpayer ID", "TIN", "EIN / SSN"), so one template reads copies that word a label differently. Labels are
+  compared on letters and digits only (case, spacing and punctuation ignored: "Taxpayer I.D.:" matches
+  "TAXPAYER ID"). All wordings count together for the *unsure* rule, so a generic alternative that turns up in two
+  places makes the read unsure rather than wrong; alternatives should be specific. At setup the model proposes
+  alternatives from the wordings on the samples; adding wordings learned in review is not this round.
 
 **One template, both directions (builder's call how far to take it).** A fill template already says "this box
 is `investor.tax_id`". The setup can seed readers from a saved fill template of the same form: a field with a
