@@ -1,5 +1,5 @@
 """Read filled PDFs of one layout into structured, checked values with no model call (a model is called only
-while a template is built from samples: ``build_setup``, ``add_line``).
+while a template is built from samples: ``build_setup``, ``add_line``, and by the opt-in ``ai_pass``).
 
     ExtractionTemplate, Reader, ...   formcast.extract.model   (the template and the result of reading a document)
     DocText, label_key                formcast.extract.page    (one open PDF and the lookups made on it)
@@ -10,6 +10,7 @@ while a template is built from samples: ``build_setup``, ``add_line``).
     resolve, ReaderProposal, ...      formcast.extract.readers (a model's reader proposals made readers, by code)
     read_values, propose_readers, ... formcast.extract.ask     (the model calls that build a template from samples)
     build_setup, add_line, SetupSpec  formcast.extract.setup   (a template built from samples in stages, with a model)
+    ai_pass, required_paths           formcast.extract.aipass  (a model asked for a run's failing required fields)
 
 The public names load on first use, as in ``formcast``, so importing one module does not pull in the rest.
 """
@@ -22,6 +23,7 @@ from typing import TYPE_CHECKING, Any
 _LAZY = {
     "FIELDS_LABELS": "formcast.extract.setup",
     "STAGES": "formcast.extract.setup",
+    "AiPassSummary": "formcast.extract.aipass",
     "AnchorRead": "formcast.extract.model",
     "BoxRead": "formcast.extract.model",
     "BoxRef": "formcast.extract.readers",
@@ -63,6 +65,7 @@ _LAZY = {
     "Strategy": "formcast.extract.model",
     "WidgetRead": "formcast.extract.model",
     "add_line": "formcast.extract.setup",
+    "ai_pass": "formcast.extract.aipass",
     "apply_edit": "formcast.extract.edit",
     "build_setup": "formcast.extract.setup",
     "concrete_paths": "formcast.extract.model",
@@ -76,6 +79,7 @@ _LAZY = {
     "prove": "formcast.extract.proof",
     "read_samples": "formcast.extract.samples",
     "read_values": "formcast.extract.ask",
+    "required_paths": "formcast.extract.aipass",
     "resolve": "formcast.extract.readers",
     "same_value": "formcast.extract.proof",
     "sample_marks": "formcast.extract.proof",
@@ -84,6 +88,7 @@ _LAZY = {
 }
 
 if TYPE_CHECKING:
+    from formcast.extract.aipass import AiPassSummary, ai_pass, required_paths
     from formcast.extract.ask import FieldsAnswer, fields_from_lines, fields_on_form, propose_readers, read_values
     from formcast.extract.edit import (
         Edit, MarkAbsent, RemoveField, Restore, SetBox, SetClean, SetField, SetLabels, SetOptionBox, apply_edit,

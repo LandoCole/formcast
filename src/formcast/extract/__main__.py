@@ -1,8 +1,9 @@
-"""The command line: ``python -m formcast.extract scan | run | export``.
+"""The command line: ``python -m formcast.extract scan | run | export | ai``.
 
     python -m formcast.extract scan DIR [--first-page]
     python -m formcast.extract run TEMPLATE.json [TEMPLATE.json ...] DIR --out OUT [--workers N] [--timeout S]
     python -m formcast.extract export OUT --template TEMPLATE.json [...] --format xlsx|parquet|csv --to PATH
+    python -m formcast.extract ai OUT --template TEMPLATE.json [...]
 
 ``scan`` groups the PDFs under ``DIR`` by layout and prints each group (size, fillable and flattened, pages, three
 example files) and the files it could not read. ``run`` reads every PDF under ``DIR`` with the templates into ``OUT``
@@ -10,6 +11,12 @@ example files) and the files it could not read. ``run`` reads every PDF under ``
 ``--timeout`` is the seconds a document may take before it is set aside as hung (120; ``--workers 1`` reads in
 this process, with no timeout and no crash isolation).
 ``export`` writes the finished run as a workbook (``xlsx``) or a folder of files (``parquet``, ``csv``).
+``ai`` is the one command that calls a model: it asks it for the required fields that failed in the run's documents
+(:func:`~formcast.extract.aipass.ai_pass`), one call per document with such a field, and stores the answers in
+``OUT/ai.jsonl``, where every one reads as ``unsure`` until it is reviewed. The model comes from the environment
+(``FORMCAST_EXTRACT_BASE_URL``, ``_API_KEY``, ``_MODEL``, and ``_API_FORMAT`` when it is not ``chat_completions``);
+a run with nothing to ask costs no call. It ends with a line of the documents asked about, answered and failed, and
+the tokens spent.
 
 ``export`` takes the templates again with ``--template`` instead of reading them back from ``OUT``: ``run.json``
 records only each template's id, name and sha256, and the field definitions need the schema. Pass the same templates
@@ -38,6 +45,8 @@ from formcast.extract.scan import ScanGroup, sample, scan
 
 EXAMPLES = 3  # example files printed per group
 PROGRESS_EVERY = 100
+AI_PROGRESS_EVERY = 10  # the AI pass asks about few documents, each a model call
+MODEL_PREFIX = "FORMCAST_EXTRACT"  # the environment variables of the model: FORMCAST_EXTRACT_BASE_URL, ...
 
 
 class _Parser(argparse.ArgumentParser):
@@ -68,7 +77,10 @@ def _timeout(text: str) -> float:
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = _Parser(prog="python -m formcast.extract", description="Read filled PDFs of one layout, no model call.")
+    parser = _Parser(
+        prog="python -m formcast.extract",
+        description="Read filled PDFs of one layout; only the ai command calls a model.",
+    )
     commands = parser.add_subparsers(dest="command", required=True, parser_class=_Parser)
 
     p = commands.add_parser("scan", help="group a folder of PDFs by layout")
@@ -90,6 +102,12 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("--template", type=Path, nargs="+", required=True, help="the templates the run used")
     p.add_argument("--format", choices=("xlsx", "parquet", "csv"), required=True)
     p.add_argument("--to", type=Path, required=True, help="the workbook (xlsx) or the folder (parquet, csv) to write")
+
+    p = commands.add_parser("ai", help="ask a model for the required fields that failed in a finished run")
+    p.add_argument("out", type=Path, help="the run's output folder")
+    p.add_argument(
+        "--template", type=Path, nargs="+", action="extend", required=True, help="the templates the run used"
+    )
     return parser
 
 
@@ -176,11 +194,30 @@ def _export(args: argparse.Namespace) -> None:
         print(path)
 
 
+def _ai(args: argparse.Namespace) -> None:
+    from formcast.extract.aipass import ai_pass  # a model client is not needed by the other commands
+    from formcast.llm import LLMConfig
+
+    llm = LLMConfig.from_env(MODEL_PREFIX)
+    templates = [_template(p) for p in args.template]
+
+    def progress(done: int, total: int) -> None:
+        if done % AI_PROGRESS_EVERY == 0 and done != total:
+            print(f"{done} of {total} documents", file=sys.stderr, flush=True)
+
+    s = ai_pass(templates, args.out, llm, on_progress=progress)
+    print(
+        f"asked about {s.documents} documents, {s.answered} answered, {s.failed} failed, "
+        f"{s.usage.input_tokens} tokens in, {s.usage.output_tokens} tokens out",
+        file=sys.stderr, flush=True,
+    )  # fmt: skip
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     """Run one command; the exit code (0, or 2 with a line on stderr for bad arguments or a ``FormcastError``)."""
     args = _parser().parse_args(argv)
     try:
-        {"scan": _scan, "run": _run, "export": _export}[args.command](args)
+        {"scan": _scan, "run": _run, "export": _export, "ai": _ai}[args.command](args)
     except (FormcastError, OSError) as exc:  # OSError: --out or --to is a file, unwritable, and the like
         print(f"{_parser().prog}: {' '.join(str(exc).split())}", file=sys.stderr)
         return 2

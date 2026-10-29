@@ -13,7 +13,10 @@ from pathlib import Path
 import pytest
 
 import formcast
+from formcast.extract.__main__ import main
 from tests.extract.corpus import hand_template
+from tests.extract.fakes import Scripted
+from tests.extract.test_aipass import ANSWER, failing, write_batch
 
 
 SRC = str(Path(formcast.__file__).resolve().parent.parent)  # the code under test, whether or not it is installed
@@ -157,3 +160,37 @@ def test_export_parquet_without_the_extra_exits_2(corpus_dir: Path, template_fil
     cli("run", template_file, corpus_dir, "--out", out, "--workers", "1")
     done = cli("export", out, "--template", template_file, "--format", "parquet", "--to", tmp_path / "p", check=False)
     assert done.returncode == 2 and "formcast[parquet]" in done.stderr
+
+
+MODEL_VARIABLES = ("FORMCAST_EXTRACT_BASE_URL", "FORMCAST_EXTRACT_API_KEY", "FORMCAST_EXTRACT_MODEL")
+
+
+def test_the_ai_command_needs_a_model_config(template_file: Path, tmp_path: Path, monkeypatch):
+    for name in MODEL_VARIABLES:
+        monkeypatch.delenv(name, raising=False)
+    done = cli("ai", tmp_path, "--template", template_file, check=False)
+    assert done.returncode == 2 and "FORMCAST_EXTRACT_" in done.stderr
+    assert len(done.stderr.strip().splitlines()) == 1
+
+
+def test_the_ai_command_on_a_folder_that_is_not_a_run_exits_2(template_file: Path, tmp_path: Path, monkeypatch):
+    for name in MODEL_VARIABLES:
+        monkeypatch.setenv(name, "set")
+    done = cli("ai", tmp_path, "--template", template_file, check=False)
+    assert done.returncode == 2 and "no run in" in done.stderr and len(done.stderr.strip().splitlines()) == 1
+
+
+def test_the_ai_command_asks_about_the_failing_documents_and_says_how_many(
+    template_file: Path, tmp_path: Path, monkeypatch, capsys
+):
+    out = write_batch(tmp_path)
+    bad = failing(out)
+    for name in MODEL_VARIABLES:
+        monkeypatch.setenv(name, "set")
+    model = Scripted(*[ANSWER] * len(bad))
+    monkeypatch.setattr("formcast.extract.setup.make_provider", lambda config: model)
+    assert main(["ai", str(out), "--template", str(template_file)]) == 0
+    assert f"asked about {len(bad)} documents, {len(bad)} answered, 0 failed" in capsys.readouterr().err
+    assert len(model.calls) == len(bad)
+    assert main(["ai", str(out), "--template", str(template_file)]) == 0  # nothing left to ask
+    assert "asked about 0 documents" in capsys.readouterr().err

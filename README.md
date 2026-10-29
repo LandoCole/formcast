@@ -318,6 +318,7 @@ export(Results.load("out"), [template], "extracted.xlsx", format="xlsx")
 python -m formcast.extract scan incoming/ [--first-page]
 python -m formcast.extract run client.json incoming/ --out out/ [--workers 4] [--timeout 120]
 python -m formcast.extract export out/ --template client.json --format csv --to extracted/
+python -m formcast.extract ai out/ --template client.json    # opt-in model pass over failing documents (below)
 ```
 
 - **A template** is plain JSON: the JSON Schema the values must meet (with its checks: `pattern`, `enum`,
@@ -407,6 +408,40 @@ Path("client.json").write_text(more.template.model_dump_json(by_alias=True, inde
 - `llm` is an `LLMConfig` (one provider is opened for the whole build and closed after) or a ready provider;
   calls of one stage run side by side (`max_parallel`, 4 by default). A sample that cannot be read is refused,
   by name, before any model call.
+
+### The AI pass over a run's failing documents
+
+A run leaves some documents with a required field `missing` or `failed_check`. The AI pass is an opt-in step
+after the run (`run_batch` and `extract` still never call a model) that asks a model for those fields only:
+
+```python
+from formcast.extract import ai_pass
+
+summary = ai_pass([template], "out", llm, max_parallel=4)   # llm: an LLMConfig or a ready provider
+print(summary.documents, summary.answered, summary.failed, summary.usage)
+```
+
+```sh
+export FORMCAST_EXTRACT_BASE_URL=... FORMCAST_EXTRACT_API_KEY=... FORMCAST_EXTRACT_MODEL=...
+python -m formcast.extract ai out/ --template client.json
+```
+
+- **What it asks.** For each document that was read, whose template has a *required* field (named in its object's
+  `required`; inside a repeated group, in the item's) that is still `missing` or `failed_check` after your review
+  decisions, the model is shown the document (its text, and page images unless `vision=False`) and asked for those
+  fields. Every other field of the document keeps what the template read, and a document whose required fields were
+  read, or that was set aside, is never sent.
+- **What it costs.** One model call per such document, so the cost follows the number of failing documents, not the
+  size of the run; the summary gives the tokens spent. Documents are asked `max_parallel` at a time; one that the
+  model cannot answer usably (after one retry) is counted in `failed` and asked again by the next pass. A second pass
+  over a run asks nothing it already asked: an answer, even "not found", is kept.
+- **Its answers are always reviewed.** They are stored apart, in `out/ai.jsonl`, and the run's own results are never
+  changed. A field with an answer reads as `unsure` by strategy `ai` (reason "read by the AI; check it"), so it counts
+  as a problem in the summary and the `status` export until a person accepts it, types another value or marks the
+  field not in the document (`Results.decide`); a review decision always wins over the answer. The model's value is
+  not checked against the schema: a wrong shape shows as `unsure` for you to see, never as `found`.
+- Exit code 2 with one line when `FORMCAST_EXTRACT_BASE_URL`, `_API_KEY` or `_MODEL` is not set, `out/` is not a run,
+  or a template is not the run's.
 
 ## The sandbox is not a security boundary
 

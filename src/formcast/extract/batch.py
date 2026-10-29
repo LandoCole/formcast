@@ -7,6 +7,7 @@
                     ``root``, and the seconds spent so far
     results.jsonl   one DocumentResult per line, appended and flushed as each document is done
     reviews.jsonl   one ReviewDecision per line, appended by ``Results.decide``; a run never touches it
+    ai.jsonl        one AiAnswer per line, appended by :func:`~formcast.extract.aipass.ai_pass`; a run never touches it
 
 **Routing** (:func:`route`). A document goes to the first template whose ``form.fingerprint`` is the document's
 fingerprint or its blind fingerprint (field values ignored, as ``extract`` counts a fingerprint match, Ruling R2),
@@ -59,7 +60,12 @@ already there were read with the old one. :meth:`Results.check_templates` makes 
 document's line, the last line for a ``doc_id`` winning) without keeping the results in memory, ignores a torn last
 line, and never writes (a run may be appending). ``documents()`` parses them one at a time in ``doc_id`` order, so
 the order is the same however many workers wrote them. Review decisions are kept apart in ``reviews.jsonl`` and
-apply by ``doc_id`` and path, the latest one per path winning, so a rerun keeps them. ``rows()`` and
+apply by ``doc_id`` and path, the latest one per path winning, so a rerun keeps them. So are the AI pass's answers
+in ``ai.jsonl`` (read the same way: a torn last line ignored, the latest answer per ``doc_id`` and path winning): an
+answer with a value is put on a field that is ``missing`` or ``failed_check`` as ``unsure`` by strategy ``"ai"``,
+with the reason :data:`AI_REASON`, before any review decision is applied, so a decision always wins over it, and an
+``accept`` is checked against the field with the answer on it. An answer of ``None`` changes nothing: it only
+records that the field was asked. ``rows()`` and
 ``status_rows()`` flatten paths to columns as the Global Constraints say (:func:`column_name`: ``owners[0].name``
 -> ``owners_1_name``; ``investor.tax_id`` stays), after ``doc_id``, ``file``, ``template``, ``matched`` and
 ``extracted_at``; failed documents are never rows. :class:`RunSummary` counts the whole ``out_dir``: ``complete``
@@ -83,7 +89,7 @@ from concurrent.futures.process import BrokenProcessPool
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from formcast.errors import FormcastError
 from formcast.extract.layout import LAYOUT_MATCH, layout_score
@@ -95,6 +101,9 @@ from formcast.match import PdfFeatures
 RUN = "run.json"
 RESULTS = "results.jsonl"
 REVIEWS = "reviews.jsonl"
+AI = "ai.jsonl"
+#: Why a field the AI read is ``unsure``: its value is not settled until a person has looked at it.
+AI_REASON = "read by the AI; check it"
 #: The statuses review settles.
 PROBLEMS: tuple[Status, ...] = ("missing", "failed_check", "unsure")
 #: The start of the error of a document no template fits.
@@ -141,6 +150,17 @@ class ReviewDecision(BaseModel):
         if self.decision == "value" and self.value is None:
             raise ValueError("a 'value' decision needs a value")
         return self
+
+
+class AiAnswer(BaseModel):
+    """What the AI pass read for one field of one document; ``value`` is ``None`` when the model found no answer."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    doc_id: str
+    path: str
+    value: Any = None
+    at: str = Field(default_factory=now)
 
 
 # ------------------------------------------------------------------ routing
@@ -512,6 +532,15 @@ def _decided(field: FieldResult, decision: ReviewDecision) -> FieldResult:
     return field.model_copy(update=update)
 
 
+def _from_ai(field: FieldResult, answer: AiAnswer) -> FieldResult:
+    """``field`` with the AI's answer on it: always ``unsure``, and no longer tied to where the failed read was."""
+    update = {
+        "status": "unsure", "strategy": "ai", "value": answer.value, "raw": str(answer.value),
+        "page": None, "rect": None, "reasons": [AI_REASON],
+    }  # fmt: skip
+    return field.model_copy(update=update)
+
+
 class Results:
     """A run's results and review decisions, read from its ``out_dir`` (see the module). Make one with :meth:`load`."""
 
@@ -520,7 +549,9 @@ class Results:
         self.run = run  # run.json: templates, started, root, seconds
         self._index = index  # doc_id -> (offset, length) of its line in results.jsonl
         self._decisions: dict[str, dict[str, ReviewDecision]] = {}  # doc_id -> path -> the latest decision
+        self._ai: dict[str, dict[str, AiAnswer]] = {}  # doc_id -> path -> the latest AI answer
         _whole_lines(out_dir / REVIEWS, lambda offset, length, rec: self._remember(ReviewDecision.model_validate(rec)))
+        _whole_lines(out_dir / AI, lambda offset, length, rec: self._remember_ai(AiAnswer.model_validate(rec)))
 
     @classmethod
     def load(cls, out_dir: str | Path) -> Results:
@@ -562,6 +593,13 @@ class Results:
     def _remember(self, decision: ReviewDecision) -> None:
         self._decisions.setdefault(decision.doc_id, {})[decision.path] = decision
 
+    def _remember_ai(self, answer: AiAnswer) -> None:
+        self._ai.setdefault(answer.doc_id, {})[answer.path] = answer
+
+    def ai_answers(self, doc_id: str) -> dict[str, AiAnswer]:
+        """The AI pass's latest answer for each path it was asked about in ``doc_id`` (``None`` values included)."""
+        return dict(self._ai.get(doc_id, {}))
+
     def _document(self, doc_id: str) -> DocumentResult:
         offset, length = self._index[doc_id]
         with (self.out_dir / RESULTS).open("rb") as f:
@@ -578,9 +616,25 @@ class Results:
                 f.seek(offset)
                 yield DocumentResult.model_validate_json(f.read(length))
 
+    def _with_ai(self, doc: DocumentResult) -> DocumentResult:
+        """``doc`` with each AI answer that has a value on its field, when that field is ``missing`` or
+        ``failed_check``."""
+        answers = self._ai.get(doc.doc_id)
+        if not answers:
+            return doc
+        fields = [
+            _from_ai(f, answers[f.path])
+            if f.path in answers and answers[f.path].value is not None and f.status in ("missing", "failed_check")
+            else f
+            for f in doc.fields
+        ]
+        return doc.model_copy(update={"fields": fields})
+
     def effective(self, doc: DocumentResult) -> DocumentResult:
-        """``doc`` with the latest decision on each of its paths applied: a typed value is ``found`` by ``"review"``,
-        an accepted read ``found``, a field not in the document ``absent``."""
+        """``doc`` with the AI's answers (see the module) and then the latest decision on each of its paths applied:
+        a typed value is ``found`` by ``"review"``, an accepted read ``found``, a field not in the document
+        ``absent``."""
+        doc = self._with_ai(doc)
         decided = self._decisions.get(doc.doc_id)
         if not decided:
             return doc
@@ -608,11 +662,12 @@ class Results:
 
         Raises:
             FormcastError: no such document in the run, no such field in it, or an ``accept`` of a field that has
-                no value read.
+                no value read (an AI answer counts as a read value).
         """
         if decision.doc_id not in self._index:
             raise FormcastError(f"no document {decision.doc_id!r} in this run")
-        field = next((f for f in self._document(decision.doc_id).fields if f.path == decision.path), None)
+        read = self._with_ai(self._document(decision.doc_id))
+        field = next((f for f in read.fields if f.path == decision.path), None)
         if field is None:
             raise FormcastError(f"{decision.doc_id}: no field {decision.path!r}")
         if decision.decision == "accept" and field.value is None:
