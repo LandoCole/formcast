@@ -4,6 +4,8 @@
 :class:`~formcast.extract.page.DocText` (closed on every path out), and :class:`formcast.match.PdfFeatures` opens
 them once more for each fingerprint it computes (the full one and the one with field values ignored), only when
 needed (the template has a fingerprint, or no ``doc_id`` is given): up to three opens per document.
+The batch runner routes a document on the same open ``DocText`` and ``PdfFeatures`` and hands them, with the match
+it found, to ``_extract_open``, so a routed document is opened, fingerprinted and scored only once.
 Then, for every concrete path of the template's schema:
 
 1. **Layout.** The document matches by ``"fingerprint"`` when its fingerprint, or its fingerprint with field values
@@ -137,29 +139,67 @@ def extract(
     ``doc_id`` defaults to the document's fingerprint with field values ignored (of its bytes when it cannot be
     opened). Never raises for a bad document; see the module docstring.
     """
-    at = dt.datetime.now(dt.UTC).isoformat()
-
-    def failed(error: str, data: bytes) -> DocumentResult:
-        ident = doc_id or hashlib.sha256(data).hexdigest()[:16]
-        return DocumentResult(
-            doc_id=ident, file=file, template_id=template.template_id, matched="none", fields=[], error=error,
-            extracted_at=at,
-        )  # fmt: skip
-
+    at = now()
     try:
         data = bytes(pdf) if isinstance(pdf, (bytes, bytearray, memoryview)) else Path(pdf).read_bytes()
     except OSError:
-        return failed("cannot open PDF", b"")
+        return _failed(template, "cannot open PDF", b"", doc_id, file, at)
     try:
         doc = DocText(data)
     except FormcastError as exc:
-        return failed(str(exc), data)
+        return _failed(template, str(exc), data, doc_id, file, at)
+    try:
+        return _extract_open(template, doc, PdfFeatures(data), data, doc_id=doc_id, file=file, at=at)
+    finally:
+        doc.close()
 
+
+def now() -> str:
+    """The current UTC time as ISO-8601, as results stamp it."""
+    return dt.datetime.now(dt.UTC).isoformat()
+
+
+def _failed(
+    template: ExtractionTemplate | None, error: str, data: bytes, doc_id: str | None, file: str, at: str
+) -> DocumentResult:
+    """A document that could not be read: no fields, ``error`` set; its id the bytes' hash when none is given."""
+    return DocumentResult(
+        doc_id=doc_id or hashlib.sha256(data).hexdigest()[:16], file=file,
+        template_id=template.template_id if template else None, matched="none", fields=[], error=error,
+        extracted_at=at,
+    )  # fmt: skip
+
+
+def error_text(exc: Exception) -> str:
+    """What a result's ``error`` says for an exception raised while reading an open document (see the module)."""
+    if isinstance(exc, _SchemaError):
+        cause = exc.__cause__
+        return f"internal error: {type(cause).__name__}: {cause}"
+    if isinstance(exc, (FormcastError, *_PDF_ERRORS)):  # a document that opens but breaks while read
+        return f"cannot read PDF: {exc}"
+    return f"internal error: {type(exc).__name__}: {exc}"  # a fault of the template or of this code
+
+
+def _extract_open(
+    template: ExtractionTemplate,
+    doc: DocText,
+    features: PdfFeatures,
+    data: bytes,
+    *,
+    matched: str | None = None,
+    doc_id: str | None,
+    file: str,
+    at: str,
+) -> DocumentResult:
+    """:func:`extract` on a document already open as ``doc`` and ``features`` (both of ``data``); ``doc`` stays open.
+
+    ``matched`` is the match routing already made (``"fingerprint"`` or ``"layout"``), so the fingerprints and the
+    layout score are not computed again; ``None`` works it out as :func:`extract` does. Never raises.
+    """
     schema = template.schema_
     try:
-        features = PdfFeatures(data)
         ident = doc_id or features.fingerprint_blind
-        ctx = _Context(doc, template, _match(template, doc, features), flatten_schema(schema))
+        ctx = _Context(doc, template, matched or _match(template, doc, features), flatten_schema(schema))
         paths = concrete_paths(schema)
         # each path's first read, all checked together as one record; a read that fails then gives way to the
         # first later one that passes on its own, and the record is checked again
@@ -170,27 +210,19 @@ def extract(
         errors = _record_errors(schema, reads, ctx.schema_paths)
         if _fall_back(schema, tries, reads, errors):
             errors = _record_errors(schema, reads, ctx.schema_paths)
-    except _SchemaError as exc:
-        cause = exc.__cause__
-        return failed(f"internal error: {type(cause).__name__}: {cause}", data)
-    except (FormcastError, *_PDF_ERRORS) as exc:  # a document that opens but breaks while read
-        return failed(f"cannot read PDF: {exc}", data)
-    except Exception as exc:  # a fault of the template or of this code, not of the document
-        return failed(f"internal error: {type(exc).__name__}: {exc}", data)
-    finally:
-        doc.close()
-
-    for path, messages in errors.items():
-        reads[path].reasons += [m for m in messages if m not in reads[path].reasons]
-    absent = _absent_items(reads)
-    return DocumentResult(
-        doc_id=ident,
-        file=file,
-        template_id=template.template_id,
-        matched=ctx.matched,  # type: ignore[arg-type]
-        fields=[_field(path, reads.get(path), path in absent) for path in paths],
-        extracted_at=at,
-    )
+        for path, messages in errors.items():
+            reads[path].reasons += [m for m in messages if m not in reads[path].reasons]
+        absent = _absent_items(reads)
+        return DocumentResult(
+            doc_id=ident,
+            file=file,
+            template_id=template.template_id,
+            matched=ctx.matched,  # type: ignore[arg-type]
+            fields=[_field(path, reads.get(path), path in absent) for path in paths],
+            extracted_at=at,
+        )
+    except Exception as exc:
+        return _failed(template, error_text(exc), data, doc_id, file, at)
 
 
 def _match(template: ExtractionTemplate, doc: DocText, features: PdfFeatures) -> str:
