@@ -11,7 +11,9 @@ detectors. Which pages are searched is the ``detect`` mode:
 
 A :class:`SampleDoc` keeps the PDF bytes, the form map and the value of every form field the PDF holds.
 :func:`sample_view` writes a sample as text for a model (its form map and field values) and :func:`sample_images`
-renders its pages, those with the most boxes first. Nothing here calls a model.
+renders its pages, those with the most boxes first. Nothing here calls a model. Each sample's form map is built,
+and each page's blanks detected, holding :data:`~formcast.pagemap.extract.PDF_LOCK` (one sample, or one sample's
+pages, at a time), so reading samples may run beside other threads' MuPDF work; ``on_page`` is called with it held.
 """
 
 from __future__ import annotations
@@ -123,9 +125,10 @@ def _read(
     for i, sample in enumerate(samples):
         progress = None if on_page is None else (lambda event, i=i: on_page(i, event))
         try:
-            form_map = build_form_map(
-                sample.pdf, detectors=detectors, policy=policy, ocr=ocr, detect=False, on_progress=progress
-            )
+            with PDF_LOCK:  # build_form_map takes no lock of its own; one sample at a time holds it
+                form_map = build_form_map(
+                    sample.pdf, detectors=detectors, policy=policy, ocr=ocr, detect=False, on_progress=progress
+                )
             with DocText(sample.pdf) as text:
                 values = _values(form_map, text)
         except SessionCancelled:

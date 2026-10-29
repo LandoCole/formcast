@@ -63,8 +63,10 @@ file that is not a valid template, or whose samples are missing, raises ``Stored
 Threads: ``Batches`` has one lock for its table. Each ``Batch`` has a lock for its state (files, counts, scan) and a
 second one that lets one upload at a time write; the state lock is never held while files are written or read.
 Lock order: ``PYMUPDF_LOCK`` first, a batch's state lock second. ``Setups`` and ``ExtractionStore`` have one lock
-each for their table or folder. A ``Setup``'s lock is taken before ``PYMUPDF_LOCK`` (an edit proves under both),
-never while holding it.
+each for their table or folder. A ``Setup``'s lock is taken before ``PYMUPDF_LOCK``, never while holding it: an edit
+proves holding the setup's lock, and the library takes ``PYMUPDF_LOCK`` (its own ``PDF_LOCK``) for each MuPDF call
+it makes (a document opened, a page read or rendered), so a page image asked for meanwhile waits for one call, not
+the whole proof.
 """
 
 from __future__ import annotations
@@ -540,8 +542,7 @@ class Setup:
         """
         with self._lock:
             template, doc = self.template, self.sample(n)
-        with PYMUPDF_LOCK:
-            return sample_marks(template, doc.pdf)
+        return sample_marks(template, doc.pdf)
 
     def edit(self, edit: Edit) -> None:
         """Make ``edit`` (``apply_edit`` with the sample PDFs) and prove the template again. No model is called.
@@ -555,10 +556,8 @@ class Setup:
         with self._lock:
             self._free()
             pdfs = [doc.pdf for doc in self.samples]
-            with PYMUPDF_LOCK:
-                template = apply_edit(self.template, edit, pdfs=pdfs)
-                proof = prove(template, pdfs)
-            self.template, self.proof = template, proof
+            template = apply_edit(self.template, edit, pdfs=pdfs)
+            self.template, self.proof = template, prove(template, pdfs)
 
     def learn(self, path: str) -> None:
         """Put the wordings the proof suggests for ``path`` into its reader's map and prove again. No model is called.
@@ -572,11 +571,8 @@ class Setup:
             field_proof = next((f for f in self.proof.fields if f.path == path and f.suggested), None)
             if field_proof is None:
                 raise FormcastError(f"No wordings are suggested for {path}.")
-            pdfs = [doc.pdf for doc in self.samples]
-            with PYMUPDF_LOCK:
-                template = learn_maps(self.template, self.proof.model_copy(update={"fields": [field_proof]}))
-                proof = prove(template, pdfs)
-            self.template, self.proof = template, proof
+            template = learn_maps(self.template, self.proof.model_copy(update={"fields": [field_proof]}))
+            self.template, self.proof = template, prove(template, [doc.pdf for doc in self.samples])
 
     def start_line(self) -> tuple[ExtractionTemplate, list[SampleDoc]]:
         """Mark a line job as running on the setup; the template and samples it starts from.

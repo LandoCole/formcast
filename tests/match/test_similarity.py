@@ -359,3 +359,22 @@ def test_signature_similarity_is_one_for_the_same_form_and_low_for_another():
     assert signature_similarity(fw9, pdf_features(resaved(FW9)).signature) > 0.95
     assert signature_similarity(fw9, fw4) < 0.3
     assert signature_similarity(fw9, fw4) == signature_similarity(fw4, fw9)  # symmetric
+
+
+def test_pdf_features_and_fingerprint_open_each_pdf_holding_the_pdf_lock(monkeypatch):
+    import formcast.match as match_mod
+    from formcast.pagemap.extract import PDF_LOCK
+
+    owned: list[bool] = []
+    real = match_mod.open_pdf
+
+    def watching(pdf):
+        owned.append(PDF_LOCK._is_owned())
+        return real(pdf)
+
+    monkeypatch.setattr(match_mod, "open_pdf", watching)
+    features = match_mod.pdf_features(FW9)
+    features.fingerprint, features.fingerprint_blind, features.page_sizes, features.signature, features.phrases
+    fingerprint(FW9)
+    assert len(owned) == 7 and all(owned)
+    assert not PDF_LOCK._is_owned()  # each let go

@@ -8,7 +8,8 @@ is reachable as ``{server}/demo/web/...`` exactly as the demo is served in use. 
 ``demo/data`` so nothing a test saves reaches the repository. The copy leaves out ``demo/data/local/`` (the
 templates a developer saved in the workbench), so every test sees the shipped data only. ``start_demo_server(**kw)`` starts another
 one with different settings, a provider factory, a store or records. ``text_only_agent`` makes AI jobs run the
-agent with ``vision=False``.
+agent with ``vision=False``. ``extract_detectors_off`` keeps the extraction setup's sample reading from loading
+detector weights (the extract server and page tests use it beside their ``no_model_loads``).
 """
 
 from __future__ import annotations
@@ -37,6 +38,21 @@ def text_only_agent(monkeypatch):
 
     monkeypatch.setattr(jobs_mod, "build_template", partial(jobs_mod.build_template, vision=False))
     monkeypatch.setattr(jobs_mod, "revise", partial(jobs_mod.revise, vision=False))
+
+
+@pytest.fixture
+def extract_detectors_off(monkeypatch):
+    """A setup's samples are read with no field detectors, so no detector weights load.
+
+    The server hands ``formcast.extract`` the documents' detectors, and a test server has none (no warm-up), so the
+    library would make its stock ones; here they are none, with a policy that runs none.
+    """
+    from formcast.extract import samples as samples_mod
+    from formcast.pagemap.build import DetectPolicy
+
+    policy = DetectPolicy(digital=(), scanned=())
+    monkeypatch.setattr(samples_mod, "load_default_detectors", lambda: {})
+    monkeypatch.setattr(samples_mod, "DetectPolicy", lambda: policy)
 
 
 @pytest.fixture

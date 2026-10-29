@@ -577,3 +577,20 @@ def test_a_phrase_followed_by_a_colon_still_reads_what_comes_after():
 def test_phrases_on_a_rotated_fillable_copy_read_the_same():
     with DocText(make_form(CLIENT, kind="fillable", rotate=ROTATE)) as doc:
         assert doc.after_phrase(["account"], 0, "digits")[0][1].replace(" ", "") == CLIENT.account
+
+
+def test_a_doctext_opens_its_pdf_and_counts_its_pages_holding_the_pdf_lock(monkeypatch):
+    import formcast.extract.page as page_mod
+    from formcast.pagemap.extract import PDF_LOCK
+
+    owned: list[bool] = []
+    real = page_mod.open_pdf
+
+    def watching(pdf):
+        owned.append(PDF_LOCK._is_owned())
+        return real(pdf)
+
+    monkeypatch.setattr(page_mod, "open_pdf", watching)
+    with DocText(_lines_pdf("Name:")) as doc:
+        assert doc.page_count == 1 and not PDF_LOCK._is_owned()
+    assert owned == [True]

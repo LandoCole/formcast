@@ -33,7 +33,7 @@ import pymupdf
 from pydantic import BaseModel
 
 from formcast.errors import FormcastError
-from formcast.pagemap.extract import open_pdf, page_size
+from formcast.pagemap.extract import PDF_LOCK, open_pdf, page_size
 from formcast.pagemap.model import FormSignature
 
 if TYPE_CHECKING:
@@ -117,11 +117,12 @@ def fingerprint(pdf: str | Path | bytes) -> str:
     Raises:
         FormcastError: "encrypted PDF" or "cannot open PDF".
     """
-    doc = open_pdf(pdf)
-    try:
-        return fingerprint_document(doc)
-    finally:
-        doc.close()
+    with PDF_LOCK:
+        doc = open_pdf(pdf)
+        try:
+            return fingerprint_document(doc)
+        finally:
+            doc.close()
 
 
 # ---------------------------------------------------------------------------------------------
@@ -308,8 +309,9 @@ class PdfFeatures:
     Each part (``fingerprint``, ``fingerprint_blind``, ``page_sizes``, ``signature``, ``phrases``) is
     computed the first time something asks for it and then kept, so a fingerprint hit never renders
     for the signature, and comparing one PDF with many templates reads the PDF once. It holds the
-    PDF's bytes and opens them per part; like all MuPDF work, call it from one thread at a time
-    (a first access from two threads at once only repeats work). Treat the attributes as opaque.
+    PDF's bytes and opens them per part, holding :data:`~formcast.pagemap.extract.PDF_LOCK` while it opens,
+    computes and closes each one, so it may be used beside other threads' MuPDF work (a first access from two
+    threads at once only repeats work). Treat the attributes as opaque.
     """
 
     def __init__(self, data: bytes) -> None:
@@ -318,11 +320,12 @@ class PdfFeatures:
 
     def _part(self, name: str, compute):
         if name not in self._cache:
-            doc = open_pdf(self._data)
-            try:
-                self._cache[name] = compute(doc)
-            finally:
-                doc.close()
+            with PDF_LOCK:
+                doc = open_pdf(self._data)
+                try:
+                    self._cache[name] = compute(doc)
+                finally:
+                    doc.close()
         return self._cache[name]
 
     @property
@@ -369,7 +372,8 @@ def pdf_features(pdf: str | Path | bytes) -> PdfFeatures:
             data = Path(pdf).read_bytes()
         except OSError as exc:
             raise FormcastError("cannot open PDF") from exc
-    open_pdf(data).close()
+    with PDF_LOCK:
+        open_pdf(data).close()
     return PdfFeatures(data)
 
 

@@ -259,3 +259,23 @@ def test_a_first_sample_is_the_first_members(report):
 def test_a_sample_of_none_is_refused(report):
     with pytest.raises(FormcastError, match="at least 1"):
         sample(report.main, 0)
+
+
+def test_a_first_page_scan_reads_each_document_holding_the_pdf_lock(tmp_path, monkeypatch):
+    import formcast.extract.scan as scan_mod
+    from formcast.pagemap.extract import PDF_LOCK
+
+    owned: list[bool] = []
+    real = scan_mod.open_pdf
+
+    def watching(pdf):
+        owned.append(PDF_LOCK._is_owned())
+        return real(pdf)
+
+    monkeypatch.setattr(scan_mod, "open_pdf", watching)
+    paths = []
+    for n, client in enumerate(clients(2)):
+        paths.append(tmp_path / f"{n}.pdf")
+        paths[-1].write_bytes(make_form(client, kind="fillable"))
+    scan(paths, first_page_only=True)
+    assert owned == [True, True] and not PDF_LOCK._is_owned()

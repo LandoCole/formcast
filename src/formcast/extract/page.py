@@ -169,13 +169,17 @@ class _Text:
 class DocText:
     """One PDF, opened once. Close it with :meth:`close` or use it as a context manager.
 
+    Every MuPDF call it makes (open, read, close) holds :data:`~formcast.pagemap.extract.PDF_LOCK` for that call
+    only, so a ``DocText`` may be used beside other threads' MuPDF work; one ``DocText`` is used by one thread.
+
     Raises:
         FormcastError: "encrypted PDF" or "cannot open PDF" when the input cannot be read.
     """
 
     def __init__(self, pdf: str | Path | bytes) -> None:
-        self._doc = open_pdf(pdf)
-        self.page_count: int = self._doc.page_count
+        with PDF_LOCK:
+            self._doc = open_pdf(pdf)
+            self.page_count: int = self._doc.page_count
         self._texts: dict[int, _Text] = {}
         self._fields: dict[str, list[tuple[str, object]]] | None = None  # name -> [(kind, value)] per widget
         self._places: dict[str, list[tuple[int, Rect, str | None]]] | None = None  # name -> [(page, rect, on-state)]

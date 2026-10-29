@@ -48,14 +48,11 @@ from tests.extract.fakes import CorpusModel
 
 
 @pytest.fixture(autouse=True)
-def no_model_loads(monkeypatch):
+def no_model_loads(monkeypatch, extract_detectors_off):
     """No detector weights load: the documents' form maps and a setup's samples are read with no detectors."""
     real = documents_mod.build_form_map
     policy = DetectPolicy(digital=(), scanned=())
     monkeypatch.setattr(documents_mod, "build_form_map", lambda pdf, detectors=None, **kw: real(pdf, detectors={}, policy=policy, ocr="never"))
-    # the server passes the documents' detectors (none in the tests): the library would load its stock ones
-    monkeypatch.setattr(samples_mod, "load_default_detectors", lambda: {})
-    monkeypatch.setattr(samples_mod, "DetectPolicy", lambda: policy)
 
 
 def wait_ended(jobs: Jobs, job_id: str, timeout: float = 10.0) -> dict:
@@ -851,6 +848,32 @@ def test_cancelling_a_setup_job_during_the_fields_stage_ends_it_cancelled_with_n
     assert job["status"] == "cancelled" and "setup" not in job["result"]
     assert "readers" not in model.calls  # it stopped before the next stage
     assert not b.api.setups._setups
+
+
+def test_a_setup_job_cancelled_while_it_reads_the_samples_ends_cancelled_and_leaves_mupdf_free(start_demo_server, setup_pdfs, setup_people, monkeypatch):
+    reached, released = threading.Event(), threading.Event()
+    real = samples_mod.build_form_map
+
+    def gated(pdf, **kw):  # the first sample's form map waits (holding the lock, as the library does) until released
+        if not reached.is_set():
+            reached.set()
+            assert released.wait(10)
+        return real(pdf, **kw)
+
+    monkeypatch.setattr(samples_mod, "build_form_map", gated)
+    model = model_for(setup_pdfs, setup_people)
+    b = bench_of(start_demo_server, setup_pdfs, model)
+    job_id = setup_job(b)["id"]
+    assert reached.wait(30)
+    assert next(s for s in job_of(b.base, job_id)["stages"] if s["key"] == "read")["status"] == "running"
+    assert get_json(b.base, f"/api/jobs/{job_id}/cancel", "POST", {})[0] == 200
+    released.set()  # the form map's first page tells on_page, which stops the job
+    job = job_ended(b.base, job_id)
+    assert job["status"] == "cancelled" and model.calls == {}
+    status, headers, png = http_request(b.base, "GET", f"/api/batches/{b.batch}/files/0/pages/0.png?dpi=50")
+    assert status == 200 and headers["content-type"] == "image/png"
+    assert PYMUPDF_LOCK.acquire(timeout=5)  # from this thread too: nothing kept the lock
+    PYMUPDF_LOCK.release()
 
 
 def test_an_edit_is_applied_and_proven_again_with_no_model_call(bench):

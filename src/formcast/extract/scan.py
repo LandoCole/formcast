@@ -44,7 +44,7 @@ from formcast.match import (
     pdf_features,
     signature_similarity,
 )
-from formcast.pagemap.extract import open_pdf, page_size
+from formcast.pagemap.extract import PDF_LOCK, open_pdf, page_size
 from formcast.pagemap.model import FormSignature
 
 # Signature closeness (``signature_similarity``: the mean of the wording part and the ink part, 0 to 1) at which a
@@ -124,13 +124,14 @@ def _read(path: Path, first_page_only: bool) -> _Doc:
     except OSError as exc:
         raise FormcastError("cannot open PDF") from exc
     if first_page_only:
-        doc = open_pdf(data)
-        try:
-            page_count, sizes = doc.page_count, [page_size(p) for p in doc]
-            doc.select([0])
-            blind, signature = fingerprint_document(doc, ignore_field_values=True), compute_signature(doc)
-        finally:
-            doc.close()
+        with PDF_LOCK:  # as PdfFeatures and DocText do for the other reads
+            doc = open_pdf(data)
+            try:
+                page_count, sizes = doc.page_count, [page_size(p) for p in doc]
+                doc.select([0])
+                blind, signature = fingerprint_document(doc, ignore_field_values=True), compute_signature(doc)
+            finally:
+                doc.close()
     else:
         features = pdf_features(data)
         sizes = features.page_sizes

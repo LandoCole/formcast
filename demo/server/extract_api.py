@@ -63,11 +63,14 @@ runs on a setup, an edit, a wording or another line job is 409 ``busy_setup``. A
 "no such extraction: <name>"; a name ``store.check_name`` refuses is 400 ``bad_name``, a saved file that is not a
 valid template 422 ``bad_template_file``.
 
-The setup job's ``read`` stage, which builds each sample's form map, holds ``PYMUPDF_LOCK`` as the documents' form
-map builds do; the stages after it call the model, so they hold no lock, and the library takes its MuPDF lock (the
-same lock) for the page images and text it reads. When the server warms the field detectors up (``python -m
-demo.server``), the build uses the same detectors as the documents, and the ``detect`` stage waits for their weights
-before the library takes the lock to detect; without a warm-up the library loads its own.
+Locks: these handlers and jobs hold no MuPDF lock of their own. ``formcast.extract`` takes ``PDF_LOCK`` (which is
+``PYMUPDF_LOCK``) for each piece of MuPDF work it does and lets go after it: a sample's form map while it is built
+(one sample at a time), a sample's blanks while they are detected, each ``DocText`` open, read and close, each
+``PdfFeatures`` part (fingerprints, sizes, signature) while it is computed, each page image it renders for the model.
+It never holds the lock across a model call, so page images, marks, edits and scans asked for while a job runs wait
+for one such piece, not the job. When the server warms the field detectors up (``python -m demo.server``), the build
+uses the same detectors as the documents, and the ``detect`` stage waits for their weights before the library takes
+the lock to detect; without a warm-up the library loads its own.
 
 The handlers are functions over the ``Api`` they are registered on, so the managers (``demo/server/extraction.py``)
 stay where the ``Api`` keeps them. This module imports ``api`` for ``ApiError``, ``Request`` and the upload helpers,
@@ -84,7 +87,7 @@ from typing import Any
 import pydantic
 
 from demo.server.api import AI_NOT_CONFIGURED, DEFAULT_DPI, Api, ApiError, Request, Response, _object, _uploads, missing
-from demo.server.documents import MAX_DPI, MIN_DPI, PYMUPDF_LOCK, page_png
+from demo.server.documents import MAX_DPI, MIN_DPI, page_png
 from demo.server.extraction import MIN_SAMPLE, PAGE_DEFAULT, PAGE_LIMIT, Batch, ScanNotDone, Setup, SetupBusy
 from demo.server.jobs import Job, JobsBusy
 from demo.server.store import check_name
@@ -291,19 +294,10 @@ def _start_setup(api: Api, payload: dict) -> dict:
     stages = [(key, FIELDS_LABELS[spec.start] if key == "fields" else label) for key, label in STAGES]
 
     def run(job: Job) -> None:
-        reading = False  # this thread holds PYMUPDF_LOCK for the read stage
-
         def on_stage(event) -> None:
-            nonlocal reading
             job.stage(event.key, event.status, event.detail)
-            if event.key == "read" and event.status != "running" and reading:
-                PYMUPDF_LOCK.release()
-                reading = False
             _stop_if_cancelled(job)
-            if event.key == "read" and event.status == "running":
-                PYMUPDF_LOCK.acquire()  # the form maps are built as the documents' are, under the lock
-                reading = True
-            elif event.key == "detect" and event.status == "running" and warmup is not None:
+            if event.key == "detect" and event.status == "running" and warmup is not None:
                 warmup.ready()  # the weights load before the library takes the lock to detect
 
         provider = api.provider_factory()
@@ -313,8 +307,6 @@ def _start_setup(api: Api, payload: dict) -> dict:
                 on_stage=on_stage, on_page=lambda i, progress: _stop_if_cancelled(job),
             )  # fmt: skip
         finally:
-            if reading:
-                PYMUPDF_LOCK.release()
             provider.close()
         job.add_usage(result.usage)
         setup = Setup(uuid.uuid4().hex, batch.id, result.template, result.samples, indexes, result.proof, result.warnings)
@@ -436,9 +428,8 @@ def reopen_setup(api: Api, req: Request) -> dict:
         template = api.extractions.get(name)
         pdfs = api.extractions.samples(name)
     ocr = template.setup.ocr if template.setup is not None else "auto"
-    with PYMUPDF_LOCK:
-        docs = read_samples(pdfs, detect="off", ocr=ocr)
-        proof = prove(template, [doc.pdf for doc in docs])
+    docs = read_samples(pdfs, detect="off", ocr=ocr)
+    proof = prove(template, [doc.pdf for doc in docs])
     return api.setups.add(Setup(uuid.uuid4().hex, None, template, docs, None, proof, [])).summary()
 
 

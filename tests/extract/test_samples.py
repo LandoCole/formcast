@@ -158,3 +158,19 @@ def test_a_value_with_a_quote_or_a_newline_stays_on_one_line():
     doc = _sample_with_values({"a": 'He said "hi"', "b": "two\nlines", "c": True}, make_form(None, kind="fillable"))
     lines = sample_view(doc, 1).splitlines()
     assert 'a = "He said \\"hi\\""' in lines and 'b = "two\\nlines"' in lines and "c = true" in lines
+
+
+def test_each_samples_form_map_is_built_holding_the_pdf_lock(monkeypatch):
+    from formcast.pagemap.extract import PDF_LOCK
+
+    owned: list[bool] = []
+    real = samples_mod.build_form_map
+
+    def watching(pdf, **kw):
+        owned.append(PDF_LOCK._is_owned())
+        return real(pdf, **kw)
+
+    monkeypatch.setattr(samples_mod, "build_form_map", watching)
+    pdfs = [SamplePdf(f"{n}.pdf", make_form(c, kind="flattened")) for n, c in enumerate(clients(2))]
+    read_samples(pdfs, detect="off")
+    assert owned == [True, True] and not PDF_LOCK._is_owned()
