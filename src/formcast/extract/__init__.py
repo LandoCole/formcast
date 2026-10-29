@@ -1,6 +1,7 @@
 """Read filled PDFs of one layout into structured, checked values with no model call.
 
     ExtractionTemplate, Reader, ...   formcast.extract.model   (the template and the result of reading a document)
+    DocText, label_key                formcast.extract.page    (one open PDF and the lookups made on it)
 
 The public names load on first use, as in ``formcast``, so importing one module does not pull in the rest.
 """
@@ -15,6 +16,7 @@ _LAZY = {
     "BoxRead": "formcast.extract.model",
     "ChoiceMark": "formcast.extract.model",
     "ChoiceRead": "formcast.extract.model",
+    "DocText": "formcast.extract.page",
     "DocumentResult": "formcast.extract.model",
     "ExtractionTemplate": "formcast.extract.model",
     "FieldResult": "formcast.extract.model",
@@ -26,6 +28,7 @@ _LAZY = {
     "Strategy": "formcast.extract.model",
     "WidgetRead": "formcast.extract.model",
     "concrete_paths": "formcast.extract.model",
+    "label_key": "formcast.extract.page",
 }
 
 if TYPE_CHECKING:
@@ -33,6 +36,7 @@ if TYPE_CHECKING:
         AnchorRead, BoxRead, ChoiceMark, ChoiceRead, DocumentResult, ExtractionTemplate, FieldResult, Layout,
         PhraseRead, Reader, StaticLine, Status, Strategy, WidgetRead, concrete_paths,
     )  # fmt: skip
+    from formcast.extract.page import DocText, label_key
 
 
 def __getattr__(name: str) -> Any:

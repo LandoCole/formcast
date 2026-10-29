@@ -53,6 +53,7 @@ ROTATE = 90  # the /Rotate the corpus folder's rotated copy uses
 
 TITLE = "Client Information Form"
 TITLE_ORIGIN = (72.0, 72.0)
+HEADER_ORIGIN = (72.0, 96.0)  # where ``make_form(header=...)`` draws its line, between the title and the first row
 
 #: Printed labels: the baseline origin of each (page 0, x, baseline y), keyed by the label's default wording.
 LABEL_ORIGINS: dict[str, tuple[float, float]] = {
@@ -239,11 +240,14 @@ def _draw_page_zero(
     shift: float,
     painted: bool,
     labels: dict[str, str],
+    header: str | None = None,
 ) -> None:
     def word(text: str) -> str:
         return labels.get(text, text)
 
     page.insert_text((TITLE_ORIGIN[0], TITLE_ORIGIN[1] + shift), word(TITLE), fontsize=16, fontname="hebo")
+    if header:
+        page.insert_text((HEADER_ORIGIN[0], HEADER_ORIGIN[1] + shift), header, fontsize=FONT_SIZE, fontname="helv")
     for text, (x, y) in LABEL_ORIGINS.items():
         bold = text.startswith(("Mailing", "Beneficial"))
         page.insert_text((x, y + shift), word(text), fontsize=FONT_SIZE, fontname="hebo" if bold else "helv")
@@ -312,16 +316,18 @@ def make_form(
     extra_page: bool = False,
     painted: bool = False,
     labels: dict[str, str] | None = None,
+    header: str | None = None,
 ) -> bytes:
     """A two-page client-information form as PDF bytes; ``client=None`` is the blank form.
 
     ``labels`` replaces printed wordings (``{"Taxpayer ID:": "TIN:"}``) for a copy that words a label differently.
+    ``header`` draws one more line of text under the title (``"Taxpayer ID:"``, so that label is on the page twice).
     """
     if kind not in ("fillable", "flattened"):
         raise ValueError(f"kind must be 'fillable' or 'flattened', not {kind!r}")
     doc = pymupdf.open()
     first = doc.new_page(width=PAGE_SIZE[0], height=PAGE_SIZE[1])
-    _draw_page_zero(first, client, kind, shift, painted, labels or {})
+    _draw_page_zero(first, client, kind, shift, painted, labels or {}, header)
     _draw_page_one(doc.new_page(width=PAGE_SIZE[0], height=PAGE_SIZE[1]))
     if rotate:
         for page in doc:
