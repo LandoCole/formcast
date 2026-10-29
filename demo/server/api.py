@@ -25,6 +25,9 @@ records, a table file or free text in; a filled PDF (or a zip of them) out. Ever
 smart PDFs and rebinds; inside ``Doc`` for the form map and the match features). Matching takes no lock:
 it scores the document's features, which ``Doc.match_features`` computes in full, so it does not wait for a build.
 
+The PDF extraction workbench's routes and its ``extract-setup``, ``extract-line`` and ``extract-run`` jobs are in
+``demo/server/extract_api.py`` (``Api.create_job`` hands those kinds over; they need no model).
+
 Handlers are small methods registered in ``Api._add_routes``; they return a JSON-able value
 (sent as 200) or a ``Response``.
 """
@@ -50,7 +53,7 @@ import pydantic
 
 from demo.server.datasets import Dataset, Datasets
 from demo.server.documents import DETECT_MODES, MAX_DPI, MIN_DPI, PYMUPDF_LOCK, Doc, Documents
-from demo.server.jobs import KINDS, Jobs, JobsBusy
+from demo.server.jobs import EXTRACT_KINDS, KINDS, Jobs, JobsBusy
 from demo.server.oneshot import OneShotSpec, map_dataset
 from demo.server.records import MultiRecords, RecordSource, RecordSourceError
 from demo.server.settings import Settings
@@ -158,6 +161,8 @@ class Api:
         self.documents = documents if documents is not None else Documents()
         self.datasets = Datasets()
         self.jobs = Jobs(secrets=[settings.llm.api_key] if settings.llm is not None else [])
+        # the extraction workbench's managers (demo/server/extraction.py): batches of PDFs, setups, saved extractions, runs
+        self.batches = self.setups = self.extractions = self.runs = None
         self._routes: list[tuple[str, re.Pattern[str], Callable[[Request], Any]]] = []
         self._add_routes()
 
@@ -242,6 +247,9 @@ class Api:
         self._add("GET", r"/api/schemas", self.schemas)
         self._add("GET", r"/api/records", self.list_records)
         self._add("GET", r"/api/records/(?P<schema>[^/]+)/(?P<id>[^/]+)", self.get_record)
+        from demo.server.extract_api import add_extract_routes  # here, not at the top: extract_api imports this module
+
+        add_extract_routes(self)
 
     # ------------------------------------------------------------ routes
 
@@ -258,6 +266,7 @@ class Api:
             "xlsx": _has_openpyxl(),
             "progress": True,
             "detectPage": True,
+            "extract": True,
         }
 
     def _forms_dir(self):
@@ -478,10 +487,14 @@ class Api:
         kind = payload.get("kind")
         if kind == "oneshot":
             return self._start_oneshot(payload)
+        if kind in EXTRACT_KINDS:  # these need no model; the extraction workbench starts them
+            from demo.server.extract_api import start_extract_job  # here, not at the top: extract_api imports this module
+
+            return start_extract_job(self, kind, payload)
+        if kind not in KINDS:
+            raise ApiError(400, "bad_kind", f"kind must be {', '.join((*KINDS, *EXTRACT_KINDS)[:-1])} or {EXTRACT_KINDS[-1]}")
         if self.provider_factory is None:
             raise ApiError(400, "ai_not_configured", "AI is not configured. Set the model endpoint, key and name in .env (see the README).")
-        if kind not in KINDS:
-            raise ApiError(400, "bad_kind", "kind must be build, adapt, revise or oneshot")
         doc = self._doc(payload)
         schema = template = instruction = region = None
         if kind == "build":
@@ -976,19 +989,27 @@ def _safe_filename(name: str) -> str:
     return re.sub(r"[^A-Za-z0-9_.-]+", "_", name).strip("._") or "template"
 
 
-def _upload(req: Request) -> tuple[str, bytes]:
-    """The ``file`` part of a multipart body as ``(display name, bytes)``."""
+def _uploads(req: Request) -> list[tuple[str, bytes]]:
+    """Every ``file`` part of a multipart body as ``(display name, bytes)``, in order. Raises ``ApiError`` 400 ``bad_upload`` when there is none."""
     head = b"Content-Type: " + req.content_type.encode("latin-1", "replace") + b"\r\nMIME-Version: 1.0\r\n\r\n"
     try:
         message = BytesParser(policy=policy.HTTP).parsebytes(head + req.body)
         parts = list(message.iter_parts()) if message.is_multipart() else []
     except Exception:
         parts = []
-    for part in parts:
-        if part.get_param("name", header="content-disposition") == "file":
-            data = part.get_payload(decode=True) or b""
-            return _display_name(part.get_filename()), data
-    raise ApiError(400, "bad_upload", "send the file as a multipart form field named file")
+    files = [
+        (_display_name(part.get_filename()), part.get_payload(decode=True) or b"")
+        for part in parts
+        if part.get_param("name", header="content-disposition") == "file"
+    ]
+    if not files:
+        raise ApiError(400, "bad_upload", "send the file as a multipart form field named file")
+    return files
+
+
+def _upload(req: Request) -> tuple[str, bytes]:
+    """The first ``file`` part of a multipart body as ``(display name, bytes)``."""
+    return _uploads(req)[0]
 
 
 def _display_name(filename: str | None) -> str:

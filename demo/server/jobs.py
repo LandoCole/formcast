@@ -1,6 +1,7 @@
-"""AI jobs: ``build``, ``adapt``, ``revise`` and ``oneshot`` sessions, one thread each, with progress and cancel.
+"""Jobs: ``build``, ``adapt``, ``revise`` and ``oneshot`` AI sessions and generic task jobs, one thread each, with progress and cancel.
 
     Jobs.start(kind, doc=..., schema=..., template=..., instruction=..., region=..., oneshot=..., provider_factory=...) -> Job
+    Jobs.start_task(kind, runner, stages=((key, label), ...)) -> Job
     Jobs.get(job_id) -> Job            (KeyError if unknown or already forgotten)
     Jobs.cancel(job_id) -> Job
 
@@ -14,6 +15,13 @@ data. ``stages`` lists its stages, each ``{key, label, status, detail}`` with st
 ``running``, ``done``, ``skipped`` or ``error``; ``result`` holds ``schema`` once known and ``data``
 (records, the data mapping, warnings) once the data is mapped. Other kinds have no stages and an empty
 result. ``usage`` counts the model tokens the job has used so far (a oneshot job's, in full).
+
+A task job (``Jobs.start_task``) is the generic kind the extraction workbench uses (``extract-setup``,
+``extract-line``, ``extract-run``): the caller gives the function to run, ``runner(job)``, and its stages. The runner
+reports through the job (``stage``, ``set_result``, ``add_usage``) and polls ``job.cancel_requested``. Its return ends
+the job ``done``; a ``SessionCancelled`` ends it ``cancelled``; a ``FormcastError`` ends it ``error`` with its message;
+anything else ends it ``error`` with a generic message and the traceback goes to the log only. A task job takes one of
+the same ``max_running`` slots as every other job.
 
 ``status`` is ``running``, then one of ``done`` (the model finished), ``cancelled`` (stopped by a cancel
 request) or ``error`` (the model call or the sandbox failed, the budget ran out, or something unexpected
@@ -51,7 +59,7 @@ import time
 import traceback
 import uuid
 from collections import OrderedDict
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
 from typing import Literal
 
 from demo.server.documents import Doc
@@ -68,6 +76,8 @@ KEEP_FINISHED = 20
 
 Kind = Literal["build", "adapt", "revise", "oneshot"]
 KINDS: tuple[str, ...] = ("build", "adapt", "revise", "oneshot")
+#: the task jobs of the extraction workbench (``Jobs.start_task``); ``demo/server/extract_api.py`` starts them
+EXTRACT_KINDS: tuple[str, ...] = ("extract-setup", "extract-line", "extract-run")
 
 _GENERIC_ERROR = "The job stopped because of an unexpected error. The server log has the details."
 _PROVIDER_ERROR = (
@@ -84,7 +94,7 @@ class JobsBusy(Exception):
 class Job:
     """One AI run. Read it with ``snapshot()``; only the job's own thread changes it."""
 
-    def __init__(self, kind: Kind) -> None:
+    def __init__(self, kind: str) -> None:
         self.id = uuid.uuid4().hex
         self.kind = kind
         self.status: Literal["running", "done", "cancelled", "error"] = "running"
@@ -202,21 +212,39 @@ class Jobs:
         if kind != "oneshot" and provider_factory is None:
             raise ValueError(f"an {kind} job needs a provider")
         job = Job(kind)
+        self._register(job)
+        self._launch(job, self._run, job, doc, schema, template, instruction, region, oneshot, provider_factory)
+        return job
+
+    def _register(self, job: Job) -> None:
+        """Keep ``job``, taking one of the ``max_running`` slots. Raises ``JobsBusy`` when none is free."""
         with self._lock:
             if sum(1 for j in self._jobs.values() if j.status == "running") >= self.max_running:
                 raise JobsBusy(f"{self.max_running} AI jobs are already running; wait for one to finish or cancel it.")
             self._jobs[job.id] = job
-        thread = threading.Thread(
-            target=self._run,
-            args=(job, doc, schema, template, instruction, region, oneshot, provider_factory),
-            name=f"job-{job.id[:8]}",
-            daemon=True,
-        )
+
+    def _launch(self, job: Job, target: Callable[..., None], *args) -> None:
+        thread = threading.Thread(target=target, args=args, name=f"job-{job.id[:8]}", daemon=True)
         try:
             thread.start()
         except BaseException:  # e.g. the process cannot make another thread: do not keep the slot
             self._finish(job, "error", error=_GENERIC_ERROR)
             raise
+
+    def start_task(self, kind: str, runner: Callable[[Job], None], *, stages: Sequence[tuple[str, str]] = ()) -> Job:
+        """Start ``runner(job)`` in its own thread as a job of ``kind``, with ``stages`` (``(key, label)``, all pending).
+
+        The runner's return ends the job ``done``, ``SessionCancelled`` ``cancelled``, ``FormcastError`` ``error`` with
+        its message (secrets removed), anything else ``error`` with a generic message (the traceback goes to the log).
+        A stage still running when the job ends is closed as for every job (``_finish``).
+
+        Raises:
+            JobsBusy: ``max_running`` jobs are already running.
+        """
+        job = Job(kind)
+        job.stages = [{"key": key, "label": label, "status": "pending", "detail": ""} for key, label in stages]
+        self._register(job)
+        self._launch(job, self._run_task, job, runner)
         return job
 
     def get(self, job_id: str) -> Job:
@@ -266,6 +294,19 @@ class Jobs:
                         log.warning("job %s: closing the provider failed", job.id[:8])
             self._finish_from(job, result)
         except FormcastError as exc:  # the library's own plain message (a schema or template it cannot use)
+            log.warning("job %s failed: %s", job.id[:8], self._redact(str(exc)))
+            self._finish(job, "error", error=self._redact(str(exc)))
+        except Exception:  # noqa: BLE001 - nothing may escape a job thread; the client gets a generic message
+            log.error("job %s failed unexpectedly:\n%s", job.id[:8], self._redact(traceback.format_exc()))
+            self._finish(job, "error", error=_GENERIC_ERROR)
+
+    def _run_task(self, job: Job, runner: Callable[[Job], None]) -> None:
+        try:
+            runner(job)
+            self._finish(job, "done")
+        except SessionCancelled:
+            self._finish(job, "cancelled", summary="cancelled")
+        except FormcastError as exc:
             log.warning("job %s failed: %s", job.id[:8], self._redact(str(exc)))
             self._finish(job, "error", error=self._redact(str(exc)))
         except Exception:  # noqa: BLE001 - nothing may escape a job thread; the client gets a generic message

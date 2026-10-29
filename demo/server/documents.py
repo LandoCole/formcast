@@ -85,6 +85,25 @@ def clamp_dpi(dpi: int) -> int:
     return max(MIN_DPI, min(MAX_DPI, int(dpi)))
 
 
+def page_png(pdf: bytes, n: int, dpi: int) -> bytes:
+    """PNG of page ``n`` (0-based) of the PDF ``pdf`` at ``dpi`` (clamped to 36-200), with the page's /Rotate applied.
+
+    Opens the PDF from its bytes and renders under ``PYMUPDF_LOCK``. For a PDF held as bytes with no ``Doc``
+    (a sample of a batch, a document of a run); ``Doc.page_png`` adds its cache.
+
+    Raises:
+        IndexError: ``n`` is not a page of the PDF (MuPDF raises it for a page past the last).
+    """
+    if n < 0:  # MuPDF counts a negative page from the end
+        raise IndexError(n)
+    with PYMUPDF_LOCK:
+        doc = pymupdf.open(stream=pdf, filetype="pdf")
+        try:
+            return doc[n].get_pixmap(dpi=clamp_dpi(dpi), alpha=False).tobytes("png")
+        finally:
+            doc.close()
+
+
 class Doc:
     """One open PDF. Build with ``Documents.add``."""
 
@@ -355,12 +374,7 @@ class Doc:
             if png is not None:
                 self._images.move_to_end(key)
                 return png
-            with PYMUPDF_LOCK:
-                pdf = pymupdf.open(stream=self.bytes, filetype="pdf")
-                try:
-                    png = pdf[n].get_pixmap(dpi=key[1], alpha=False).tobytes("png")
-                finally:
-                    pdf.close()
+            png = page_png(self.bytes, n, key[1])
             self._images[key] = png
             while len(self._images) > _IMAGES_PER_DOC:
                 self._images.popitem(last=False)

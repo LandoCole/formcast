@@ -395,6 +395,15 @@ def test_a_job_with_no_valid_document_is_refused_before_a_thread_starts(ai, body
     assert factory.providers == []
 
 
+def test_the_bad_kind_message_names_every_job_kind(ai):
+    base, doc, template, factory = ai
+    status, out = post(base, "/api/jobs", {"kind": "teleport"})
+    assert (status, out["error"]) == (400, "bad_kind")
+    assert out["detail"] == (
+        "kind must be build, adapt, revise, oneshot, extract-setup, extract-line or extract-run"
+    )
+
+
 @pytest.mark.parametrize(
     "extra, code",
     [

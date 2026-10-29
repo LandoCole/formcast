@@ -9,6 +9,8 @@ environment. Values are never printed or logged (``LLMConfig`` masks its key in 
     FORMCAST_DEMO_API_FORMAT   chat_completions (default) or responses
     FORMCAST_DEMO_HOST, FORMCAST_DEMO_PORT, FORMCAST_DEMO_DATA_DIR
     FORMCAST_DEMO_ENABLED      false (or 0, no, off) drops the demo data: see ``demo_enabled``
+    FORMCAST_DEMO_FOLDER_SCAN  false (or 0, no, off) stops the workbench opening a folder of PDFs by its path
+    FORMCAST_DEMO_EXTRACT_WORKERS   processes an extraction run uses (a whole number; 0 = one per CPU)
 
 The AI features are on only when the base URL, key and model are all set.
 
@@ -49,6 +51,8 @@ class Settings:
     demo_enabled: bool = True
     max_upload_bytes: int = 50 * 2**20
     max_json_bytes: int = 20 * 2**20
+    folder_scan: bool = True  #: may a batch be opened from a folder path on this machine
+    extract_workers: int = 0  #: processes an extraction run uses; 0 is one per CPU
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> Settings:
@@ -68,6 +72,10 @@ class Settings:
             out.data_dir = Path(data_dir).expanduser().resolve()
         if (enabled := get("ENABLED")) is not None:
             out.demo_enabled = parse_bool(enabled, f"{PREFIX}ENABLED")
+        if (scan := get("FOLDER_SCAN")) is not None:
+            out.folder_scan = parse_bool(scan, f"{PREFIX}FOLDER_SCAN")
+        if (workers := get("EXTRACT_WORKERS")) is not None:
+            out.extract_workers = parse_count(workers, f"{PREFIX}EXTRACT_WORKERS")
         base_url, api_key, model = get("BASE_URL"), get("API_KEY"), get("MODEL")
         if base_url and api_key and model:
             out.llm = LLMConfig(
@@ -89,6 +97,17 @@ def parse_port(text: str, what: str = "the port") -> int:
     if not 0 <= port <= 65535:
         raise ValueError(f"{what} must be {PORT_RANGE}")
     return port
+
+
+def parse_count(text: str, what: str) -> int:
+    """``text`` as a whole number, zero or more. Raises ``ValueError`` naming ``what`` but not the value."""
+    try:
+        count = int(text)
+    except ValueError:
+        count = -1
+    if count < 0:
+        raise ValueError(f"{what} must be a whole number, 0 or more")
+    return count
 
 
 def parse_bool(text: str, what: str) -> bool:
