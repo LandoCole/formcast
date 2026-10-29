@@ -2,6 +2,7 @@
 
 import dataclasses
 import json
+import time
 from pathlib import Path
 
 import pymupdf
@@ -174,7 +175,8 @@ def test_an_unreadable_file_is_recorded_and_the_run_goes_on(tmp_path):
     assert [row["doc_id"] for row in results.rows()] == ["good.pdf"]
 
 
-def test_a_file_that_kills_its_worker_is_recorded_and_the_run_goes_on(tmp_path, monkeypatch):
+@pytest.mark.parametrize("slow", [False, True], ids=["quick-progress", "slow-progress"])
+def test_a_file_that_kills_its_worker_is_recorded_and_the_run_goes_on(tmp_path, monkeypatch, slow):
     folder = tmp_path / "in"
     folder.mkdir()
     names = [f"{c}.pdf" for c in "abcdefghij"]  # more than the 8 in flight, so the run goes on in a new pool
@@ -183,9 +185,13 @@ def test_a_file_that_kills_its_worker_is_recorded_and_the_run_goes_on(tmp_path, 
     monkeypatch.setattr(batch, "_work", crashing.work)
     out = tmp_path / "out"
     seen: list[tuple[int, int]] = []
-    summary = run_batch(
-        [hand_template()], [folder / n for n in names], out, workers=2, on_progress=lambda d, t: seen.append((d, t))
-    )
+
+    def progress(done: int, total: int) -> None:
+        seen.append((done, total))
+        if slow and done <= 3:  # busy while d.pdf kills its worker: the next submit meets the broken pool
+            time.sleep(0.6)
+
+    summary = run_batch([hand_template()], [folder / n for n in names], out, workers=2, on_progress=progress)
     assert (summary.total, summary.unreadable) == (10, 1)
     assert seen == [(n, 10) for n in range(1, 11)]
     rows = lines(out / "results.jsonl")

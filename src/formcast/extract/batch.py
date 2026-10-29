@@ -240,25 +240,36 @@ def _read_all(templates: list[ExtractionTemplate], todo: list[tuple[str, str]], 
         count = min(workers, len(queue))
         pool = _pool(count, payload)
         pending: dict[Future[str], tuple[str, str]] = {}  # future -> (doc_id, file)
-        broken = False
+        suspects: list[tuple[str, str]] = []  # read alone once this pool is down
         try:
-            while not broken:
+            while not suspects:
                 while len(pending) < count * _AHEAD and queue:
                     item = queue.popleft()
-                    pending[pool.submit(_work, item[1], item[0])] = item
+                    try:
+                        pending[pool.submit(_work, item[1], item[0])] = item
+                    except BrokenProcessPool:  # it broke while this process was busy writing or reporting
+                        suspects.append(item)  # never sent; read alone with the ones in flight
+                        break
+                if suspects:
+                    break
                 if not pending:
                     return
                 finished, _ = wait(pending, return_when=FIRST_COMPLETED)
                 for future in finished:
                     if isinstance(future.exception(), BrokenProcessPool):
-                        broken = True  # kept in pending: one of these documents killed its worker
+                        suspects.append(pending.pop(future))  # one of these documents killed its worker
                         continue
                     del pending[future]
                     yield future.result()
         finally:
             pool.shutdown(wait=True, cancel_futures=True)
-        # every document still pending was in flight when the pool broke (a finished one was yielded above)
-        yield from _read_alone(payload, list(pending.values()))
+        # the pool broke: settle every future still pending (all are done now), each document once
+        for future, item in pending.items():
+            if not future.cancelled() and future.exception() is None:
+                yield future.result()  # finished before the break, not yet written
+            else:
+                suspects.append(item)
+        yield from _read_alone(payload, suspects)
 
 
 def _read_alone(payload: str, suspects: list[tuple[str, str]]) -> Iterator[str]:
