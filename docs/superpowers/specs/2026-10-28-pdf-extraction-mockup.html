@@ -61,6 +61,20 @@
   .problem .row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
   .problem.done { opacity: 1; }
   .problem .state { font: italic 14px var(--serif); color: var(--graphite); }
+  /* the app shell never scrolls: the bench fills what the toolbar and strip leave, and each column scrolls on
+     its own; in a pane, the list scrolls under its fixed header and above its fixed footer */
+  html, body { overflow: hidden; }
+  .view { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+  .view > .bench { flex: 1 1 auto; min-height: 0; }
+  .pane { display: flex; flex-direction: column; overflow: hidden; }
+  .pane > * { flex: none; }
+  .pane > .pane-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; margin: 0 -4px; padding: 4px; }
+  @media (max-width: 1023px) {
+    /* stacked, as the workbench stacks below 1024px: the page scrolls, the lists keep a height of their own */
+    html, body { overflow: visible; }
+    .pane { overflow: visible; }
+    .pane > .pane-scroll { max-height: 50vh; }
+  }
   .sheet.wide { width: min(720px, 100%); }
   .choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
   .choice { display: grid; gap: 8px; align-content: start; text-align: left; padding: 16px; background: var(--paper); color: var(--ink); border: 0; outline: 1px solid var(--rule); outline-offset: -.5px; cursor: pointer; font: inherit; }
@@ -125,12 +139,12 @@
 </div>
 
 <!-- ======================= set up ======================= -->
-<div data-only="setup">
+<div class="view" data-only="setup">
   <div class="strip" id="strip"></div>
   <main class="bench">
-    <aside class="col col-schema" aria-label="Fields">
+    <aside class="col col-schema pane" aria-label="Fields">
       <p class="label" id="fields-label">Fields</p>
-      <ul class="fc-sl-list" id="fields"></ul>
+      <ul class="fc-sl-list pane-scroll" id="fields"></ul>
       <div class="addfield">
         <input class="fc-in" id="add" placeholder="Add a field: wire instructions, bank and account">
         <button type="button" class="btn quiet small" id="add-go">Add</button>
@@ -166,7 +180,7 @@
 </div>
 
 <!-- ======================= review ======================= -->
-<div data-only="review" hidden>
+<div class="view" data-only="review" hidden>
   <div class="stats">
     <div class="stat"><b>1,248</b><span>Documents</span></div>
     <div class="stat"><b>1,163</b><span>Complete</span></div>
@@ -175,14 +189,14 @@
     <div class="stat"><b>2:03</b><span>Run time</span></div>
   </div>
   <main class="bench">
-    <aside class="col col-schema" aria-label="Documents with problems">
+    <aside class="col col-schema pane" aria-label="Documents with problems">
       <p class="label">Documents with problems · 38</p>
       <div class="filters">
         <select class="fc-in" aria-label="Field"><option>Every field</option><option>investor.tax_id</option><option>investor.type</option><option>wire.account_number</option></select>
         <select class="fc-in" aria-label="Problem"><option>Every problem</option><option>Missing</option><option>Fails a check</option><option>Unsure</option></select>
       </div>
-      <ul class="docs" id="docs"></ul>
-      <p class="legend">Showing 4 of 38 · page 1 of 10</p>
+      <ul class="docs pane-scroll" id="docs"></ul>
+      <p class="legend" id="docs-legend"></p>
     </aside>
     <section class="col col-page" aria-label="Document page">
       <div class="pagebar">
@@ -192,11 +206,9 @@
       <div class="stage"><div class="pg" id="rpage"></div></div>
       <p class="cap" id="rcap"></p>
     </section>
-    <aside class="col col-side" aria-label="Problems in this document">
-      <div class="group">
-        <p class="label">Problems in this document</p>
-        <div id="problems"></div>
-      </div>
+    <aside class="col col-side pane" aria-label="Problems in this document">
+      <p class="label">Problems in this document</p>
+      <div class="pane-scroll" id="problems"></div>
     </aside>
   </main>
 </div>
@@ -406,6 +418,19 @@ const DOCS = [
   { file: "client_01377.pdf", sample: 4, problems: [["type", "Fails a check", "individual, joint", "2 boxes checked"]] },
   { file: "client_02019.pdf", sample: 3, problems: [["bank", "Missing", "", "the wire paragraph is blank"], ["acct", "Missing", "", "the wire paragraph is blank"]] },
 ];
+// the rest of the run's 38, made from the same kinds of problem, so the list is long enough to scroll
+const KINDS = [
+  [["tin", "Missing", "", "nothing next to the label"]],
+  [["dob", "Unsure", "03/11/1979", "label found twice on the page"]],
+  [["type", "Fails a check", "", "no box checked"]],
+  [["acct", "Fails a check", "4401-88A2", "not digits only"], ["bank", "Unsure", "First Nat.", "“Funds will be sent from” found twice"]],
+  [["addr", "Missing", "", "nothing below the label"]],
+  [["tin", "Fails a check", "84-22190", "doesn't match ##-#######"], ["dob", "Missing", "", "nothing next to the label"], ["acct", "Missing", "", "the wire paragraph is blank"],
+   ["owners", "Unsure", "K. Mensah", "label found twice on the page"], ["pct", "Fails a check", "140", "not between 0 and 100"]],
+];
+for (let i = 0; DOCS.length < 38; i++) {
+  DOCS.push({ file: `client_${String(2100 + i * 271).padStart(5, "0")}.pdf`, sample: [2, 3, 1, 4, 0][i % 5], problems: KINDS[i % KINDS.length] });
+}
 
 // ------------------------------------------------------------------ state
 
@@ -719,6 +744,8 @@ function renderReview() {
     return `<li class="${i === state.doc ? "on" : ""}" data-i="${i}">${esc(d.file)}<small>${esc(text)}</small></li>`;
   }).join("");
   $("docs").querySelectorAll("li").forEach((li) => li.addEventListener("click", () => { state.doc = +li.dataset.i; render(); }));
+  const open = DOCS.filter((doc, i) => doc.problems.some((p) => !state.decided[`${i}:${p[0]}`])).length;
+  $("docs-legend").textContent = `${open} of ${DOCS.length} still have problems`;
   const d = DOCS[state.doc];
   const s = SAMPLES[d.sample];
   $("doc-name").textContent = d.file;
