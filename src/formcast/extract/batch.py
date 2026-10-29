@@ -461,8 +461,13 @@ def _start_run(out: Path, templates: list[ExtractionTemplate], root: str | Path 
 
 
 def template_sha256(template: ExtractionTemplate) -> str:
-    """The sha256 of the template's canonical JSON (``model_dump_json(by_alias=True)``), as ``run.json`` keeps it."""
-    return hashlib.sha256(template.model_dump_json(by_alias=True).encode("utf-8")).hexdigest()
+    """The sha256 of the template's canonical JSON (``model_dump_json(by_alias=True)``), as ``run.json`` keeps it.
+
+    ``setup`` and ``samples`` are left out: they never change a read, so a template written before they existed keeps
+    its sha256 (its runs still resume and export), and editing only the samples' readings changes nothing.
+    """
+    dumped = template.model_dump_json(by_alias=True, exclude={"setup", "samples"})
+    return hashlib.sha256(dumped.encode("utf-8")).hexdigest()
 
 
 def _add_seconds(out: Path, seconds: float) -> None:
@@ -669,11 +674,12 @@ class Results:
         Raises:
             FormcastError: no such document in the run, no such field in it, or an ``accept`` of a field that has
                 no value read (an AI answer counts as a read value). An ``accept`` of an AI answer is recorded as a
-                ``value`` decision carrying that value.
+                ``value`` decision carrying that value. As in :meth:`effective`, no AI answer is put on a path that
+                already has a decision, so an ``accept`` over one never takes an AI value the person was not shown.
         """
         if decision.doc_id not in self._index:
             raise FormcastError(f"no document {decision.doc_id!r} in this run")
-        read = self._with_ai(self._document(decision.doc_id))
+        read = self._with_ai(self._document(decision.doc_id), self._decisions.get(decision.doc_id) or ())
         field = next((f for f in read.fields if f.path == decision.path), None)
         if field is None:
             raise FormcastError(f"{decision.doc_id}: no field {decision.path!r}")

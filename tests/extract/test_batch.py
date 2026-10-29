@@ -20,6 +20,7 @@ from formcast.extract.batch import (
     run_batch,
 )
 from formcast.extract.layout import LAYOUT_MATCH, learn_layout
+from formcast.extract.model import SampleRecord, SetupInfo
 from formcast.match import fingerprint
 from tests.extract import crashing
 from tests.extract.conftest import write_corpus
@@ -77,10 +78,33 @@ def test_a_batch_routes_each_form_and_sets_the_others_aside(corpus_dir, tmp_path
         assert other.error == "no template fits (closest: Client information, 0.00)"
     run = json.loads((tmp_path / "out" / "run.json").read_text())
     template = hand_template()
-    digest = hashlib.sha256(template.model_dump_json(by_alias=True).encode("utf-8")).hexdigest()
+    digest = hashlib.sha256(_plan_one_json(template).encode("utf-8")).hexdigest()
     assert run["templates"] == [{"template_id": "client_information", "name": "Client information", "sha256": digest}]
     assert batch.template_sha256(template) == digest
     assert run["root"] == str(corpus_dir.resolve()) and run["started"]
+
+
+def _plan_one_json(template) -> str:
+    """The JSON plan 1 wrote for a template: today's canonical dump without the two keys plan 2 added."""
+    dumped = template.model_dump_json(by_alias=True)
+    tail = ',"setup":null,"samples":[]}'
+    assert template.setup is None and not template.samples and dumped.endswith(tail)
+    return dumped[: -len(tail)] + "}"
+
+
+def test_a_templates_sha256_is_the_one_plan_one_kept_and_ignores_its_setup_and_samples():
+    template = hand_template()
+    plan_one = hashlib.sha256(_plan_one_json(template).encode("utf-8")).hexdigest()
+    assert batch.template_sha256(template) == plan_one  # a plan-1 run.json still resumes and exports
+    built = template.model_copy(
+        update={
+            "setup": SetupInfo(start="ai"),
+            "samples": [SampleRecord(file="a.pdf", sha256="0" * 64, opinion={"investor.tax_id": "84-2219037"})],
+        }
+    )  # fmt: skip
+    assert batch.template_sha256(built) == plan_one  # setup and readings never change a read
+    reread = template.model_copy(update={"absent": ["wire.bank"]})
+    assert batch.template_sha256(reread) != plan_one
 
 
 def test_route_picks_by_fingerprint_then_by_layout_and_names_the_closest():

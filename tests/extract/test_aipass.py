@@ -264,3 +264,17 @@ def test_an_accept_of_a_read_value_is_not_replaced_by_a_later_ai_answer(tmp_path
     f = field(out, "bad_tin.pdf")
     assert (f.status, f.value, f.reasons) == ("found", "8422-19037", [])
     assert f.strategy != "ai"
+
+
+def test_an_accept_over_a_typed_value_never_turns_into_an_ai_answer_the_person_did_not_see(tmp_path):
+    out = write_batch(tmp_path)
+    doc_id = sorted(failing(out))[0]  # its tax ID is missing; the AI answers one, the person types another
+    ai_pass([hand_template()], out, Scripted(*[ANSWER] * len(failing(out))), vision=False)
+    results = Results.load(out)
+    results.decide(ReviewDecision(doc_id=doc_id, path=TAX_ID, decision="value", value="98-7654321"))
+    with pytest.raises(FormcastError, match="nothing to accept"):  # the read has no value, the AI's was never shown
+        results.decide(ReviewDecision(doc_id=doc_id, path=TAX_ID, decision="accept"))
+    recorded = [json.loads(line) for line in (out / REVIEWS).read_text().splitlines()]
+    assert [(r["decision"], r["value"]) for r in recorded] == [("value", "98-7654321")]
+    f = field(out, doc_id)
+    assert (f.status, f.value, f.strategy) == ("found", "98-7654321", "review")
