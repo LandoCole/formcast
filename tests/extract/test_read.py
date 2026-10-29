@@ -29,41 +29,18 @@ from tests.extract.corpus import (
     ROTATE,
     SHIFT,
     Client,
+    assert_no_wrong_found,
     clients,
     hand_template,
     make_form,
     other_form,
+    truth,
 )
-
-COUNTRY_CODES = {"United States": "US", "USA": "US", "U.S.": "US", "Canada": "CA"}
 
 
 @pytest.fixture(scope="module")
 def template() -> ExtractionTemplate:
     return hand_template()
-
-
-def truth(client: Client) -> dict[str, str]:
-    """What each path should read for ``client``; owner rows the client lacks, and answers left blank, are not in it."""
-    dob = ""
-    if client.dob:
-        m, d, y = client.dob.split("/")
-        dob = dt.date(int(y), int(m), int(d)).isoformat()
-    out = {
-        "investor.legal_name": client.legal_name,
-        "investor.tax_id": client.tax_id,
-        "investor.dob": dob,
-        "investor.type": client.investor_type,
-        "investor.country": COUNTRY_CODES.get(client.country, ""),
-        "address.street": client.street,
-        "address.city_state_zip": client.city_state_zip,
-        "wire.bank": client.bank,
-        "wire.account": client.account,
-    }
-    for i, (name, percent) in enumerate(client.owners):
-        out[f"owners[{i}].name"] = name
-        out[f"owners[{i}].percent"] = percent
-    return {path: value for path, value in out.items() if value}
 
 
 def fields(result):
@@ -630,12 +607,11 @@ def test_the_corpus_reads_with_no_wrong_found_value(template, corpus_dir):
                 if field.path in want:
                     seen[field.path] += 1
                     found[field.path] += field.status == "found"
-                if field.status == "found":
-                    assert field.value == want.get(field.path), (f.name, field)
+            assert_no_wrong_found(result, people[n])
         else:
             other_scores.append(score)
             assert result.matched == "none"
-            assert not any(f.status == "found" for f in result.fields), f.name
+            assert_no_wrong_found(result, None)
     share = {path: found[path] / seen[path] for path in seen}
     print(f"\nshare found per path: {share}")
     print(f"layout scores: filled min {min(filled_scores):.3f}, other max {max(other_scores):.3f}")

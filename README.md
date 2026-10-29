@@ -327,8 +327,8 @@ python -m formcast.extract export out/ --template client.json --format csv --to 
   `clean` transforms of the One-shot mapping above. The first strategy that finds something wins, except that
   when its value fails a check the next strategies are tried: a later value that passes replaces it, and is
   `unsure` when it differs from the first (two reads disagree, so it is never `found`). A repeated
-  group is an array of objects with `maxItems` (4 without one), read item by item (`owners[0].name`). In plan 1
-  you write the template by hand; plan 2 adds building one from sample documents with AI.
+  group is an array of objects with `maxItems` (4 without one), read item by item (`owners[0].name`). Write one
+  by hand, or build one from sample documents with a model (below).
 - **Statuses.** Every field of every document ends as `found`, `unsure` (two reads disagree, a label sits in
   more than one place, the printed lines around a box are not where the layout has them, or one answer was read
   for two fields; the reason is kept), `failed_check` (the value is kept as read and fails the schema),
@@ -371,6 +371,42 @@ Measured on the generated test corpus (client-information forms, fillable and fl
 
 About 60% of a batch document's time goes to the fingerprint tried first; routing by layout alone would roughly
 double the speed. The corpus is simpler than real documents: measure yours before planning a large run.
+
+### Building a template from samples
+
+A template can be built from 1 to 20 filled samples of the form (3 to 10 is plenty) with a model. The model is
+called only while the template is built; the finished template reads every document with no model call, and an
+edit to it is proven again on the samples with no model call either.
+
+```python
+from formcast.extract import SamplePdf, SetupSpec, add_line, build_setup
+
+samples = [SamplePdf(p.name, p.read_bytes()) for p in pdfs[:5]]
+result = build_setup(samples, SetupSpec(name="Client info"), llm, on_stage=print)
+print(f"{result.proof.ready} of {result.proof.total} fields ready", result.warnings)
+more = add_line(result.template, "wire details", result.samples, llm)   # fields for one more line
+Path("client.json").write_text(more.template.model_dump_json(by_alias=True, indent=2))
+```
+
+- **Three starts** (`SetupSpec.start`). `"ai"`: the model designs the fields from the sample with the most boxes
+  (`derive_schema`). `"lines"`: you list what you want, one line each (`lines=["tax ID", "wire details"]`), and the
+  model turns each line into the fields it asks for (a line may become several: bank and account); the template
+  keeps which paths each line became. `"destination"`: the fields of a schema you already have (`destination=`):
+  the model says which of them this form has, and the rest are marked "not on this form".
+- **Stages**, each reported to `on_stage` as it starts and ends (`StageEvent(key, status, detail)`): `read` (each
+  sample's form map and form-field values), `detect` (the field detectors find the blanks on pages without form
+  fields; `detect="auto"` skips prose pages, `"all"`, `"manual"` with `pages`, or `"off"` to skip the stage),
+  `fields` (the start above), `readers` (the model proposes how to read every field: form-field names, a box,
+  printed labels, phrases in running text, check boxes; code keeps only what is on the samples and warns of the
+  rest), `check` (the model reads each sample for a second opinion, and the readers are proven against it). An
+  exception from `on_stage` (such as `SessionCancelled`) stops the build.
+- **The proof.** A field is *ready* when, on every sample, its readers read what the model read there (or both
+  find nothing) and at least one sample has an answer; a field no sample fills cannot be proven. The template
+  keeps each sample's sha256 and the model's readings, so `prove(template, pdfs)` re-checks it after any edit
+  (`apply_edit`) with no model call.
+- `llm` is an `LLMConfig` (one provider is opened for the whole build and closed after) or a ready provider;
+  calls of one stage run side by side (`max_parallel`, 4 by default). A sample that cannot be read is refused,
+  by name, before any model call.
 
 ## The sandbox is not a security boundary
 

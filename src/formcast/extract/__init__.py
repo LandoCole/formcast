@@ -1,4 +1,5 @@
-"""Read filled PDFs of one layout into structured, checked values with no model call.
+"""Read filled PDFs of one layout into structured, checked values with no model call (a model is called only
+while a template is built from samples: ``build_setup``, ``add_line``).
 
     ExtractionTemplate, Reader, ...   formcast.extract.model   (the template and the result of reading a document)
     DocText, label_key                formcast.extract.page    (one open PDF and the lookups made on it)
@@ -8,6 +9,7 @@
     read_samples, sample_view, ...    formcast.extract.samples (the sample PDFs read, and what a model sees of them)
     resolve, ReaderProposal, ...      formcast.extract.readers (a model's reader proposals made readers, by code)
     read_values, propose_readers, ... formcast.extract.ask     (the model calls that build a template from samples)
+    build_setup, add_line, SetupSpec  formcast.extract.setup   (a template built from samples in stages, with a model)
 
 The public names load on first use, as in ``formcast``, so importing one module does not pull in the rest.
 """
@@ -18,6 +20,8 @@ import importlib
 from typing import TYPE_CHECKING, Any
 
 _LAZY = {
+    "FIELDS_LABELS": "formcast.extract.setup",
+    "STAGES": "formcast.extract.setup",
     "AnchorRead": "formcast.extract.model",
     "BoxRead": "formcast.extract.model",
     "BoxRef": "formcast.extract.readers",
@@ -51,11 +55,16 @@ _LAZY = {
     "SetLabels": "formcast.extract.edit",
     "SetOptionBox": "formcast.extract.edit",
     "SetupInfo": "formcast.extract.model",
+    "SetupResult": "formcast.extract.setup",
+    "SetupSpec": "formcast.extract.setup",
+    "StageEvent": "formcast.extract.setup",
     "StaticLine": "formcast.extract.model",
     "Status": "formcast.extract.model",
     "Strategy": "formcast.extract.model",
     "WidgetRead": "formcast.extract.model",
+    "add_line": "formcast.extract.setup",
     "apply_edit": "formcast.extract.edit",
+    "build_setup": "formcast.extract.setup",
     "concrete_paths": "formcast.extract.model",
     "detected_pages": "formcast.extract.samples",
     "extract": "formcast.extract.read",
@@ -90,6 +99,9 @@ if TYPE_CHECKING:
     from formcast.extract.read import extract
     from formcast.extract.readers import BoxRef, OptionProposal, ReaderProposal, resolve
     from formcast.extract.samples import SampleDoc, SamplePdf, detected_pages, read_samples, sample_images, sample_view
+    from formcast.extract.setup import (
+        FIELDS_LABELS, STAGES, SetupResult, SetupSpec, StageEvent, add_line, build_setup,
+    )  # fmt: skip
 
 
 def __getattr__(name: str) -> Any:

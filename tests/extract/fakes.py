@@ -27,8 +27,7 @@ from formcast.extract.ask import _DESTINATION_HEADING, _LINES_HEADING, _PATHS_HE
 from formcast.extract.model import AnchorRead, ChoiceRead, PhraseRead, Reader, WidgetRead
 from formcast.extract.prompts import FIELDS_SYSTEM, ON_FORM_SYSTEM, READERS_SYSTEM, VALUES_SYSTEM
 from formcast.llm import LLMResponse, Message, TextPart, Usage
-from tests.extract.corpus import Client, hand_template
-from tests.extract.test_read import truth
+from tests.extract.corpus import Client, hand_template, truth
 
 
 class Scripted:

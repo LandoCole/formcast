@@ -21,9 +21,8 @@ from formcast.extract.readers import BoxRef, ReaderProposal, resolve
 from formcast.extract.samples import SamplePdf, read_samples
 from formcast.llm import ImagePart, LLMResponse, TextPart, Usage
 from formcast.pagemap.build import DetectPolicy
-from tests.extract.corpus import clients, hand_template, make_form
+from tests.extract.corpus import clients, hand_template, make_form, truth
 from tests.extract.fakes import CorpusModel, Scripted, asked_paths, user_text
-from tests.extract.test_read import truth
 
 NO_DETECTORS = dict(detectors={}, policy=DetectPolicy(digital=(), scanned=()))
 SCHEMA = hand_template().schema_

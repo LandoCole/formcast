@@ -9,8 +9,7 @@ from formcast.data.mapping import Transform
 from formcast.errors import FormcastError
 from formcast.extract.model import SampleRecord
 from formcast.extract.proof import learn_maps, prove, same_value, sample_marks
-from tests.extract.corpus import FIELD_RECTS, INVESTOR_TYPES, TYPE_BOXES, clients, hand_template, make_form
-from tests.extract.test_read import truth
+from tests.extract.corpus import FIELD_RECTS, INVESTOR_TYPES, TYPE_BOXES, clients, hand_template, make_form, truth
 
 
 def _with_samples(template, pdfs, opinions):

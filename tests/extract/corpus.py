@@ -23,6 +23,7 @@ The files are not byte-identical between runs (PyMuPDF writes a random file id),
 
 from __future__ import annotations
 
+import datetime as dt
 import functools
 import random
 from dataclasses import dataclass, field
@@ -38,6 +39,7 @@ from formcast.extract.model import (
     BoxRead,
     ChoiceMark,
     ChoiceRead,
+    DocumentResult,
     ExtractionTemplate,
     Layout,
     PhraseRead,
@@ -184,6 +186,41 @@ def clients(n: int, seed: int = 0) -> list[Client]:
             )
         )
     return out
+
+
+# ------------------------------------------------------------------- the truth
+
+
+def truth(client: Client) -> dict[str, str]:
+    """What each path should read for ``client``; owner rows the client lacks, and answers left blank, are not in it."""
+    dob = ""
+    if client.dob:
+        m, d, y = client.dob.split("/")
+        dob = dt.date(int(y), int(m), int(d)).isoformat()
+    out = {
+        "investor.legal_name": client.legal_name,
+        "investor.tax_id": client.tax_id,
+        "investor.dob": dob,
+        "investor.type": client.investor_type,
+        "investor.country": _COUNTRY_CODES.get(client.country, ""),
+        "address.street": client.street,
+        "address.city_state_zip": client.city_state_zip,
+        "wire.bank": client.bank,
+        "wire.account": client.account,
+    }
+    for i, (name, percent) in enumerate(client.owners):
+        out[f"owners[{i}].name"] = name
+        out[f"owners[{i}].percent"] = percent
+    return {path: value for path, value in out.items() if value}
+
+
+def assert_no_wrong_found(result: DocumentResult, client: Client | None) -> None:
+    """No field ``result`` found differs from ``truth(client)``; with no client (another form), none is found at all."""
+    want = truth(client) if client is not None else {}
+    for f in result.fields:
+        if f.status == "found":
+            assert client is not None, (result.file, f)
+            assert f.value == want.get(f.path), (result.file, f)
 
 
 # ------------------------------------------------------------------- the forms

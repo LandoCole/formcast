@@ -86,14 +86,37 @@ def read_samples(
     ``pages`` maps a sample's position in ``samples`` to the page numbers (from 0) searched for blanks when
     ``detect="manual"``; a number the document lacks and a fillable page are ignored. ``detectors`` and
     ``policy`` are as for :func:`~formcast.pagemap.build.build_form_map`. ``on_page(i, progress)`` hears of each
-    page's steps in sample ``i``.
+    page's steps in sample ``i``. The two halves, reading and detection, are :func:`_read` and :func:`_detect`
+    (the setup flow runs them as stages of their own).
 
     Raises:
         FormcastError: a sample cannot be read, naming its file ("b.pdf: cannot open PDF").
         ValueError: for an unknown ``detect`` mode.
     """
+    _check_detect(detect)
+    docs = _read(samples, ocr=ocr, detectors=detectors, policy=policy, on_page=on_page)
+    return _detect(docs, detect=detect, pages=pages, detectors=detectors, policy=policy)
+
+
+def _check_detect(detect: str) -> None:
+    """Raises: ValueError: for an unknown ``detect`` mode."""
     if detect not in ("auto", "all", "manual", "off"):
         raise ValueError(f"detect must be 'auto', 'all', 'manual' or 'off', not {detect!r}")
+
+
+def _read(
+    samples: list[SamplePdf],
+    *,
+    ocr: Literal["auto", "never"] = "auto",
+    detectors: dict[str, Detector] | None = None,
+    policy: DetectPolicy | None = None,
+    on_page: Callable[[int, PageProgress], None] | None = None,
+) -> list[SampleDoc]:
+    """Every sample's form map, with no detection, and its form field values; as :func:`read_samples` says.
+
+    Raises:
+        FormcastError: a sample cannot be read, naming its file.
+    """
     policy = policy or DetectPolicy()
     docs = []
     for i, sample in enumerate(samples):
@@ -102,15 +125,45 @@ def read_samples(
             form_map = build_form_map(
                 sample.pdf, detectors=detectors, policy=policy, ocr=ocr, detect=False, on_progress=progress
             )
-            wanted = _pages_to_detect(form_map, detect, (pages or {}).get(i, []))
-            if wanted:
-                form_map = _detect(sample.pdf, form_map, wanted, detectors, policy)
             with DocText(sample.pdf) as text:
                 values = _values(form_map, text)
         except FormcastError as exc:
             raise FormcastError(f"{sample.file}: {exc}") from exc
-        docs.append(SampleDoc(sample.file, sample.pdf, form_map, values, wanted))
+        docs.append(SampleDoc(sample.file, sample.pdf, form_map, values))
     return docs
+
+
+def _detect(
+    docs: list[SampleDoc],
+    *,
+    detect: Detect = "auto",
+    pages: dict[int, list[int]] | None = None,
+    detectors: dict[str, Detector] | None = None,
+    policy: DetectPolicy | None = None,
+) -> list[SampleDoc]:
+    """``docs`` (as :func:`_read` gives them) with their blanks found on the pages ``detect`` picks, as new docs.
+
+    The stock detectors are loaded once, and only when some page is searched.
+
+    Raises:
+        FormcastError: a sample cannot be read, naming its file.
+        ValueError: for an unknown ``detect`` mode.
+    """
+    _check_detect(detect)
+    policy = policy or DetectPolicy()
+    out = []
+    for i, doc in enumerate(docs):
+        wanted = _pages_to_detect(doc.form_map, detect, (pages or {}).get(i, []))
+        form_map = doc.form_map
+        if wanted:
+            if detectors is None:
+                detectors = load_default_detectors()
+            try:
+                form_map = _detect_pages(doc.pdf, form_map, wanted, detectors, policy)
+            except FormcastError as exc:
+                raise FormcastError(f"{doc.file}: {exc}") from exc
+        out.append(SampleDoc(doc.file, doc.pdf, form_map, dict(doc.values), wanted))
+    return out
 
 
 def _pages_to_detect(form_map: FormMap, detect: Detect, named: list[int]) -> list[int]:
@@ -125,12 +178,10 @@ def _pages_to_detect(form_map: FormMap, detect: Detect, named: list[int]) -> lis
     return []
 
 
-def _detect(
-    pdf: bytes, form_map: FormMap, wanted: list[int], detectors: dict[str, Detector] | None, policy: DetectPolicy
+def _detect_pages(
+    pdf: bytes, form_map: FormMap, wanted: list[int], detectors: dict[str, Detector], policy: DetectPolicy
 ) -> FormMap:
-    """``form_map`` with detection run on the pages ``wanted`` (the stock detectors are loaded once)."""
-    if detectors is None:
-        detectors = load_default_detectors()
+    """``form_map`` with detection run on the pages ``wanted``."""
     pages = list(form_map.pages)
     with PDF_LOCK:
         doc = open_pdf(pdf)
