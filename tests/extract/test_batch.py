@@ -1,6 +1,7 @@
 """Batch runs: routing each PDF to a template, the resumable results file, review decisions and flattened rows."""
 
 import dataclasses
+import hashlib
 import json
 import time
 from pathlib import Path
@@ -75,7 +76,10 @@ def test_a_batch_routes_each_form_and_sets_the_others_aside(corpus_dir, tmp_path
         assert (other.matched, other.template_id, other.fields) == ("none", None, [])
         assert other.error == "no template fits (closest: Client information, 0.00)"
     run = json.loads((tmp_path / "out" / "run.json").read_text())
-    assert run["templates"] == [{"template_id": "client_information", "name": "Client information"}]
+    template = hand_template()
+    digest = hashlib.sha256(template.model_dump_json(by_alias=True).encode("utf-8")).hexdigest()
+    assert run["templates"] == [{"template_id": "client_information", "name": "Client information", "sha256": digest}]
+    assert batch.template_sha256(template) == digest
     assert run["root"] == str(corpus_dir.resolve()) and run["started"]
 
 
@@ -218,6 +222,35 @@ def test_a_resume_with_other_templates_or_another_root_is_refused(tmp_path):
         run_batch([hand_template()], [tmp_path / "y.pdf"], tmp_path / "out", workers=1)
     with pytest.raises(FormcastError, match="at least one template"):
         run_batch([], [tmp_path / "a" / "x.pdf"], tmp_path / "new", workers=1)
+
+
+def test_a_resume_with_an_edited_template_is_refused_naming_it(tmp_path):
+    (tmp_path / "a").mkdir()
+    (tmp_path / "a" / "x.pdf").write_bytes(make_form(clients(1)[0], kind="fillable"))
+    template = hand_template()
+    run_batch([template], [tmp_path / "a" / "x.pdf"], tmp_path / "out", workers=1)
+    edited = template.model_copy(update={"absent": ["wire.bank"]})  # the same id, other content
+    with pytest.raises(FormcastError, match="client_information"):
+        run_batch([edited], [tmp_path / "a" / "x.pdf"], tmp_path / "out", workers=1)
+    run_batch([hand_template()], [tmp_path / "a" / "x.pdf"], tmp_path / "out", workers=1)  # the same one resumes
+    results = Results.load(tmp_path / "out")
+    results.check_templates([hand_template()])
+    with pytest.raises(FormcastError, match="client_information.*differs"):
+        results.check_templates([edited])
+    with pytest.raises(FormcastError, match="other.*not a template of this run"):
+        results.check_templates([template.model_copy(update={"template_id": "other"})])
+
+
+def test_internal_errors_are_counted_apart_from_unreadable_files(tmp_path, monkeypatch):
+    folder = tmp_path / "in"
+    folder.mkdir()
+    (folder / "good.pdf").write_bytes(make_form(clients(1)[0], kind="fillable"))
+    (folder / "broken.pdf").write_bytes(b"%PDF-1.4 not a pdf")
+    monkeypatch.setattr(batch, "_extract_open", lambda *args, **kwargs: 1 / 0)  # a fault of the code
+    summary = run_batch([hand_template()], [folder / "good.pdf", folder / "broken.pdf"], tmp_path / "out", workers=1)
+    assert (summary.total, summary.internal_errors, summary.unreadable, summary.complete) == (2, 1, 1, 0)
+    errors = {d.doc_id: d.error for d in Results.load(tmp_path / "out").documents()}
+    assert errors["good.pdf"].startswith("internal error: ZeroDivisionError") and errors["broken.pdf"] == "cannot open PDF"
 
 
 def test_loading_a_folder_with_no_run_is_refused(tmp_path):

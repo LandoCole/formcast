@@ -337,12 +337,16 @@ python -m formcast.extract export out/ --template client.json --format csv --to 
   any template exists.
 - **Runs resume.** `run` appends one line per document to `out/results.jsonl` as it goes. Run it again after a
   crash or with more files in the folder and it reads only the new ones; a torn last line is read again.
+  `run.json` keeps each template's sha256: a resume with an edited template is refused (use a new `--out`).
   `--workers` defaults to one per CPU; progress goes to stderr every 100 documents, then the summary
-  (total, complete, with problems, no template, unreadable, seconds). `workers=1` reads in-process.
+  (total, complete, with problems, no template, unreadable, internal errors, seconds). `internal errors` counts
+  documents a fault of the code or of a template stopped ("internal error: ..."), not bad files.
+  `workers=1` reads in-process.
 - **Export** writes `values` (one row per document read), `status` (the same cells holding the status),
   `fields` (each column's path, title, definition, type and checks) and `set_aside` (the failed documents) as
   one xlsx workbook, or as Parquet or CSV files in a folder. The export takes the templates again
-  (`--template`) because `run.json` keeps only their ids; it refuses two paths that make one column. xlsx needs
+  (`--template`) because `run.json` keeps only their ids and hashes, and refuses a template whose content
+  differs from the run's; it refuses two paths that make one column. xlsx needs
   `pip install -e ".[xlsx]"`, Parquet `pip install 'formcast[parquet]'` (pyarrow). CSV values are written
   unaltered, so a value that starts with `=`, `+` or `-` is not escaped: treat the file as data, not as a
   spreadsheet to open blind.

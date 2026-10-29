@@ -3,7 +3,8 @@
 ``run_batch(templates, paths, out_dir)`` reads many documents (meant for ~100k client forms) and writes only under
 ``out_dir``:
 
-    run.json        the templates' ids and names, when the run started, its ``root``, and the seconds spent so far
+    run.json        the templates' ids, names and sha256 (:func:`template_sha256`), when the run started, its
+                    ``root``, and the seconds spent so far
     results.jsonl   one DocumentResult per line, appended and flushed as each document is done
     reviews.jsonl   one ReviewDecision per line, appended by ``Results.decide``; a run never touches it
 
@@ -44,7 +45,9 @@ it lacks its newline or does not parse (the run was killed while writing it): th
 last whole line before anything is appended, since appending after the partial line would glue the next record to
 it, and that document is read again. So no document is ever in the file twice. A bad line before good ones is not a
 torn write, and is refused. ``out_dir`` must not be used by two runs at once. A resume with other templates than
-``run.json`` names is refused: use a new ``out_dir`` (with just the set-aside documents, as the spec says).
+``run.json`` names is refused: use a new ``out_dir`` (with just the set-aside documents, as the spec says). So is a
+resume with a template of the same id whose content changed (its sha256 differs; the error names it): the results
+already there were read with the old one. :meth:`Results.check_templates` makes the same check for an export.
 
 **Results** (:class:`Results`) over a run's ``out_dir``: ``load`` indexes ``results.jsonl`` (the offset of each
 document's line, the last line for a ``doc_id`` winning) without keeping the results in memory, ignores a torn last
@@ -55,11 +58,13 @@ apply by ``doc_id`` and path, the latest one per path winning, so a rerun keeps 
 -> ``owners_1_name``; ``investor.tax_id`` stays), after ``doc_id``, ``file``, ``template``, ``matched`` and
 ``extracted_at``; failed documents are never rows. :class:`RunSummary` counts the whole ``out_dir``: ``complete``
 (read, no problem left), ``with_problems`` (``missing``, ``failed_check`` or ``unsure`` with no decision),
-``no_template`` and ``unreadable`` (every other error, internal errors included), which add up to ``total``.
+``no_template``, ``internal_errors`` (an error starting "internal error:", a fault of the code or a template, not of
+the file) and ``unreadable`` (every other error), which add up to ``total``.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -88,6 +93,8 @@ PROBLEMS: tuple[Status, ...] = ("missing", "failed_check", "unsure")
 #: The start of the error of a document no template fits.
 NO_TEMPLATE = "no template fits"
 _NO_TEMPLATE = re.compile(r"no template fits \(closest: (.*), (\d+\.\d+)\)", re.DOTALL)
+#: The start of the error of a document a fault of the code or of a template stopped (Ruling R18).
+INTERNAL_ERROR = "internal error:"
 #: The error of a document whose reading killed the worker process, read alone as well (Ruling R22).
 CRASHED = "cannot read PDF: the reader crashed"
 #: Documents handed to each worker ahead of the one it is reading.
@@ -97,13 +104,15 @@ _DOC_COLUMNS = ("doc_id", "file", "template", "matched", "extracted_at")
 
 
 class RunSummary(BaseModel):
-    """How a run's documents ended; ``complete + with_problems + no_template + unreadable == total``."""
+    """How a run's documents ended; ``complete + with_problems + no_template + unreadable + internal_errors ==
+    total``."""
 
     total: int
     complete: int
     with_problems: int
     no_template: int
     unreadable: int
+    internal_errors: int
     seconds: float
 
 
@@ -351,13 +360,19 @@ def run_batch(
 
 def _start_run(out: Path, templates: list[ExtractionTemplate], root: str | Path | None, files: list[Path]) -> Path:
     """Write ``run.json`` for a new run, or check a resumed one against it; the run's root."""
-    names = [{"template_id": t.template_id, "name": t.name} for t in templates]
+    names = [{"template_id": t.template_id, "name": t.name, "sha256": template_sha256(t)} for t in templates]
     given = Path(root).resolve() if root is not None else None
     if (out / RUN).is_file():
         run = json.loads((out / RUN).read_text(encoding="utf-8"))
         if [t["template_id"] for t in run["templates"]] != [t["template_id"] for t in names]:
             ids = ", ".join(t["template_id"] for t in run["templates"])
             raise FormcastError(f"{out} holds a run with other templates ({ids}); use a new out_dir")
+        for had, now_ in zip(run["templates"], names):
+            if had.get("sha256") != now_["sha256"]:
+                raise FormcastError(
+                    f"{out} holds a run whose template {had['template_id']!r} differs from this one (its sha256 in "
+                    f"{RUN} is another); use a new out_dir"
+                )
         if given is not None and str(given) != run["root"]:
             raise FormcastError(f"{out} holds a run whose root is {run['root']}, not {given}")
         return Path(run["root"])
@@ -366,6 +381,11 @@ def _start_run(out: Path, templates: list[ExtractionTemplate], root: str | Path 
     run = {"templates": names, "started": now(), "root": str(given), "seconds": 0.0}
     _write_json(out / RUN, run)
     return given
+
+
+def template_sha256(template: ExtractionTemplate) -> str:
+    """The sha256 of the template's canonical JSON (``model_dump_json(by_alias=True)``), as ``run.json`` keeps it."""
+    return hashlib.sha256(template.model_dump_json(by_alias=True).encode("utf-8")).hexdigest()
 
 
 def _add_seconds(out: Path, seconds: float) -> None:
@@ -467,6 +487,24 @@ class Results:
         _whole_lines(out / RESULTS, keep)
         return cls(out, run, index)
 
+    def check_templates(self, templates: list[ExtractionTemplate]) -> None:
+        """Refuse templates other than the ones the run read with (by id and by the sha256 ``run.json`` keeps).
+
+        Raises:
+            FormcastError: a template that is not one of the run's, or whose content differs from the run's.
+        """
+        had = {t["template_id"]: t for t in self.run.get("templates", [])}
+        for template in templates:
+            kept = had.get(template.template_id)
+            if kept is None:
+                ids = ", ".join(had) or "none"
+                raise FormcastError(f"{template.template_id!r} is not a template of this run (its templates: {ids})")
+            if kept.get("sha256") != template_sha256(template):
+                raise FormcastError(
+                    f"template {template.template_id!r} differs from the one this run read with (its sha256 in "
+                    f"{RUN} is another); export with the run's template"
+                )
+
     def _remember(self, decision: ReviewDecision) -> None:
         self._decisions.setdefault(decision.doc_id, {})[decision.path] = decision
 
@@ -534,10 +572,15 @@ class Results:
 
     def summary(self) -> RunSummary:
         """The counts of the run, with decisions applied; ``seconds`` is the time its runs have spent so far."""
-        counts = {"complete": 0, "with_problems": 0, "no_template": 0, "unreadable": 0}
+        counts = {"complete": 0, "with_problems": 0, "no_template": 0, "unreadable": 0, "internal_errors": 0}
         for doc in self.documents():
             if doc.error is not None:
-                counts["no_template" if doc.error.startswith(NO_TEMPLATE) else "unreadable"] += 1
+                if doc.error.startswith(NO_TEMPLATE):
+                    counts["no_template"] += 1
+                elif doc.error.startswith(INTERNAL_ERROR):
+                    counts["internal_errors"] += 1
+                else:
+                    counts["unreadable"] += 1
             elif any(f.status in PROBLEMS for f in self.effective(doc).fields):
                 counts["with_problems"] += 1
             else:

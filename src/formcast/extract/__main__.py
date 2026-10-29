@@ -10,8 +10,8 @@ example files) and the files it could not read. ``run`` reads every PDF under ``
 ``export`` writes the finished run as a workbook (``xlsx``) or a folder of files (``parquet``, ``csv``).
 
 ``export`` takes the templates again with ``--template`` instead of reading them back from ``OUT``: ``run.json``
-records only each template's id and name, and the field definitions need the schema. Pass the same templates as the
-run (the export refuses a run whose documents have columns none of them has).
+records only each template's id, name and sha256, and the field definitions need the schema. Pass the same templates
+as the run: a template the run did not use, or one whose content differs from the run's (its sha256), is refused.
 
 A bad argument, an unreadable or invalid template, any other :class:`FormcastError` (a missing extra, a column
 clash) or a file error (``--out`` or ``--to`` is a file, or not writable) prints one line to stderr and exits with 2;
@@ -132,7 +132,7 @@ def _scan(args: argparse.Namespace) -> None:
 def _summary_line(s: RunSummary) -> str:
     return (
         f"total {s.total}, complete {s.complete}, with problems {s.with_problems}, no template {s.no_template}, "
-        f"unreadable {s.unreadable}, {s.seconds:.1f} seconds"
+        f"unreadable {s.unreadable}, internal errors {s.internal_errors}, {s.seconds:.1f} seconds"
     )
 
 
@@ -154,7 +154,9 @@ def _export(args: argparse.Namespace) -> None:
     templates = [_template(p) for p in args.template]
     if args.format == "xlsx" and args.to.is_dir():  # saving over a folder fails inside openpyxl, with noise
         raise FormcastError(f"{args.to} is a folder; xlsx export writes a file")
-    for path in export(Results.load(args.out), templates, args.to, format=args.format):
+    results = Results.load(args.out)
+    results.check_templates(templates)  # the templates the run read with, unchanged
+    for path in export(results, templates, args.to, format=args.format):
         print(path)
 
 

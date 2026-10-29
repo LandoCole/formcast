@@ -61,7 +61,7 @@ def test_run_then_export_csv(corpus_dir: Path, template_file: Path, tmp_path: Pa
     done = cli("run", template_file, corpus_dir, "--out", out, "--workers", "2")
     summary = done.stderr.splitlines()[-1]
     assert "total 22" in summary and "no template 2" in summary and "unreadable 0" in summary
-    assert "seconds" in summary
+    assert "internal errors 0" in summary and "seconds" in summary
     assert (out / "results.jsonl").is_file() and (out / "run.json").is_file()
 
     cli("export", out, "--template", template_file, "--format", "csv", "--to", tmp_path / "csv")
@@ -125,6 +125,18 @@ def test_an_out_or_to_path_of_the_wrong_kind_exits_2_in_one_line(
 def test_export_of_a_folder_that_is_not_a_run_exits_2(template_file: Path, tmp_path: Path):
     done = cli("export", tmp_path, "--template", template_file, "--format", "csv", "--to", tmp_path / "x", check=False)
     assert done.returncode == 2 and "no run" in done.stderr and len(done.stderr.strip().splitlines()) == 1
+
+
+def test_export_with_a_template_the_run_did_not_use_exits_2(corpus_dir: Path, template_file: Path, tmp_path: Path):
+    out = tmp_path / "out"
+    cli("run", template_file, corpus_dir, "--out", out, "--workers", "1")
+    edited = tmp_path / "edited.json"
+    edited.write_text(
+        hand_template().model_copy(update={"absent": ["wire.bank"]}).model_dump_json(by_alias=True), encoding="utf-8"
+    )
+    done = cli("export", out, "--template", edited, "--format", "csv", "--to", tmp_path / "csv", check=False)
+    assert done.returncode == 2 and "client_information" in done.stderr and "differs" in done.stderr
+    assert len(done.stderr.strip().splitlines()) == 1 and not (tmp_path / "csv").exists()
 
 
 def test_export_parquet_without_the_extra_exits_2(corpus_dir: Path, template_file: Path, tmp_path: Path):
