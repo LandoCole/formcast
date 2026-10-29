@@ -358,6 +358,38 @@ def test_an_invalid_schema_is_an_internal_error(template):
     assert result.fields == [] and result.error.startswith("internal error: FormcastError: invalid JSON Schema")
 
 
+def _numbers_read(template, units: str, amount: str):
+    """``units`` (an integer path) and ``amount`` (a number path) read beside their labels on a one-page copy."""
+    doc = pymupdf.open()
+    page = doc.new_page(width=612, height=792)
+    for y, label, value in ((100, "Number of units:", units), (130, "Commitment:", amount)):
+        page.insert_text((72, y), label, fontsize=10)
+        page.insert_text((240, y), value, fontsize=10)
+    numbers = ExtractionTemplate(
+        template_id="n", name="n", form=template.form, layout=Layout(lines=[], page_sizes=[]),
+        schema={"type": "object", "properties": {"units": {"type": "integer"}, "amount": {"type": "number"}}},
+        readers={"units": Reader(strategies=[AnchorRead(labels=["Number of units"], page=0)]),
+                 "amount": Reader(strategies=[AnchorRead(labels=["Commitment"], page=0)])},
+    )  # fmt: skip
+    return fields(extract(numbers, doc.tobytes()))
+
+
+def test_a_number_that_is_not_whole_fails_an_integer_path_and_is_kept_as_read(template):
+    got = _numbers_read(template, "12.7", "1,234.50")
+    assert (got["units"].status, got["units"].raw, got["units"].value) == ("failed_check", "12.7", "12.7")
+    assert any("is not of type 'integer'" in r for r in got["units"].reasons)
+    assert (got["amount"].value, got["amount"].reasons) == (1234.5, ["layout not matched"])
+    got = _numbers_read(template, "1,200", "$3,000")
+    assert (got["units"].value, got["amount"].value) == (1200, 3000)
+
+
+@pytest.mark.parametrize("written", ["1,5", "12,34", "1,2345", ",5", "1,234,56"])
+def test_commas_count_only_as_thousands_separators(template, written):
+    got = _numbers_read(template, written, written)
+    for path in ("units", "amount"):
+        assert (got[path].status, got[path].value) == ("failed_check", written), path
+
+
 def test_one_bad_answer_in_a_list_fails_the_lists_check(template):
     # a list of answers from a fixed set, read from one text field: an error on its second item is the field's
     tags_schema = {"type": "array", "items": {"type": "string", "enum": ["a", "b"]}}

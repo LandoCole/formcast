@@ -36,7 +36,10 @@ Then, for every concrete path of the template's schema:
    found, whatever the schema allows.
 3. **Cleaning.** The reader's ``clean`` transforms run on the raw text (``formcast.data.mapping._run``), then the
    value is coerced to the path's schema type (``_coerce``). The raw text is kept beside the value. A value that
-   cleans to nothing is ``missing``, with its raw text and a reason.
+   cleans to nothing is ``missing``, with its raw text and a reason. Coercion never turns one number into another
+   (:func:`_coerced`): for an ``integer`` path a number that is not whole ("12.7") stays as it is, and commas count
+   only as thousands separators in groups of three ("1,234,567"; "1,5" stays the text it is), so the type check
+   fails (``failed_check``) instead of the value changing.
 4. **Checks.** Every path's first candidate is checked in one record with ``validate_data_located``; a later
    strategy's value is checked on its own (the errors located at its path), and when one replaces a failing
    candidate the record is checked again. Every error of the final record is attached to its path as a reason
@@ -85,7 +88,7 @@ from typing import Any
 
 import pymupdf
 
-from formcast.data.mapping import _INDEX, _coerce, _empty, _generic, _run, _set
+from formcast.data.mapping import _INDEX, _coerce, _empty, _generic, _number, _run, _set
 from formcast.errors import FormcastError
 from formcast.extract.layout import LAYOUT_MATCH, PageFit, layout_score, page_fit
 from formcast.extract.model import (
@@ -110,6 +113,9 @@ from formcast.schema import SchemaPath, data_location, flatten_schema, resolve, 
 #: What MuPDF raises for a document it cannot read (beside open_pdf's FormcastError).
 _PDF_ERRORS = (pymupdf.mupdf.FzErrorBase, pymupdf.FileDataError, pymupdf.EmptyFileError)
 _REQUIRED = re.compile(r"""^(['"])(.*)\1 is a required property$""")
+#: What ``_number`` drops besides commas (currency, percent, spaces), and a number whose commas group thousands.
+_NOT_DIGITS = re.compile(r"[$€£%\s]")
+_GROUPED = re.compile(r"[-+(]?\d{1,3}(?:,\d{3})+(?:\.\d*)?\)?")
 #: Rounds of checking a required group that has no answers as an empty group (one per level of nesting).
 _MAX_GROUP_ROUNDS = 16
 
@@ -329,13 +335,37 @@ def _read_path(path: str, reader: Reader | None, ctx: _Context) -> Iterator[_Rea
             continue
         read.doubts += [s.reason for s in skipped if s.doubt and s.reason not in read.doubts]
         value = _run(reader.clean, read.raw)
-        read.value = None if _empty(value) else _coerce(value, sp)
+        read.value = None if _empty(value) else _coerced(value, sp)
         if read.value is None:
             read.reasons.append(f"cleaning left nothing of {read.raw!r}")
         read_any = True
         yield read
     if not read_any and skipped:
         yield _Read(reasons=[s.reason for s in skipped])
+
+
+def _coerced(value: Any, sp: SchemaPath) -> Any:
+    """``value`` coerced to the path's type, as ``_coerce`` does, except that no number is changed into another.
+
+    For a number or integer path, text whose commas are not thousands separators in groups of three stays the text
+    it is, and so does a number that is not whole for an integer path; the type check then fails. (Fill's own
+    ``_coerce`` is left as it is: a filled form is checked again by a person, an extracted value is not.)
+    """
+    if sp.type not in ("integer", "number") or isinstance(value, bool):
+        return _coerce(value, sp)
+    if isinstance(value, str):
+        bare = _NOT_DIGITS.sub("", value)
+        if "," in bare and not _GROUPED.fullmatch(bare):
+            return value
+        number = _number(value)
+        if not isinstance(number, (int, float)) or isinstance(number, bool):
+            return value  # not a number at all: the text, which fails the type check
+        if sp.type == "integer" and not float(number).is_integer():
+            return value  # "12.7" stays "12.7", not 12
+        value = number
+    if sp.type == "integer" and isinstance(value, float) and not value.is_integer():
+        return value
+    return _coerce(value, sp)
 
 
 def _fall_back(
