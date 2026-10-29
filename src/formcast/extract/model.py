@@ -82,14 +82,20 @@ class PhraseRead(_Model):
 
 
 class ChoiceMark(_Model):
-    """Where one option's check mark is: a form field (``widget``) or a rectangle on a page, never both."""
+    """Where one option's check mark is: a form field (``widget``) or a rectangle on a page, never both.
+
+    ``state`` names one button of a radio group by its on-state ("joint"); it goes only with ``widget``.
+    """
 
     widget: str | None = None
+    state: str | None = None
     page: int | None = None
     rect: Rect | None = None
 
     @model_validator(mode="after")
     def _one_place(self) -> ChoiceMark:
+        if self.state is not None and self.widget is None:
+            raise ValueError("a choice mark takes a state only together with a widget")
         if self.widget is not None:
             if self.page is not None or self.rect is not None:
                 raise ValueError("a choice mark takes a widget or a page and rect, not both")

@@ -45,6 +45,8 @@ INK_LEVEL = 128  # gray below this is ink
 MAX_GAP_EM = 3.0
 #: Share of a word's height that must overlap the label's row for the word to be on that row.
 ROW_OVERLAP = 0.5
+#: A gap wider than this many em (the label's height) before a word ends a label that is written close to its answer.
+LABEL_GAP_EM = 1.0
 #: Words after a phrase that are looked at when searching for its stop.
 PHRASE_TAIL_WORDS = 200
 #: Share of the smaller of two same-text words that must overlap, inside a form field, for one to be dropped.
@@ -165,14 +167,19 @@ class DocText:
     # ------------------------------------------------------------ form fields
 
     def _widgets(self) -> dict[str, list[tuple[str, object]]]:
+        """Each field's widgets as ``(kind, value)``: a text is ``str | None``; a check box or radio button is
+        ``(selected, on_state)``, ``selected`` being its on-state string when it is on and ``None`` when off."""
         if self._fields is None:
             fields: dict[str, list[tuple[str, object]]] = {}
             with PDF_LOCK:
                 for page in self._doc:
                     for w in page.widgets() or []:
                         if w.field_type in (pymupdf.PDF_WIDGET_TYPE_CHECKBOX, pymupdf.PDF_WIDGET_TYPE_RADIOBUTTON):
-                            on = w.field_value == w.on_state() or w.field_value not in _OFF
-                            fields.setdefault(w.field_name, []).append(("check", bool(on)))
+                            on_state = w.on_state()
+                            on = w.field_value == on_state or w.field_value not in _OFF
+                            on_name = on_state if isinstance(on_state, str) else None
+                            selected = (on_name or str(w.field_value)) if on else None
+                            fields.setdefault(w.field_name, []).append(("check", (selected, on_name)))
                         elif w.field_type in (pymupdf.PDF_WIDGET_TYPE_SIGNATURE, pymupdf.PDF_WIDGET_TYPE_BUTTON):
                             fields.setdefault(w.field_name, []).append(("other", None))
                         else:
@@ -184,28 +191,52 @@ class DocText:
             self._fields = fields
         return self._fields
 
+    @staticmethod
+    def _is_group(entries: list[tuple[str, object]]) -> bool:
+        """True for a radio group: several buttons under one name that have different on-states."""
+        return len({v[1] for k, v in entries if k == "check" and v[1] is not None}) > 1  # type: ignore[index]
+
     def widget_value(self, name: str) -> str | bool | None:
         """What the form field ``name`` holds.
 
         A text (or list, or combo) field gives its value, ``None`` when empty or when there is no such field. A
-        check box or radio button gives ``True`` when on and ``False`` when off; a group of radio buttons that
-        share a name is on when any button is. A name that is not a field of the document gives ``None``.
+        check box, or a lone radio button, gives ``True`` when on and ``False`` when off. A radio group (buttons
+        that share a name and have different on-states) gives the selected button's on-state string, ``None`` when
+        none is selected; ask :meth:`widget_on` whether it is a given button. A name that is not a field of the
+        document gives ``None``.
         """
         entries = self._widgets().get(name)
         if not entries:
             return None
         if entries[0][0] == "check":
-            return any(value for kind, value in entries if kind == "check")
+            selected = [v[0] for k, v in entries if k == "check" and v[0] is not None]  # type: ignore[index]
+            if self._is_group(entries):
+                return selected[0] if selected else None
+            return bool(selected)
         for kind, value in entries:
             if kind == "text" and value is not None:
                 return str(value)
         return None
 
+    def widget_on(self, name: str, state: str | None = None) -> bool | None:
+        """Whether the check box or radio button ``name`` is on; ``None`` when there is no such check widget.
+
+        For a radio group, ``state`` names one button by its on-state and the answer is whether the group's value
+        is that state; without ``state`` it is whether any button is on. A check box ignores ``state``.
+        """
+        entries = self._widgets().get(name)
+        if not entries or entries[0][0] != "check":
+            return None
+        selected = [v[0] for k, v in entries if k == "check" and v[0] is not None]  # type: ignore[index]
+        if state is not None and self._is_group(entries):
+            return state in selected
+        return bool(selected)
+
     @property
     def has_values(self) -> bool:
-        """True when any form field holds a value (a text, or a check box that is on)."""
+        """True when any form field holds a value (a text, or a check box or radio button that is on)."""
         return any(
-            (kind == "check" and value) or (kind == "text" and value is not None)
+            (kind == "check" and value[0] is not None) or (kind == "text" and value is not None)  # type: ignore[index]
             for entries in self._widgets().values()
             for kind, value in entries
         )
@@ -293,8 +324,13 @@ class DocText:
 
         Words count when they start after ``rect``'s right edge and share its row (at least half of the word's
         height overlaps ``rect`` vertically). The text runs left to right and stops at a gap wider than three em
-        (``rect``'s height) between words, at a word ending with ":" (the next label, not included) and at
-        ``max_width`` points from ``rect``'s right edge.
+        (``rect``'s height) between words, at ``max_width`` points from ``rect``'s right edge, and before the next
+        label: a word ending with ":" together with the words before it that belong to that label. Only the first
+        word is free of the gap rule (labels often sit far from their answers). Which words belong to the label is
+        judged by a wider gap (over one em) before it, else by writing: lowercase words ("of", "legal") and the
+        capitalised word before them; a label of capitalised words only ("Date Of Birth:") takes every capitalised
+        word before it, so it may cut the answer short but never leaks into it. The row "Name: Dana Keller Date of
+        birth: 05/01/2020" reads "Dana Keller" after "Name:", and an empty answer before another label gives ``None``.
         """
         text = self._page(page)
         if text is None:
@@ -309,11 +345,12 @@ class DocText:
         for w in sorted(row, key=lambda w: w.rect[0]):
             if w.rect[2] > rect[2] + max_width:
                 break
-            if w.text.endswith(":"):
-                break
             if taken and w.rect[0] - taken[-1].rect[2] > MAX_GAP_EM * em:
                 break
             taken.append(w)
+            if w.text.endswith(":"):
+                taken = taken[: _label_start(taken, em)]  # the next label ends here: leave it out
+                break
         if not taken:
             return None
         return " ".join(w.text for w in taken), _union([w.rect for w in taken])
@@ -388,7 +425,9 @@ class DocText:
         The page's words are read in order as running text, across line breaks. A phrase matches like a label
         (a run of consecutive words whose keys joined equal the phrase's key). The text after it runs to the
         ``stop``: ``"comma"`` (the next ","), ``"sentence"`` (the next "." followed by a space or the end),
-        ``"line"`` (the end of the line the phrase ends on) or ``"digits"`` (the run of digits and spaces).
+        ``"line"`` (the end of the line the phrase ends on) or ``"digits"`` (the run of digits and spaces on the
+        phrase's own line: a number wrapped onto the next line is not joined). ``"comma"`` and ``"sentence"`` may
+        cross line breaks.
         ``rect`` covers the words the text is made of. An occurrence whose stop is not found (no comma, no digits)
         is left out, so a hit always names a real stop. ``page=None`` searches every page.
         """
@@ -412,7 +451,8 @@ class DocText:
     def _after(text: _Text, last: int, stop: str) -> tuple[str, Rect] | None:
         """The words after word ``last`` up to ``stop``: their text and rectangle, or ``None``."""
         line_id = text.words[last].line_id
-        tail = [w for w in text.words[last + 1 :] if stop != "line" or w.line_id == line_id][:PHRASE_TAIL_WORDS]
+        own_line = stop in ("line", "digits")  # these never leave the phrase's own text line
+        tail = [w for w in text.words[last + 1 :] if not own_line or w.line_id == line_id][:PHRASE_TAIL_WORDS]
         spans: list[tuple[int, int]] = []  # each word's [start, end) in the joined tail
         pos = 0
         for w in tail:
@@ -437,6 +477,31 @@ class DocText:
         if not chosen or not value:
             return None
         return value, _union([w.rect for w in chosen])
+
+
+def _label_start(words: list[Word], em: float) -> int:
+    """Index in ``words`` where the label that ends with the last word (it ends with ":") begins.
+
+    The label reaches back over words with no wide gap between them: the lowercase words just before the colon
+    word and the capitalised word before those; when the label has no lowercase word, every capitalised word.
+    """
+
+    def close(i: int) -> bool:  # word i follows word i - 1 without a wide gap
+        return words[i].rect[0] - words[i - 1].rect[2] <= LABEL_GAP_EM * em
+
+    def lower(i: int) -> bool:
+        return words[i].text[:1].islower()
+
+    start = len(words) - 1
+    had_lower = False
+    while start > 0 and close(start) and lower(start - 1):
+        start -= 1
+        had_lower = True
+    if start > 0 and close(start):
+        start -= 1  # the capitalised word that opens the label
+        while not had_lower and start > 0 and close(start) and not lower(start - 1):
+            start -= 1
+    return start
 
 
 def _vertical_overlap(a: Rect, b: Rect) -> float:

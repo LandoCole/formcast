@@ -196,7 +196,10 @@ def test_an_absent_path_must_be_a_schema_leaf():
 def test_a_choice_mark_takes_a_widget_or_a_page_and_rect_not_both():
     ChoiceMark(widget="w")
     ChoiceMark(page=0, rect=(1, 2, 3, 4))
+    ChoiceMark(widget="kind", state="joint")
     bad_marks = (
+        {"page": 0, "rect": (1, 2, 3, 4), "state": "joint"},
+        {"state": "joint"},
         {},
         {"widget": "w", "page": 0, "rect": (1, 2, 3, 4)},
         {"page": 0},

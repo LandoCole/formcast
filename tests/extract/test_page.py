@@ -34,6 +34,34 @@ def _lines_pdf(*lines: str) -> bytes:
     return doc.tobytes()
 
 
+def _radio_pdf(value: str | None, states=("indiv", "joint", "llc")) -> bytes:
+    """A one-page PDF with a radio group "kind": one field, one kid per state, the kid for ``value`` selected."""
+    doc = pymupdf.open()
+    page = doc.new_page()
+    parent = doc.get_new_xref()
+    doc.update_object(parent, "<<>>")
+    kids = []
+    for n, state in enumerate(states):
+        on, off = doc.get_new_xref(), doc.get_new_xref()
+        for xref, ink in ((on, b"0 0 12 12 re S"), (off, b"")):
+            doc.update_object(xref, "<< /Type /XObject /Subtype /Form /BBox [0 0 12 12] >>")
+            doc.update_stream(xref, ink)
+        kid, y = doc.get_new_xref(), 72 + 30 * n
+        selected = state if state == value else "Off"
+        doc.update_object(
+            kid,
+            f"<< /Type /Annot /Subtype /Widget /Rect [72 {y} 84 {y + 12}] /Parent {parent} 0 R /F 4 /AS /{selected}"
+            f" /AP << /N << /{state} {on} 0 R /Off {off} 0 R >> >> >>",
+        )
+        kids.append(kid)
+    refs = " ".join(f"{k} 0 R" for k in kids)
+    v = f"/V /{value} " if value else ""
+    doc.update_object(parent, f"<< /FT /Btn /Ff 32768 /T (kind) {v}/Kids [{refs}] >>")
+    doc.xref_set_key(page.xref, "Annots", f"[{refs}]")
+    doc.xref_set_key(doc.pdf_catalog(), "AcroForm", f"<< /Fields [{parent} 0 R] >>")
+    return doc.tobytes()
+
+
 # --------------------------------------------------------------------- label_key
 
 
@@ -83,6 +111,27 @@ def test_a_checkbox_is_on_by_its_on_state_whatever_that_is():
     with DocText(doc.tobytes()) as text:
         assert text.widget_value("a") is True and text.widget_value("b") is True
         assert text.widget_value("c") is False
+
+
+def test_a_radio_group_reads_as_the_selected_buttons_state():
+    with DocText(_radio_pdf("joint")) as doc:
+        assert doc.has_values
+        assert doc.widget_value("kind") == "joint"
+        assert doc.widget_on("kind", "joint") is True
+        assert doc.widget_on("kind", "indiv") is False and doc.widget_on("kind", "llc") is False
+        assert doc.widget_on("kind") is True  # some button is on
+    with DocText(_radio_pdf(None)) as doc:
+        assert not doc.has_values
+        assert doc.widget_value("kind") is None
+        assert doc.widget_on("kind", "joint") is False and doc.widget_on("kind") is False
+
+
+def test_widget_on_answers_for_check_boxes_and_none_for_what_is_not_one():
+    with DocText(FILLABLE) as doc:
+        assert doc.widget_on("type_joint") is True and doc.widget_on("type_llc") is False
+        assert doc.widget_on("type_joint", "Yes") is True  # a check box has no group: state is not asked
+        assert doc.widget_on("no_such_field") is None
+        assert doc.widget_on("tax_id") is None  # a text field is not a check box
 
 
 def test_the_input_may_be_a_path_and_bad_input_is_a_formcast_error(tmp_path):
@@ -214,7 +263,7 @@ def test_text_right_of_a_label_stops_at_the_next_label(kind):
 
 
 def test_text_right_of_stops_at_a_colon_a_wide_gap_and_the_width():
-    with DocText(_lines_pdf("Name: Dana Keller Date: 05/01/2020")) as doc:
+    with DocText(_lines_pdf("Name: Dana Keller     Date: 05/01/2020")) as doc:
         (_, label), = doc.find_label(["Name"], 0)
         assert doc.text_right_of(0, label, 300)[0] == "Dana Keller"
         assert doc.text_right_of(0, label, 40)[0] == "Dana"
@@ -227,6 +276,22 @@ def test_text_right_of_stops_at_a_colon_a_wide_gap_and_the_width():
     with DocText(doc.tobytes()) as text:
         (_, label), = text.find_label(["Name"], 0)
         assert text.text_right_of(0, label, 400)[0] == "Dana"
+
+
+def test_text_right_of_does_not_take_the_next_label_with_it():
+    with DocText(_lines_pdf("Name: Dana Keller Date of birth: 05/01/2020")) as doc:
+        (_, label), = doc.find_label(["Name"], 0)
+        assert doc.text_right_of(0, label, 400)[0] == "Dana Keller"
+    # an empty answer: only the next label follows, so there is nothing to read
+    with DocText(_lines_pdf("Taxpayer ID:      Date of birth: 05/01/2020")) as doc:
+        (_, label), = doc.find_label(["Taxpayer ID"], 0)
+        assert doc.text_right_of(0, label, 400) is None
+    with DocText(_lines_pdf("Name: Dana Keller Taxpayer ID: 12-3456789")) as doc:
+        (_, label), = doc.find_label(["Name"], 0)
+        assert doc.text_right_of(0, label, 400) is None  # capitalised words only: not told apart, so not read
+    with DocText(_lines_pdf("Name: Dana Keller      Taxpayer ID: 12-3456789")) as doc:
+        (_, label), = doc.find_label(["Name"], 0)
+        assert doc.text_right_of(0, label, 400)[0] == "Dana Keller"  # a wide gap tells them apart
 
 
 def test_text_right_of_ignores_other_rows_and_words_to_the_left():
@@ -354,6 +419,15 @@ def test_after_phrase_stops_at_a_sentence_or_the_end_of_the_line():
         assert doc.after_phrase(["apply after"], 0, "sentence") == []  # no full stop follows: nothing to read
     with DocText(_lines_pdf("Total due: 40.")) as doc:
         assert doc.after_phrase(["total due"], 0, "sentence")[0][1] == "40"
+
+
+def test_a_digits_read_stops_at_the_end_of_the_line():
+    with DocText(_lines_pdf("Wire to account 12345678", "2 Signature of investor")) as doc:
+        assert doc.after_phrase(["account"], 0, "digits")[0][1] == "12345678"
+        assert doc.after_phrase(["account"], 0, "line")[0][1] == "12345678"
+        assert doc.after_phrase(["account"], 0, "comma") == []  # comma and sentence may cross lines
+    with DocText(_lines_pdf("Wire to account", "12345678")) as doc:
+        assert doc.after_phrase(["account"], 0, "digits") == []  # a wrapped number is not joined
 
 
 def test_after_phrase_returns_every_occurrence_and_any_wording():
