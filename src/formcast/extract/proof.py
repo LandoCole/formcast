@@ -4,12 +4,18 @@ A template built from samples keeps, for each sample, the model's reading of eve
 (:class:`~formcast.extract.model.SampleRecord`). :func:`prove` reads the very same samples with the template's
 readers (:func:`~formcast.extract.read.extract`, no model call) and compares, path by path and sample by sample:
 
-    agree          the readers' value, or their raw text, is the model's reading (:func:`same_value`)
+    agree          the readers read the model's answer (below)
     disagree       they read another value, read a value where the model saw none, or none where it saw one
     missing        neither side has a value on this sample
-    failed_check   the readers' raw text is the model's reading, but the value fails the schema's checks (the form
-                   holds a bad answer; both sides read it the same, so it does not count against the readers)
+    failed_check   the readers read the model's answer, but the value fails the schema's checks (the form holds a
+                   bad answer; both sides read it the same, so it does not count against the readers)
     absent         the path is marked "not on this form"
+
+The readers read the model's answer when their value is it (:func:`same_value`), or when the model gave the printed
+text instead of the value: the answer is the readers' raw text, it is not an answer the schema accepts at the path
+("04/19/2011" for a date), and the reader's own clean steps and type coercion (``read.cleaned``) turn it into the
+readers' value ("2011-04-19"). An answer the schema accepts must be the value itself: a map that turns a printed "CA"
+into "US" disagrees with a model that read "CA", although cleaning "CA" the reader's way also gives "US".
 
 A path is *ready* when it is not absent, no sample disagrees, and at least one sample agrees or failed its check:
 readers that agree only on blanks have proven nothing. A path the model was not asked about on a sample counts its
@@ -38,11 +44,12 @@ from formcast.extract.model import (
     ChoiceRead,
     ExtractionTemplate,
     FieldResult,
+    Reader,
     SampleRecord,
     concrete_paths,
 )
 from formcast.extract.page import DocText, label_key
-from formcast.extract.read import _extract_open, extract, now
+from formcast.extract.read import _errors_at, _extract_open, cleaned, extract, now
 from formcast.geometry import Rect
 from formcast.match import PdfFeatures
 from formcast.schema import SchemaPath, flatten_schema, resolve
@@ -144,13 +151,31 @@ def same_value(read: Any, opinion: Any) -> bool:
     return ka == kb
 
 
-def _outcome(read: FieldResult, opinion: Any, absent: bool) -> Outcome:
+def _read_answer(read: FieldResult, opinion: Any, reader: Reader | None, sp: SchemaPath, schema: dict) -> bool:
+    """Whether the readers read the model's answer ``opinion``: as their value, or from the same printed text.
+
+    The printed text counts only for an answer the schema refuses at the path (the model gave the text, not the
+    value), and only when the reader's cleaning of the answer gives the readers' value; see the module docstring.
+    """
+    if opinion is None:
+        return False
+    if same_value(read.value, opinion):
+        return True
+    if reader is None or read.raw is None or not same_value(read.raw, opinion):
+        return False
+    if not _errors_at(schema, read.path, opinion):
+        return False  # already an answer the schema accepts: the value had to be it
+    return same_value(cleaned(reader, str(opinion), sp), read.value)
+
+
+def _outcome(read: FieldResult, absent: bool, answered: bool, opinion: Any) -> Outcome:
+    """The sample's outcome; ``answered``: the readers read the model's answer (:func:`_read_answer`)."""
     if absent:
         return "absent"
     if read.status in _READ:
-        return "agree" if same_value(read.value, opinion) or same_value(read.raw, opinion) else "disagree"
+        return "agree" if answered else "disagree"
     if read.status == "failed_check":
-        return "failed_check" if opinion is not None and same_value(read.raw, opinion) else "disagree"
+        return "failed_check" if answered else "disagree"
     return "missing" if opinion is None else "disagree"  # missing or absent (an item with nothing in it)
 
 
@@ -191,15 +216,18 @@ def prove(template: ExtractionTemplate, pdfs: list[bytes]) -> Proof:
             raise FormcastError(f"sample {sample.file!r} cannot be read: {result.error}")
         results.append({f.path: f for f in result.fields})
 
+    schema = template.schema_
+    schema_paths = flatten_schema(schema)
     fields: list[FieldProof] = []
-    for path in concrete_paths(template.schema_):
+    for path in concrete_paths(schema):
         absent = path in template.absent
+        reader, sp = template.readers.get(path), resolve(schema_paths, _generic(path)[0])
         samples = []
         for sample, by_path in zip(template.samples, results):
             read = by_path.get(path) or FieldResult(path=path, status="missing", raw=None)
             opinion = _opinion(sample, path)
-            samples.append(SampleProof(file=sample.file, outcome=_outcome(read, opinion, absent), read=read,
-                                       opinion=opinion))  # fmt: skip
+            outcome = _outcome(read, absent, _read_answer(read, opinion, reader, sp, schema), opinion)
+            samples.append(SampleProof(file=sample.file, outcome=outcome, read=read, opinion=opinion))
         outcomes = [s.outcome for s in samples]
         ready = (
             not absent and "disagree" not in outcomes and any(o in ("agree", "failed_check") for o in outcomes)

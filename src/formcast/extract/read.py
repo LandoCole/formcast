@@ -334,14 +334,20 @@ def _read_path(path: str, reader: Reader | None, ctx: _Context) -> Iterator[_Rea
         if read is None:
             continue
         read.doubts += [s.reason for s in skipped if s.doubt and s.reason not in read.doubts]
-        value = _run(reader.clean, read.raw)
-        read.value = None if _empty(value) else _coerced(value, sp)
+        read.value = cleaned(reader, read.raw, sp)
         if read.value is None:
             read.reasons.append(f"cleaning left nothing of {read.raw!r}")
         read_any = True
         yield read
     if not read_any and skipped:
         yield _Read(reasons=[s.reason for s in skipped])
+
+
+def cleaned(reader: Reader, raw: str, sp: SchemaPath) -> Any:
+    """``raw`` run through the reader's ``clean`` transforms and coerced to the path's type (:func:`_coerced`), as
+    every read is; ``None`` when nothing is left."""
+    value = _run(reader.clean, raw)
+    return None if _empty(value) else _coerced(value, sp)
 
 
 def _coerced(value: Any, sp: SchemaPath) -> Any:
