@@ -61,6 +61,39 @@
   .problem .row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
   .problem.done { opacity: 1; }
   .problem .state { font: italic 14px var(--serif); color: var(--graphite); }
+  .sheet.wide { width: min(720px, 100%); }
+  .choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .choice { display: grid; gap: 8px; align-content: start; text-align: left; padding: 16px; background: var(--paper); color: var(--ink); border: 0; outline: 1px solid var(--rule); outline-offset: -.5px; cursor: pointer; font: inherit; }
+  .choice:hover { outline: 1px solid var(--ink); }
+  .choice-t { font: 11px var(--mono); letter-spacing: .14em; text-transform: uppercase; }
+  .choice-d { font-size: 16px; line-height: 22px; color: var(--graphite); }
+  .drop { display: grid; place-items: center; gap: 4px; padding: 22px 12px; outline: 1px dashed var(--graphite); outline-offset: -.5px; cursor: pointer; text-align: center; position: relative; }
+  .drop:hover, .drop.is-over { outline: 1px solid var(--ink); background: var(--tint); }
+  .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  .drop-t { font: 11px var(--mono); letter-spacing: .14em; text-transform: uppercase; }
+  .drop-d { font-style: italic; color: var(--graphite); font-size: 15px; }
+  .pathrow { display: flex; gap: 8px; margin-top: 8px; }
+  .pathrow .text { flex: 1; min-width: 0; }
+  .batch { margin-top: 12px; }
+  .batch-sum { margin: 0 0 6px; font: 12px/18px var(--mono); }
+  .batch .reading-strip li[data-state="other"] { outline-style: dashed; outline-color: var(--graphite); }
+  .batch .reading-strip li[data-state="sample"] { background: var(--ink); outline-color: var(--ink); }
+  .batch .reading-strip li[data-state="flat"] { background: repeating-linear-gradient(135deg, var(--graphite) 0 1px, transparent 1px 3px); }
+  .samplerow { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: center; }
+  .num { display: flex; align-items: center; gap: 8px; font: 11px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--graphite); white-space: nowrap; }
+  .num input { width: 64px; }
+  .group > .opt { display: block; margin-top: 6px; font-size: 14px; line-height: 20px; color: var(--graphite); }
+  .picklist { list-style: none; margin: 8px 0 0; padding: 0; max-height: 160px; overflow: auto; outline: 1px solid var(--rule); outline-offset: -.5px; font: 11px/26px var(--mono); }
+  .picklist li { padding: 0 10px; box-shadow: inset 0 -.5px 0 0 var(--rule); }
+  .picklist label { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+  .picklist small { margin-left: auto; color: var(--graphite); }
+  #mode-detail { margin-top: 10px; }
+  #mode-detail p { margin: 0; font-style: italic; color: var(--graphite); font-size: 16px; line-height: 22px; }
+  .settings { display: grid; grid-template-columns: 136px minmax(0, 1fr); gap: 10px 12px; margin: 10px 0 0; align-items: center; }
+  .settings dt { font: 10px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--graphite); }
+  .settings dd { margin: 0; }
+  .settings .check { margin: 0; }
+  .ex-strip { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; }
   @media (max-width: 1023px) { .strip, .stats { padding-left: 16px; padding-right: 16px; } }
 </style>
 </head>
@@ -72,16 +105,10 @@
 
 <div class="toolbar" role="toolbar" aria-label="Extraction">
   <div class="tb-left">
-    <button type="button" class="btn sel" title="Choose other samples">client_info_form · 5 samples</button>
+    <button type="button" class="btn sel" id="doc-pick" title="Fill or extract other PDFs">client_info_form · 1,248 PDFs · 5 samples</button>
     <span class="seg" role="group" aria-label="View">
       <button type="button" class="btn quiet" data-view="setup" aria-pressed="true">Set up</button>
       <button type="button" class="btn quiet" data-view="review" aria-pressed="false">Review</button>
-    </span>
-    <span class="tb-label" data-only="setup">Start from</span>
-    <span class="seg" role="group" aria-label="Start from" data-only="setup">
-      <button type="button" class="btn quiet" data-mode="ai" aria-pressed="true">AI suggests</button>
-      <button type="button" class="btn quiet" data-mode="user" aria-pressed="false">I'll list them</button>
-      <button type="button" class="btn quiet" data-mode="dest" aria-pressed="false">Destination</button>
     </span>
   </div>
   <div class="tb-right" data-only="setup">
@@ -141,21 +168,21 @@
 <!-- ======================= review ======================= -->
 <div data-only="review" hidden>
   <div class="stats">
-    <div class="stat"><b>100,000</b><span>Documents</span></div>
-    <div class="stat"><b>96,412</b><span>Complete</span></div>
-    <div class="stat"><b>3,104</b><span>With problems</span></div>
-    <div class="stat"><b>484</b><span>No template fits</span></div>
-    <div class="stat"><b>2:41:07</b><span>Run time</span></div>
+    <div class="stat"><b>1,248</b><span>Documents</span></div>
+    <div class="stat"><b>1,163</b><span>Complete</span></div>
+    <div class="stat"><b>38</b><span>With problems</span></div>
+    <div class="stat"><b>47</b><span>No template fits</span></div>
+    <div class="stat"><b>2:03</b><span>Run time</span></div>
   </div>
   <main class="bench">
     <aside class="col col-schema" aria-label="Documents with problems">
-      <p class="label">Documents with problems · 3,104</p>
+      <p class="label">Documents with problems · 38</p>
       <div class="filters">
         <select class="fc-in" aria-label="Field"><option>Every field</option><option>investor.tax_id</option><option>investor.type</option><option>wire.account_number</option></select>
         <select class="fc-in" aria-label="Problem"><option>Every problem</option><option>Missing</option><option>Fails a check</option><option>Unsure</option></select>
       </div>
       <ul class="docs" id="docs"></ul>
-      <p class="legend">Showing 4 of 3,104 · page 1 of 776</p>
+      <p class="legend">Showing 4 of 38 · page 1 of 10</p>
     </aside>
     <section class="col col-page" aria-label="Document page">
       <div class="pagebar">
@@ -172,6 +199,114 @@
       </div>
     </aside>
   </main>
+</div>
+
+<!-- ======================= fill or extract ======================= -->
+<div class="overlay" id="m-choose" role="dialog" aria-modal="true" aria-labelledby="m-choose-title" hidden>
+  <div class="sheet">
+    <h1 id="m-choose-title">What would you like to do?</h1>
+    <div class="choices">
+      <button type="button" class="choice" data-go="fill">
+        <span class="choice-t">Fill a PDF</span>
+        <span class="choice-d">Give it a form and your data. The AI links the boxes and fills your data in.</span>
+      </button>
+      <button type="button" class="choice" data-go="extract">
+        <span class="choice-t">Extract from PDFs</span>
+        <span class="choice-d">Give it a batch of filled forms. It learns the layout from a few, then reads every one into a table.</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- the existing start screen, unchanged (shown here only as a stand-in) -->
+<div class="overlay" id="m-fill" role="dialog" aria-modal="true" aria-labelledby="m-fill-title" hidden>
+  <div class="sheet">
+    <h1 id="m-fill-title">Fill a form</h1>
+    <p class="lede">The workbench's existing start screen opens here, as it is today: the form, your data, the schema and how the boxes are linked.</p>
+    <div class="row"><button type="button" class="btn quiet" data-go="choose">Back</button></div>
+  </div>
+</div>
+
+<!-- ======================= extract: documents, sample, fields, settings ======================= -->
+<div class="overlay" id="m-extract" role="dialog" aria-modal="true" aria-labelledby="m-extract-title" hidden>
+  <div class="sheet wide">
+    <h1 id="m-extract-title">Extract from PDFs</h1>
+    <p class="lede">Upload the batch. A few documents become the sample the template is learned from; then every document is read the same way, with no AI per document.</p>
+
+    <div class="group">
+      <p class="label">1 · Your documents</p>
+      <label class="drop" id="drop">
+        <input type="file" multiple accept=".pdf,.zip,application/pdf,application/zip">
+        <span class="drop-t">Drop PDFs or a .zip here</span>
+        <span class="drop-d">or <u>choose files</u> · <u>choose a folder</u></span>
+      </label>
+      <div class="pathrow"><input class="text" id="folder" placeholder="Or a folder on this machine: /data/clients/2026"><button type="button" class="btn quiet" id="scan">Scan</button></div>
+      <div class="batch" id="batch" hidden>
+        <p class="batch-sum" id="batch-sum"></p>
+        <ol class="reading-strip" id="batch-strip" aria-label="Documents by layout"></ol>
+        <p class="opt" id="batch-note"></p>
+      </div>
+    </div>
+
+    <div class="group">
+      <p class="label">2 · The sample</p>
+      <div class="samplerow">
+        <label class="num">Use <input type="number" class="text" id="n-sample" min="3" max="20" value="5" step="1"> documents</label>
+        <select id="sample-how" aria-label="How the sample is picked">
+          <option value="spread">Spread across the batch (recommended)</option>
+          <option value="first">The first ones in the batch</option>
+          <option value="pick">I'll pick them</option>
+        </select>
+      </div>
+      <p class="opt">3 to 20. Spread across the batch mixes fillable and flattened copies, early and late. More samples find more of the ways answers vary; each costs a little AI time while the template is built, not afterwards.</p>
+      <ul class="picklist" id="picklist" hidden></ul>
+    </div>
+
+    <div class="group">
+      <p class="label">3 · What to extract</p>
+      <span class="seg" role="group" aria-label="Start from">
+        <button type="button" class="btn quiet" data-mode="ai" aria-pressed="true">AI suggests</button>
+        <button type="button" class="btn quiet" data-mode="user" aria-pressed="false">I'll list them</button>
+        <button type="button" class="btn quiet" data-mode="dest" aria-pressed="false">Destination</button>
+      </span>
+      <div id="mode-detail"></div>
+    </div>
+
+    <details class="group more">
+      <summary class="label">4 · Detection and reading · <span id="settings-sum">automatic, prose skipped</span></summary>
+      <dl class="settings">
+        <dt>Find the blanks</dt>
+        <dd><select id="detect">
+          <option value="auto">Automatically, skipping pages that read as prose (recommended)</option>
+          <option value="all">Automatically, on every page</option>
+          <option value="manual">I'll pick the pages on the samples</option>
+          <option value="off">Don't: form fields and page text only</option>
+        </select></dd>
+        <dt>Scanned pages</dt>
+        <dd><select><option>OCR them when needed</option><option>Leave them out</option></select></dd>
+        <dt>Unsure reads</dt>
+        <dd><label class="check"><input type="checkbox" checked><span>Send a label or phrase read to review when the label is found twice, or the document's layout differs from the samples</span></label></dd>
+        <dt>AI per document</dt>
+        <dd><label class="check"><input type="checkbox" id="ai-fallback"><span>Ask the AI about documents whose required fields fail <span class="opt">Off: they go to review. On: its answers are marked and still reviewed.</span></span></label></dd>
+      </dl>
+    </details>
+
+    <p class="msg" id="extract-msg" hidden></p>
+    <div class="row">
+      <button type="button" class="btn quiet" data-go="choose">Back</button>
+      <button type="button" class="btn dark" id="read-sample">Read the sample →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ======================= reading the sample ======================= -->
+<div class="overlay" id="m-reading" role="dialog" aria-modal="true" aria-labelledby="m-reading-title" hidden>
+  <div class="sheet">
+    <h2 id="m-reading-title">Building the template</h2>
+    <ol class="stages" id="build-stages"></ol>
+    <p class="readout" id="build-readout"></p>
+    <div class="row"><button type="button" class="btn quiet" data-go="extract">Cancel</button></div>
+  </div>
 </div>
 
 <script>
@@ -274,7 +409,7 @@ const DOCS = [
 
 // ------------------------------------------------------------------ state
 
-const state = { view: "setup", mode: "ai", sample: 0, field: "tin", doc: 0, decided: {} };
+const state = { view: "setup", mode: "ai", sample: 0, field: "tin", doc: 0, decided: {}, modal: "choose", batch: null, nSample: 5, how: "spread", detect: "auto" };
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const fields = () => (state.mode === "dest" ? FIELDS.concat(DEST_ONLY) : FIELDS);
@@ -388,17 +523,118 @@ function regionsOf(f, s) {
 
 // ------------------------------------------------------------------ set up
 
+const MODE_NAME = { ai: "AI suggests", user: "I'll list them", dest: "Destination" };
+const USER_LINES = FIELDS.map((f) => f.line).filter((v, i, a) => a.indexOf(v) === i);
+
 function renderStrip() {
-  const strip = $("strip");
-  if (state.mode === "ai") {
-    strip.innerHTML = `<p>The AI read the 5 samples and suggested 9 fields. Remove what you don't need, rename them, or add your own on the left.</p>`;
-  } else if (state.mode === "user") {
-    strip.innerHTML = `<textarea aria-label="What to extract, one per line">${FIELDS.map((f) => f.line).filter((v, i, a) => a.indexOf(v) === i).join("\n")}</textarea>
-      <p>One thing per line, in your words. The AI turns each line into defined fields and finds them on the samples; “wire details” became bank and account.</p>
-      <button type="button" class="btn small">Find these</button>`;
-  } else {
-    strip.innerHTML = `<p>From the saved template <b>Sprott subscription</b>: the fields it needs that a client form can supply. 2 of them aren't on this form; they stay in the list, marked ○, so the gap is known before the run.</p>`;
+  const what = {
+    ai: "The AI read the samples and suggested 9 fields. Remove what you don't need, rename them, or add your own on the left.",
+    user: `From your ${USER_LINES.length} lines; “wire details” became bank and account.`,
+    dest: "From the saved template Sprott subscription: the fields it needs that a client form can supply. 2 aren't on this form; they stay in the list, marked ○, so the gap is known before the run.",
+  }[state.mode];
+  $("strip").innerHTML = `<p><span class="label" style="font-style:normal">${esc(MODE_NAME[state.mode])} · ${state.nSample} samples · ${esc(DETECT_SUM[state.detect])}</span><br>${esc(what)}</p>
+    <button type="button" class="btn quiet small" id="change">Change the setup</button>`;
+  $("change").addEventListener("click", () => openModal("extract"));
+}
+
+// ------------------------------------------------------------------ the modals
+
+const DETECT_SUM = { auto: "automatic, prose skipped", all: "automatic, every page", manual: "you pick the pages", off: "form fields and text only" };
+const BATCH = { files: 1248, mb: 412, layout: 1201, fillable: 814, flattened: 387, other: 47 };
+const CELL = 13; // documents per strip cell
+
+function openModal(name) {
+  state.modal = name;
+  for (const id of ["choose", "fill", "extract", "reading"]) $(`m-${id}`).hidden = id !== name;
+  if (name === "extract") renderExtract();
+}
+
+function renderExtract() {
+  const b = state.batch;
+  $("batch").hidden = !b;
+  if (b) {
+    $("batch-sum").textContent = `${b.files.toLocaleString()} PDFs · ${b.mb} MB · from ${b.source}`;
+    const cells = Math.ceil(b.files / CELL);
+    const strip = $("batch-strip");
+    if (strip.children.length !== cells) strip.replaceChildren(...Array.from({ length: cells }, () => document.createElement("li")));
+    const otherFrom = cells - Math.ceil(b.other / CELL);
+    const flatEvery = Math.round(b.layout / b.flattened);
+    const picks = samplePicks(cells, otherFrom);
+    [...strip.children].forEach((li, i) => {
+      li.dataset.state = picks.has(i) ? "sample" : i >= otherFrom ? "other" : i % flatEvery === 1 ? "flat" : "fill";
+      li.title = picks.has(i) ? "in the sample" : i >= otherFrom ? "a different layout" : i % flatEvery === 1 ? "flattened" : "fillable";
+    });
+    $("batch-note").textContent = `One layout fits ${b.layout.toLocaleString()} of them (${b.fillable} fillable, ${b.flattened} flattened); ${b.other} look different and are set aside, for a second template later. Each cell is about ${CELL} documents: ■ in the sample · □ fillable · ▨ flattened · dashed, a different layout.`;
   }
+  $("n-sample").value = state.nSample;
+  $("sample-how").value = state.how;
+  $("picklist").hidden = state.how !== "pick";
+  if (state.how === "pick") {
+    $("picklist").innerHTML = Array.from({ length: 14 }, (_, i) => {
+      const n = String(17 + i * 89).padStart(5, "0");
+      const kind = i % 3 === 2 ? "flattened" : "fillable";
+      return `<li><label><input type="checkbox" ${i < state.nSample ? "checked" : ""}> client_${n}.pdf <small>${kind}</small></label></li>`;
+    }).join("");
+  }
+  document.querySelectorAll("#m-extract [data-mode]").forEach((btn) => btn.setAttribute("aria-pressed", String(btn.dataset.mode === state.mode)));
+  const detail = $("mode-detail");
+  if (state.mode === "ai") {
+    detail.innerHTML = `<p>The AI reads the sample and proposes the fields it finds, each with a name, a definition and checks. You edit the list next.</p>`;
+  } else if (state.mode === "user") {
+    detail.innerHTML = `<textarea rows="6" aria-label="What to extract, one per line" style="margin-top:0">${esc(USER_LINES.join("\n"))}</textarea>
+      <p style="margin-top:6px">One thing per line, in your words. Each line becomes one or more defined fields, found on the sample.</p>`;
+  } else {
+    detail.innerHTML = `<select aria-label="Destination template"><option>Sprott subscription · 96 fields</option><option>Menomonie one-shot · 66 fields</option><option>fw9 · 23 fields</option></select>
+      <p style="margin-top:6px">The fields the destination needs become the checklist. Any this form never asks for are flagged before anything runs.</p>`;
+  }
+  $("settings-sum").textContent = DETECT_SUM[state.detect];
+  $("extract-msg").hidden = true;
+}
+
+/** Which strip cells hold sample documents: spread across the batch, or the first ones. */
+function samplePicks(cells, usable) {
+  const n = Math.min(state.nSample, usable);
+  if (state.how === "first") return new Set(Array.from({ length: n }, (_, i) => i));
+  return new Set(Array.from({ length: n }, (_, i) => Math.floor(((i + 0.5) * usable) / n)));
+}
+
+function loadBatch(source) {
+  state.batch = { ...BATCH, source };
+  renderExtract();
+}
+
+const BUILD = () => [
+  ["Read the sample", `${state.nSample} documents: ${Math.ceil(state.nSample * 0.6)} fillable, ${Math.floor(state.nSample * 0.4)} flattened · ${state.nSample * 2} s`],
+  ["Find the blanks", state.detect === "off" ? "skipped: form fields and page text only" : `on the flattened pages · ${state.detect === "auto" ? "4 prose pages skipped" : "every page"}`],
+  [{ ai: "Design the fields", user: "Turn your lines into fields", dest: "Match the destination's fields" }[state.mode],
+    { ai: "9 fields · 2 groups", user: `${USER_LINES.length} lines → 9 fields`, dest: "96 fields · 9 on this form, 2 not" }[state.mode]],
+  ["Find each field on the sample", "form fields, labels and page text"],
+  ["Check the reads", `code and the AI agree on 37 of ${state.nSample * 9} · 5 fields need a look`],
+];
+
+function runBuild() {
+  if (!state.batch) {
+    $("extract-msg").hidden = false;
+    $("extract-msg").textContent = "Add the documents first: drop them in, or scan a folder.";
+    return;
+  }
+  openModal("reading");
+  const stages = BUILD();
+  let at = 0;
+  const draw = () => {
+    $("build-stages").innerHTML = stages.map(([label, detail], i) =>
+      `<li data-status="${i < at ? "done" : i === at ? "running" : "pending"}">${esc(label)}${i < at ? `<span class="detail">${esc(detail)}</span>` : ""}</li>`).join("");
+    $("build-readout").textContent = at < stages.length ? `${at} of ${stages.length} · about ${(stages.length - at) * 6} s left` : "Done.";
+  };
+  draw();
+  const tick = () => {
+    if (state.modal !== "reading") return; // cancelled
+    at += 1;
+    draw();
+    if (at < stages.length) setTimeout(tick, 650);
+    else setTimeout(() => { openModal(null); state.view = "setup"; render(); }, 500);
+  };
+  setTimeout(tick, 650);
 }
 
 function renderFields() {
@@ -516,7 +752,7 @@ function renderReview() {
 function render() {
   document.querySelectorAll("[data-only]").forEach((el) => { el.hidden = el.dataset.only !== state.view; });
   document.querySelectorAll("[data-view]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === state.view)));
-  document.querySelectorAll("[data-mode]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === state.mode)));
+  $("doc-pick").textContent = `client_info_form · ${(state.batch?.files ?? BATCH.files).toLocaleString()} PDFs · ${state.nSample} samples`;
   if (state.view === "setup") renderSetup();
   else renderReview();
 }
@@ -525,8 +761,26 @@ document.querySelectorAll("[data-view]").forEach((b) => b.addEventListener("clic
 document.querySelectorAll("[data-mode]").forEach((b) => b.addEventListener("click", () => {
   state.mode = b.dataset.mode;
   if (!fields().some((f) => f.id === state.field)) state.field = "tin";
+  renderExtract();
   render();
 }));
+document.querySelectorAll("[data-go]").forEach((b) => b.addEventListener("click", () => openModal(b.dataset.go)));
+$("doc-pick").addEventListener("click", () => openModal("choose"));
+$("drop").querySelector("input").addEventListener("change", (e) => loadBatch(`${e.target.files.length} files you chose`));
+$("drop").addEventListener("click", (e) => { if (e.target === $("drop").querySelector("input")) return; e.preventDefault(); loadBatch("client_forms_2026.zip"); }); // a mockup: any click loads the demo batch
+for (const ev of ["dragenter", "dragover"]) $("drop").addEventListener(ev, (e) => { e.preventDefault(); $("drop").classList.add("is-over"); });
+$("drop").addEventListener("dragleave", () => $("drop").classList.remove("is-over"));
+$("drop").addEventListener("drop", (e) => { e.preventDefault(); $("drop").classList.remove("is-over"); loadBatch(`${e.dataTransfer.files.length || 1} dropped file(s)`); });
+$("scan").addEventListener("click", () => loadBatch($("folder").value.trim() || "/data/clients/2026"));
+$("n-sample").addEventListener("change", () => {
+  state.nSample = Math.max(3, Math.min(20, Math.round(Number($("n-sample").value) || 5)));
+  renderExtract();
+  render();
+});
+$("sample-how").addEventListener("change", () => { state.how = $("sample-how").value; renderExtract(); });
+$("detect").addEventListener("change", () => { state.detect = $("detect").value; renderExtract(); });
+$("read-sample").addEventListener("click", runBuild);
+openModal("choose");
 $("prev-s").addEventListener("click", () => { state.sample = (state.sample + SAMPLES.length - 1) % SAMPLES.length; render(); });
 $("next-s").addEventListener("click", () => { state.sample = (state.sample + 1) % SAMPLES.length; render(); });
 $("run").addEventListener("click", () => { state.view = "review"; render(); });

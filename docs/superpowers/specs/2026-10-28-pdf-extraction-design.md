@@ -143,12 +143,40 @@ extraction template is its own artifact, linked to the fill template by name whe
    label, edits the definition or checks, or marks a field "not on this form". Each fix re-runs the proof.
 6. Save. The template keeps the samples' results so a later edit can be re-proved.
 
+### The way in: Fill or Extract, then the Extract modal
+
+The workbench opens on a choice: **Fill a PDF** (the existing start screen, unchanged) or **Extract from
+PDFs**, which opens the Extract modal. Everything before the sample is read is set there, in one sheet in the
+workbench's modal style:
+
+1. **Your documents (bulk upload).** Drop PDFs or a `.zip`, choose files or a folder, or type a folder on the
+   server's machine and *Scan* it (the path for large batches: nothing is uploaded through the browser). Once
+   added, a summary: how many PDFs, their size, and a quick sort by layout (fillable and flattened copies of
+   the main layout, and the documents that look different, set aside for a second template later), drawn as
+   a strip of cells with the sample documents marked.
+2. **The sample.** How many documents (3 to 20, default 5) and how they are picked: *spread across the batch*
+   (the default: fillable and flattened, early and late), *the first ones*, or *I'll pick them* (a list of
+   the batch's files with checkboxes).
+3. **What to extract.** *AI suggests* / *I'll list them* (a text area, one item per line) / *Destination* (a
+   saved template picked from a list). This is where *Start from* lives; the setup screen shows the choice
+   and a *Change the setup* button that reopens this modal.
+4. **Detection and reading** (folded): find the blanks automatically skipping prose pages (default),
+   automatically on every page, on the pages the person picks on the samples, or not at all (form fields and
+   page text only); scanned pages OCR'd when needed or left out; the *unsure* rule (on by default, see
+   *Settled after review*); the AI per document (off by default).
+
+*Read the sample →* starts the template build as a job with stages (read the sample, find the blanks, design
+the fields / turn the lines into fields / match the destination's fields, find each field on the sample, check
+the reads) in the workbench's job panel; when it ends, the setup screen opens. Without documents, the modal
+says so and starts nothing.
+
 ### The setup screen
 
 The workbench editor's layout and design language (paper and ink, serif body, uppercase mono labels, outline
 buttons, the page on the dot grid), with an extraction mode:
 
-- **Toolbar:** the samples' name and count; *Start from*: AI suggests / I'll list them / Destination; *Run on all*.
+- **Toolbar:** the batch's name, size and sample count (it reopens the Fill-or-Extract choice); *Set up* /
+  *Review*; *Run on all*. Under it, a strip naming the start, sample and detection chosen, with *Change the setup*.
 - **Left, fields:** every field with its status across the samples (● every sample, ◐ some, ○ not on this
   form) and count (5/5). An add box at the bottom ("Add a field: wire instructions, bank and account") in every
   mode. Clicking a field selects its spot on the page.
