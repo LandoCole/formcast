@@ -18,12 +18,16 @@ and sizes still come from the whole document.
 
 ``sample`` picks the documents of a group to build a template from: evenly spaced members, fillable and flattened
 ones in proportion to their numbers, and at least one of each when both exist.
+
+**Progress.** ``on_progress(done, total)`` is called after each document, readable or not, so a caller can show a
+bar over a scan of thousands: ``done`` runs from 1 to ``total``, the number of paths given (the paths are listed
+first, so a generator is counted before the first document is read).
 """
 
 from __future__ import annotations
 
 import time
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
@@ -152,41 +156,34 @@ def _joins(first: _Doc, doc: _Doc, same: float) -> bool:
     )
 
 
-def scan(paths: Iterable[str | Path], *, same: float = SCAN_SAME, first_page_only: bool = False) -> ScanReport:
+def scan(
+    paths: Iterable[str | Path],
+    *,
+    same: float = SCAN_SAME,
+    first_page_only: bool = False,
+    on_progress: Callable[[int, int], None] | None = None,
+) -> ScanReport:
     """Group ``paths`` by layout (see the module docstring); ``same`` is the signature closeness to join a group.
 
     Unreadable files are listed in ``unreadable`` with the reason, and the scan goes on. Nothing is detected or
-    matched, and no model is called.
+    matched, and no model is called. ``on_progress(done, total)`` is called after each document, readable or not.
     """
     started = time.perf_counter()
+    paths = [Path(p) for p in paths]
     groups: list[_Group] = []
     by_key: dict[tuple, _Group] = {}
     unreadable: list[tuple[str, str]] = []
-    for path in paths:
-        path = Path(path)
+    for done, path in enumerate(paths, start=1):
         try:
             doc = _read(path, first_page_only)
         except FormcastError as exc:
             unreadable.append((str(path), str(exc)))
-            continue
         except Exception as exc:  # MuPDF raises several types on damaged files it could still open
             unreadable.append((str(path), f"cannot read PDF: {exc}"))
-            continue
-        group = by_key.get(doc.key)
-        if group is None:
-            group = next(
-                (
-                    g
-                    for g in groups
-                    if _joins(g.first, doc, same)
-                ),
-                None,
-            )
-            if group is None:
-                group = _Group(first=doc)
-                groups.append(group)
-            by_key[doc.key] = group
-        group.members.append((doc.path, doc.fillable))
+        else:
+            _place(doc, groups, by_key, same)
+        if on_progress is not None:
+            on_progress(done, len(paths))
     groups.sort(key=lambda g: -len(g.members))  # stable: equal sizes keep the order they were found in
     main = groups[0].first if groups else None
     return ScanReport(
@@ -205,6 +202,18 @@ def scan(paths: Iterable[str | Path], *, same: float = SCAN_SAME, first_page_onl
         unreadable=unreadable,
         seconds=time.perf_counter() - started,
     )
+
+
+def _place(doc: _Doc, groups: list[_Group], by_key: dict[tuple, _Group], same: float) -> None:
+    """Put ``doc`` in the group of its key, else the first group it joins, else a new one."""
+    group = by_key.get(doc.key)
+    if group is None:
+        group = next((g for g in groups if _joins(g.first, doc, same)), None)
+        if group is None:
+            group = _Group(first=doc)
+            groups.append(group)
+        by_key[doc.key] = group
+    group.members.append((doc.path, doc.fillable))
 
 
 def _spaced(items: list[str], k: int) -> list[str]:

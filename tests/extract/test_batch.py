@@ -12,6 +12,7 @@ import pytest
 from formcast.errors import FormcastError
 from formcast.extract import batch
 from formcast.extract.batch import (
+    AiAnswer,
     ReviewDecision,
     Results,
     RunSummary,
@@ -253,6 +254,82 @@ def test_a_file_that_hangs_is_recorded_after_the_timeout_and_the_run_goes_on(tmp
     assert all(r["error"] is None and r["fields"] for d, r in by_id.items() if d != crashing.HANG_ON)
 
 
+def stop_after(seen: list, count: int):
+    """``(on_progress, should_stop)``: the stop turns true once ``count`` documents have been reported."""
+    return (lambda done, total: seen.append((done, total))), (lambda: len(seen) >= count)
+
+
+def test_a_stopped_run_in_this_process_keeps_what_it_read_and_a_resume_finishes_without_repeats(corpus_dir, tmp_path):
+    files = sorted(corpus_dir.glob("*.pdf"))
+    out = tmp_path / "out"
+    seen: list[tuple[int, int]] = []
+    progress, stop = stop_after(seen, 3)
+    summary = run_batch([hand_template()], files, out, workers=1, on_progress=progress, should_stop=stop)
+    assert summary.total == 3 and seen == [(1, 22), (2, 22), (3, 22)]
+    assert (out / "results.jsonl").read_bytes().endswith(b"\n") and len(lines(out / "results.jsonl")) == 3
+    assert Results.load(out).summary().total == 3
+
+    seen.clear()
+    summary = run_batch([hand_template()], files, out, workers=1, on_progress=lambda d, t: seen.append((d, t)))
+    assert summary.total == 22 and seen == [(n, 22) for n in range(4, 23)]
+    assert sorted(r["doc_id"] for r in lines(out / "results.jsonl")) == [f.name for f in files]
+
+
+def test_a_run_that_is_stopped_before_it_starts_reads_nothing(corpus_dir, tmp_path):
+    files = sorted(corpus_dir.glob("*.pdf"))
+    for workers in (1, 2):
+        out = tmp_path / f"out{workers}"
+        summary = run_batch([hand_template()], files, out, workers=workers, should_stop=lambda: True)
+        assert summary.total == 0 and (out / "results.jsonl").read_bytes() == b""
+
+
+def test_a_stopped_pool_run_lets_what_is_in_flight_finish_and_leaves_no_torn_line(corpus_dir, tmp_path):
+    files = sorted(corpus_dir.glob("*.pdf"))
+    out = tmp_path / "out"
+    seen: list[tuple[int, int]] = []
+    progress, stop = stop_after(seen, 3)
+    summary = run_batch([hand_template()], files, out, workers=2, on_progress=progress, should_stop=stop)
+    data = (out / "results.jsonl").read_bytes()
+    rows = [json.loads(line) for line in data.splitlines()]  # every line whole
+    assert data.endswith(b"\n") and summary.total == len(rows) == len(seen)
+    assert 3 <= len(rows) < 22  # nothing was submitted after the 3rd; at most 4 documents per worker were in flight
+    assert len({r["doc_id"] for r in rows}) == len(rows)
+
+    run_batch([hand_template()], files, out, workers=2)
+    assert sorted(r["doc_id"] for r in lines(out / "results.jsonl")) == [f.name for f in files]
+
+
+def test_a_stop_ends_the_alone_reads_of_what_was_in_flight_when_a_worker_died(tmp_path, monkeypatch):
+    folder = tmp_path / "in"
+    folder.mkdir()
+    names = [f"{c}.pdf" for c in "abcdefghij"]
+    for name, client in zip(names, clients(len(names))):
+        (folder / name).write_bytes(make_form(client, kind="fillable"))
+    monkeypatch.setattr(batch, "_work", crashing.work)
+    payload = json.dumps([hand_template().model_dump(mode="json", by_alias=True)])
+    suspects = [(n, str(folder / n)) for n in ("c.pdf", crashing.CRASH_ON, "e.pdf")]
+
+    every = [json.loads(line) for line in batch._read_alone(payload, suspects, 30.0, lambda: False)]
+    assert [(r["doc_id"], r["error"]) for r in every] == [
+        ("c.pdf", None), (crashing.CRASH_ON, batch.CRASHED), ("e.pdf", None),
+    ]  # fmt: skip
+    asked = iter([False, True])  # the stop comes after the first suspect was read
+    first = [json.loads(line)["doc_id"] for line in batch._read_alone(payload, suspects, 30.0, lambda: next(asked))]
+    assert first == ["c.pdf"]
+
+    out = tmp_path / "out"
+    seen: list[tuple[int, int]] = []
+    progress, stop = stop_after(seen, 2)
+    summary = run_batch(
+        [hand_template()], [folder / n for n in names], out, workers=2, on_progress=progress, should_stop=stop
+    )
+    assert 2 <= summary.total < 10 and len(lines(out / "results.jsonl")) == summary.total
+    run_batch([hand_template()], [folder / n for n in names], out, workers=2)
+    rows = lines(out / "results.jsonl")
+    assert sorted(r["doc_id"] for r in rows) == names
+    assert {r["doc_id"]: r["error"] for r in rows}[crashing.CRASH_ON] == batch.CRASHED
+
+
 def test_a_timeout_must_be_positive(tmp_path):
     for timeout in (0, -1.0, float("nan"), float("inf")):
         with pytest.raises(FormcastError, match="timeout"):
@@ -391,6 +468,87 @@ def test_problems_filter_by_path_and_status(tmp_path):
         list(results.problems(status="found"))
     summary = results.summary()
     assert (summary.total, summary.complete, summary.with_problems) == (3, 1, 2)
+
+
+def write_many_problem_forms(folder: Path) -> list[Path]:
+    """Eight flattened copies: ``a`` .. ``e`` have no tax ID (missing), ``f`` and ``g`` a bad one, ``h`` is clean."""
+    folder.mkdir(parents=True, exist_ok=True)
+    paths = []
+    for name, client in zip("abcdefgh", clients(8, seed=9)):
+        tax_id = "" if name in "abcde" else "8422-19037" if name in "fg" else "84-2219037"
+        (folder / f"{name}.pdf").write_bytes(make_form(dataclasses.replace(client, tax_id=tax_id), kind="flattened"))
+        paths.append(folder / f"{name}.pdf")
+    return paths
+
+
+def test_field_counts_give_each_paths_statuses_after_decisions_and_ai_answers(corpus_run, tmp_path):
+    counts = Results.load(corpus_run).field_counts()
+    tax_id = counts["investor.tax_id"]
+    assert set(tax_id) == {"found", "missing", "failed_check", "unsure", "absent", "not_on_form", "reviewed"}
+    assert sum(v for k, v in tax_id.items() if k != "reviewed") == 20  # the 2 documents set aside are not counted
+    assert tax_id["found"] == 20 and tax_id["reviewed"] == 0
+
+    paths = write_many_problem_forms(tmp_path / "in")
+    out = tmp_path / "out"
+    run_batch([hand_template()], paths, out, workers=1)
+    results = Results.load(out)
+    assert results.field_counts()["investor.tax_id"] == {
+        "found": 1, "missing": 5, "failed_check": 2, "unsure": 0, "absent": 0, "not_on_form": 0, "reviewed": 0,
+    }  # fmt: skip
+    results.decide(ReviewDecision(doc_id="a.pdf", path="investor.tax_id", decision="value", value="84-2219037"))
+    results.decide(ReviewDecision(doc_id="b.pdf", path="investor.tax_id", decision="not_in_document"))
+    (out / "ai.jsonl").write_text(
+        AiAnswer(doc_id="c.pdf", path="investor.tax_id", value="84-2219037").model_dump_json() + "\n"
+        + AiAnswer(doc_id="d.pdf", path="investor.tax_id", value=None).model_dump_json() + "\n"
+        + AiAnswer(doc_id="a.pdf", path="investor.tax_id", value="11-1111111").model_dump_json() + "\n"
+    )  # fmt: skip
+    counts = Results.load(out).field_counts()["investor.tax_id"]
+    assert counts == {
+        "found": 2, "missing": 2, "failed_check": 2, "unsure": 1, "absent": 1, "not_on_form": 0, "reviewed": 2,
+    }  # a.pdf typed (the AI's answer never replaces a decision), b.pdf absent, c.pdf the AI's, d.pdf still missing
+
+
+def test_field_counts_leave_out_failed_documents(tmp_path):
+    folder = tmp_path / "in"
+    folder.mkdir()
+    (folder / "good.pdf").write_bytes(make_form(clients(1)[0], kind="fillable"))
+    (folder / "broken.pdf").write_bytes(b"%PDF-1.4 this is not a pdf")
+    run_batch([hand_template()], sorted(folder.glob("*.pdf")), tmp_path / "out", workers=1)
+    counts = Results.load(tmp_path / "out").field_counts()
+    assert sum(v for k, v in counts["investor.tax_id"].items() if k != "reviewed") == 1
+
+
+def test_a_page_of_problems_is_the_documents_with_problems_in_doc_id_order(tmp_path):
+    paths = write_many_problem_forms(tmp_path / "in")
+    out = tmp_path / "out"
+    run_batch([hand_template()], paths, out, workers=1)
+    results = Results.load(out)
+
+    total, first = results.page(0, 2)
+    assert total == 7 and [d.doc_id for d, _ in first] == ["a.pdf", "b.pdf"]
+    assert [[(f.path, f.status) for f in fields] for _, fields in first] == [[("investor.tax_id", "missing")]] * 2
+    total, rest = results.page(2, 2, status="missing")
+    assert total == 5 and [d.doc_id for d, _ in rest] == ["c.pdf", "d.pdf"]
+    total, last = results.page(4, 10, status="missing")
+    assert total == 5 and [d.doc_id for d, _ in last] == ["e.pdf"]
+    assert results.page(7, 5) == (7, []) and results.page(0, 0) == (7, [])
+    total, failed = results.page(0, 5, path="investor.tax_id", status="failed_check")
+    assert total == 2 and [d.doc_id for d, _ in failed] == ["f.pdf", "g.pdf"]
+    assert results.page(0, 5, path="investor.fax") == (0, [])
+
+    # decisions apply: a decided document leaves the page; the page holds what problems() gives
+    results.decide(ReviewDecision(doc_id="a.pdf", path="investor.tax_id", decision="value", value="84-2219037"))
+    total, first = results.page(0, 2)
+    assert total == 6 and [d.doc_id for d, _ in first] == ["b.pdf", "c.pdf"]
+    assert {(d.doc_id, f.path) for d, fields in results.page(0, 99)[1] for f in fields} == {
+        (d.doc_id, f.path) for d, f in results.problems()
+    }  # fmt: skip
+    with pytest.raises(FormcastError, match="not a problem status"):
+        results.page(0, 2, status="found")
+    with pytest.raises(FormcastError, match="offset"):
+        results.page(-1, 2)
+    with pytest.raises(FormcastError, match="limit"):
+        results.page(0, -1)
 
 
 # ---------------------------------------------------------------------- rows

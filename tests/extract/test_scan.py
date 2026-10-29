@@ -25,6 +25,18 @@ def test_the_corpus_scans_to_one_main_group_and_the_other_form_apart(corpus_dir)
     assert report.unreadable == [] and report.seconds > 0
 
 
+def test_progress_is_reported_after_each_document_readable_or_not(corpus_dir, tmp_path):
+    files = sorted(corpus_dir.glob("*.pdf"))
+    seen: list[tuple[int, int]] = []
+    scan(iter(files), on_progress=lambda done, total: seen.append((done, total)))  # a generator has a length too
+    assert seen == [(n, 22) for n in range(1, 23)]
+    broken = tmp_path / "broken.pdf"
+    broken.write_bytes(b"%PDF-1.4 this is not a pdf")
+    seen.clear()
+    report = scan([files[0], broken, tmp_path / "missing.pdf"], on_progress=lambda d, t: seen.append((d, t)))
+    assert len(report.unreadable) == 2 and seen == [(1, 3), (2, 3), (3, 3)]
+
+
 def test_the_rotated_and_the_shifted_copy_stay_with_their_own_layout(corpus_dir, report):
     main = {p.rsplit("/", 1)[-1] for p in report.main.files}
     # client_00019 is the shifted flattened copy and client_00020 the rotated fillable one

@@ -41,6 +41,13 @@ the clock does); one that still takes longer is recorded as unreadable with ``"c
 and no fields, and the run goes on. A document that waited behind a slow one may pass the timeout in the pool; it
 is then simply read again alone.
 
+**Stopping.** ``should_stop()`` is asked before each document is read (in this process) or submitted (to the pool),
+and before each re-read alone. Once it is true nothing more is started: the documents already in flight finish and
+are written, one whole line each, and the run returns the summary of what is in the file. The documents not started
+are simply not there, so a run started again over the same ``out_dir`` reads exactly those: none is written twice.
+A document in flight is still caught by ``timeout`` as always, and a document that was in flight when a worker died
+but has not yet been re-read alone is left for the resume, not given a crashed or hung record.
+
 **Document ids.** ``doc_id`` is the file's path relative to ``root``, with ``/`` separators (``"sub/a.pdf"``);
 ``root`` defaults to the common parent of the paths, is stored in ``run.json``, and a resumed run keeps it (a
 different ``root``, or a path outside it, is refused). ``file`` is the resolved absolute path. A path given twice
@@ -75,6 +82,14 @@ field as read, never ``found`` with no value. ``rows()`` and
 (read, no problem left), ``with_problems`` (``missing``, ``failed_check`` or ``unsure`` with no decision),
 ``no_template``, ``internal_errors`` (an error starting "internal error:", a fault of the code or a template, not of
 the file) and ``unreadable`` (every other error), which add up to ``total``.
+
+**For a screen over a run.** ``field_counts()`` gives, for each concrete path (``owners[0].name`` is its own path),
+how many documents read ended ``found``, ``missing``, ``failed_check``, ``unsure``, ``absent`` and ``not_on_form``
+after the AI's answers and the decisions are applied (so it is what ``rows`` would show), and ``reviewed``, how many
+of them have a decision on that path; a failed document has no fields and is counted nowhere. ``page(offset, limit,
+path=..., status=...)`` is the documents that still have a problem (the fields ``problems`` gives, filtered the same
+way), in ``doc_id`` order, as ``(how many such documents, the ones from offset on up to limit)``, each with its
+effective result and the problem fields that matched; it reads the whole file for the total, one document at a time.
 """
 
 from __future__ import annotations
@@ -90,7 +105,7 @@ from collections.abc import Callable, Iterable, Iterator
 from concurrent.futures import FIRST_COMPLETED, Future, ProcessPoolExecutor, wait
 from concurrent.futures.process import BrokenProcessPool
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -120,6 +135,8 @@ CRASHED = "cannot read PDF: the reader crashed"
 HUNG = "cannot read PDF: the reader hung"
 #: Seconds a document may take in a worker before it is taken for hung.
 TIMEOUT = 120.0
+#: The statuses :meth:`Results.field_counts` counts.
+_STATUSES: tuple[str, ...] = get_args(Status)
 #: Documents handed to each worker ahead of the one it is reading.
 _AHEAD = 4
 _ITEM = re.compile(r"\[(\d+)\](\.)?")
@@ -281,22 +298,30 @@ def _kill_workers(pool: ProcessPoolExecutor) -> None:
 
 
 def _read_all(
-    templates: list[ExtractionTemplate], todo: list[tuple[str, str]], workers: int, timeout: float
+    templates: list[ExtractionTemplate],
+    todo: list[tuple[str, str]],
+    workers: int,
+    timeout: float,
+    should_stop: Callable[[], bool] | None = None,
 ) -> Iterator[str]:
     """Each ``(doc_id, file)`` of ``todo`` read, as result lines, in the order they finish.
 
     When a worker process dies, or a document has been in flight longer than ``timeout`` seconds (its workers are
     then terminated), every document in flight is read again on its own (:func:`_read_alone`) and the rest of
-    ``todo`` goes on in a new pool.
+    ``todo`` goes on in a new pool. Once ``should_stop()`` is true no document is started, in the pool or alone: the
+    ones in flight finish and are yielded, and the rest of ``todo`` is left unread.
     """
     workers = workers or os.cpu_count() or 1
     if workers == 1:
         for doc_id, file in todo:
+            if should_stop is not None and should_stop():
+                return
             yield _line(templates, file, doc_id)
         return
     payload = json.dumps([t.model_dump(mode="json", by_alias=True) for t in templates])
     queue = deque(todo)
-    while queue:  # one pool until the queue is done or the pool breaks
+    stopped = False  # once true, always true: nothing more is submitted or read alone
+    while queue and not stopped:  # one pool until the queue is done or the pool breaks
         count = min(workers, len(queue))
         pool = _pool(count, payload)
         pending: dict[Future[str], tuple[str, str]] = {}  # future -> (doc_id, file)
@@ -306,6 +331,9 @@ def _read_all(
         try:
             while not suspects:
                 while not killed and len(pending) < count * _AHEAD and queue:
+                    stopped = stopped or (should_stop is not None and should_stop())
+                    if stopped:
+                        break
                     item = queue.popleft()
                     try:
                         future = pool.submit(_work, item[1], item[0])
@@ -343,12 +371,15 @@ def _read_all(
                 yield future.result()  # finished before the break, not yet written
             else:
                 suspects.append(item)
-        yield from _read_alone(payload, suspects, timeout)
+        yield from _read_alone(payload, suspects, timeout, lambda: stopped or bool(should_stop and should_stop()))
 
 
-def _read_alone(payload: str, suspects: list[tuple[str, str]], timeout: float) -> Iterator[str]:
+def _read_alone(
+    payload: str, suspects: list[tuple[str, str]], timeout: float, should_stop: Callable[[], bool] | None = None
+) -> Iterator[str]:
     """Each suspect read alone in a one-worker pool; one that kills that worker too is recorded as crashed, one
-    that takes longer than ``timeout`` seconds as hung (its worker is terminated).
+    that takes longer than ``timeout`` seconds as hung (its worker is terminated). Once ``should_stop()`` is true
+    the suspects not yet started are left unread (a resume reads them).
 
     A new one-worker pool is started after each crash or hang, and runs :func:`_ping` before the document, so every
     suspect is read on its own by a live worker and its timeout counts the reading, not the worker's start.
@@ -356,6 +387,8 @@ def _read_alone(payload: str, suspects: list[tuple[str, str]], timeout: float) -
     pool: ProcessPoolExecutor | None = None
     try:
         for doc_id, file in suspects:
+            if should_stop is not None and should_stop():
+                return
             try:
                 if pool is None:
                     pool = _pool(1, payload)
@@ -386,13 +419,16 @@ def run_batch(
     workers: int = 0,
     timeout: float = TIMEOUT,
     on_progress: Callable[[int, int], None] | None = None,
+    should_stop: Callable[[], bool] | None = None,
 ) -> RunSummary:
     """Route and read every PDF of ``paths`` into ``out_dir``, skipping the ones already there (see the module).
 
     ``timeout`` is the seconds one document may take in a worker before it is taken for hung (see the module;
     ``workers=1`` reads in this process and has no timeout). ``on_progress(done, total)`` is called after each
     document read; ``done`` counts the documents of ``paths`` already in the results from an earlier run. Returns
-    the summary of the whole ``out_dir``, with ``seconds`` this call's.
+    the summary of the whole ``out_dir``, with ``seconds`` this call's. ``should_stop()`` is asked before each
+    document is started; once it is true the run starts no more, writes the ones in flight and returns (see the
+    module, *Stopping*); run again over the same ``out_dir`` it reads the rest.
 
     Raises:
         FormcastError: no templates; a timeout that is not positive; ``out_dir`` holds a run with other templates,
@@ -423,7 +459,7 @@ def run_batch(
     count = len(docs) - len(todo)
     try:
         with (out / RESULTS).open("a", encoding="utf-8") as sink:
-            for line in _read_all(templates, todo, workers, timeout):
+            for line in _read_all(templates, todo, workers, timeout, should_stop):
                 sink.write(line + "\n")
                 sink.flush()
                 count += 1
@@ -652,6 +688,23 @@ class Results:
         fields = [_decided(f, decided[f.path]) if f.path in decided else f for f in doc.fields]
         return doc.model_copy(update={"fields": fields})
 
+    def _problem_documents(
+        self, path: str | None, status: Status | None
+    ) -> Iterator[tuple[DocumentResult, list[FieldResult]]]:
+        """Each document with its fields still ``missing``, ``failed_check`` or ``unsure`` that match the filters;
+        a document with none is left out. The document is :meth:`effective`."""
+        if status is not None and status not in PROBLEMS:
+            raise FormcastError(f"{status!r} is not a problem status (one of {', '.join(PROBLEMS)})")
+        for doc in self.documents():
+            doc = self.effective(doc)
+            fields = [
+                f
+                for f in doc.fields
+                if f.status in PROBLEMS and (path is None or f.path == path) and (status is None or f.status == status)
+            ]
+            if fields:
+                yield doc, fields
+
     def problems(
         self, *, path: str | None = None, status: Status | None = None
     ) -> Iterator[tuple[DocumentResult, FieldResult]]:
@@ -660,13 +713,43 @@ class Results:
         Raises:
             FormcastError: ``status`` is not one of those three.
         """
-        if status is not None and status not in PROBLEMS:
-            raise FormcastError(f"{status!r} is not a problem status (one of {', '.join(PROBLEMS)})")
+        for doc, fields in self._problem_documents(path, status):
+            for f in fields:
+                yield doc, f
+
+    def page(
+        self, offset: int, limit: int, *, path: str | None = None, status: Status | None = None
+    ) -> tuple[int, list[tuple[DocumentResult, list[FieldResult]]]]:
+        """The documents with problems (filtered as :meth:`problems`) in ``doc_id`` order: how many there are, and
+        ``limit`` of them from the ``offset``-th on, each with the problem fields that matched.
+
+        Raises:
+            FormcastError: ``status`` is not a problem status, or ``offset`` or ``limit`` is negative.
+        """
+        if offset < 0:
+            raise FormcastError(f"the offset must not be negative, not {offset!r}")
+        if limit < 0:
+            raise FormcastError(f"the limit must not be negative, not {limit!r}")
+        total = 0
+        page: list[tuple[DocumentResult, list[FieldResult]]] = []
+        for doc, fields in self._problem_documents(path, status):
+            if offset <= total < offset + limit:
+                page.append((doc, fields))
+            total += 1
+        return total, page
+
+    def field_counts(self) -> dict[str, dict[str, int]]:
+        """For each path, how many documents read ended in each status (``found``, ``missing``, ``failed_check``,
+        ``unsure``, ``absent``, ``not_on_form``) with the AI's answers and the decisions applied, and ``reviewed``,
+        how many have a decision on that path. A failed document has no fields and is not counted."""
+        counts: dict[str, dict[str, int]] = {}
         for doc in self.documents():
-            doc = self.effective(doc)
-            for f in doc.fields:
-                if f.status in PROBLEMS and (path is None or f.path == path) and (status is None or f.status == status):
-                    yield doc, f
+            decided = self._decisions.get(doc.doc_id, {})
+            for f in self.effective(doc).fields:
+                row = counts.setdefault(f.path, dict.fromkeys((*_STATUSES, "reviewed"), 0))
+                row[f.status] += 1
+                row["reviewed"] += f.path in decided
+        return counts
 
     def decide(self, decision: ReviewDecision) -> None:
         """Record ``decision`` in ``reviews.jsonl``; it applies at once and in every later load.
