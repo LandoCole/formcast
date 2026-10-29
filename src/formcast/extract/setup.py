@@ -51,9 +51,9 @@ from formcast.extract.proof import Proof, _check_samples, prove
 from formcast.extract.readers import ReaderProposal, resolve
 from formcast.extract.samples import Detect, SampleDoc, SamplePdf, _detect, _read
 from formcast.llm import LLMConfig, Provider, Usage, make_provider
+from formcast.match import PdfFeatures
 from formcast.pagemap.build import DetectPolicy, PageProgress
 from formcast.pagemap.detect import Detector
-from formcast.match import PdfFeatures
 from formcast.template.model import FormInfo, form_info_for
 
 __all__ = [
@@ -162,8 +162,8 @@ def build_setup(
     ``detectors`` and ``policy`` are as for :func:`~formcast.extract.samples.read_samples`, and ``on_page(i,
     progress)`` hears of each page read in sample ``i``. ``on_stage`` is called before and after each stage; an
     exception it or ``on_page`` raises (such as :class:`~formcast.errors.SessionCancelled`) stops the build and
-    propagates unchanged. The
-    samples are read before the first model call, so a sample that cannot be read costs none.
+    propagates unchanged. The samples are read before the first model call, so a sample that cannot be read costs
+    none. The template's ``form`` is the first fillable sample's (else the first sample's) with its blind fingerprint.
 
     Raises:
         FormcastError: for no samples or more than :data:`MAX_SAMPLES`, a destination schema that cannot be
@@ -393,7 +393,8 @@ def _form(docs: list[SampleDoc]) -> FormInfo:
 
     A filled sample's own fingerprint holds its answers, so only that very sample would match it; the fingerprint
     with field values ignored (as :class:`~formcast.match.PdfFeatures` computes it, and routing compares it) is the
-    blank form's, so a fillable copy with other answers routes by fingerprint.
+    blank form's when every answer is in a form field, so a fillable copy with other answers routes by fingerprint
+    (one whose answers also reach the page text routes by layout, as before).
     """
     doc = next((d for d in docs if _has_widgets(d)), docs[0])
     form = form_info_for(doc.form_map)
