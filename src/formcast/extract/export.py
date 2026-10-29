@@ -21,13 +21,15 @@ group item by item (``owners_1_name``, ``owners_1_percent``, ``owners_2_name`` .
 them. A group nested inside another is field by field within its outer item (``concrete_paths`` orders only the
 outermost group item by item). With several templates the value columns are the union of their columns, first
 template first; a document leaves empty the columns of the other templates, and a column two templates share is
-described once, by the first.
+described once, by the first. A path whose column is a document column (``file``, ``doc_id`` ...), or one column
+made by two different paths or types, is refused: the template author renames the path.
 
 Cells hold what was read, not what a spreadsheet would make of it: a text value that starts with ``=`` is stored as
 text in xlsx, not as a formula (it is not escaped in CSV, so a program that opens the CSV may treat it as one). A
 control character xlsx cannot hold is dropped from that cell. A value that is a list or an object is written as
 JSON text. Parquet columns are typed from the values (text, whole numbers, decimals or true/false); a column
-whose values mix those is written as text. The Parquet table is built in memory.
+whose values mix those is written as text, as is one with a whole number too big for 64 bits (or, beside decimals,
+beyond 2**53, which a decimal cannot hold exactly). The Parquet table is built in memory.
 """
 
 from __future__ import annotations
@@ -54,6 +56,7 @@ SET_ASIDE_COLUMNS = ("doc_id", "file", "reason", "closest_template", "closest_sc
 _FORMATS = ("xlsx", "parquet", "csv")
 _PARTS = ("values", "status", "fields", "set_aside")
 _INT64 = 2**63
+_EXACT_FLOAT = 2**53
 
 
 # ------------------------------------------------------------------ the extras
@@ -169,8 +172,20 @@ def _columns_and_fields(templates: Sequence[ExtractionTemplate]) -> tuple[list[s
     fields: dict[str, dict] = {}
     for template in templates:
         for column, path, sp in _template_columns(template):
+            if column in _DOC_COLUMNS:
+                raise FormcastError(
+                    f"{template.template_id}: {path!r} would make a column named {column!r}, which is a document "
+                    "column of the export; rename the path in the template"
+                )
             if column in fields:
-                continue  # a column two templates share is described by the first
+                # a column two templates share is described by the first, if they agree on what it is
+                first = fields[column]
+                if first["path"] != path or first["type"] != _type_text(sp):
+                    raise FormcastError(
+                        f"{template.template_id}: column {column!r} is {path!r} ({_type_text(sp)}) here but "
+                        f"{first['path']!r} ({first['type']}) in an earlier template; rename the path"
+                    )
+                continue
             columns.append(column)
             fields[column] = {
                 "column": column, "path": path, "title": _title(template.schema_, sp),
@@ -245,11 +260,13 @@ def _kind(values: list[Any]) -> str:
     kinds = {type(v) for v in values if v is not None}
     if kinds == {bool}:
         return "bool"
-    if kinds == {int} and all(abs(v) < _INT64 for v in values if v is not None):
+    ints = [v for v in values if type(v) is int]
+    if kinds == {int} and all(abs(v) < _INT64 for v in ints):
         return "int"
-    if kinds and kinds <= {int, float}:
+    # ints beside decimals must survive as doubles, which hold whole numbers exactly only up to 2**53
+    if kinds == {float} or (kinds == {int, float} and all(abs(v) <= _EXACT_FLOAT for v in ints)):
         return "float"
-    return "string"
+    return "string"  # also an int too big for 64 bits, and a mix of types
 
 
 def _write_parquet(
@@ -282,8 +299,9 @@ def export(
     column order and the field definitions. Returns the files written.
 
     Raises:
-        FormcastError: ``format`` is not one of the three, the extra it needs is not installed, ``out`` is a file
-            where a folder is needed, or a document has columns that none of ``templates`` has.
+        FormcastError: ``format`` is not one of the three, the extra it needs is not installed, a template's
+            column is a document column or clashes with another template's, ``out`` is a file where a folder
+            is needed, or a document has columns that none of ``templates`` has.
     """
     if format not in _FORMATS:
         raise FormcastError(f"unknown export format {format!r} (one of {', '.join(_FORMATS)})")

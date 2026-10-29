@@ -8,7 +8,7 @@ import pytest
 
 from formcast.errors import FormcastError
 from formcast.extract.batch import Results, run_batch
-from formcast.extract.export import FIELD_COLUMNS, SET_ASIDE_COLUMNS, _checks, export
+from formcast.extract.export import FIELD_COLUMNS, SET_ASIDE_COLUMNS, _checks, _kind, export
 from formcast.extract.model import ExtractionTemplate
 from formcast.schema import flatten_schema
 from tests.extract.conftest import write_corpus
@@ -245,3 +245,75 @@ def test_value_columns_of_several_templates_are_their_union(tmp_path):
     export(Stub([]), [base, second], tmp_path / "csv", format="csv")
     header = (tmp_path / "csv" / "values.csv").read_text(encoding="utf-8").splitlines()[0].split(",")
     assert header[-1] == "extra" and header.count("investor.tax_id") == 1
+
+
+def template_with(schema: dict, template_id: str = "other") -> ExtractionTemplate:
+    """The hand template with its schema (and no readers) replaced."""
+    base = hand_template()
+    return ExtractionTemplate.model_validate(
+        {**base.model_dump(by_alias=True), "template_id": template_id, "schema": schema, "readers": {}, "absent": []}
+    )
+
+
+def test_a_field_named_like_a_document_column_is_refused_before_anything_is_written(tmp_path):
+    for name in ("doc_id", "file", "template", "matched", "extracted_at"):
+        schema = {"type": "object", "properties": {name: {"type": "string"}}}
+        with pytest.raises(FormcastError, match=f"'{name}'"):
+            export(Stub([]), [template_with(schema)], tmp_path / "csv", format="csv")
+    assert not (tmp_path / "csv").exists()
+
+
+def test_templates_that_make_one_column_from_different_paths_or_types_are_refused(tmp_path):
+    def schema(**props):
+        return {"type": "object", "properties": {k: {"type": t} for k, t in props.items()}}
+
+    other_type = [template_with(schema(size="integer"), "a"), template_with(schema(size="string"), "b")]
+    with pytest.raises(FormcastError, match="'size'"):
+        export(Stub([]), other_type, tmp_path / "one", format="csv")
+    # owners[0].name and a top-level owners_1_name both make the column owners_1_name
+    nested = {"type": "object", "properties": {"owners": {"type": "array", "maxItems": 1, "items": {
+        "type": "object", "properties": {"name": {"type": "string"}}}}}}  # fmt: skip
+    with pytest.raises(FormcastError, match="owners_1_name"):
+        export(Stub([]), [template_with(nested, "a"), template_with(schema(owners_1_name="string"), "b")],
+               tmp_path / "two", format="csv")  # fmt: skip
+    assert not (tmp_path / "one").exists() and not (tmp_path / "two").exists()
+    same = [template_with(schema(size="integer"), "a"), template_with(schema(size="integer"), "b")]
+    export(Stub([]), same, tmp_path / "ok", format="csv")  # agreeing templates share the column
+
+
+# ------------------------------------------------------------ parquet column types
+
+
+def test_parquet_kinds_follow_the_values():
+    assert _kind([True, None, False]) == "bool"
+    assert _kind([1, None, -(2**62)]) == "int"
+    assert _kind([1.5, None, 2.0]) == "float"
+    assert _kind([1, 2.5]) == "float"
+    assert _kind([None, None]) == "string" and _kind([]) == "string"
+    assert _kind(["a", None]) == "string" and _kind([True, 1]) == "string" and _kind(["a", 1]) == "string"
+    # a whole number a 64-bit column or an exact double cannot hold is text, never a crash or lost digits
+    assert _kind([2**70, 1]) == "string" and _kind([2**63, 1]) == "string" and _kind([-(2**63)]) == "string"
+    assert _kind([2**53 + 1, 0.5]) == "string" and _kind([2**53, 0.5]) == "float"
+
+
+def test_parquet_columns_are_typed_from_the_values(tmp_path):
+    pq = pytest.importorskip("pyarrow.parquet")
+    run = Stub([
+        doc_row(**{"investor.legal_name": True, "address.street": 1, "address.city_state_zip": 1.5}),
+        doc_row(**{"investor.legal_name": False, "address.street": 2, "address.city_state_zip": 2.5}),
+    ])  # fmt: skip
+    export(run, [hand_template()], tmp_path / "pq", format="parquet")
+    schema = pq.read_table(tmp_path / "pq" / "values.parquet").schema
+    types = {name: str(schema.field(name).type) for name in schema.names}
+    assert types["investor.legal_name"] == "bool"
+    assert types["address.street"] == "int64" and types["address.city_state_zip"] == "double"
+    assert types["investor.tax_id"] == "string"  # all empty
+    assert types["doc_id"] == "string"
+
+
+def test_parquet_writes_a_whole_number_too_big_for_64_bits_as_text(tmp_path):
+    pq = pytest.importorskip("pyarrow.parquet")
+    run = Stub([doc_row(**{"wire.account": 2**70}), doc_row(**{"wire.account": 1}), doc_row(**{"wire.account": None})])
+    export(run, [hand_template()], tmp_path / "pq", format="parquet")
+    table = pq.read_table(tmp_path / "pq" / "values.parquet")
+    assert table.column("wire.account").to_pylist() == [str(2**70), "1", None]
