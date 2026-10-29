@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pymupdf
 import pytest
 
 from formcast.extract.layout import learn_layout
@@ -81,6 +82,12 @@ def test_a_path_with_nothing_usable_gets_no_reader_and_a_warning(two_kinds):
     assert "wire.bank: no way to read it was found on the samples" in warnings
 
 
+def test_a_proposal_of_only_a_path_says_the_model_found_no_place_for_it(two_kinds):
+    samples, layout = two_kinds
+    readers, warnings = resolve([ReaderProposal(path="wire.bank")], samples, layout, SCHEMA)
+    assert readers == {} and warnings == ["wire.bank: the model found no place for it on the samples"]
+
+
 def test_a_proposal_for_a_path_not_in_the_schema_is_ignored_with_a_warning(two_kinds):
     samples, layout = two_kinds
     readers, warnings = resolve([ReaderProposal(path="made.up", widgets=["tax_id"])], samples, layout, SCHEMA)
@@ -127,6 +134,73 @@ def test_an_option_no_sample_has_is_dropped_with_a_warning(two_kinds):
     readers, warnings = resolve([ReaderProposal(path="investor.type", options=options)], samples, layout, SCHEMA)
     assert all(list(s.options) == ["trust"] for s in readers["investor.type"].strategies)
     assert "investor.type: widget 'type_estate' is on no sample; left out" in warnings
+
+
+YES_BOX, NO_BOX = (300.0, 120.0, 312.0, 132.0), (350.0, 120.0, 362.0, 132.0)
+YES_NO_SCHEMA = {"type": "object", "properties": {"us_person": {"type": "boolean"}}}
+
+
+def _yes_no_form(kind: str, answer: bool | None) -> bytes:
+    """A one-question form with a Yes box and a No box: check boxes ``us_yes``/``us_no``, or drawn squares."""
+    doc = pymupdf.open()
+    page = doc.new_page(width=612, height=792)
+    page.insert_text((72, 90), "Tax status questionnaire", fontsize=14)
+    page.insert_text((72, 130), "Are you a US person?", fontsize=10)
+    page.insert_text((315, 130), "Yes", fontsize=9)
+    page.insert_text((365, 130), "No", fontsize=9)
+    page.insert_text((72, 300), "Thank you for your business.", fontsize=10)
+    for name, box, on in (("us_yes", YES_BOX, answer is True), ("us_no", NO_BOX, answer is False)):
+        rect = pymupdf.Rect(*box)
+        if kind == "fillable":
+            w = pymupdf.Widget()
+            w.field_name, w.field_type, w.rect, w.field_value = name, pymupdf.PDF_WIDGET_TYPE_CHECKBOX, rect, on
+            page.add_widget(w)
+        else:
+            page.draw_rect(rect, width=0.75)
+            if on:
+                page.insert_text((rect.x0 + 2.5, rect.y1 - 2.5), "X", fontsize=10)
+    return doc.tobytes()
+
+
+@pytest.fixture(scope="module")
+def yes_no():
+    """Three samples of the yes/no form (fillable yes, flattened no, fillable no) and the layout learned from them."""
+    pdfs = [_yes_no_form(k, a) for k, a in (("fillable", True), ("flattened", False), ("fillable", False))]
+    samples = read_samples([SamplePdf(f"s{i}.pdf", p) for i, p in enumerate(pdfs)], **NO_DETECTORS)
+    return samples, learn_layout(pdfs)
+
+
+def _yes_no_template(readers, layout):
+    return hand_template().model_copy(update={"schema_": YES_NO_SCHEMA, "readers": readers, "layout": layout})
+
+
+def test_a_yes_no_choice_that_lost_an_answer_is_left_out_and_never_reads_an_unanswered_copy_as_found(yes_no):
+    # the model misnames the Yes widget: a choice of the No box alone would read as a lone box, an unmarked one
+    # reading True, so an unanswered copy would be found True
+    samples, layout = yes_no
+    options = {"true": OptionProposal(widget="us_yes_box"), "false": OptionProposal(widget="us_no")}
+    readers, warnings = resolve([ReaderProposal(path="us_person", options=options)], samples, layout, YES_NO_SCHEMA)
+    assert "us_person" not in readers
+    assert "us_person: widget 'us_yes_box' is on no sample; left out" in warnings
+    assert "us_person: an answer's box is on no sample; the choice is left out" in warnings
+    t = _yes_no_template(readers, layout)
+    for kind in ("fillable", "flattened"):
+        got = extract(t, _yes_no_form(kind, None)).fields[0]
+        assert got.status != "found", (kind, got)
+
+
+def test_a_check_box_option_with_a_wrong_state_keeps_its_place_and_both_answers_read(yes_no):
+    samples, layout = yes_no
+    options = {"true": OptionProposal(widget="us_yes", state="On"), "false": OptionProposal(widget="us_no")}
+    readers, warnings = resolve([ReaderProposal(path="us_person", options=options)], samples, layout, YES_NO_SCHEMA)
+    assert warnings == []
+    assert [sorted(s.options) for s in readers["us_person"].strategies] == [["false", "true"]] * 2
+    t = _yes_no_template(readers, layout)
+    for kind in ("fillable", "flattened"):
+        for answer in (True, False):
+            got = extract(t, _yes_no_form(kind, answer)).fields[0]
+            assert (got.status, got.value) == ("found", answer), (kind, answer, got)
+        assert extract(t, _yes_no_form(kind, None)).fields[0].status == "missing"
 
 
 def test_a_box_from_a_shifted_sample_is_stored_in_the_layouts_place():

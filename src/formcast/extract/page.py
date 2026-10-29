@@ -263,8 +263,9 @@ class DocText:
     def widget_places(self, name: str, state: str | None = None) -> list[tuple[int, Rect]]:
         """Where the form field ``name``'s widgets are, as ``(page, rect)`` in unrotated crop-box points.
 
-        ``state`` keeps only the radio buttons whose on-state it is. A name that is not a field of the document gives
-        ``[]``.
+        For a radio group (several buttons with different on-states), ``state`` keeps only the buttons whose on-state
+        it is; any other field ignores ``state``, as :meth:`widget_on` does, so a check box named with a wrong state is
+        still found. A name that is not a field of the document gives ``[]``.
         """
         if self._places is None:
             places: dict[str, list[tuple[int, Rect, str | None]]] = {}
@@ -278,7 +279,9 @@ class DocText:
                         r = w.rect
                         places.setdefault(w.field_name, []).append((number, (r.x0, r.y0, r.x1, r.y1), on_state))
             self._places = places
-        return [(page, rect) for page, rect, on in self._places.get(name, []) if state is None or on == state]
+        entries = self._places.get(name, [])
+        group = len({on for _, _, on in entries if on is not None}) > 1
+        return [(page, rect) for page, rect, on in entries if state is None or not group or on == state]
 
     @property
     def has_values(self) -> bool:

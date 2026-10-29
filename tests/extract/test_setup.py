@@ -54,7 +54,7 @@ def assert_proven(proof: Proof) -> None:
 
 def no_unreadable(warnings: list[str]) -> None:
     """No warning says a path was left with no way to read it (dropped alternative wordings are fine)."""
-    assert not [w for w in warnings if "no way to read it" in w], warnings
+    assert not [w for w in warnings if "no way to read it" in w or "found no place" in w], warnings
 
 
 def test_ai_start_builds_a_ready_template_that_reads_the_corpus_with_no_wrong_value(corpus_dir, five_samples):

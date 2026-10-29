@@ -19,12 +19,21 @@ of the options' form fields and a ``ChoiceRead`` of drawn boxes (each option's b
 An anchor or phrase read is kept to the page its first kept label or phrase is on, or searches every page when its
 labels or phrases are on different pages.
 
+A choice keeps the options the samples have, except on a ``boolean`` path proposed with more than one option: there
+a choice that lost one is left out (``read`` takes a one-option choice on a yes/no path for a lone check box, so a
+"false" box left alone would read every unmarked copy as true). When an answer's mark is on no sample at all no
+choice is kept; when only an answer's form field is missing (it was proposed by its box alone) the choice of the form
+fields is left out and the choice of the drawn boxes, which has every answer, is kept.
+
 A box is stored in the layout's place: ``extract`` moves a template's box down by the document's offset
 (:func:`~formcast.extract.layout.page_fit`), so a rectangle taken from a sample is moved up by that sample page's
 offset. A box from a copy pushed down the page is then where it is on the layout.
 
 Warnings are sentences for a person: ``"<path>: <what> '<value>' is on no sample; left out"`` for each dropped item,
-and ``"<path>: no way to read it was found on the samples"`` for a path left with no strategy, which gets no reader.
+``"<path>: an answer's box is on no sample; the choice is left out"`` for a yes/no choice that lost an answer,
+``"<path>: no way to read it was found on the samples"`` for a path left with no strategy, which gets no reader, and
+``"<path>: the model found no place for it on the samples"`` for a proposal that names nothing at all (the model's
+way of saying the form has no place for it), which gets none either.
 """
 
 from __future__ import annotations
@@ -36,7 +45,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from formcast.data.mapping import Transform
+from formcast.data.mapping import Transform, _generic
 from formcast.extract.layout import page_fit
 from formcast.extract.model import (
     AnchorRead,
@@ -53,6 +62,8 @@ from formcast.extract.model import (
 from formcast.extract.page import DocText
 from formcast.extract.samples import SampleDoc
 from formcast.geometry import Rect
+from formcast.schema import flatten_schema
+from formcast.schema import resolve as schema_at
 
 __all__ = ["BoxRef", "OptionProposal", "ReaderProposal", "resolve"]
 
@@ -167,6 +178,7 @@ def resolve(
         FormcastError: when a sample's PDF cannot be opened.
     """
     known = set(concrete_paths(schema))
+    schema_paths = flatten_schema(schema)
     readers: dict[str, Reader] = {}
     warnings: list[str] = []
     seen: set[str] = set()
@@ -181,16 +193,27 @@ def resolve(
                 warnings.append(f"{proposal.path}: proposed more than once; the first proposal is kept")
                 continue
             seen.add(proposal.path)
-            reader = _reader(proposal, found, warnings)
-            if reader is None:
-                warnings.append(f"{proposal.path}: no way to read it was found on the samples")
-            else:
+            yes_no = schema_at(schema_paths, _generic(proposal.path)[0]).type == "boolean"
+            reader = _reader(proposal, found, warnings, yes_no=yes_no)
+            if reader is not None:
                 readers[proposal.path] = reader
+            elif _names_nothing(proposal):
+                warnings.append(f"{proposal.path}: the model found no place for it on the samples")
+            else:
+                warnings.append(f"{proposal.path}: no way to read it was found on the samples")
     return readers, warnings
 
 
-def _reader(proposal: ReaderProposal, found: _Samples, warnings: list[str]) -> Reader | None:
-    """The proposal's reader from what the samples have of it; ``None`` when nothing is left. Warns of each drop."""
+def _names_nothing(proposal: ReaderProposal) -> bool:
+    """Whether the proposal names no widget, box, label, phrase or option: only its path."""
+    return not (proposal.widgets or proposal.box or proposal.labels or proposal.phrases or proposal.options)
+
+
+def _reader(proposal: ReaderProposal, found: _Samples, warnings: list[str], *, yes_no: bool) -> Reader | None:
+    """The proposal's reader from what the samples have of it; ``None`` when nothing is left. Warns of each drop.
+
+    ``yes_no``: the path is a ``boolean`` (see the module docstring on choices).
+    """
 
     def dropped(what: str, value: str) -> None:
         warnings.append(f"{proposal.path}: {what} '{value}' is on no sample; left out")
@@ -227,7 +250,7 @@ def _reader(proposal: ReaderProposal, found: _Samples, warnings: list[str]) -> R
         )  # fmt: skip
     if phrases:
         strategies.append(PhraseRead(phrases=list(phrases), page=_one_page(phrases), stop=proposal.stop))
-    strategies += _choices(proposal, found, dropped, warnings)
+    strategies += _choices(proposal, found, dropped, warnings, yes_no=yes_no)
     return Reader(strategies=strategies, clean=proposal.clean) if strategies else None
 
 
@@ -250,8 +273,11 @@ def _one_page(pages: dict[str, int]) -> int | None:
     return next(iter(pages.values())) if len(set(pages.values())) == 1 else None
 
 
-def _choices(proposal: ReaderProposal, found: _Samples, dropped: _Dropped, warnings: list[str]) -> list[Strategy]:
-    """A choice of the options' form fields, then one of their drawn boxes, each with the options the samples have."""
+def _choices(
+    proposal: ReaderProposal, found: _Samples, dropped: _Dropped, warnings: list[str], *, yes_no: bool
+) -> list[Strategy]:
+    """A choice of the options' form fields, then one of their drawn boxes, each with the options the samples have;
+    on a yes/no path of several options, only the choices that kept every option (see the module docstring)."""
     by_widget: dict[str, ChoiceMark] = {}
     by_box: dict[str, ChoiceMark] = {}
     for key, option in proposal.options.items():
@@ -274,4 +300,9 @@ def _choices(proposal: ReaderProposal, found: _Samples, dropped: _Dropped, warni
             by_box[key] = ChoiceMark(page=place[0], rect=place[1])
         elif option.widget is None and option.box is None:
             warnings.append(f"{proposal.path}: option '{key}' names no widget and no box; left out")
-    return [ChoiceRead(options=marks) for marks in (by_widget, by_box) if marks]
+    choices = [marks for marks in (by_widget, by_box) if marks]
+    if yes_no and len(proposal.options) > 1:
+        if len(by_box) < len(proposal.options):  # an answer's mark is on no sample: not even the boxes are whole
+            warnings.append(f"{proposal.path}: an answer's box is on no sample; the choice is left out")
+        choices = [marks for marks in choices if len(marks) == len(proposal.options)]
+    return [ChoiceRead(options=marks) for marks in choices]

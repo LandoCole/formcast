@@ -126,6 +126,16 @@ def test_a_radio_group_reads_as_the_selected_buttons_state():
         assert doc.widget_on("kind", "joint") is False and doc.widget_on("kind") is False
 
 
+def test_widget_places_ask_the_state_only_of_a_radio_group_as_widget_on_does():
+    with DocText(FILLABLE) as doc:
+        joint = doc.widget_places("type_joint")
+        assert len(joint) == 1 and doc.widget_places("type_joint", "Some other state") == joint  # a check box
+    with DocText(_radio_pdf("joint")) as doc:
+        assert len(doc.widget_places("kind")) == 3
+        assert [page for page, _ in doc.widget_places("kind", "joint")] == [0]
+        assert doc.widget_places("kind", "estate") == []  # no such button in the group
+
+
 def test_widget_on_answers_for_check_boxes_and_none_for_what_is_not_one():
     with DocText(FILLABLE) as doc:
         assert doc.widget_on("type_joint") is True and doc.widget_on("type_llc") is False
