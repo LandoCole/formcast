@@ -7,7 +7,7 @@ import re
 import pytest
 
 import formcast.extract.samples as samples_mod
-from formcast.errors import FormcastError
+from formcast.errors import FormcastError, SessionCancelled
 from formcast.extract.samples import SamplePdf, detected_pages, read_samples, sample_images, sample_view
 from formcast.pagemap.build import DetectPolicy
 from tests.extract.corpus import clients, make_form
@@ -44,6 +44,21 @@ def test_detection_modes_choose_the_pages(monkeypatch):
 def test_an_unreadable_sample_is_refused_by_name():
     with pytest.raises(FormcastError, match="b.pdf: cannot open PDF"):
         read_samples([SamplePdf("b.pdf", b"not a pdf")], **NO_DETECTORS)
+
+
+def test_a_cancel_while_the_samples_are_read_or_searched_comes_out_as_the_cancel_it_is(monkeypatch):
+    pdf = make_form(clients(1, seed=3)[0], kind="flattened")
+
+    def cancel(*args, **kwargs):
+        raise SessionCancelled("cancelled by the person")
+
+    with pytest.raises(SessionCancelled) as read:
+        read_samples([SamplePdf("a.pdf", pdf)], on_page=cancel, **NO_DETECTORS)
+    assert str(read.value) == "cancelled by the person"  # not "a.pdf: ...", an ordinary error of the sample
+    monkeypatch.setattr(samples_mod, "detect_on_page", cancel)
+    with pytest.raises(SessionCancelled) as detect:
+        read_samples([SamplePdf("a.pdf", pdf)], detect="all", **NO_DETECTORS)
+    assert str(detect.value) == "cancelled by the person"
 
 
 def test_an_unknown_detection_mode_is_refused():

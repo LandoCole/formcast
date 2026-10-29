@@ -142,6 +142,17 @@ def test_a_cancel_from_on_stage_stops_the_build(five_samples):
     assert model.calls == {}
 
 
+def test_a_cancel_from_on_page_stops_the_build_as_a_cancel_before_any_model_call(five_samples):
+    model = CorpusModel(five_samples.clients)
+
+    def on_page(i, progress):
+        raise SessionCancelled("cancelled by the person")
+
+    with pytest.raises(SessionCancelled, match="^cancelled by the person$"):
+        build_setup(five_samples.pdfs, SetupSpec(name="x"), model, on_page=on_page, **NO_DETECTORS)
+    assert model.calls == {}
+
+
 def test_more_than_twenty_samples_or_none_are_refused():
     model = CorpusModel({})
     with pytest.raises(FormcastError, match="1 to 20 samples"):

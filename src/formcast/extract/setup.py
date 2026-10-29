@@ -160,7 +160,8 @@ def build_setup(
 
     ``detectors`` and ``policy`` are as for :func:`~formcast.extract.samples.read_samples`, and ``on_page(i,
     progress)`` hears of each page read in sample ``i``. ``on_stage`` is called before and after each stage; an
-    exception it raises (such as :class:`~formcast.errors.SessionCancelled`) stops the build and propagates. The
+    exception it or ``on_page`` raises (such as :class:`~formcast.errors.SessionCancelled`) stops the build and
+    propagates unchanged. The
     samples are read before the first model call, so a sample that cannot be read costs none.
 
     Raises:

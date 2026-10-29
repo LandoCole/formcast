@@ -22,7 +22,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from formcast.data.ai import MAX_IMAGE_PAGES
-from formcast.errors import FormcastError
+from formcast.errors import FormcastError, SessionCancelled
 from formcast.extract.page import DocText
 from formcast.pagemap.build import DetectPolicy, PageProgress, build_form_map, detect_on_page, looks_like_prose
 from formcast.pagemap.detect import Detector, load_default_detectors
@@ -91,6 +91,7 @@ def read_samples(
 
     Raises:
         FormcastError: a sample cannot be read, naming its file ("b.pdf: cannot open PDF").
+        SessionCancelled: raised by ``on_page`` (or a detector) to stop, passed on unchanged.
         ValueError: for an unknown ``detect`` mode.
     """
     _check_detect(detect)
@@ -127,6 +128,8 @@ def _read(
             )
             with DocText(sample.pdf) as text:
                 values = _values(form_map, text)
+        except SessionCancelled:
+            raise  # the person stopped the build: not something wrong with this sample
         except FormcastError as exc:
             raise FormcastError(f"{sample.file}: {exc}") from exc
         docs.append(SampleDoc(sample.file, sample.pdf, form_map, values))
@@ -160,6 +163,8 @@ def _detect(
                 detectors = load_default_detectors()
             try:
                 form_map = _detect_pages(doc.pdf, form_map, wanted, detectors, policy)
+            except SessionCancelled:
+                raise
             except FormcastError as exc:
                 raise FormcastError(f"{doc.file}: {exc}") from exc
         out.append(SampleDoc(doc.file, doc.pdf, form_map, dict(doc.values), wanted))
