@@ -1,18 +1,25 @@
-"""demo/server extraction: task jobs, the two settings, several files per upload, ``page_png``, and batches of PDFs.
+"""demo/server extraction: task jobs, the two settings, several files per upload, ``page_png``, batches of PDFs,
+setups and saved extraction templates.
 
 Task jobs run a caller's function on a job thread (``Jobs.start_task``); the extraction jobs of the workbench are
 built on them. Batches are PDFs uploaded (singly or in zips) or found in a server-side folder, scanned by layout on
-a thread, with a paged file list, a sample picked from the main layout and page images. The PDFs are the generated
-client-information corpus (``tests/extract/corpus.py``). Everything runs in process: no model, no network.
+a thread, with a paged file list, a sample picked from the main layout and page images. A setup is a template built
+from a batch's sample by the ``extract-setup`` job, edited and proven again with no model call, grown by the
+``extract-line`` job, and saved as an extraction template (with its sample PDFs) that reopens as a setup. The PDFs
+are the generated client-information corpus (``tests/extract/corpus.py``); the model is ``CorpusModel``, which
+answers from the corpus's own truth. Everything runs in process: no network, and no detector weights are loaded.
 """
 
 from __future__ import annotations
 
+import dataclasses
+import hashlib
 import io
 import json
 import threading
 import time
 import zipfile
+from dataclasses import dataclass
 from pathlib import Path
 
 import pymupdf
@@ -26,16 +33,29 @@ from demo.server.api import Api, ApiError, Request, _uploads
 from demo.server.documents import PYMUPDF_LOCK, page_png
 from demo.server.jobs import Jobs, JobsBusy
 from demo.server.settings import Settings
+from demo.server.store import StoredTemplateError
 from formcast import FormcastError, SessionCancelled
+from formcast.data.ai import DERIVE_SYSTEM
+from formcast.extract import samples as samples_mod
+from formcast.extract.model import ExtractionTemplate, SampleRecord, concrete_paths
+from formcast.extract.proof import Proof, prove
+from formcast.extract.prompts import FIELDS_SYSTEM
+from formcast.extract.samples import SamplePdf
+from formcast.extract.setup import STAGES
 from formcast.pagemap.build import DetectPolicy
-from tests.extract.corpus import clients, make_form
+from tests.extract.corpus import FIELD_RECTS, SHIFT, clients, hand_template, make_form
+from tests.extract.fakes import CorpusModel
 
 
 @pytest.fixture(autouse=True)
 def no_model_loads(monkeypatch):
+    """No detector weights load: the documents' form maps and a setup's samples are read with no detectors."""
     real = documents_mod.build_form_map
     policy = DetectPolicy(digital=(), scanned=())
     monkeypatch.setattr(documents_mod, "build_form_map", lambda pdf, detectors=None, **kw: real(pdf, detectors={}, policy=policy, ocr="never"))
+    # the server passes the documents' detectors (none in the tests): the library would load its stock ones
+    monkeypatch.setattr(samples_mod, "load_default_detectors", lambda: {})
+    monkeypatch.setattr(samples_mod, "DetectPolicy", lambda: policy)
 
 
 def wait_ended(jobs: Jobs, job_id: str, timeout: float = 10.0) -> dict:
@@ -610,3 +630,421 @@ def test_a_scan_that_fails_unexpectedly_says_so_generically(tmp_path, corpus_pdf
     with pytest.raises(KeyError):
         batches.get("0" * 32)
     assert batches.get(batch.id) is batch
+
+
+# ------------------------------------------------------------------ setups
+
+
+#: Five corpus copies, as plan 2's setup tests use: three fillable, two flattened, the last pushed down by SHIFT.
+SAMPLE_KINDS = [("fillable", 0.0), ("fillable", 0.0), ("fillable", 0.0), ("flattened", 0.0), ("flattened", SHIFT)]
+SHIFTED = 4  # the sample pushed down the page
+
+
+def sample_set(people) -> list[tuple[str, bytes]]:
+    return [
+        (f"s{n}.pdf", make_form(client, kind=kind, shift=shift))
+        for n, (client, (kind, shift)) in enumerate(zip(people, SAMPLE_KINDS), start=1)
+    ]
+
+
+class GatedModel(CorpusModel):
+    """``CorpusModel`` that stops at the first call of kind ``gate`` (``"derive"``, ``"fields"``) until released.
+
+    ``us_files`` are samples whose country the model reads as ``"US"`` whatever the form prints there.
+    """
+
+    KINDS = {DERIVE_SYSTEM: "derive", FIELDS_SYSTEM: "fields"}
+
+    def __init__(self, clients_by_file, *, gate: str | None = None, us_files=()) -> None:
+        super().__init__(clients_by_file)
+        self.gate = gate
+        self.us_files = set(us_files)
+        self.reached = threading.Event()
+        self.released = threading.Event()
+
+    def complete(self, messages, tools, **kwargs):
+        if self.gate is not None and self.KINDS.get(messages[0].content) == self.gate:
+            self.reached.set()
+            assert self.released.wait(10)
+        return super().complete(messages, tools, **kwargs)
+
+    def _values(self, text: str) -> dict:
+        answer = super()._values(text)
+        if any(f"({name}," in text for name in self.us_files) and "investor.country" in answer["values"]:
+            answer["values"]["investor.country"] = "US"
+        return answer
+
+
+@pytest.fixture(scope="module")
+def setup_people():
+    return clients(5, seed=31)
+
+
+@pytest.fixture(scope="module")
+def setup_pdfs(setup_people) -> list[tuple[str, bytes]]:
+    return sample_set(setup_people)
+
+
+@dataclass
+class Bench:
+    """A server with ``model`` as its AI and a batch of the sample files."""
+
+    base: str
+    api: Api
+    model: GatedModel
+    batch: str
+    pdfs: list[bytes]
+
+
+def bench_of(start_demo_server, files: list[tuple[str, bytes]], model: GatedModel) -> Bench:
+    base = start_demo_server(provider_factory=model)
+    batch = new_batch(base, name="Client forms")
+    status, _ = add_files(base, batch["id"], files)
+    assert status == 200
+    return Bench(base, start_demo_server.servers[-1].api, model, batch["id"], [data for _, data in files])
+
+
+def model_for(files: list[tuple[str, bytes]], people, **kw) -> GatedModel:
+    return GatedModel({name: client for (name, _), client in zip(files, people)}, **kw)
+
+
+@pytest.fixture
+def bench(start_demo_server, setup_pdfs, setup_people) -> Bench:
+    return bench_of(start_demo_server, setup_pdfs, model_for(setup_pdfs, setup_people))
+
+
+def start_job(base: str, body: dict) -> tuple[int, dict]:
+    return get_json(base, "/api/jobs", "POST", body)
+
+
+def job_of(base: str, job_id: str) -> dict:
+    return get_json(base, f"/api/jobs/{job_id}")[1]
+
+
+def job_ended(base: str, job_id: str) -> dict:
+    return wait_for(lambda: (j := job_of(base, job_id))["status"] != "running" and j, timeout=60, what="the job to end")
+
+
+def setup_job(b: Bench, **spec) -> dict:
+    body = {"kind": "extract-setup", "batch": b.batch, "samples": [0, 1, 2, 3, 4], "spec": {"name": "Client forms", **spec}}
+    status, out = start_job(b.base, body)
+    assert status == 200, out
+    return out
+
+
+def built(b: Bench, **spec) -> dict:
+    """The setup an ``extract-setup`` job built, once it is done."""
+    job = job_ended(b.base, setup_job(b, **spec)["id"])
+    assert job["status"] == "done", job
+    return job["result"]["setup"]
+
+
+def assert_proven(proof: dict) -> None:
+    """Every field some sample has is ready, and no sample disagrees (a field no sample fills cannot be proven)."""
+    for field in proof["fields"]:
+        assert not any(s["outcome"] == "disagree" for s in field["samples"]), field
+        if not field["absent"] and any(s["outcome"] != "missing" for s in field["samples"]):
+            assert field["ready"], field
+
+
+def field_of(setup: dict, path: str) -> dict:
+    return next(f for f in setup["proof"]["fields"] if f["path"] == path)
+
+
+def edit(b: Bench, setup_id: str, change: dict) -> tuple[int, dict]:
+    return get_json(b.base, f"/api/setups/{setup_id}/edit", "POST", {"edit": change})
+
+
+def test_a_setup_job_builds_a_template_from_the_batchs_sample_in_the_five_stages_and_keeps_the_setup(bench):
+    job = job_ended(bench.base, setup_job(bench, detect="all", sample_how="the first five")["id"])
+    assert job["status"] == "done", job
+    assert [s["key"] for s in job["stages"]] == [key for key, _ in STAGES]
+    assert all(s["status"] == "done" for s in job["stages"]), job["stages"]
+    assert job["usage"]["input_tokens"] == 10 * sum(bench.model.calls.values())
+    setup = job["result"]["setup"]
+    assert_proven(setup["proof"])
+    assert setup["proof"]["ready"] > 0 and setup["batch"] == bench.batch
+    template = setup["template"]
+    assert template["name"] == "Client forms" and template["template_id"] == "client_forms"
+    assert template["setup"]["start"] == "ai" and template["setup"]["detect"] == "all"
+    assert template["setup"]["sample_how"] == "the first five"
+    assert [s["name"] for s in setup["samples"]] == [f"s{n}.pdf" for n in range(1, 6)]
+    assert [s["index"] for s in setup["samples"]] == [0, 1, 2, 3, 4]
+    assert [s["kind"] for s in setup["samples"]] == [kind for kind, _ in SAMPLE_KINDS]
+    assert setup["samples"][0]["pages"][0] == [612.0, 792.0]
+    status, again = get_json(bench.base, f"/api/setups/{setup['id']}")
+    assert status == 200 and again == setup
+
+
+def test_the_fields_stage_is_labelled_by_where_the_fields_start(bench):
+    job = job_ended(bench.base, setup_job(bench, start="lines", lines=["tax ID"])["id"])
+    assert job["status"] == "done", job
+    assert next(s for s in job["stages"] if s["key"] == "fields")["label"] == "Turn the lines into fields"
+    assert job["result"]["setup"]["template"]["setup"]["lines"] == ["tax ID"]
+
+
+def test_a_setup_from_a_destination_marks_the_destinations_fields_the_form_lacks_absent(bench):
+    status, listed = get_json(bench.base, "/api/templates")
+    assert "fw9" in [t["name"] for t in listed["templates"]]
+    schema = bench.api.store.get("fw9").schema_
+    setup = built(bench, start="destination", destination="fw9")
+    template = setup["template"]
+    on_form = set(concrete_paths(hand_template().schema_))  # CorpusModel: the destination's fields the hand template has
+    assert template["schema"] == schema and template["setup"]["destination"] == "fw9"
+    assert set(template["absent"]) == {p for p in concrete_paths(schema) if p not in on_form}
+    assert "address.street" not in template["absent"] and "address.street" in template["readers"]
+    assert_proven(setup["proof"])
+
+
+def test_a_setup_job_is_refused_before_it_starts_for_a_bad_spec_batch_sample_or_destination(bench):
+    def refused(**changes):
+        body = {"kind": "extract-setup", "batch": bench.batch, "samples": [0, 1, 2], "spec": {"name": "x"}, **changes}
+        status, out = start_job(bench.base, body)
+        return status, out["error"], out["detail"]
+
+    assert refused(spec={"name": " "})[:2] == (400, "bad_spec")
+    assert refused(spec={"name": "x", "start": "lines"})[:2] == (400, "bad_spec")
+    assert refused(spec={"name": "x", "detect": "sometimes"})[:2] == (400, "bad_spec")
+    assert refused(spec={"name": "x", "stray": 1})[:2] == (400, "bad_spec")
+    assert refused(spec="x")[:2] == (400, "bad_spec")
+    assert refused(batch="0" * 32)[:2] == (400, "bad_batch")
+    assert refused(samples=[0, 9, 1])[:2] == (400, "bad_sample")
+    assert refused(samples=[0, 1])[:2] == (400, "bad_sample")  # fewer than 3 of a batch of 5
+    assert refused(samples=[0, 0, 1])[:2] == (400, "bad_sample")
+    assert refused(samples="all")[:2] == (400, "bad_sample")
+    status, code, detail = refused(spec={"name": "x", "start": "destination", "destination": "no such form"})
+    assert (status, code) == (404, "not_found") and "no such template" in detail
+    assert bench.model.calls == {}  # no model call for a job that never started
+
+
+def test_a_batch_of_fewer_than_three_files_builds_from_all_of_them(start_demo_server, setup_pdfs, setup_people):
+    b = bench_of(start_demo_server, setup_pdfs[:2], model_for(setup_pdfs, setup_people))
+    status, out = start_job(b.base, {"kind": "extract-setup", "batch": b.batch, "samples": [0, 1], "spec": {"name": "x"}})
+    assert status == 200, out
+    assert job_ended(b.base, out["id"])["status"] == "done"
+
+
+def test_without_ai_a_setup_job_is_refused_and_an_unknown_setup_is_not_found(demo_server):
+    batch = new_batch(demo_server)
+    status, out = start_job(demo_server, {"kind": "extract-setup", "batch": batch["id"], "samples": [0], "spec": {"name": "x"}})
+    assert (status, out["error"]) == (400, "ai_not_configured")
+    status, out = start_job(demo_server, {"kind": "extract-line", "setup": "0" * 32, "line": "wire details"})
+    assert (status, out["error"]) == (400, "ai_not_configured")
+    for path in ("", "/samples/0/marks", "/samples/0/pages/0.png"):
+        status, out = get_json(demo_server, f"/api/setups/{'0' * 32}{path}")
+        assert (status, out["error"]) == (404, "not_found") and out["detail"].startswith("no such setup")
+    for path, body in (("/edit", {"edit": {"op": "mark_absent", "path": "x"}}), ("/learn", {"path": "x"})):
+        status, out = get_json(demo_server, f"/api/setups/{'0' * 32}{path}", "POST", body)
+        assert (status, out["error"]) == (404, "not_found")
+
+
+def test_cancelling_a_setup_job_during_the_fields_stage_ends_it_cancelled_with_no_setup(start_demo_server, setup_pdfs, setup_people):
+    model = model_for(setup_pdfs, setup_people, gate="derive")
+    b = bench_of(start_demo_server, setup_pdfs, model)
+    job_id = setup_job(b)["id"]
+    assert model.reached.wait(30)
+    running = job_of(b.base, job_id)
+    assert next(s for s in running["stages"] if s["key"] == "fields")["status"] == "running"
+    assert get_json(b.base, f"/api/jobs/{job_id}/cancel", "POST", {})[0] == 200
+    model.released.set()
+    job = job_ended(b.base, job_id)
+    assert job["status"] == "cancelled" and "setup" not in job["result"]
+    assert "readers" not in model.calls  # it stopped before the next stage
+    assert not b.api.setups._setups
+
+
+def test_an_edit_is_applied_and_proven_again_with_no_model_call(bench):
+    setup = built(bench)
+    calls = dict(bench.model.calls)
+    status, after = edit(bench, setup["id"], {"op": "set_labels", "path": "investor.tax_id", "labels": []})
+    assert status == 200, after
+    kinds = [s["kind"] for s in after["template"]["readers"]["investor.tax_id"]["strategies"]]
+    assert "anchor" in [s["kind"] for s in setup["template"]["readers"]["investor.tax_id"]["strategies"]]
+    assert "anchor" not in kinds and kinds
+    template = ExtractionTemplate.model_validate(after["template"])
+    assert Proof.model_validate(after["proof"]) == prove(template, bench.pdfs)
+    assert bench.model.calls == calls
+    assert get_json(bench.base, f"/api/setups/{setup['id']}")[1] == after
+
+
+def test_a_bad_edit_is_refused_with_the_librarys_message_and_changes_nothing(bench):
+    setup = built(bench)
+    status, out = edit(bench, setup["id"], {"op": "set_labels", "path": "investor.nope", "labels": []})
+    assert (status, out["error"], out["detail"]) == (400, "bad_edit", "no field investor.nope")
+    status, out = edit(bench, setup["id"], {"op": "fly", "path": "investor.tax_id"})
+    assert (status, out["error"]) == (400, "bad_edit")
+    status, out = get_json(bench.base, f"/api/setups/{setup['id']}/edit", "POST", {"change": {}})
+    assert (status, out["error"]) == (400, "bad_edit")
+    assert get_json(bench.base, f"/api/setups/{setup['id']}")[1] == setup
+
+
+def test_a_box_drawn_on_a_shifted_samples_marks_is_stored_in_the_layouts_place(bench):
+    setup = built(bench)
+    status, out = get_json(bench.base, f"/api/setups/{setup['id']}/samples/{SHIFTED}/marks")
+    assert status == 200
+    mark = next(m for m in out["marks"] if (m["path"], m["kind"]) == ("investor.dob", "box"))
+    x0, y0, x1, y1 = FIELD_RECTS["dob"]
+    assert mark["rect"] == pytest.approx([x0, y0 + SHIFT, x1, y1 + SHIFT], abs=0.5)
+    drawn = [mark["rect"][0], mark["rect"][1], mark["rect"][2] + 20, mark["rect"][3]]
+    change = {"op": "set_box", "path": "investor.dob", "page": mark["page"], "rect": drawn, "sample": SHIFTED}
+    status, after = edit(bench, setup["id"], change)
+    assert status == 200, after
+    box = next(s for s in after["template"]["readers"]["investor.dob"]["strategies"] if s["kind"] == "box")
+    assert box["rect"] == pytest.approx([x0, y0, x1 + 20, y1], abs=0.5)
+    assert field_of(after, "investor.dob")["ready"]
+
+
+def test_a_samples_marks_have_a_kind_and_a_place_and_its_pages_are_images(bench):
+    setup = built(bench)
+    status, out = get_json(bench.base, f"/api/setups/{setup['id']}/samples/0/marks")
+    assert status == 200 and out["marks"]
+    for mark in out["marks"]:
+        assert mark["kind"] in ("read", "box", "label", "option") and len(mark["rect"]) == 4
+    status, headers, png = http_request(bench.base, "GET", f"/api/setups/{setup['id']}/samples/0/pages/0.png?dpi=50")
+    assert status == 200 and headers["content-type"] == "image/png" and png_size(png)[0] == round(612 * 50 / 72)
+    assert get_json(bench.base, f"/api/setups/{setup['id']}/samples/9/marks")[0] == 404
+    assert http_request(bench.base, "GET", f"/api/setups/{setup['id']}/samples/0/pages/9.png")[0] == 404
+    assert http_request(bench.base, "GET", f"/api/setups/{setup['id']}/samples/0/pages/0.png?dpi=x")[0] == 400
+
+
+def test_a_line_job_adds_the_fields_of_one_more_line_to_the_setup(bench):
+    setup = built(bench, start="lines", lines=["tax ID"])
+    assert "wire.bank" not in setup["template"]["readers"]
+    status, out = start_job(bench.base, {"kind": "extract-line", "setup": setup["id"], "line": "wire details"})
+    assert status == 200, out
+    job = job_ended(bench.base, out["id"])
+    assert job["status"] == "done", job
+    after = job["result"]["setup"]
+    assert job["result"]["paths"] == ["wire.bank", "wire.account"]
+    assert "wire.bank" in after["template"]["readers"] and field_of(after, "wire.bank")["ready"]
+    assert after["template"]["setup"]["line_paths"]["wire details"] == ["wire.bank", "wire.account"]
+    assert get_json(bench.base, f"/api/setups/{setup['id']}")[1] == after
+
+
+def test_a_line_job_is_refused_for_no_line_or_an_unknown_setup(bench):
+    setup = built(bench, start="lines", lines=["tax ID"])
+    status, out = start_job(bench.base, {"kind": "extract-line", "setup": setup["id"], "line": "  "})
+    assert (status, out["error"]) == (400, "bad_request")
+    status, out = start_job(bench.base, {"kind": "extract-line", "setup": "0" * 32, "line": "wire details"})
+    assert (status, out["error"]) == (404, "not_found") and out["detail"].startswith("no such setup")
+
+
+def test_while_a_line_job_runs_its_setup_takes_no_edit_and_no_other_line_job(bench):
+    setup = built(bench, start="lines", lines=["tax ID"])
+    bench.model.gate = "fields"
+    status, out = start_job(bench.base, {"kind": "extract-line", "setup": setup["id"], "line": "wire details"})
+    assert status == 200, out
+    assert bench.model.reached.wait(30)
+    tax_id = {"op": "set_labels", "path": "investor.tax_id", "labels": []}
+    status, busy = edit(bench, setup["id"], tax_id)
+    assert (status, busy["error"]) == (409, "busy_setup")
+    status, busy = start_job(bench.base, {"kind": "extract-line", "setup": setup["id"], "line": "date of birth"})
+    assert (status, busy["error"]) == (409, "busy_setup")
+    status, busy = get_json(bench.base, f"/api/setups/{setup['id']}/learn", "POST", {"path": "investor.country"})
+    assert (status, busy["error"]) == (409, "busy_setup")
+    bench.model.gate = None
+    bench.model.released.set()
+    assert job_ended(bench.base, out["id"])["status"] == "done"
+    assert edit(bench, setup["id"], tax_id)[0] == 200
+
+
+def test_a_suggested_wording_is_learned_only_when_asked_for_its_path(start_demo_server, setup_people):
+    people = [dataclasses.replace(setup_people[0], country="Estados Unidos"), *setup_people[1:]]
+    files = sample_set(people)
+    model = model_for(files, people, us_files=["s1.pdf"])
+    b = bench_of(start_demo_server, files, model)
+    setup = built(b)
+    country = field_of(setup, "investor.country")
+    assert country["suggested"] == {"Estados Unidos": "US"} and not country["ready"]
+    calls = dict(model.calls)
+    status, out = get_json(b.base, f"/api/setups/{setup['id']}/learn", "POST", {"path": "investor.tax_id"})
+    assert (status, out["error"]) == (400, "bad_request")
+    status, after = get_json(b.base, f"/api/setups/{setup['id']}/learn", "POST", {"path": "investor.country"})
+    assert status == 200, after
+    country = field_of(after, "investor.country")
+    assert country["ready"] and country["suggested"] == {}
+    values = after["template"]["readers"]["investor.country"]["clean"][0]["args"]["values"]
+    assert values["Estados Unidos"] == "US"
+    assert model.calls == calls
+    status, out = get_json(b.base, f"/api/setups/{setup['id']}/learn", "POST", {"path": 3})
+    assert (status, out["error"]) == (400, "bad_request")
+
+
+# ------------------------------------------------------------------ saved extraction templates
+
+
+def test_a_setup_saved_as_an_extraction_is_listed_and_reopens_as_a_setup_with_a_fresh_proof(bench):
+    setup = built(bench)
+    status, saved = get_json(bench.base, "/api/extractions/Client%20info", "PUT", {"setup": setup["id"]})
+    assert status == 200 and saved == {"name": "Client info", "template_id": "client_forms"}
+    folder = bench.api.settings.data_dir / "local" / "extractions"
+    assert (folder / "Client info.json").is_file()
+    stored = folder / "assets" / "Client info" / "samples"
+    assert [(stored / f"{i}.pdf").read_bytes() for i in range(5)] == bench.pdfs
+    status, listed = get_json(bench.base, "/api/extractions")
+    assert status == 200
+    [entry] = listed["extractions"]
+    assert (entry["name"], entry["template_id"], entry["samples"]) == ("Client info", "client_forms", 5)
+    assert entry["fields"] == len(concrete_paths(setup["template"]["schema"])) and entry["updated"]
+    status, got = get_json(bench.base, "/api/extractions/Client%20info")
+    assert status == 200 and got["template"] == {**setup["template"], "name": "Client info"}
+    calls = dict(bench.model.calls)
+    status, reopened = get_json(bench.base, "/api/setups", "POST", {"extraction": "Client info"})
+    assert status == 200, reopened
+    assert reopened["id"] != setup["id"] and reopened["batch"] is None
+    assert reopened["template"] == got["template"]
+    assert reopened["proof"] == setup["proof"]
+    assert [s["name"] for s in reopened["samples"]] == [s["name"] for s in setup["samples"]]
+    assert [s["index"] for s in reopened["samples"]] == [None] * 5
+    assert bench.model.calls == calls
+    assert edit(bench, reopened["id"], {"op": "mark_absent", "path": "wire.bank"})[0] == 200
+
+
+def test_a_saved_extraction_can_be_deleted_and_names_are_checked(bench):
+    setup = built(bench)
+    status, out = get_json(bench.base, "/api/extractions/..%2Fx", "PUT", {"setup": setup["id"]})
+    assert (status, out["error"]) == (400, "bad_name")
+    assert get_json(bench.base, "/api/extractions/..%2Fx")[1]["error"] == "bad_name"
+    status, out = get_json(bench.base, "/api/extractions/x", "PUT", {"setup": "0" * 32})
+    assert (status, out["error"]) == (404, "not_found")
+    assert get_json(bench.base, "/api/extractions/x", "PUT", {"setup": setup["id"]})[0] == 200
+    assert get_json(bench.base, "/api/extractions/x", "DELETE") == (200, {"name": "x"})
+    for method in ("GET", "DELETE"):
+        status, out = get_json(bench.base, "/api/extractions/x", method)
+        assert (status, out["error"]) == (404, "not_found") and out["detail"].startswith("no such extraction")
+    status, out = get_json(bench.base, "/api/setups", "POST", {"extraction": "x"})
+    assert (status, out["error"]) == (404, "not_found")
+    assert not (bench.api.settings.data_dir / "local" / "extractions" / "assets" / "x").exists()
+    assert get_json(bench.base, "/api/extractions")[1] == {"extractions": []}
+
+
+def test_the_extraction_store_skips_a_bad_file_in_its_list_and_refuses_to_open_it(tmp_path, setup_pdfs):
+    store = extraction.ExtractionStore(tmp_path / "extractions")
+    (tmp_path / "extractions").mkdir()
+    (tmp_path / "extractions" / "broken.json").write_text("{nope")
+    assert store.list() == []
+    with pytest.raises(StoredTemplateError):
+        store.get("broken")
+    with pytest.raises(KeyError):
+        store.get("missing")
+    with pytest.raises(ValueError):
+        store.get("../x")
+    pdf = setup_pdfs[0][1]
+    template = hand_template().model_copy(update={"samples": [SampleRecord(file="a.pdf", sha256=hashlib.sha256(pdf).hexdigest(), opinion={})]})
+    store.put("hand", template, [SamplePdf("a.pdf", pdf)])
+    assert store.get("hand") == template and store.samples("hand") == [SamplePdf("a.pdf", pdf)]
+    (tmp_path / "extractions" / "assets" / "hand" / "samples" / "0.pdf").unlink()
+    with pytest.raises(StoredTemplateError):
+        store.samples("hand")
+
+
+def test_setups_are_kept_in_memory_up_to_the_limit_least_recently_used_dropped_first():
+    setups = extraction.Setups(limit=2)
+    made = [extraction.Setup(f"{n:032x}", None, None, [], None, None, []) for n in range(3)]
+    setups.add(made[0])
+    setups.add(made[1])
+    assert setups.get(made[0].id) is made[0]  # now the most recently used
+    setups.add(made[2])
+    assert setups.get(made[0].id) is made[0] and setups.get(made[2].id) is made[2]
+    with pytest.raises(KeyError):
+        setups.get(made[1].id)

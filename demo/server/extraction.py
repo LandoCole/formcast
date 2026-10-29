@@ -36,9 +36,35 @@ it between documents, so a page image asked for during a scan of thousands waits
 ``first`` take ``n`` (3 to 20) of the scan's largest group with ``formcast.extract.scan.sample``, once the scan is
 done (``ScanNotDone`` before); ``pick`` takes the person's own choice as given.
 
+**Setups.** A setup is an extraction template being made: the template, its samples as read
+(``formcast.extract.samples.SampleDoc``), their numbers in the batch they came from, the template's proof on them
+and the build's warnings (``Setup``). ``Setups`` keeps the last :data:`SETUP_LIMIT` in memory, the least recently
+used dropped first, so after a restart every setup id is unknown. A setup changes in three ways, none of which calls
+a model except the line job's ``add_line``:
+
+    an edit      ``Setup.edit(edit)``: ``apply_edit`` (given the sample PDFs, so a box drawn on a sample is moved into
+                 the layout's place), then ``prove``
+    a wording    ``Setup.learn(path)``: the wordings the proof suggests for one path (``FieldProof.suggested``) put into
+                 its reader's map (``learn_maps`` given a proof of that path only), then ``prove``
+    a line       ``Setup.start_line()`` before the ``extract-line`` job starts, ``Setup.end_line(result)`` when it ends:
+                 the job's ``add_line`` result replaces the template and proof (``None``, for a job that failed or was
+                 cancelled, leaves them)
+
+A setup takes one change at a time: while a line job runs, an edit, a wording or another line job raises
+``SetupBusy``; edits wait for one another (each takes the setup's lock while it proves).
+
+**Saved extraction templates.** ``ExtractionStore`` keeps each saved template as ``<folder>/<name>.json`` with its
+sample PDFs beside it, as ``<folder>/assets/<name>/samples/<i>.pdf`` in the template's order (``<folder>`` is
+``<data>/local/extractions``), so a saved template reopens as a setup and is proven again on the very samples its
+readings are of. Names are the fill store's (``store.check_name``: ``ValueError`` for one that is not plain); a stored
+file that is not a valid template, or whose samples are missing, raises ``StoredTemplateError``. Files are written as
+``store._write`` writes them (a temporary file and ``os.replace``), the samples before the template.
+
 Threads: ``Batches`` has one lock for its table. Each ``Batch`` has a lock for its state (files, counts, scan) and a
 second one that lets one upload at a time write; the state lock is never held while files are written or read.
-Lock order: ``PYMUPDF_LOCK`` first, a batch's state lock second.
+Lock order: ``PYMUPDF_LOCK`` first, a batch's state lock second. ``Setups`` and ``ExtractionStore`` have one lock
+each for their table or folder. A ``Setup``'s lock is taken before ``PYMUPDF_LOCK`` (an edit proves under both),
+never while holding it.
 """
 
 from __future__ import annotations
@@ -53,15 +79,21 @@ import time
 import uuid
 import zipfile
 import zlib
+from collections import OrderedDict
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import IO, Literal
 
 from demo.server.documents import PYMUPDF_LOCK
-from demo.server.store import _write
+from demo.server.store import NAME_RE, StoredTemplateError, _write, check_name
 from formcast.errors import FormcastError
+from formcast.extract.edit import Edit, apply_edit
+from formcast.extract.model import ExtractionTemplate, concrete_paths
+from formcast.extract.proof import Mark, Proof, learn_maps, prove, sample_marks
+from formcast.extract.samples import SampleDoc, SamplePdf
 from formcast.extract.scan import ScanReport, sample, scan
-from formcast.extract.setup import MAX_SAMPLES
+from formcast.extract.setup import MAX_SAMPLES, SetupResult
 
 log = logging.getLogger("demo.server")
 
@@ -74,10 +106,15 @@ MIN_SAMPLE = 3  #: the fewest documents a sample picked by ``spread`` or ``first
 DEFAULT_NAME = "Uploaded files"  #: a batch's name when it is given none
 SCAN_PAUSE = 0.001  #: seconds the scan leaves ``PYMUPDF_LOCK`` free between documents
 SCAN_FAILED = "The scan stopped because of an unexpected error. The server log has the details."
+SETUP_LIMIT = 8  #: the setups kept in memory; the least recently used is dropped first
 
 
 class ScanNotDone(FormcastError):
     """The batch is still being scanned, so there is no layout to take a sample from yet."""
+
+
+class SetupBusy(FormcastError):
+    """A field is being added to the setup from a line; it takes no other change until that job ends."""
 
 
 class _Superseded(Exception):
@@ -431,3 +468,266 @@ def _size(n: int) -> str:
         if n >= scale:
             return f"{n / scale:.3g} {unit}"
     return f"{n} bytes"
+
+
+# ------------------------------------------------------------------ setups
+
+
+@dataclass(eq=False)
+class Setup:
+    """An extraction template being made, with its samples as read (see the module docstring).
+
+    ``batch_id`` is the batch the samples came from and ``indexes`` their file numbers in it, in the template's
+    order; both are ``None`` for a setup reopened from a saved extraction template. Read it with ``summary``,
+    ``snapshot``, ``sample`` and ``marks``, and change it with ``edit``, ``learn`` and a line job: they take its lock.
+    """
+
+    id: str
+    batch_id: str | None
+    template: ExtractionTemplate
+    samples: list[SampleDoc]
+    indexes: list[int] | None
+    proof: Proof
+    warnings: list[str]
+    _line: bool = field(default=False, repr=False)  # an extract-line job is running on this setup
+    _lock: threading.RLock = field(default_factory=threading.RLock, repr=False)
+
+    def summary(self) -> dict:
+        """The setup as the API shows it: ``{id, batch, template, proof, warnings, samples: [{index, name, kind, pages}]}``.
+
+        A sample's ``index`` is its file's number in the batch (``None`` for a reopened setup), its ``kind``
+        ``fillable`` (it has form fields) or ``flattened``, and ``pages`` its pages' ``[width, height]`` in points.
+        """
+        with self._lock:
+            return {
+                "id": self.id,
+                "batch": self.batch_id,
+                "template": self.template.model_dump(mode="json", by_alias=True),
+                "proof": self.proof.model_dump(mode="json"),
+                "warnings": list(self.warnings),
+                "samples": [
+                    {
+                        "index": self.indexes[n] if self.indexes is not None else None,
+                        "name": doc.file,
+                        "kind": "fillable" if any(p.widgets for p in doc.form_map.pages) else "flattened",
+                        "pages": [[p.width, p.height] for p in doc.form_map.pages],
+                    }
+                    for n, doc in enumerate(self.samples)
+                ],
+            }
+
+    def snapshot(self) -> tuple[ExtractionTemplate, list[SampleDoc]]:
+        """The template and the samples as they are now."""
+        with self._lock:
+            return self.template, list(self.samples)
+
+    def sample(self, n: int) -> SampleDoc:
+        """The template's sample ``n`` (from 0, in its order).
+
+        Raises:
+            KeyError: the template has no such sample.
+        """
+        with self._lock:
+            if not 0 <= n < len(self.samples):
+                raise KeyError(str(n))
+            return self.samples[n]
+
+    def marks(self, n: int) -> list[Mark]:
+        """``sample_marks`` of sample ``n``: the places on its pages each path is read from, in that page's frame.
+
+        Raises:
+            KeyError: the template has no such sample.
+        """
+        with self._lock:
+            template, doc = self.template, self.sample(n)
+        with PYMUPDF_LOCK:
+            return sample_marks(template, doc.pdf)
+
+    def edit(self, edit: Edit) -> None:
+        """Make ``edit`` (``apply_edit`` with the sample PDFs) and prove the template again. No model is called.
+
+        Raises:
+            SetupBusy: a line job is running on the setup.
+            FormcastError: the library refused the edit (``apply_edit``'s message: a path that is not a field, a
+                sample the template does not have...).
+            pydantic.ValidationError: the edited template is not valid.
+        """
+        with self._lock:
+            self._free()
+            pdfs = [doc.pdf for doc in self.samples]
+            with PYMUPDF_LOCK:
+                template = apply_edit(self.template, edit, pdfs=pdfs)
+                proof = prove(template, pdfs)
+            self.template, self.proof = template, proof
+
+    def learn(self, path: str) -> None:
+        """Put the wordings the proof suggests for ``path`` into its reader's map and prove again. No model is called.
+
+        Raises:
+            SetupBusy: a line job is running on the setup.
+            FormcastError: the proof suggests no wording for ``path`` (or it is not a field).
+        """
+        with self._lock:
+            self._free()
+            field_proof = next((f for f in self.proof.fields if f.path == path and f.suggested), None)
+            if field_proof is None:
+                raise FormcastError(f"No wordings are suggested for {path}.")
+            pdfs = [doc.pdf for doc in self.samples]
+            with PYMUPDF_LOCK:
+                template = learn_maps(self.template, self.proof.model_copy(update={"fields": [field_proof]}))
+                proof = prove(template, pdfs)
+            self.template, self.proof = template, proof
+
+    def start_line(self) -> tuple[ExtractionTemplate, list[SampleDoc]]:
+        """Mark a line job as running on the setup; the template and samples it starts from.
+
+        Raises:
+            SetupBusy: a line job is already running on it.
+        """
+        with self._lock:
+            self._free()
+            self._line = True
+            return self.template, list(self.samples)
+
+    def end_line(self, result: SetupResult | None) -> None:
+        """The line job has ended: its result's template and proof replace the setup's (``None`` leaves them)."""
+        with self._lock:
+            self._line = False
+            if result is not None:
+                self.template, self.proof = result.template, result.proof
+                self.warnings = list(dict.fromkeys([*self.warnings, *result.warnings]))
+
+    def _free(self) -> None:
+        if self._line:
+            raise SetupBusy("A field is being added to this setup; wait for it to finish, or cancel it.")
+
+
+class Setups:
+    """The setups in progress, by id, in memory: at most ``limit``, the least recently used dropped first."""
+
+    def __init__(self, limit: int = SETUP_LIMIT) -> None:
+        self.limit = limit
+        self._setups: OrderedDict[str, Setup] = OrderedDict()
+        self._lock = threading.Lock()
+
+    def add(self, setup: Setup) -> Setup:
+        """Keep ``setup``, dropping the least recently used past the limit."""
+        with self._lock:
+            self._setups[setup.id] = setup
+            while len(self._setups) > self.limit:
+                self._setups.popitem(last=False)
+        return setup
+
+    def get(self, setup_id: str) -> Setup:
+        """The setup ``setup_id``, now the most recently used. Raises ``KeyError`` when there is none (or it was dropped)."""
+        with self._lock:
+            setup = self._setups[setup_id]
+            self._setups.move_to_end(setup_id)
+            return setup
+
+
+# ------------------------------------------------------------------ saved extraction templates
+
+
+class ExtractionStore:
+    """Saved extraction templates with their sample PDFs, in ``folder`` (``<data>/local/extractions``).
+
+    Every method raises ``ValueError("bad template name")`` for a name ``check_name`` refuses, before touching a file.
+    """
+
+    def __init__(self, folder: Path) -> None:
+        self.folder = Path(folder)
+        self._lock = threading.Lock()
+
+    def _path(self, name: str) -> Path:
+        return self.folder / f"{check_name(name)}.json"
+
+    def _samples_dir(self, name: str) -> Path:
+        return self.folder / "assets" / check_name(name) / "samples"
+
+    def list(self) -> list[dict]:
+        """``[{name, template_id, fields, samples, updated}]`` by name: ``fields`` the paths not marked absent,
+        ``samples`` how many it was built from, ``updated`` ISO 8601 UTC. A file that is not a template is left out."""
+        out = []
+        for path in sorted(self.folder.glob("*.json")):
+            if not NAME_RE.fullmatch(path.stem):
+                continue
+            try:
+                template = ExtractionTemplate.model_validate_json(path.read_bytes())
+                updated = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
+            except (OSError, ValueError, FormcastError):
+                continue
+            absent = set(template.absent)
+            out.append({
+                "name": path.stem,
+                "template_id": template.template_id,
+                "fields": sum(p not in absent for p in concrete_paths(template.schema_)),
+                "samples": len(template.samples),
+                "updated": updated.isoformat(timespec="seconds"),
+            })  # fmt: skip
+        return out
+
+    def get(self, name: str) -> ExtractionTemplate:
+        """The template saved as ``name``.
+
+        Raises:
+            ValueError: a bad name.
+            KeyError: none is saved under it.
+            StoredTemplateError: the file is not a valid extraction template.
+        """
+        path = self._path(name)
+        try:
+            data = path.read_bytes()
+        except FileNotFoundError:
+            raise KeyError(name) from None
+        try:
+            return ExtractionTemplate.model_validate_json(data)
+        except (ValueError, FormcastError) as exc:
+            raise StoredTemplateError(f"stored extraction template {name!r} is not a valid template") from exc
+
+    def samples(self, name: str) -> list[SamplePdf]:
+        """The sample PDFs saved with ``name``, in its template's order, each named as its template's sample is.
+
+        Raises:
+            ValueError, KeyError: as ``get``.
+            StoredTemplateError: as ``get``, or a sample PDF is missing.
+        """
+        template = self.get(name)
+        folder = self._samples_dir(name)
+        out = []
+        for n, record in enumerate(template.samples):
+            try:
+                out.append(SamplePdf(record.file, (folder / f"{n}.pdf").read_bytes()))
+            except FileNotFoundError:
+                raise StoredTemplateError(f"the sample PDFs of stored extraction template {name!r} are missing") from None
+        return out
+
+    def put(self, name: str, template: ExtractionTemplate, samples: list[SamplePdf]) -> None:
+        """Save ``template`` as ``name`` with ``samples`` (its sample PDFs, in its order), replacing any saved there.
+
+        Raises:
+            ValueError: a bad name.
+        """
+        path, folder = self._path(name), self._samples_dir(name)
+        with self._lock:
+            for n, sample_pdf in enumerate(samples):
+                _write(folder / f"{n}.pdf", sample_pdf.pdf)
+            for old in folder.glob("*.pdf"):  # a template saved here before from more samples
+                if not (old.stem.isdigit() and int(old.stem) < len(samples)):
+                    old.unlink(missing_ok=True)
+            _write(path, template.model_dump_json(by_alias=True, indent=1).encode("utf-8"))
+
+    def delete(self, name: str) -> None:
+        """Delete the template saved as ``name`` and its samples.
+
+        Raises:
+            ValueError: a bad name.
+            KeyError: none is saved under it.
+        """
+        path, assets = self._path(name), self._samples_dir(name).parent
+        with self._lock:
+            try:
+                path.unlink()
+            except FileNotFoundError:
+                raise KeyError(name) from None
+            shutil.rmtree(assets, ignore_errors=True)

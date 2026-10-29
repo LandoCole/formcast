@@ -53,7 +53,7 @@ import pydantic
 
 from demo.server.datasets import Dataset, Datasets
 from demo.server.documents import DETECT_MODES, MAX_DPI, MIN_DPI, PYMUPDF_LOCK, Doc, Documents
-from demo.server.extraction import Batches
+from demo.server.extraction import Batches, ExtractionStore, Setups
 from demo.server.jobs import EXTRACT_KINDS, KINDS, Jobs, JobsBusy
 from demo.server.oneshot import OneShotSpec, map_dataset
 from demo.server.records import MultiRecords, RecordSource, RecordSourceError
@@ -71,6 +71,7 @@ from formcast.template.model import candidate_fields, new_template
 log = logging.getLogger("demo.server")
 
 DEFAULT_DPI = 110
+AI_NOT_CONFIGURED = "AI is not configured. Set the model endpoint, key and name in .env (see the README)."
 
 
 class ApiError(Exception):
@@ -164,7 +165,9 @@ class Api:
         self.jobs = Jobs(secrets=[settings.llm.api_key] if settings.llm is not None else [])
         # the extraction workbench's managers (demo/server/extraction.py): batches of PDFs, setups, saved extractions, runs
         self.batches = Batches(settings.data_dir / "local" / "batches")
-        self.setups = self.extractions = self.runs = None
+        self.setups = Setups()
+        self.extractions = ExtractionStore(settings.data_dir / "local" / "extractions")
+        self.runs = None
         self._routes: list[tuple[str, re.Pattern[str], Callable[[Request], Any]]] = []
         self._add_routes()
 
@@ -489,14 +492,14 @@ class Api:
         kind = payload.get("kind")
         if kind == "oneshot":
             return self._start_oneshot(payload)
-        if kind in EXTRACT_KINDS:  # these need no model; the extraction workbench starts them
+        if kind in EXTRACT_KINDS:  # the extraction workbench starts these, and checks for a model itself
             from demo.server.extract_api import start_extract_job  # here, not at the top: extract_api imports this module
 
             return start_extract_job(self, kind, payload)
         if kind not in KINDS:
             raise ApiError(400, "bad_kind", f"kind must be {', '.join((*KINDS, *EXTRACT_KINDS)[:-1])} or {EXTRACT_KINDS[-1]}")
         if self.provider_factory is None:
-            raise ApiError(400, "ai_not_configured", "AI is not configured. Set the model endpoint, key and name in .env (see the README).")
+            raise ApiError(400, "ai_not_configured", AI_NOT_CONFIGURED)
         doc = self._doc(payload)
         schema = template = instruction = region = None
         if kind == "build":
