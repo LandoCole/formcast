@@ -170,6 +170,24 @@ workbench's modal style:
    page text only); scanned pages OCR'd when needed or left out; the *unsure* rule (on by default, see
    *Settled after review*); the AI per document (off by default).
 
+**Scanning the batch** (the summary under *Your documents*). It runs before any template exists, so it groups
+the documents by layout rather than matching them to anything. No detection and no model: per document, whether
+it has filled form fields (fillable) or not (flattened), page count and sizes, the blind fingerprint
+(`ignore_field_values=True`), and the layout signature (`compute_signature`: a coarse ink map per page and a
+MinHash of its wording, field values hidden). Documents with the same blind fingerprint are one group at once
+(fillable copies of one PDF); the rest join a group when page count and sizes match and their signature is close
+enough to the group's first member, or start a new one. The largest group is the main layout; the others are
+listed by size (another edition of the form, or odd documents). The closeness threshold is calibrated on filled
+copies, flattened ones included (their answers are in the ink and the wording). The scan is a preview for
+choosing the sample and seeing the mix; the run's own *no template fits* count, from matching each document to
+the finished template, is the authoritative one. Cost: a few hundredths of a second a page (the ink map is the
+slow part); the builder may scan first pages only for large batches.
+
+Field detection never runs on the batch: only on the sample, while the template is built, and there only on
+pages without form fields (prose skipped by default). Running on all documents reads form-field values, text
+near labels and the template's boxes; a checkbox on a flattened copy is a check for a mark inside its known box,
+not detection.
+
 *Read the sample →* starts the template build as a job with stages (read the sample, find the blanks, design
 the fields / turn the lines into fields / match the destination's fields, find each field on the sample, check
 the reads) in the workbench's job panel; when it ends, the setup screen opens. Without documents, the modal
