@@ -10,6 +10,8 @@ import {
   fieldState,
   groupFields,
   outcomeLine,
+  pagesText,
+  parsePages,
   problemLabel,
   readFrom,
   stripCells,
@@ -233,10 +235,28 @@ test("stripCells: one cell per document up to max, the samples marked, flattened
   assert.equal(stripCells(BATCH, [], 10).length, 10);
 });
 
-test("stripCells before the scan is done shows every cell as the layout's, and an empty batch has none", () => {
+test("stripCells before the scan is done shows every cell as not scanned yet, no sample marked, and an empty batch has none", () => {
   const scanning = { ...BATCH, count: 4, scan: { phase: "scanning", done: 1, total: 4, error: null, groups: [] } };
-  assert.deepEqual(stripCells(scanning, []).map((c) => c.state), ["main", "main", "main", "main"]);
+  assert.deepEqual(stripCells(scanning, [0, 2]).map((c) => c.state), ["pending", "pending", "pending", "pending"]);
+  const failed = { ...scanning, scan: { ...scanning.scan, phase: "error", error: "The scan stopped." } };
+  assert.deepEqual(stripCells(failed, []).map((c) => c.state), ["pending", "pending", "pending", "pending"]);
   assert.deepEqual(stripCells({ ...BATCH, count: 0 }, []), []);
+});
+
+test("parsePages reads page numbers from 1 with commas and ranges as page indexes from 0, in order and each once", () => {
+  assert.deepEqual(parsePages("1, 3-4"), [0, 2, 3]);
+  assert.deepEqual(parsePages("2"), [1]);
+  assert.deepEqual(parsePages(" 4 - 5 ,1,1, "), [0, 3, 4]);
+  for (const bad of ["", "  ", ",", "0", "x", "4-2", "1, two", "1-", "-3", "1.5", "0-2"]) {
+    assert.equal(parsePages(bad), null, JSON.stringify(bad));
+  }
+});
+
+test("pagesText writes page indexes back as parsePages reads them, runs as ranges", () => {
+  assert.equal(pagesText([0, 2, 3]), "1, 3-4");
+  assert.equal(pagesText([3, 0, 1, 2, 7]), "1-4, 8");
+  assert.equal(pagesText([]), "");
+  assert.deepEqual(parsePages(pagesText([4, 5, 9])), [4, 5, 9]);
 });
 
 test("batchNote says how many fit the layout, how many are set aside, and what a strip cell stands for", () => {

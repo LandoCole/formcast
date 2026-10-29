@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import base64
 import io
+import threading
 import zipfile
 
 import pytest
@@ -24,6 +25,7 @@ from test_server_extract import GatedModel, assert_proven, sample_set, zip_of
 from test_server_jobs import wait_for
 from test_workbench_page import Bench, bench, no_model_loads, widget_pdf  # noqa: F401 (bench and no_model_loads are fixtures)
 
+from demo.server import extraction
 from demo.server.api import Api
 from formcast.extract.setup import STAGES
 from tests.extract.corpus import clients
@@ -455,9 +457,98 @@ def test_the_extract_modal_reopens_with_a_setups_choices(demo_server, bench):
     expect(b.page.locator("#ocr")).to_have_value("never")
     expect(b.page.locator("#sample-how")).to_have_value("first")
     expect(b.page.locator("#settings-sum")).to_have_text("you pick the pages")
+    assert b.page.eval_on_selector("#pages-row", "row => row.hidden") is False  # shown in the (closed) settings
+    expect(b.page.locator("#detect-pages")).to_have_value("2")  # sample 0's page index 1, counted from 1
 
     lines = {**info, "start": "lines", "lines": ["investor name", "tax ID"], "destination": None, "detect": "auto"}
     b.page.evaluate("info => window.__workbench.openExtract(info)", lines)
     expect(b.page.locator('#extract .seg [data-mode="user"]')).to_have_attribute("aria-pressed", "true")
     expect(b.page.locator("#lines")).to_have_value("investor name\ntax ID")
     expect(b.page.locator("#detect")).to_have_value("auto")
+    assert b.page.eval_on_selector("#pages-row", "row => row.hidden") is True
+
+
+def test_finding_the_blanks_by_hand_searches_the_pages_named_on_every_sample(start_demo_server, bench):
+    b = bench(extract_server(start_demo_server), fill=False)
+    open_extract(b)
+    add_five(b)
+    listen_for_setups(b)
+    b.page.evaluate("document.getElementById('extract-settings').open = true")
+    expect(b.page.locator("#pages-row")).to_be_hidden()
+    b.page.select_option("#detect", "manual")
+    expect(b.page.locator("#pages-row")).to_be_visible()
+    expect(b.page.locator("#pages-row")).to_contain_text("Page numbers from 1, with commas and ranges")
+    for typed in ["", "0", "4-2", "x"]:  # nothing named, or nothing that names a page: refused before any job
+        b.page.fill("#detect-pages", typed)
+        b.page.click("#read-sample")
+        expect(b.page.locator("#extract-msg")).to_have_text("Name the pages to search, such as 1 or 1, 3-4.")
+        expect(b.page.locator("#building")).to_be_hidden()
+        expect(b.page.locator("#read-sample")).to_be_enabled()
+    b.page.fill("#detect-pages", "1")
+    b.page.click("#read-sample")
+    b.page.wait_for_function("window.__setups.length === 1", timeout=60_000)
+    info = b.page.evaluate("window.__setups[0].template.setup")
+    assert info["detect"] == "manual"
+    assert info["pages"] == {str(i): [0] for i in range(5)}  # page 1 of each of the five samples, by position
+    expect(b.page.locator("#build-stages li").nth(1)).to_have_attribute("data-status", "done")  # searched, not skipped
+
+
+@pytest.fixture
+def held_scan(monkeypatch):
+    """Every batch scan waits for ``held_scan.set()`` before it reads its files (``clear()`` holds the next ones)."""
+    gate = threading.Event()
+    real = extraction.scan
+
+    def scan(*args, **kwargs):
+        assert gate.wait(20)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(extraction, "scan", scan)
+    yield gate
+    gate.set()
+
+
+def test_the_strip_reads_not_scanned_yet_until_the_scan_is_done_and_drops_the_sample_marks_when_it_starts_again(
+    start_demo_server, bench, held_scan
+):
+    b = bench(extract_server(start_demo_server), fill=False)
+    open_extract(b)
+    cells = b.page.locator("#batch-strip li")
+    b.page.set_input_files("#drop-files", files=pdf_files(FILES[:3]))
+    expect(b.page.locator("#batch-sum")).to_contain_text("scanning")
+    expect(cells).to_have_count(3)
+    expect(b.page.locator('#batch-strip li[data-state="pending"][title="not scanned yet"]')).to_have_count(3)
+    held_scan.set()
+    expect(b.page.locator('#batch-strip li[data-state="sample"]')).to_have_count(3)
+
+    held_scan.clear()  # two more files: the batch is scanned again, and its old sample is no longer on show
+    b.page.set_input_files("#drop-files", files=pdf_files(FILES[3:]))
+    expect(cells).to_have_count(5)
+    expect(b.page.locator('#batch-strip li[data-state="pending"]')).to_have_count(5)
+    expect(b.page.locator('#batch-strip li[data-state="sample"]')).to_have_count(0)
+    held_scan.set()
+    expect(b.page.locator('#batch-strip li[data-state="sample"]')).to_have_count(5)
+
+    b.page.fill("#n-sample", "25")  # a size that is refused leaves no sample marked
+    b.page.dispatch_event("#n-sample", "change")
+    expect(b.page.locator('#batch-strip li[data-state="sample"]')).to_have_count(0)
+
+
+def test_a_double_click_on_read_the_sample_starts_one_build(start_demo_server, bench):
+    model = corpus_model(gate="derive")
+    b = bench(extract_server(start_demo_server, model), fill=False)
+    open_extract(b)
+    add_five(b)
+    starts = []
+    b.page.on("request", lambda r: starts.append(r.url) if r.method == "POST" and r.url.endswith("/api/jobs") else None)
+    try:
+        disabled = b.page.evaluate(
+            "() => { const go = document.getElementById('read-sample'); go.click(); const d = go.disabled; go.click(); return d; }"
+        )
+        assert disabled is True  # from the first click until the building panel opens
+        assert model.reached.wait(20)
+        expect(b.page.locator("#building")).to_be_visible()
+    finally:
+        model.released.set()
+    b.page.wait_for_timeout(300)
+    assert len(starts) == 1

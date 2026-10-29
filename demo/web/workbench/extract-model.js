@@ -261,6 +261,44 @@ export function batchLine(batch) {
 }
 
 /**
+ * Page numbers as a person types them, counted from 1, with commas and ranges ("1, 3-4"), as page indexes from 0,
+ * in order and each once ([0, 2, 3]). Null for nothing named, a page 0, a range that runs backwards or anything else.
+ * @param {string} text
+ * @returns {number[] | null}
+ */
+export function parsePages(text) {
+  const parts = String(text ?? "").split(",").map((part) => part.trim());
+  if (parts.every((part) => part === "")) return null;
+  const pages = new Set();
+  for (const part of parts) {
+    if (part === "") continue; // "1, 3," is fine
+    const m = /^(\d+)(?:\s*[-–]\s*(\d+))?$/.exec(part);
+    if (m === null) return null;
+    const from = Number(m[1]);
+    const to = m[2] === undefined ? from : Number(m[2]);
+    if (from < 1 || to < from || to > 10_000) return null;
+    for (let n = from; n <= to; n++) pages.add(n - 1);
+  }
+  return [...pages].sort((a, b) => a - b);
+}
+
+/**
+ * Page indexes from 0 as `parsePages` reads them back: counted from 1, runs as ranges ([0, 2, 3] -> "1, 3-4").
+ * @param {number[]} pages
+ * @returns {string}
+ */
+export function pagesText(pages) {
+  const sorted = [...new Set(pages)].sort((a, b) => a - b);
+  const runs = [];
+  for (const n of sorted) {
+    const run = runs.at(-1);
+    if (run && n === run[1] + 1) run[1] = n;
+    else runs.push([n, n]);
+  }
+  return runs.map(([a, b]) => (a === b ? `${a + 1}` : `${a + 1}-${b + 1}`)).join(", ");
+}
+
+/**
  * What the batch's scan found, under its strip: how many documents its layout fits (fillable and flattened), how
  * many look different and are set aside, and what a cell of the strip (`cells` of them) stands for. "" before the
  * scan is done and for an empty batch.
@@ -284,16 +322,18 @@ export function batchNote(batch, cells) {
  * The batch as a strip of at most `max` cells, in file order, each standing for about count / cells documents: a
  * cell holding a sample document is `sample`; the layout's share of the cells comes first, with its flattened share
  * spread through it (`flat`, else `main`), and the documents set aside (`other`) last. The scan gives the counts,
- * not which file is which, so the strip shows proportions; before the scan is done every cell is `main`.
+ * not which file is which, so the strip shows proportions; until the scan is done every cell is `pending` (not
+ * scanned yet), with no sample marked.
  * @param {object} batch a Batch
  * @param {number[]} [sampleIndexes] the batch's file indexes in the sample
  * @param {number} [max]
- * @returns {{state: "sample" | "main" | "flat" | "other"}[]}
+ * @returns {{state: "sample" | "main" | "flat" | "other" | "pending"}[]}
  */
 export function stripCells(batch, sampleIndexes = [], max = 120) {
   const count = batch.count ?? 0;
   if (count === 0) return [];
   const cells = Math.min(count, max);
+  if (batch.scan?.phase !== "done") return Array.from({ length: cells }, () => ({ state: "pending" }));
   const main = mainGroup(batch);
   const mainCells = main ? Math.round((cells * main.size) / count) : cells;
   const flatCells = main?.size ? Math.round((mainCells * (main.flattened ?? 0)) / main.size) : 0;

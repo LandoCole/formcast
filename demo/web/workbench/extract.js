@@ -14,13 +14,16 @@
 // (or in a folder chosen) go to one batch, made at the first upload and added to after; a folder typed is opened on
 // the server's machine as a new batch. A file over the server's upload limit is left out and named in
 // #extract-msg (engine.extract.addFiles skips it). The batch's line, strip and note (extract-model.js) follow its
-// scan, polled until it ends, and the strip marks the documents the sample would take now. 2 · the sample: 3 to 20
-// documents spread across the batch or the first ones, or the ones checked in the batch's list (I'll pick them; 200
-// files a page, More for the next). 3 · what to extract: the AI's suggestion, the person's own lines, or the fields of
-// a saved fill template (the destination). 4 · detection and reading: finding the blanks, OCR, the unsure rule
-// (always on in this version: plan 1's reader has no switch for it) and AI per document (read by a run, later).
+// scan, polled until it ends: until the scan is done every cell reads "not scanned yet", and then the strip marks the
+// documents the sample would take now (the marks go as soon as the scan starts again or the sample changes). 2 · the
+// sample: 3 to 20 documents spread across the batch or the first ones, or the ones checked in the batch's list (I'll
+// pick them; 200 files a page, More for the next). 3 · what to extract: the AI's suggestion, the person's own lines, or
+// the fields of a saved fill template (the destination). 4 · detection and reading: finding the blanks (by hand, on
+// the pages named for every sample: "1, 3-4"), OCR, the unsure rule (always on in this version: plan 1's reader has
+// no switch for it) and AI per document (read by a run, later).
 //
-// Read the sample → picks the sample (`pickSample`) and starts the `extract-setup` job; the building panel
+// Read the sample → (disabled from the click until the building panel opens or the choices are refused, so a double
+// click starts one build) picks the sample (`pickSample`) and starts the `extract-setup` job; the building panel
 // (#building) shows its stages live (`showStages`). When it is done the panel closes, the bus hears `extract:setup`
 // ({setup}) and `openSetup(setup)` of this module's API opens it, once the setup screen sets it. A job that fails, or
 // can't start, goes back to the modal with its message; Cancel asks the job to stop and goes back at once, the job's
@@ -28,7 +31,7 @@
 // destination, detect, pages, ocr, sample_how), for the setup screen's "Change the setup".
 
 import { POLL_MS } from "../engines/server/client.js";
-import { batchLine, batchNote, stripCells } from "./extract-model.js";
+import { batchLine, batchNote, pagesText, parsePages, stripCells } from "./extract-model.js";
 import { showStages } from "./jobs.js";
 
 /** The fewest and most documents a sample has (the server's own bounds). */
@@ -44,7 +47,7 @@ const DETECT_SUM = { auto: "automatic, prose skipped", all: "automatic, every pa
 const START_OF = { ai: "ai", user: "lines", dest: "destination" };
 const MODE_OF = { ai: "ai", lines: "user", destination: "dest" };
 /** What a strip cell's state means, as its title. */
-const CELL_TITLES = { sample: "in the sample", main: "fillable", flat: "flattened", other: "a different layout" };
+const CELL_TITLES = { sample: "in the sample", main: "fillable", flat: "flattened", other: "a different layout", pending: "not scanned yet" };
 
 const plural = (n, word, many = `${word}s`) => `${n.toLocaleString("en-US")} ${n === 1 ? word : many}`;
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -110,7 +113,6 @@ function mountModal(app, api) {
     listed: 0, // I'll pick them: the files listed so far
     total: 0, // I'll pick them: the batch's files when the last page was listed
     mode: "ai", // the "Start from" button pressed
-    pages: {}, // finding the blanks by hand: each sample's pages, from a template reopened
     destination: null, // the destination to select once the list has loaded
     work: Promise.resolve(), // uploads and folder scans, one after another
     progress: "", // an upload under way, shown in place of the batch's line
@@ -131,7 +133,7 @@ function mountModal(app, api) {
     api.setMode("extract");
     if (info) apply(info);
     renderMode();
-    $("settings-sum").textContent = DETECT_SUM[$("detect").value];
+    renderDetect();
     sheet.hidden = false;
   }
   api.openModal = openModal;
@@ -144,8 +146,17 @@ function mountModal(app, api) {
     if (state.destination !== null) $("dest-pick").value = state.destination;
     setSelect("detect", info.detect);
     setSelect("ocr", info.ocr);
-    state.pages = info.pages ?? {};
+    $("detect-pages").value = pagesText(searchedOf(info.pages ?? {}));
     if (setSelect("sample-how", info.sample_how)) sampleHowChanged();
+  }
+
+  /**
+   * The pages a SetupInfo's `pages` ({sample position: [page from 0]}) searched, as the modal's one list for every
+   * sample: the list they share, or when they differ the first sample's.
+   */
+  function searchedOf(pages) {
+    const first = Object.keys(pages).sort((a, b) => Number(a) - Number(b))[0];
+    return first === undefined ? [] : (pages[first] ?? []);
   }
 
   /** Select `value` in the select `id` when it has that option; whether it changed. */
@@ -179,10 +190,8 @@ function mountModal(app, api) {
   function setBatch(batch) {
     const old = state.batch;
     state.batch = batch;
-    if (old?.id !== batch.id) {
-      state.sample = [];
-      state.picked = new Set();
-    }
+    if (old?.id !== batch.id) state.picked = new Set();
+    if (old?.id !== batch.id || batch.scan?.phase !== "done") state.sample = []; // marked again once the scan is done
     if (old?.id !== batch.id || old.count !== batch.count) relist();
     renderBatch();
   }
@@ -326,6 +335,8 @@ function mountModal(app, api) {
     if (how() === "pick") {
       state.sample = [...state.picked].sort((x, y) => x - y);
     } else {
+      state.sample = []; // the marks of the sample before go at once, never left on show for another
+      renderBatch();
       const n = Number($("n-sample").value);
       if (b.scan?.phase !== "done" || !(n >= MIN_SAMPLE && n <= MAX_SAMPLE)) return;
       let picked;
@@ -417,9 +428,8 @@ function mountModal(app, api) {
   }
 
   $("n-sample").addEventListener("change", () => {
-    if (sampleSize() === null) return;
-    say("");
-    previewSample();
+    if (sampleSize() !== null) say("");
+    previewSample(); // an invalid size clears the marks
   });
   $("sample-how").addEventListener("change", sampleHowChanged);
   $("pick-more").addEventListener("click", listMore);
@@ -460,13 +470,19 @@ function mountModal(app, api) {
   $("dest-pick").addEventListener("change", () => {
     state.destination = $("dest-pick").value || null;
   });
-  $("detect").addEventListener("change", () => {
+  /** The settings' summary, and the pages to search while the blanks are found by hand. */
+  function renderDetect() {
     $("settings-sum").textContent = DETECT_SUM[$("detect").value];
-  });
+    $("pages-row").hidden = $("detect").value !== "manual";
+  }
+  $("detect").addEventListener("change", renderDetect);
 
   // ------------------------------------------------------------------ read the sample: build the template
 
-  /** The setup's spec from the modal's choices, or `{error}`. */
+  /**
+   * The setup's spec from the modal's choices, or `{error}`. Its `pages` (finding the blanks by hand) are filled in
+   * once the sample is picked, by `pagesFor`: `searched` are the pages named, from 0.
+   */
   function specOf(batch) {
     const start = START_OF[state.mode];
     const lines = $("lines").value.split("\n").map((line) => line.trim()).filter(Boolean);
@@ -474,18 +490,27 @@ function mountModal(app, api) {
     const destination = start === "destination" ? $("dest-pick").value || null : null;
     if (start === "destination" && destination === null) return { error: "Choose the destination template." };
     const detect = $("detect").value;
+    const searched = detect === "manual" ? parsePages($("detect-pages").value) : [];
+    if (searched === null) return { error: "Name the pages to search, such as 1 or 1, 3-4." };
     return {
+      searched,
       spec: {
         name: batch.name,
         start,
         lines: start === "lines" ? lines : [],
         destination,
         detect,
-        pages: detect === "manual" ? state.pages : {},
+        pages: {},
         ocr: $("ocr").value,
         sample_how: how(),
       },
     };
+  }
+
+  /** The pages searched on each of `count` samples, keyed by its position in the sample (as the library has it). */
+  function pagesFor(count, searched) {
+    if (searched.length === 0) return {};
+    return Object.fromEntries(Array.from({ length: count }, (_, i) => [i, searched]));
   }
 
   /** What to send `pickSample`, or `{error}`. */
@@ -501,28 +526,46 @@ function mountModal(app, api) {
     return { body: { how: "pick", picked: [...state.picked].sort((x, y) => x - y) } };
   }
 
+  /**
+   * Read the sample →: #read-sample stays disabled from the click until the building panel opens or the choices are
+   * refused, so a second click never starts a second build.
+   */
   async function readSample() {
+    const button = $("read-sample");
+    if (button.disabled) return;
+    button.disabled = true;
+    let ready;
+    try {
+      ready = await prepareBuild();
+    } finally {
+      button.disabled = false; // the building panel opens at once below, over the modal
+    }
+    if (ready) await runBuild(ready.batch, ready.samples, ready.spec);
+  }
+
+  /** The batch, the sample picked and the spec to build with, or null with the reason shown. */
+  async function prepareBuild() {
     say("");
     await state.work; // the uploads under way go in first
     const batch = state.batch;
     if (batch === null || batch.count === 0) {
       say("Add the documents first: drop them in, or scan a folder.");
-      return;
+      return null;
     }
     const sample = sampleOf(batch);
-    const spec = sample.error ? sample : specOf(batch);
-    if (spec.error) {
-      say(spec.error);
-      return;
+    const choices = sample.error ? sample : specOf(batch);
+    if (choices.error) {
+      say(choices.error);
+      return null;
     }
     let samples;
     try {
       samples = (await calls.pickSample(batch.id, sample.body)).map((s) => s.index);
     } catch (e) {
       say(e.message);
-      return;
+      return null;
     }
-    await runBuild(batch, samples, spec.spec);
+    return { batch, samples, spec: { ...choices.spec, pages: pagesFor(samples.length, choices.searched) } };
   }
 
   /** Start the extract-setup job and follow it in the building panel (see the top). */

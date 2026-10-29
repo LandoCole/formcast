@@ -66,3 +66,7 @@ body[data-mode="extract"] [data-for="fill"] { display: none !important; }
   .samplerow, .settings { grid-template-columns: minmax(0, 1fr); }
   .settings dt { margin-top: 6px; }
 }
+.settings-row:not([hidden]) { display: contents; }
+.settings dd .opt { display: block; margin-top: 4px; color: var(--graphite); font-size: 14px; line-height: 20px; }
+.settings dd .text { width: 100%; box-sizing: border-box; }
+.batch .reading-strip li[data-state="pending"] { outline-style: dotted; outline-color: var(--graphite); }
