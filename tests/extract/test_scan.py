@@ -1,6 +1,7 @@
 """scan(): group a batch of PDFs by layout before any template exists, and pick a sample from a group."""
 
 import itertools
+from pathlib import Path
 
 import pymupdf
 import pytest
@@ -125,8 +126,24 @@ def test_scan_never_runs_field_detection(corpus_dir, monkeypatch):
     assert len(scan(sorted(corpus_dir.glob("*.pdf")), first_page_only=True).main.files) == 20
 
 
-def test_scan_same_sits_between_same_layout_pairs_and_other_forms(tmp_path):
-    """The calibration SCAN_SAME records: every pair of one layout scores above it, every cross pair below."""
+FORMS_DEV = Path(__file__).resolve().parents[2] / "forms" / "dev"
+# other layouts that pass the page count and size test against the corpus form: 2 pages of Letter
+STRANGERS = ("columbus_medhist.pdf", "f8949.pdf", "csudh_health.pdf")
+
+
+def blank_letter_pages(count: int = 2) -> bytes:
+    doc = pymupdf.open()
+    for _ in range(count):
+        doc.new_page(width=612.0, height=792.0)
+    return doc.tobytes()
+
+
+def test_scan_same_sits_between_same_layout_pairs_and_other_forms():
+    """The calibration SCAN_SAME records: every pair of one layout scores above it, every cross pair below.
+
+    The cross pairs are real forms with the corpus form's page count and sizes, so the scan does compare them (the
+    repo's 6-page W-9 never gets as far as the signature).
+    """
     people = clients(8)
     docs = {
         "fill": make_form(people[0], kind="fillable"),
@@ -137,10 +154,53 @@ def test_scan_same_sits_between_same_layout_pairs_and_other_forms(tmp_path):
         "rot": make_form(people[5], kind="fillable", rotate=ROTATE),
         "rot_flat": make_form(people[6], kind="flattened", rotate=ROTATE),
     }
-    other = pdf_features(other_form()).signature
     sigs = {k: pdf_features(v).signature for k, v in docs.items()}
+    strangers = []
+    for name in STRANGERS:
+        features = pdf_features(FORMS_DEV / name)
+        assert len(features.page_sizes) == 2
+        assert all(abs(w - 612) < 1 and abs(h - 792) < 1 for w, h in features.page_sizes)
+        strangers.append(features.signature)
     assert min(signature_similarity(a, b) for a, b in itertools.combinations(sigs.values(), 2)) > SCAN_SAME
-    assert max(signature_similarity(s, other) for s in sigs.values()) < SCAN_SAME
+    assert max(signature_similarity(s, other) for s in sigs.values() for other in strangers) < SCAN_SAME
+
+
+def test_other_two_page_letter_forms_stay_out_of_the_main_group(corpus_dir):
+    files = sorted(corpus_dir.glob("*.pdf")) + [FORMS_DEV / name for name in STRANGERS]
+    report = scan(files)
+    assert len(report.main.files) == 20
+    assert not {str(FORMS_DEV / name) for name in STRANGERS} & set(report.main.files)
+
+
+def test_a_blank_two_page_letter_pdf_does_not_join_the_corpus_group(corpus_dir, tmp_path):
+    blank = tmp_path / "blank.pdf"
+    blank.write_bytes(blank_letter_pages())
+    files = sorted(corpus_dir.glob("*.pdf"))
+    for order in (files + [blank], [blank] + files):  # a text-less first member must not take a form in either
+        report = scan(order)
+        assert len(report.main.files) == 20 and str(blank) not in report.main.files
+        assert str(blank) in [f for g in report.groups for f in g.files]
+
+
+def test_a_text_less_group_takes_other_text_less_documents(tmp_path):
+    for n in range(2):
+        doc = pymupdf.open()
+        page = doc.new_page(width=612.0, height=792.0)
+        page.draw_rect(pymupdf.Rect(100, 100 + 20 * n, 300, 300), fill=(0, 0, 0))  # ink, but no text
+        doc.new_page(width=612.0, height=792.0)
+        (tmp_path / f"scan_{n}.pdf").write_bytes(doc.tobytes())
+    assert [len(g.files) for g in scan(sorted(tmp_path.glob("*.pdf"))).groups] == [2]
+
+
+def test_a_groups_closeness_is_its_first_members_to_the_mains(report):
+    assert report.main.closeness is None
+    assert report.groups[1].closeness is not None and report.groups[1].closeness < 0.1  # the W-9, a stranger
+
+
+def test_a_group_split_off_by_a_stricter_threshold_is_close_to_the_main_one(corpus_dir):
+    report = scan(sorted(corpus_dir.glob("*.pdf"))[:20], same=0.99)  # the client forms only
+    assert report.main.closeness is None and len(report.groups) > 2
+    assert all(g.closeness is not None and 0.5 < g.closeness < 0.99 for g in report.groups[1:])
 
 
 # ----------------------------------------------------------------- sample

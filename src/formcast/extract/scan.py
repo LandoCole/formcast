@@ -32,29 +32,43 @@ from pydantic import BaseModel
 
 from formcast.errors import FormcastError
 from formcast.extract.page import DocText
-from formcast.match import SIZE_TOLERANCE, compute_signature, fingerprint_document, pdf_features, signature_similarity
+from formcast.match import (
+    MINHASH_EMPTY,
+    SIZE_TOLERANCE,
+    compute_signature,
+    fingerprint_document,
+    pdf_features,
+    signature_similarity,
+)
 from formcast.pagemap.extract import open_pdf, page_size
 from formcast.pagemap.model import FormSignature
 
 # Signature closeness (``signature_similarity``: the mean of the wording part and the ink part, 0 to 1) at which a
-# document joins a group. Measured on the generated corpus (tests/extract/corpus.py), against the first member of a
-# group, over every pair of its 20 client-information forms (13 fillable, 7 flattened, one flattened copy shifted
-# down by SHIFT, one fillable copy with /Rotate 90) and against the repo's W-9 (6 pages):
+# document joins a group. Measured against the first member of a group, over every pair of the generated corpus's
+# 20 client-information forms (tests/extract/corpus.py: 13 fillable, 7 flattened, one flattened copy shifted down by
+# SHIFT, one fillable copy with /Rotate 90), and against the tracked 2-page Letter forms of forms/dev, the only
+# other layouts that pass the page count and size test (the W-9 has 6 pages, so it never gets compared):
 #     - fillable with fillable:                 0.91 to 0.98
 #     - fillable with flattened:                0.78 to 0.85
 #     - flattened with flattened:               0.79 to 0.83
 #     - the shifted copy with the others:       0.57 to 0.74
 #     - the rotated copy with the others:       0.54 to 0.71 (its ink map is of the page as rendered, sideways)
-#     - any client form with the W-9:           0.02 to 0.03
-# So the lowest score of one layout is 0.54 and the highest of two layouts is 0.03. 0.3 sits well clear of both:
-# it keeps shifted, rotated, flattened and filled copies of a form together and parts another form from it. A
-# revised edition of the same form (most wording the same) falls in the gap and joins; the group's closeness to the
-# main one is what tells it apart, so pass a higher ``same`` to split such editions.
+#     - any client form with columbus_medhist, f8949 or csudh_health: 0.06 to 0.16
+# So the lowest score of one layout is 0.54 and the highest of two layouts is 0.16. 0.3 sits clear of both: it keeps
+# shifted, rotated, flattened and filled copies of a form together and parts another form from it. A revised edition
+# of the same form (most wording the same) falls in the gap and joins; ``ScanGroup.closeness`` (a group's first
+# member against the main group's) tells such an edition from a stranger, and a higher ``same`` splits it.
+# A document with no text layer scores on its ink map alone (a blank page 0.34 to 0.37 against the corpus form), so it
+# never joins a group whose first member has text, nor the other way round.
 SCAN_SAME = 0.3
 
 
 class ScanGroup(BaseModel):
-    """Documents of one layout. ``fillable_files`` are the members with form-field values (a subset of ``files``)."""
+    """Documents of one layout. ``fillable_files`` are the members with form-field values (a subset of ``files``).
+
+    ``closeness`` is the signature similarity of this group's first member to the main group's first member, 0 to 1
+    (``None`` for the main group): high for another edition of the form, near 0 for a stranger.
+    """
 
     id: int
     files: list[str]
@@ -62,6 +76,7 @@ class ScanGroup(BaseModel):
     flattened: int
     page_count: int
     fillable_files: list[str] = []
+    closeness: float | None = None
 
 
 class ScanReport(BaseModel):
@@ -79,7 +94,7 @@ class ScanReport(BaseModel):
 
 @dataclass
 class _Doc:
-    """What the scan keeps of one document."""
+    """What the scan reads of one document. Only a group's first one is kept whole; the others shrink to a path."""
 
     path: str
     key: tuple  # page count, rounded page sizes and blind fingerprint: documents with one key are one group
@@ -87,11 +102,15 @@ class _Doc:
     signature: FormSignature
     fillable: bool
 
+    @property
+    def has_text(self) -> bool:
+        return any(t != [MINHASH_EMPTY] * len(t) for t in self.signature.text)
+
 
 @dataclass
 class _Group:
-    first: _Doc
-    members: list[_Doc] = field(default_factory=list)
+    first: _Doc  # kept for comparing later documents with; every other member is just ``(path, fillable)``
+    members: list[tuple[str, bool]] = field(default_factory=list)
 
 
 def _read(path: Path, first_page_only: bool) -> _Doc:
@@ -124,6 +143,15 @@ def _same_pages(a: _Doc, b: _Doc) -> bool:
     )
 
 
+def _joins(first: _Doc, doc: _Doc, same: float) -> bool:
+    """Whether ``doc`` belongs with a group led by ``first``: pages, text or not, and a close enough signature."""
+    return (
+        _same_pages(first, doc)
+        and first.has_text == doc.has_text  # without text the score is the ink map alone, which any blank page matches
+        and signature_similarity(first.signature, doc.signature) >= same
+    )
+
+
 def scan(paths: Iterable[str | Path], *, same: float = SCAN_SAME, first_page_only: bool = False) -> ScanReport:
     """Group ``paths`` by layout (see the module docstring); ``same`` is the signature closeness to join a group.
 
@@ -150,7 +178,7 @@ def scan(paths: Iterable[str | Path], *, same: float = SCAN_SAME, first_page_onl
                 (
                     g
                     for g in groups
-                    if _same_pages(g.first, doc) and signature_similarity(g.first.signature, doc.signature) >= same
+                    if _joins(g.first, doc, same)
                 ),
                 None,
             )
@@ -158,17 +186,19 @@ def scan(paths: Iterable[str | Path], *, same: float = SCAN_SAME, first_page_onl
                 group = _Group(first=doc)
                 groups.append(group)
             by_key[doc.key] = group
-        group.members.append(doc)
+        group.members.append((doc.path, doc.fillable))
     groups.sort(key=lambda g: -len(g.members))  # stable: equal sizes keep the order they were found in
+    main = groups[0].first if groups else None
     return ScanReport(
         groups=[
             ScanGroup(
                 id=n,
-                files=[d.path for d in g.members],
-                fillable_files=[d.path for d in g.members if d.fillable],
-                fillable=sum(d.fillable for d in g.members),
-                flattened=sum(not d.fillable for d in g.members),
+                files=[path for path, _ in g.members],
+                fillable_files=[path for path, fillable in g.members if fillable],
+                fillable=sum(fillable for _, fillable in g.members),
+                flattened=sum(not fillable for _, fillable in g.members),
                 page_count=len(g.first.sizes),
+                closeness=None if n == 1 else signature_similarity(main.signature, g.first.signature),
             )
             for n, g in enumerate(groups, start=1)
         ],
