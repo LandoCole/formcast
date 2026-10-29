@@ -2,8 +2,8 @@
 // engine, the session (core/session.js: document, template, undo, the ordered edit queue) and the
 // shared parts, renders on the session's events, and hands the overlays to their modules: the
 // choice of Fill or Extract the page opens on and the page's mode (extract.js), the start screen and
-// match prompt (start.js), AI jobs and area revise (jobs.js), the fill drawer (fill.js) and saving to
-// the store (save.js), which call back through `app`.
+// match prompt (start.js), AI jobs and area revise (jobs.js), the fill drawer (fill.js), saving to
+// the store (save.js) and extraction's setup screen (extract-setup.js), which call back through `app`.
 //
 // Rendering under latency. Every edit is a round trip to the server, and the session runs edits one
 // at a time. Redrawing the page's boxes when one edit lands would put a box the person has since
@@ -18,8 +18,9 @@
 // Test hooks (localhost and 127.0.0.1 only): `?poll=<ms>` sets how often AI jobs and a batch's scan
 // are polled, and `window.__workbench` exposes the template on screen, whether the edit queue is idle,
 // the start screen's `showStart({dataset, form})` (as an extraction run's Send to fill calls it), the
-// Extract modal's `openExtract(setupInfo)` (as the setup screen's "Change the setup" calls it) and the
-// bus's `on(type, fn)`.
+// Extract modal's `openExtract(setupInfo)` (as the setup screen's "Change the setup" calls it), the
+// setup screen's `openSetup(setup)` (as a build hands a setup on) and whether it has no change on its
+// way (`setupIdle`), and the bus's `on(type, fn)`.
 
 import { createBus } from "../core/bus.js";
 import { makeView, viewSize } from "../core/geometry.js";
@@ -31,6 +32,7 @@ import { schemaPathsOf } from "../core/schema.js";
 import { SchemaList, fieldWarnings } from "../core/schemalist.js";
 import { createSession } from "../core/session.js";
 import { POLL_MS, createServerEngine } from "../engines/server/client.js";
+import { mountSetup } from "./extract-setup.js";
 import { mountExtract } from "./extract.js";
 import { mountFill } from "./fill.js";
 import { mountJobs } from "./jobs.js";
@@ -473,6 +475,10 @@ if (LOCAL) {
     },
     showStart: (opts) => app.start.showStart(opts),
     openExtract: (setupInfo) => app.extract.openModal(setupInfo),
+    openSetup: (setup) => app.extract.openSetup(setup),
+    get setupIdle() {
+      return app.setup?.idle ?? true;
+    },
     on: (type, fn) => bus.on(type, fn),
   };
 }
@@ -483,6 +489,10 @@ mountFill(app);
 mountSave(app);
 app.start = mountStart(app);
 app.extract = mountExtract(app);
+if (engine.extract) {
+  app.setup = mountSetup(app);
+  app.extract.openSetup = app.setup.open; // a template built in the Extract modal opens here
+}
 app.pages = mountPages(app);
 syncModal();
 render();

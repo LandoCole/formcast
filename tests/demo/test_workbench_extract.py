@@ -4,8 +4,10 @@ The page opens on "What would you like to do?" (``#choose``): *Fill a PDF* opens
 *Extract from PDFs* switches the page to its extraction mode (``body[data-mode]``), shown only when the server says
 it can extract. The Extract modal (``#extract``) takes the batch (files chosen or dropped, or a folder on the
 server's machine), the sample, what to extract and how to read it; *Read the sample* builds the template in the
-building panel (``#building``) and hands the setup on (``extract:setup`` on the bus). The setup screen and the review
-(Tasks 8-9) come later in this file. The server runs in-process over a throwaway copy of ``demo/data`` (conftest
+building panel (``#building``) and hands the setup on (``extract:setup`` on the bus) to the setup screen
+(``.view[data-only=setup]``: the fields and their status across the samples, a sample page with the readers' boxes, the
+field's inspector and its results on each sample), where every change is an edit of the setup on the server. The
+review (Task 9) comes later in this file. The server runs in-process over a throwaway copy of ``demo/data`` (conftest
 ``start_demo_server``), with form maps built without detectors, as in ``test_workbench_page``, whose ``Bench`` drives
 the page here too; a template is built from the five corpus samples of ``test_server_extract`` by ``CorpusModel``
 (gated there as ``GatedModel``), with no detector weights loaded.
@@ -14,6 +16,7 @@ the page here too; a template is built from the five corpus samples of ``test_se
 from __future__ import annotations
 
 import base64
+import dataclasses
 import io
 import threading
 import zipfile
@@ -21,14 +24,16 @@ import zipfile
 import pytest
 from playwright.sync_api import expect
 from test_server_documents import get_json, small_pdf
-from test_server_extract import GatedModel, assert_proven, sample_set, zip_of
+from test_server_extract import (
+    SHIFTED, GatedModel, add_files, assert_proven, job_ended, new_batch, sample_set, start_job, zip_of,
+)
 from test_server_jobs import wait_for
 from test_workbench_page import Bench, bench, no_model_loads, widget_pdf  # noqa: F401 (bench and no_model_loads are fixtures)
 
 from demo.server import extraction
 from demo.server.api import Api
 from formcast.extract.setup import STAGES
-from tests.extract.corpus import clients
+from tests.extract.corpus import FIELD_RECTS, SHIFT, clients
 
 
 def test_the_workbench_opens_on_the_choice_of_fill_or_extract(demo_server, bench):
@@ -552,3 +557,381 @@ def test_a_double_click_on_read_the_sample_starts_one_build(start_demo_server, b
         model.released.set()
     b.page.wait_for_timeout(300)
     assert len(starts) == 1
+
+
+# ------------------------------------------------------------------ the setup screen
+
+
+def setup_on(base: str, files: list[tuple[str, bytes]] = FILES, **spec) -> dict:
+    """A setup built through the API from a new batch of ``files`` (every one a sample), as the modal builds it."""
+    batch = new_batch(base, name="Client forms")
+    status, _ = add_files(base, batch["id"], files)
+    assert status == 200
+    samples = list(range(len(files)))
+    status, out = start_job(base, {"kind": "extract-setup", "batch": batch["id"], "samples": samples, "spec": {"name": "Client forms", **spec}})
+    assert status == 200, out
+    job = job_ended(base, out["id"])
+    assert job["status"] == "done", job
+    return job["result"]["setup"]
+
+
+def show_setup(b: Bench, setup: dict) -> None:
+    """Open ``setup`` on the setup screen, as the Extract modal does once it is built."""
+    b.page.evaluate("s => window.__workbench.openSetup(s)", setup)
+    expect(b.page.locator('.view[data-only="setup"]')).to_be_visible()
+    expect(b.page.locator("#setup-pv .fc-box").first).to_be_attached()
+
+
+def row(b: Bench, path: str):
+    """The field list's row of ``path`` (a repeated group's field by its first item's path)."""
+    return b.page.locator(f'#fields .fc-sl-leaf[data-path="{path}"]')
+
+
+def picked(b: Bench, kind: str = "box"):
+    """The selected field's marks of ``kind`` on the page, drawn heavy."""
+    return b.page.locator(f'#setup-pv .fc-box.is-picked[data-kind="{kind}"]')
+
+
+def edits_sent(b: Bench) -> list[dict]:
+    """Every edit the page sends from now on, as sent."""
+    sent: list[dict] = []
+    b.page.on("request", lambda r: sent.append(r.post_data_json["edit"]) if r.method == "POST" and r.url.endswith("/edit") else None)
+    return sent
+
+
+def setup_idle(b: Bench) -> None:
+    """Wait until the setup screen has no edit on its way."""
+    b.page.wait_for_function("window.__workbench.setupIdle")
+
+
+def media_src(b: Bench) -> str:
+    return b.page.locator("#setup-pv .fc-pv-media").get_attribute("src") or ""
+
+
+def on_every_sample(setup: dict) -> list[str]:
+    """The plain fields every sample agrees on: ruling P1 asserts ``● 5/5`` only of these."""
+    return [
+        f["path"] for f in setup["proof"]["fields"]
+        if "[" not in f["path"] and all(s["outcome"] == "agree" for s in f["samples"])
+    ]  # fmt: skip
+
+
+def test_the_setup_screen_opens_after_the_build_with_each_fields_status_across_the_samples(start_demo_server, bench):
+    b = bench(extract_server(start_demo_server), fill=False)
+    open_extract(b)
+    add_five(b)
+    listen_for_setups(b)
+    b.page.click("#read-sample")
+    b.page.wait_for_function("window.__setups.length === 1", timeout=60_000)
+    setup = b.page.evaluate("window.__setups[0]")
+    expect(b.page.locator('.view[data-only="setup"]')).to_be_visible()
+    expect(b.page.locator("#extract-empty")).to_be_hidden()
+    expect(b.page.locator("#doc-pick")).to_contain_text("5 PDFs · 5 samples")
+    expect(b.page.locator("#strip")).to_contain_text("AI suggests · 5 samples · automatic, prose skipped")
+    expect(b.page.locator("#change")).to_be_visible()
+    full = on_every_sample(setup)
+    assert len(full) >= 5
+    for path in full:
+        expect(row(b, path).locator(".fc-sl-st")).to_have_text("●")
+        expect(row(b, path).locator(".fc-sl-ty")).to_have_text("5/5")
+    expect(row(b, "owners[0].name").locator(".fc-sl-name")).to_have_text("name")  # the group's items in one row
+    expect(row(b, "owners[1].name")).to_have_count(0)
+    expect(b.page.locator("#fields .fc-sl-grp")).to_have_text(["investor", "address", "owners[ ] · up to 4", "wire"])
+    rows = b.page.locator("#fields .fc-sl-leaf").count()
+    expect(b.page.locator("#fields-label")).to_have_text(f"Fields · {rows} · 0 need a look")
+    expect(b.page.locator("#cap")).to_contain_text(f"{setup['proof']['ready']} of {setup['proof']['total']} fields ready")
+    expect(b.page.locator("#sample-no")).to_have_text("Sample 1 / 5")
+    expect(b.page.locator("#setup-pv .fc-pv-media")).to_be_attached(timeout=10_000)
+    assert f"/api/setups/{setup['id']}/samples/0/pages/0.png" in media_src(b)
+    expect(b.page.locator("#setup-pv .fc-box").first).to_be_visible()
+
+
+def test_selecting_a_field_heavy_draws_its_box_with_its_path_and_the_inspector_says_how_it_is_read(start_demo_server, bench):
+    base = extract_server(start_demo_server)
+    setup = setup_on(base)
+    b = bench(base, fill=False)
+    show_setup(b, setup)
+    row(b, "investor.tax_id").click()
+    expect(row(b, "investor.tax_id")).to_have_class("fc-sl-leaf is-picked")
+    expect(picked(b)).to_have_count(1)
+    expect(picked(b).locator(".fc-tag")).to_have_text("investor.tax_id")
+    expect(picked(b).locator(".fc-tag")).to_be_visible()
+    expect(b.page.locator("#setup-pv .fc-box.is-picked")).to_have_count(2)  # its box and its label, on a fillable copy
+    ins = b.page.locator("#ins")
+    expect(ins).to_contain_text("investor.tax_id")
+    expect(b.page.locator("#ins-title")).to_have_value("Taxpayer ID")
+    expect(b.page.locator("#ins-type")).to_have_value("text")
+    expect(ins.locator(".ro")).to_contain_text(["Form field tax_id", "A box on page 1", "Next to the label Taxpayer ID"])
+    expect(b.page.locator("#ins-labels")).to_have_value("Taxpayer ID")
+    expect(b.page.locator("#ins-required")).to_be_checked()
+    expect(b.page.locator("#ins-pattern")).to_have_value(r"^\d{2}-\d{7}$|^\d{3}-\d{2}-\d{4}$")
+    expect(ins).to_contain_text("label 'TIN' is on no sample")  # the build's warning about this field
+    lines = b.page.locator("#per-sample li")
+    expect(lines).to_have_count(5)
+    expect(lines.nth(0)).to_contain_text(f"1. {PEOPLE[0].tax_id}")
+    expect(lines.nth(3)).to_contain_text("s4.pdf · flattened")
+    expect(lines.nth(0)).to_have_class("on")
+
+    b.page.locator('#setup-pv .fc-box[data-field-id="investor.dob#box"]').click()  # a box on the page selects its field
+    expect(row(b, "investor.dob")).to_have_class("fc-sl-leaf is-picked")
+    expect(b.page.locator("#ins-title")).to_have_value("Date of birth or formation")
+    expect(picked(b).locator(".fc-tag")).to_have_text("investor.dob")
+
+    row(b, "investor.type").click()  # a checkbox group: its four boxes, and its answers
+    expect(picked(b, "option")).to_have_count(4)
+    expect(ins.locator(".answers li")).to_have_count(4)
+    expect(ins.locator(".answers")).to_contain_text("trust")
+
+    lines.nth(3).click()  # a sample's line shows that sample
+    expect(b.page.locator("#sample-no")).to_have_text("Sample 4 / 5")
+    expect(lines.nth(3)).to_have_class("on")
+
+
+def test_a_box_dragged_on_the_shifted_sample_sends_one_set_box_naming_it_and_lands_where_it_was_dropped(start_demo_server, bench):
+    base = extract_server(start_demo_server)
+    setup = setup_on(base)
+    b = bench(base, fill=False)
+    show_setup(b, setup)
+    for _ in range(SHIFTED):
+        b.page.click("#next-s")
+    expect(b.page.locator("#sample-no")).to_have_text(f"Sample {SHIFTED + 1} / 5")
+    expect(b.page.locator("#sample-kind")).to_have_text(f"s{SHIFTED + 1}.pdf · flattened")
+    # the legal name has no check, so its box over the tax ID reads a wrong value there (a value that fails a
+    # check, as the date would under the tax ID's box, is passed over for the next way of reading the field)
+    row(b, "investor.legal_name").click()
+    box = picked(b)
+    expect(box).to_have_count(1)
+    b.page.wait_for_function("() => document.querySelector('#setup-pv .fc-pv-media')?.src.includes('/samples/4/')")
+    sent = edits_sent(b)
+    px_per_pt = box.bounding_box()["height"] / 20  # the box is 20 points tall
+    before = box.bounding_box()["y"]
+    b.drag(box, 0, 30 * px_per_pt)  # down onto the tax ID
+    expect(row(b, "investor.legal_name").locator(".fc-sl-ty")).not_to_have_text("5/5")  # proven again
+    assert len(sent) == 1, sent
+    change = sent[0]
+    assert (change["op"], change["path"], change["page"], change["sample"]) == ("set_box", "investor.legal_name", 0, SHIFTED)
+    x0, y0, x1, y1 = FIELD_RECTS["investor_name"]
+    assert change["rect"] == pytest.approx([x0, y0 + SHIFT + 30, x1, y1 + SHIFT + 30], abs=1)
+    expect(b.page.locator("#per-sample li").nth(SHIFTED).locator("span").first).to_have_text("×")
+    expect(b.page.locator("#per-sample li").nth(SHIFTED)).to_contain_text(PEOPLE[SHIFTED].tax_id)  # what it read there
+    marks = get_json(base, f"/api/setups/{setup['id']}/samples/{SHIFTED}/marks")[1]["marks"]
+    mark = next(m for m in marks if (m["path"], m["kind"]) == ("investor.legal_name", "box"))
+    assert mark["rect"] == pytest.approx(change["rect"], abs=0.5)  # on this sample, where it was dropped
+    strategies = get_json(base, f"/api/setups/{setup['id']}")[1]["template"]["readers"]["investor.legal_name"]["strategies"]
+    assert next(s["rect"] for s in strategies if s["kind"] == "box") == pytest.approx([x0, y0 + 30, x1, y1 + 30], abs=1)
+    setup_idle(b)
+    expect(picked(b)).to_have_count(1)  # drawn again from the new marks, where it was dropped
+    assert picked(b).bounding_box()["y"] == pytest.approx(before + 30 * px_per_pt, abs=2)
+
+
+def test_an_edited_definition_is_kept_after_selecting_another_field_and_back(start_demo_server, bench):
+    base = extract_server(start_demo_server)
+    setup = setup_on(base)
+    b = bench(base, fill=False)
+    show_setup(b, setup)
+    row(b, "investor.tax_id").click()
+    sent = edits_sent(b)
+    b.page.fill("#ins-def", "The EIN or SSN, with its dashes.")
+    b.page.locator("#ins-def").blur()
+    setup_idle(b)
+    assert sent == [{"op": "set_field", "path": "investor.tax_id", "description": "The EIN or SSN, with its dashes."}]
+    row(b, "investor.dob").click()
+    expect(b.page.locator("#ins-def")).to_have_value("The investor's date of birth, or the date the entity was formed.")
+    row(b, "investor.tax_id").click()
+    expect(b.page.locator("#ins-def")).to_have_value("The EIN or SSN, with its dashes.")
+
+    b.page.fill("#ins-title", "Tax ID")
+    b.page.press("#ins-title", "Enter")
+    setup_idle(b)
+    b.page.uncheck("#ins-required")
+    setup_idle(b)
+    b.page.fill("#ins-labels", "Taxpayer ID, TIN number")
+    b.page.press("#ins-labels", "Enter")
+    setup_idle(b)
+    assert sent[1:] == [
+        {"op": "set_field", "path": "investor.tax_id", "title": "Tax ID"},
+        {"op": "set_field", "path": "investor.tax_id", "required": False},
+        {"op": "set_labels", "path": "investor.tax_id", "labels": ["Taxpayer ID", "TIN number"]},
+    ]
+    template = get_json(base, f"/api/setups/{setup['id']}")[1]["template"]
+    assert template["schema"]["properties"]["investor"]["properties"]["tax_id"]["title"] == "Tax ID"
+    expect(b.page.locator("#ins-title")).to_have_value("Tax ID")
+    expect(b.page.locator("#ins-required")).not_to_be_checked()
+    expect(b.page.locator("#ins-labels")).to_have_value("Taxpayer ID, TIN number")
+
+
+def test_not_on_this_form_marks_the_field_absent_bring_back_restores_it_and_remove_takes_it_out(start_demo_server, bench):
+    base = extract_server(start_demo_server)
+    setup = setup_on(base)
+    b = bench(base, fill=False)
+    show_setup(b, setup)
+    row(b, "wire.bank").click()
+    expect(b.page.locator("#ins-absent")).to_have_text("Not on this form")
+    b.page.click("#ins-absent")
+    expect(row(b, "wire.bank").locator(".fc-sl-st")).to_have_text("○")
+    expect(row(b, "wire.bank")).to_have_attribute("data-state", "absent")
+    expect(row(b, "wire.bank")).to_have_class("fc-sl-leaf is-picked")  # still the field selected
+    expect(b.page.locator("#per-sample li")).to_have_count(5)
+    expect(b.page.locator("#per-sample li").first).to_contain_text("not on this form")
+    expect(b.page.locator("#ins .ro")).to_contain_text(["Not on this form"])
+    expect(b.page.locator('#setup-pv .fc-box[data-field-id^="wire.bank#"]')).to_have_count(0)
+    expect(b.page.locator("#ins-absent")).to_have_text("Bring back")
+    b.page.click("#ins-absent")
+    expect(row(b, "wire.bank")).not_to_have_attribute("data-state", "absent")
+    expect(b.page.locator("#ins-absent")).to_have_text("Not on this form")
+
+    b.page.click("#ins-remove")
+    expect(row(b, "wire.bank")).to_have_count(0)
+    assert "wire.bank" not in get_json(base, f"/api/setups/{setup['id']}")[1]["template"]["readers"]
+    expect(b.page.locator("#fields .fc-sl-leaf.is-picked")).to_have_count(1)  # another field is selected
+
+
+def test_add_a_field_from_a_line_adds_its_fields_and_selects_the_first(start_demo_server, bench):
+    base = extract_server(start_demo_server)
+    setup = setup_on(base, start="lines", lines=["tax ID"])
+    b = bench(base, fill=False)
+    show_setup(b, setup)
+    expect(row(b, "wire.bank")).to_have_count(0)
+    b.page.fill("#add", "wire details")
+    b.page.click("#add-go")
+    expect(row(b, "wire.bank")).to_have_class("fc-sl-leaf is-picked", timeout=30_000)  # the CorpusModel's answer
+    expect(row(b, "wire.account")).to_be_visible()
+    expect(b.page.locator("#add")).to_have_value("")
+    expect(b.page.locator("#strip textarea")).to_have_value("tax ID\nwire details")
+    expect(b.page.locator("#ins-title")).to_have_value("Sending bank")
+
+    b.page.fill("#add", "the moon's phase")  # nothing on the samples answers it: the job's reason is shown
+    b.page.click("#add-go")
+    expect(b.page.locator("#add-msg")).to_contain_text("the schema has no fields", timeout=30_000)
+    expect(b.page.locator("#add")).to_have_value("the moon's phase")
+    expect(b.page.locator("#add-go")).to_be_enabled()
+
+
+def test_the_arrows_walk_the_samples_and_their_pages_and_the_zoom_fits_the_page(start_demo_server, bench):
+    base = extract_server(start_demo_server)
+    setup = setup_on(base)
+    b = bench(base, fill=False)
+    show_setup(b, setup)
+    for n in range(1, 6):
+        expect(b.page.locator("#sample-no")).to_have_text(f"Sample {n} / 5")
+        expect(b.page.locator("#sample-kind")).to_have_text(f"s{n}.pdf · {'fillable' if n <= 3 else 'flattened'}")
+        b.page.wait_for_function("n => document.querySelector('#setup-pv .fc-pv-media')?.src.includes(`/samples/${n}/pages/0.png`)", arg=n - 1)
+        b.page.click("#next-s")
+    expect(b.page.locator("#sample-no")).to_have_text("Sample 1 / 5")  # round again
+    b.page.click("#prev-s")
+    expect(b.page.locator("#sample-no")).to_have_text("Sample 5 / 5")
+    expect(b.page.locator("#page-of")).to_have_text("Page 1 / 2")
+    expect(b.page.locator("#prev-p")).to_be_disabled()
+    b.page.click("#next-p")
+    expect(b.page.locator("#page-of")).to_have_text("Page 2 / 2")
+    expect(b.page.locator("#next-p")).to_be_disabled()
+    b.page.wait_for_function("() => document.querySelector('#setup-pv .fc-pv-media')?.src.includes('/samples/4/pages/1.png')")
+    row(b, "investor.tax_id").click()  # its box is on page 1: the page turns to it
+    expect(b.page.locator("#page-of")).to_have_text("Page 1 / 2")
+    expect(picked(b)).to_have_count(1)
+
+    width = "document.querySelector('#setup-pv .fc-pv-page').getBoundingClientRect().width"
+    expect(b.page.locator('#setup-zoom [data-fit="width"]')).to_have_attribute("aria-pressed", "true")
+    wide = b.page.evaluate(width)
+    b.page.click('#setup-zoom [data-fit="page"]')
+    expect(b.page.locator('#setup-zoom [data-fit="page"]')).to_have_attribute("aria-pressed", "true")
+    b.page.wait_for_function(f"() => {width} < {wide - 1}")
+    b.page.click('#setup-zoom [data-step="1"]')
+    expect(b.page.locator('#setup-zoom [data-fit="page"]')).to_have_attribute("aria-pressed", "false")
+    b.page.click("#setup-zoom [data-level]")  # back to fit width
+    expect(b.page.locator('#setup-zoom [data-fit="width"]')).to_have_attribute("aria-pressed", "true")
+    b.page.wait_for_function(f"() => Math.abs({width} - {wide}) < 2")
+
+
+def test_save_asks_for_a_name_and_stores_the_extraction_template(start_demo_server, bench):
+    base = extract_server(start_demo_server)
+    setup = setup_on(base)
+    b = bench(base, fill=False)
+    show_setup(b, setup)
+    b.page.click("#setup-save")
+    expect(b.page.locator("#setup-save-box")).to_be_visible()
+    expect(b.page.locator("#setup-save-name")).to_have_value("Client forms")
+    b.page.fill("#setup-save-name", "../nope")
+    b.page.click("#setup-save-go")
+    expect(b.page.locator("#setup-save-msg")).to_contain_text("letters, digits")
+    b.page.fill("#setup-save-name", "client intake")
+    b.page.click("#setup-save-go")
+    expect(b.page.locator("#setup-save-box")).to_be_hidden()
+    expect(b.page.locator("#notice")).to_contain_text("Saved “client intake”")
+    listed = get_json(base, "/api/extractions")[1]["extractions"]
+    assert [e["name"] for e in listed] == ["client intake"] and listed[0]["samples"] == 5
+
+
+def test_an_edit_after_the_server_has_forgotten_the_setup_returns_to_the_choice_with_a_notice(start_demo_server, bench):
+    base = extract_server(start_demo_server)
+    setup = setup_on(base)
+    b = bench(base, fill=False)
+    show_setup(b, setup)
+    row(b, "investor.tax_id").click()
+    start_demo_server.servers[-1].api.setups._setups.clear()  # as after a restart
+    b.page.click("#ins-absent")
+    expect(b.page.locator("#choose")).to_be_visible()
+    expect(b.page.locator("#choose-msg")).to_have_text("This setup is no longer on the server; start again.")
+    expect(b.page.locator('.view[data-only="setup"]')).to_be_hidden()
+    expect(b.page.locator("#extract-empty")).to_be_visible()
+    b.page.click('.choice[data-go="extract"]')  # the message goes with the choice made
+    expect(b.page.locator("#extract")).to_be_visible()
+    expect(b.page.locator("#choose-msg")).to_be_hidden()
+
+
+def test_a_setup_from_your_lines_shows_them_in_the_strip_and_a_field_for_each_of_their_paths(start_demo_server, bench):
+    base = extract_server(start_demo_server)
+    setup = setup_on(base, start="lines", lines=["tax ID", "investor name"])
+    b = bench(base, fill=False)
+    show_setup(b, setup)
+    expect(b.page.locator("#strip")).to_contain_text("I'll list them · 5 samples")
+    expect(b.page.locator("#strip textarea")).to_have_value("tax ID\ninvestor name")
+    wanted = {p.replace("[]", "[0]") for paths in setup["template"]["setup"]["line_paths"].values() for p in paths}
+    assert wanted
+    shown = set(b.page.eval_on_selector_all("#fields .fc-sl-leaf", "rows => rows.map(r => r.dataset.path)"))
+    assert shown == wanted
+    row(b, "investor.legal_name").click()
+    expect(b.page.locator("#ins")).to_contain_text("From your line “investor name”.")
+
+    b.page.click("#change")  # the Extract modal again, with this setup's choices
+    expect(b.page.locator("#extract")).to_be_visible()
+    expect(b.page.locator('#extract .seg [data-mode="user"]')).to_have_attribute("aria-pressed", "true")
+    expect(b.page.locator("#lines")).to_have_value("tax ID\ninvestor name")
+
+
+def test_a_setup_from_a_destination_names_it_and_lists_the_fields_this_form_lacks_as_not_on_it(start_demo_server, bench):
+    base = extract_server(start_demo_server)
+    setup = setup_on(base, start="destination", destination="fw9")
+    absent = [f["path"] for f in setup["proof"]["fields"] if f["absent"]]
+    assert len(absent) > 1
+    b = bench(base, fill=False)
+    show_setup(b, setup)
+    expect(b.page.locator("#strip")).to_contain_text("Destination · 5 samples")
+    expect(b.page.locator("#strip")).to_contain_text("fw9")
+    expect(b.page.locator("#strip")).to_contain_text(f"{len(absent)} of its fields are not on this form")
+    for path in absent:
+        expect(row(b, path).locator(".fc-sl-st")).to_have_text("○")
+        expect(row(b, path)).to_have_attribute("data-state", "absent")
+    expect(row(b, "address.street").locator(".fc-sl-st")).to_have_text("●")
+
+
+def test_a_wording_seen_on_the_samples_is_added_to_the_answers_map_when_asked(start_demo_server, bench):
+    people = [dataclasses.replace(PEOPLE[0], country="Estados Unidos"), *PEOPLE[1:]]
+    files = sample_set(people)
+    model = GatedModel({name: client for (name, _), client in zip(files, people)}, us_files=["s1.pdf"])
+    base = extract_server(start_demo_server, model)
+    setup = setup_on(base, files)
+    b = bench(base, fill=False)
+    show_setup(b, setup)
+    row(b, "investor.country").click()
+    expect(row(b, "investor.country").locator(".fc-sl-st")).to_have_text("◐")
+    wordings = b.page.locator("#ins-wordings li")
+    expect(wordings).to_have_count(1)
+    expect(wordings).to_have_text("Estados Unidos → US")
+    calls = dict(model.calls)
+    b.page.click("#ins-learn")
+    expect(row(b, "investor.country").locator(".fc-sl-st")).to_have_text("●")
+    expect(b.page.locator("#ins-wordings")).to_have_count(0)
+    assert model.calls == calls  # no model call
+    reader = get_json(base, f"/api/setups/{setup['id']}")[1]["template"]["readers"]["investor.country"]
+    assert reader["clean"][0]["args"]["values"]["Estados Unidos"] == "US"

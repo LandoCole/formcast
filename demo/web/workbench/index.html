@@ -25,6 +25,10 @@
   </div>
   <div class="tb-left" data-for="extract">
     <button type="button" class="btn sel" id="doc-pick" title="Fill or extract other PDFs">No extraction open</button>
+    <span class="seg" role="group" aria-label="View" id="view-pick" hidden>
+      <button type="button" class="btn quiet" data-view="setup" aria-pressed="true">Set up</button>
+      <button type="button" class="btn quiet" data-view="review" aria-pressed="false" disabled title="Run the template on the batch first">Review</button>
+    </span>
   </div>
   <div class="tb-right" data-for="fill">
     <button type="button" class="btn quiet" id="undo" disabled>Undo</button>
@@ -33,6 +37,10 @@
     <button type="button" class="btn" id="build-ai" hidden disabled>Build with AI</button>
     <button type="button" class="btn quiet" id="save" disabled>Save</button>
     <button type="button" class="btn dark" id="fill-open" disabled>Fill →</button>
+  </div>
+  <div class="tb-right" data-for="extract" data-only="setup" hidden>
+    <button type="button" class="btn quiet" id="setup-save">Save</button>
+    <button type="button" class="btn dark" id="run" disabled>Run on all →</button>
   </div>
 </div>
 <p class="ai-note" id="ai-note" data-for="fill" hidden>AI is off. To turn it on, set <code>FORMCAST_DEMO_BASE_URL</code>, <code>FORMCAST_DEMO_API_KEY</code> and <code>FORMCAST_DEMO_MODEL</code> (and <code>FORMCAST_DEMO_API_FORMAT</code> if your endpoint uses the Responses API) in <code>.env</code>, then restart the server.</p>
@@ -98,6 +106,59 @@
 <!-- extraction's views (extract.js) -->
 <main class="views" id="extract-views" data-for="extract" aria-label="Extraction">
   <p class="empty" id="extract-empty">No extraction open.</p>
+
+  <!-- the setup screen (extract-setup.js) -->
+  <div class="view" data-only="setup" hidden>
+    <div class="strip" id="strip"></div>
+    <div class="bench">
+      <aside class="col col-schema pane" aria-label="Fields">
+        <p class="label" id="fields-label">Fields</p>
+        <ul class="fc-sl-list pane-scroll" id="fields"></ul>
+        <div class="addfield">
+          <input type="text" class="fc-in" id="add" placeholder="Add a field: wire instructions, bank and account" aria-label="Add a field" autocomplete="off">
+          <button type="button" class="btn quiet small" id="add-go">Add</button>
+        </div>
+        <p class="fc-ins-hint" id="add-msg" role="status" hidden></p>
+        <p class="legend">● every sample · ◐ some · ? unsure · ○ not on this form</p>
+      </aside>
+
+      <section class="col col-page" aria-label="Sample page">
+        <div class="pagebar">
+          <div class="pager">
+            <button type="button" class="ib" id="prev-s" aria-label="Previous sample">‹</button>
+            <span id="sample-no">Sample 1 / 1</span>
+            <button type="button" class="ib" id="next-s" aria-label="Next sample">›</button>
+            <span class="page-state" id="sample-kind"></span>
+          </div>
+          <div class="zoom" id="setup-zoom">
+            <button type="button" class="ib" id="prev-p" aria-label="Previous page">‹</button>
+            <span class="page-of" id="page-of">Page 1 / 1</span>
+            <button type="button" class="ib" id="next-p" aria-label="Next page">›</button>
+            <span class="seg" role="group" aria-label="Fit the page">
+              <button type="button" class="btn quiet small" data-fit="width" aria-pressed="true" title="The page as wide as the column">Fit width</button>
+              <button type="button" class="btn quiet small" data-fit="page" aria-pressed="false" title="The whole page in view">Fit page</button>
+            </span>
+            <button type="button" class="ib" data-step="-1" aria-label="Zoom out">−</button>
+            <button type="button" class="zoom-level" data-level title="Back to fit width">100%</button>
+            <button type="button" class="ib" data-step="1" aria-label="Zoom in">+</button>
+          </div>
+        </div>
+        <div class="stage" id="setup-stage"><div id="setup-pv"></div></div>
+        <p class="cap" id="cap"></p>
+      </section>
+
+      <aside class="col col-side" aria-label="Selected field">
+        <div class="group">
+          <p class="label">Field</p>
+          <div class="fc-inspector" id="ins"></div>
+        </div>
+        <div class="group">
+          <p class="label">On the samples</p>
+          <ul class="samples" id="per-sample"></ul>
+        </div>
+      </aside>
+    </div>
+  </div>
 </main>
 
 <!-- fill or extract: the way in -->
@@ -312,6 +373,24 @@
     <div class="row">
       <button type="button" class="btn quiet" id="save-cancel">Cancel</button>
       <button type="button" class="btn dark" id="save-go">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- saving an extraction template (extract-setup.js), in the style of the fill template's save -->
+<div class="overlay" id="setup-save-box" role="dialog" aria-modal="true" aria-labelledby="setup-save-title" hidden>
+  <div class="sheet narrow">
+    <h2 id="setup-save-title">Save the extraction template</h2>
+    <div class="group">
+      <p class="label"><label for="setup-save-name">Name in the store</label></p>
+      <input type="text" class="text" id="setup-save-name" maxlength="80" autocomplete="off" spellcheck="false">
+      <p class="hint">Letters, digits, spaces, dots, dashes and underscores. An extraction template with the same name is replaced.</p>
+    </div>
+    <p class="hint">Saves the fields, how each one is read and the sample PDFs, so the template reads the whole batch with no AI per document, and opens again later.</p>
+    <p class="msg" id="setup-save-msg" role="alert" hidden></p>
+    <div class="row">
+      <button type="button" class="btn quiet" id="setup-save-cancel">Cancel</button>
+      <button type="button" class="btn dark" id="setup-save-go">Save</button>
     </div>
   </div>
 </div>

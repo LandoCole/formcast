@@ -9,7 +9,8 @@
 // (`fieldState`) counts the samples proven (agree or failed_check) out of all of them, with a glyph as the mockup's
 // legend has it: ● every sample, ◐ some, ? an unsure read, × none, ○ not on this form. `outcomeLine` is one sample's
 // line under the field. A repeated group's fields are read per item (`owners[0].name` ... `owners[3].name`), and
-// `groupFields` folds them back into one row per field of the group (`owners[ ] · up to 4`).
+// `groupFields` folds them back into one row per field of the group (`owners[ ] · up to 4`), whose items' proofs
+// `rowProof` takes together for the row's state.
 //
 // A field's schema says how it is checked (`checksOf`) and its reader how it is found (`readFrom`), each as lines of
 // plain words; `fieldSchema` finds a concrete path's schema node. A batch (`batchLine`, `stripCells`, `batchNote`) is
@@ -215,6 +216,38 @@ export function groupFields(proof, schema) {
     groups.get(group).push(row);
   }
   return [...groups].map(([group, items]) => ({ group, items }));
+}
+
+/** A sample's outcomes from worst to best, for a folded row: the one shown is the first an item has. */
+const WORST_FIRST = ["disagree", "failed_check", "agree", "missing"];
+
+/**
+ * The FieldProof a row of the field list (`groupFields`) stands for: a plain row's own; for a repeated group's
+ * field folded from its items, the items' proofs taken together. On each sample the row has the worst outcome of
+ * its items (disagree, failed_check, agree, missing, in that order; absent when every item is), it is absent when
+ * every item is, and ready when every item that some sample has is ready (an item on no sample, such as a fourth
+ * owner nobody has, proves nothing either way).
+ * @param {{path: string, paths: string[]}} row
+ * @param {{fields: object[]}} proof
+ * @returns {{path: string, ready: boolean, absent: boolean, samples: object[], suggested: object}}
+ */
+export function rowProof(row, proof) {
+  const byPath = new Map((proof.fields ?? []).map((f) => [f.path, f]));
+  const items = row.paths.map((p) => byPath.get(p)).filter(Boolean);
+  if (items.length === 1) return items[0];
+  if (items.length === 0) return { path: row.path, ready: false, absent: false, samples: [], suggested: {} };
+  const present = items.filter((f) => !f.absent);
+  const count = Math.max(...items.map((f) => f.samples.length));
+  const samples = Array.from({ length: count }, (_, i) => {
+    const there = present.map((f) => f.samples[i]).filter(Boolean);
+    for (const outcome of WORST_FIRST) {
+      const found = there.find((s) => s.outcome === outcome);
+      if (found) return found;
+    }
+    return there[0] ?? items[0].samples[i];
+  });
+  const tried = present.filter((f) => f.samples.some((s) => s.outcome !== "missing"));
+  return { path: row.path, absent: present.length === 0, ready: tried.length > 0 && tried.every((f) => f.ready), samples, suggested: {} };
 }
 
 // ------------------------------------------------------------------ runs and batches

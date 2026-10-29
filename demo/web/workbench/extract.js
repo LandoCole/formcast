@@ -2,7 +2,8 @@
 // Fill a PDF opens the start screen (start.js) as it always was, and Extract from PDFs switches the page to its
 // extraction mode and opens the Extract modal (#extract), offered only when the server can extract (the engine has
 // `extract`). The toolbar's name button of either mode (#doc-name filling, #doc-pick extracting) brings the choice
-// back, and so do the start screen's Back while no form is open and the Extract modal's Back.
+// back, and so do the start screen's Back while no form is open and the Extract modal's Back. A message the choice
+// opens with (#choose-msg: the setup screen's "no longer on the server") goes once a choice is made.
 //
 // The mode is `body[data-mode]`, "fill" or "extract": the parts of the page that belong to one mode carry
 // `data-for="fill"` or `data-for="extract"`, and extract.css shows only the current mode's (its toolbar groups, its
@@ -41,8 +42,8 @@ const MAX_SAMPLE = 20;
 const PICK_PAGE = 200;
 /** Only these go up from a folder chosen in the browser: the server takes PDFs and zips of PDFs. */
 const UPLOADABLE = /\.(pdf|zip)$/i;
-/** The settings' summary line for each way of finding the blanks. */
-const DETECT_SUM = { auto: "automatic, prose skipped", all: "automatic, every page", manual: "you pick the pages", off: "form fields and text only" };
+/** The settings' summary line for each way of finding the blanks (the setup screen's strip names it too). */
+export const DETECT_SUM = { auto: "automatic, prose skipped", all: "automatic, every page", manual: "you pick the pages", off: "form fields and text only" };
 /** A setup's `start` for each choice of the "Start from" buttons, and back. */
 const START_OF = { ai: "ai", user: "lines", dest: "destination" };
 const MODE_OF = { ai: "ai", lines: "user", destination: "dest" };
@@ -80,12 +81,14 @@ export function mountExtract(app) {
   const api = { show, setMode, openModal: () => {} };
 
   fill.addEventListener("click", () => {
+    app.say($("choose-msg"), ""); // a message the choice was shown with goes with the choice made
     choose.hidden = true;
     setMode("fill");
     app.start.showStart();
   });
   extract.addEventListener("click", () => {
     if (!canExtract) return;
+    app.say($("choose-msg"), "");
     choose.hidden = true;
     api.openModal();
   });

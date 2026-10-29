@@ -70,3 +70,60 @@ body[data-mode="extract"] [data-for="fill"] { display: none !important; }
 .settings dd .opt { display: block; margin-top: 4px; color: var(--graphite); font-size: 14px; line-height: 20px; }
 .settings dd .text { width: 100%; box-sizing: border-box; }
 .batch .reading-strip li[data-state="pending"] { outline-style: dotted; outline-color: var(--graphite); }
+
+/* ---------- the setup screen: the strip, the fields, the sample page, the field and its samples ---------- */
+/* the bench fills what the toolbar and the strip leave, and each column scrolls on its own; the field list scrolls
+   under its label and above the add box */
+.views > .view { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+.view > .bench { flex: 1 1 auto; min-height: 0; }
+.pane { display: flex; flex-direction: column; overflow: hidden; }
+.pane > * { flex: none; }
+.pane > .pane-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; margin: 0 -4px; padding: 4px; }
+.strip { padding: 10px 24px; box-shadow: inset 0 -.5px 0 0 var(--rule); font-size: 16px; line-height: 22px; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: flex-start; }
+.strip p { margin: 0; flex: 1 1 360px; font-style: italic; overflow-wrap: anywhere; }
+.strip p .label { font-style: normal; margin: 0; }
+.strip textarea { flex: 1 1 360px; min-height: 92px; margin: 0; padding: 8px 10px; font: 12px/18px var(--mono); }
+.fc-sl-leaf .fc-sl-ty { font-size: 11px; }
+.fc-sl-leaf[data-state="weak"] { outline-style: dashed; outline-color: var(--graphite); }
+.fc-sl-leaf[data-state="absent"] { outline-style: dotted; color: var(--graphite); }
+.fc-sl-leaf.is-picked { outline-color: var(--ink); }
+.addfield { display: flex; gap: 6px; margin-top: 12px; }
+.addfield input { flex: 1; min-width: 0; }
+#add-msg { margin-top: 6px; }
+.legend { margin: 12px 0 0; font-style: italic; font-size: 14px; line-height: 20px; color: var(--graphite); }
+.zoom { flex-wrap: wrap; justify-content: flex-end; }
+.zoom .seg .btn { height: 32px; }
+.page-of { margin: 0 4px; white-space: nowrap; }
+#setup-pv { margin: 0 auto; }
+#setup-pv .fc-pv-bar { display: none; } /* a box is added from a line, not drawn */
+/* the marks: a box or a checkbox as the editor draws a linked box, where a value was read dotted, a label underlined;
+   the selected field's marks heavy, its first one with its path */
+#setup-pv .fc-tag { display: none; }
+#setup-pv .fc-box.has-tag:hover .fc-tag,
+#setup-pv .fc-box.has-tag:focus .fc-tag,
+#setup-pv .fc-box.is-picked.has-tag .fc-tag { display: block; max-width: none; z-index: 6; }
+#setup-pv .fc-box.is-picked { outline: 2px solid var(--ink); background: var(--tint-strong); z-index: 3; }
+#setup-pv .fc-box[data-kind="read"] { outline: 1px dotted var(--graphite); background: none; }
+#setup-pv .fc-box[data-kind="read"].is-picked { outline: 2px dotted var(--ink); }
+#setup-pv .fc-box[data-kind="label"] { outline: 0; background: none; box-shadow: inset 0 -1.5px 0 0 var(--graphite); }
+#setup-pv .fc-box[data-kind="label"].is-picked { box-shadow: inset 0 -2px 0 0 var(--ink); }
+.fc-ins-dl .ins-name { display: block; line-height: 28px; overflow-wrap: anywhere; }
+#ins textarea.fc-in { height: auto; margin: 0; padding: 6px 8px; font: 14px/20px var(--serif); resize: vertical; }
+#ins .fc-ins-warn { margin-top: 10px; }
+.ins-format { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: center; margin-top: 4px; font: 14px var(--serif); }
+.ins-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 18px; }
+#ins-learn { margin-top: 6px; }
+.ro { font: 14px/20px var(--serif); padding: 4px 0; overflow-wrap: anywhere; }
+.answers { margin: 0; padding: 0; list-style: none; font: 11px/24px var(--mono); }
+.answers li { display: flex; justify-content: space-between; gap: 8px; box-shadow: inset 0 -.5px 0 0 var(--rule); }
+.answers li span:last-child { color: var(--graphite); text-align: right; }
+.samples { list-style: none; margin: 0; padding: 0; font: 11px/1.4 var(--mono); }
+.samples li { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 6px; padding: 5px 0; box-shadow: inset 0 -.5px 0 0 var(--rule); cursor: pointer; overflow-wrap: anywhere; }
+.samples li.on { background: var(--tint-strong); }
+.samples .why { display: block; font: italic 13px/18px var(--serif); color: var(--graphite); }
+@media (max-width: 1023px) {
+  /* stacked, as the workbench stacks: the page scrolls, the field list keeps a height of its own */
+  .pane { overflow: visible; }
+  .pane > .pane-scroll { max-height: 50vh; }
+  .strip { padding-left: 16px; padding-right: 16px; }
+}

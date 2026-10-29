@@ -14,6 +14,7 @@ import {
   parsePages,
   problemLabel,
   readFrom,
+  rowProof,
   stripCells,
 } from "../../demo/web/workbench/extract-model.js";
 
@@ -171,6 +172,30 @@ test("a repeated group without maxItems has 4 items, as the library gives it", (
   const paths = [0, 1, 2, 3].map((i) => `refs[${i}].phone`);
   const groups = groupFields({ fields: paths.map((path) => proof([], { path })) }, schema);
   assert.deepEqual(groups.map((g) => [g.group, g.items.length, g.items[0].items]), [["refs[ ] · up to 4", 1, 4]]);
+});
+
+test("rowProof is a plain row's own FieldProof", () => {
+  const row = groupFields(PROOF, SCHEMA)[0].items[1];
+  assert.equal(rowProof(row, PROOF), PROOF.fields[1]);
+});
+
+test("rowProof takes a folded row's items together: each sample's worst outcome, absent only when every item is", () => {
+  const names = [
+    proof([sample("agree"), sample("agree"), sample("missing", null)], { path: "owners[0].name" }),
+    proof([sample("agree"), sample("disagree"), sample("missing", null)], { path: "owners[1].name", ready: false }),
+    proof([sample("missing", null), sample("missing", null), sample("missing", null)], { path: "owners[2].name", ready: false }),
+    proof(times(3, () => sample("absent", null)), { path: "owners[3].name", ready: false, absent: true }),
+  ];
+  const row = { path: "owners[0].name", generic: "owners[].name", items: 4, paths: names.map((f) => f.path) };
+  const merged = rowProof(row, { fields: names });
+  assert.deepEqual(merged.samples.map((s) => s.outcome), ["agree", "disagree", "missing"]);
+  assert.deepEqual([merged.path, merged.absent, merged.ready], ["owners[0].name", false, false]); // owners[1] is not ready
+  assert.deepEqual(fieldState(merged), { glyph: "◐", text: "1/3", state: "weak" });
+
+  const fixed = names.map((f, i) => (i === 1 ? proof([sample("agree"), sample("agree"), sample("missing", null)], { path: f.path }) : f));
+  assert.deepEqual(fieldState(rowProof(row, { fields: fixed })), { glyph: "◐", text: "2/3", state: "ready" }); // owners[2] is on no sample
+  const gone = names.map((f) => ({ ...f, absent: true, ready: false, samples: times(3, () => sample("absent", null)) }));
+  assert.deepEqual(fieldState(rowProof(row, { fields: gone })), { glyph: "○", text: "not on this form", state: "absent" });
 });
 
 test("fieldSchema finds a concrete path's schema and whether it is required", () => {
