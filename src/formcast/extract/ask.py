@@ -24,6 +24,7 @@ was wrong, and a second refusal raises ``FormcastError("the model's answer could
 
 from __future__ import annotations
 
+import json
 import re
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -35,7 +36,7 @@ from formcast.extract.prompts import FIELDS_SYSTEM, ON_FORM_SYSTEM, READERS_SYST
 from formcast.extract.readers import BoxRef, ReaderProposal
 from formcast.extract.samples import SampleDoc, sample_images, sample_view
 from formcast.llm import ImagePart, LLMConfig, Message, Provider, TextPart, Usage
-from formcast.schema import flatten_schema, validate_data_located
+from formcast.schema import flatten_schema, is_array_item, parse_path, validate_data_located
 
 __all__ = [
     "READER_CHUNK",
@@ -119,10 +120,49 @@ def _generic(path: str) -> str:
 
 
 def _asked(schema: dict, paths: list[str]) -> str:
-    """The FIELDS lines of the fields ``paths`` come from, then the paths to answer, one per line."""
+    """The FIELDS lines of the fields ``paths`` come from, then the paths to answer, one per line.
+
+    Each line is ``_schema_lines``'s with the field's title, format, pattern and whether it is required added, so the
+    model knows a date is a date and what a right answer looks like.
+    """
     wanted = {_generic(p) for p in paths}
-    lines = [ln for ln in _schema_lines(schema).splitlines() if ln[2:].split(": ", 1)[0] in wanted]
+    lines = []
+    for line in _schema_lines(schema).splitlines():
+        path = line[2:].split(": ", 1)[0]
+        if path in wanted:
+            lines.append(line + _checks(schema, path))
     return f"{_FIELDS_HEADING}\n" + "\n".join(lines) + f"\n\n{_PATHS_HEADING}\n" + "\n".join(paths) + "\n"
+
+
+def _checks(schema: dict, path: str) -> str:
+    """`` [title "..."; format date (YYYY-MM-DD); pattern ...; required]`` for the field at ``path``, or ``""``.
+
+    The node is found by walking ``properties`` and ``items``; a field behind ``$ref`` or ``anyOf`` gets nothing added.
+    """
+    node: Any = schema
+    required = False
+    try:
+        for segment in parse_path(path):
+            if is_array_item(segment):
+                node = node["items"]
+                required = False
+            else:
+                required = segment in (node.get("required") or [])
+                node = node["properties"][segment]
+    except (AttributeError, KeyError, TypeError, ValueError):
+        return ""
+    if not isinstance(node, dict):
+        return ""
+    found = []
+    if isinstance(node.get("title"), str) and node["title"].strip():
+        found.append(f"title {json.dumps(' '.join(node['title'].split()), ensure_ascii=False)}")
+    if isinstance(node.get("format"), str):
+        found.append(f"format {node['format']}" + (" (YYYY-MM-DD)" if node["format"] == "date" else ""))
+    if isinstance(node.get("pattern"), str):
+        found.append(f"pattern {node['pattern']}")
+    if required:
+        found.append("required")
+    return f" [{'; '.join(found)}]" if found else ""
 
 
 def _messages(system: str, parts: list[TextPart | ImagePart]) -> list[Message]:
@@ -147,16 +187,20 @@ def fields_from_lines(
 
     The answer is checked: the schema is a valid JSON Schema with at least one field, no top-level name is one of
     ``existing``, and every line has at least one path, each a leaf path of the schema. ``line_paths`` is keyed by
-    the lines as given (blank ones and repeats left out).
+    the lines as given (blank ones and repeats left out); the model may name a line by its text or its number.
 
     Raises:
         FormcastError: when no line has any text, or when the model's answer could not be used twice.
     """
-    lines = [line for line in dict.fromkeys(lines) if line.strip()]
+    by_text: dict[str, str] = {}
+    for line in lines:
+        if line.strip():
+            by_text.setdefault(_key(line), line)  # the first of lines that differ only in spacing or case
+    lines = list(by_text.values())
     if not lines:
         raise FormcastError("there are no lines to turn into fields")
     existing = list(existing or [])
-    by_text = {_key(line): line for line in lines}
+    by_text.update({str(n): line for n, line in enumerate(lines, 1)})  # a line may be named by its number
     asked = f"{_LINES_HEADING}\n" + "\n".join(f"{n}. {' '.join(line.split())}" for n, line in enumerate(lines, 1))
     if existing:
         asked += f"\n\n{_EXISTING_HEADING} {', '.join(existing)}"
@@ -305,6 +349,13 @@ def read_values(
             raise ValueError('reply as {"values": {"<path>": <answer or null>, ...}}')
         if values and not any(p in values for p in paths):  # nested as objects, or the paths renamed
             raise ValueError("no key of values is a path asked for; write each path as listed, as one key")
+        asked = set(paths)
+        nested = [k for k in values if k not in asked and any(p.startswith((f"{k}.", f"{k}[")) for p in paths)]
+        if nested:  # an answer under a group's key would be dropped, and its paths read as having no answer
+            raise ValueError(
+                f"{', '.join(nested[:5])} holds answers nested under a group; give each path as listed as its own key "
+                '("group[0].field": answer)'
+            )
         return {p: values.get(p) for p in paths}
 
     parts = _parts([(index, doc)], _asked(schema, paths), vision)

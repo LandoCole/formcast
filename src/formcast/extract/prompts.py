@@ -96,7 +96,7 @@ For each path give one reader, with what applies of:
 - "options", for a fixed set of answers (an enum, or a yes/no boolean): each allowed answer and what marks it,
   {{"<answer>": {{"widget": "<form field name>", "state": "<the button's on-state, for a radio group>"}}}} or
   {{"<answer>": {{"box": {{"sample": <its number>, "id": "c0_7"}}}}}}. A boolean marked by one lone check box has
-  the one option "true" (or "false" when marking it means no).
+  the one option "true" (or "false" when marking it means no); the box left unmarked reads as the opposite.
 - "clean": the steps, in order, that turn the text read into the answer, each {{"op": "<name>", "args": {{...}}}},
   from these:
 {{transforms}}
@@ -120,9 +120,11 @@ Here there is one sample, the copy to read. Then FIELDS (what each field is) and
 
 Rules:
 - One answer per path, each path written as listed, the answer as it is on the copy in the field's type: dates as
-  YYYY-MM-DD, numbers as numbers (1250.5, not "$1,250.50"), true or false for a boolean, one of the allowed
-  answers for a fixed set (the one the copy marks or writes), any text as written.
-- null when the copy has no answer: the box is empty, no option is marked, the row is not filled in.
+  YYYY-MM-DD (whatever way the copy writes them), numbers as numbers (1250.5, not "$1,250.50"), true or false for
+  a boolean, one of the allowed answers for a fixed set (the one the copy marks or writes), any text as written.
+- A boolean answered by one lone check box is true when the box is marked and false when it is not.
+- null when the copy has no answer: the box is empty, no option of a set is marked, or the answer is in a row of a
+  repeated group that is not filled in (there a lone check box is null too).
 - Never guess, and never take an answer from another field or from what is usual.
 
 Reply with one JSON object and nothing else: {{"values": {{"<path>": <answer or null>, ...}}}}

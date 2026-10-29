@@ -211,3 +211,40 @@ def test_the_corpus_model_answers_each_call_from_the_corpus(sample_docs):
     assert values == {p: truth(PEOPLE[1]).get(p) for p in paths}
     assert model.calls == {"fields": 1, "on_form": 1, "readers": 1, "values": 1}
     assert model() is model
+
+
+def test_the_asked_fields_name_their_title_format_pattern_and_whether_they_are_required(sample_docs):
+    llm = Echo()
+    propose_readers(SCHEMA, ["investor.dob", "investor.tax_id", "owners[0].name"], sample_docs, llm)
+    lines = {ln.split(":", 1)[0]: ln for ln in user_text(llm.calls[0][1]).splitlines() if ln.startswith("- ")}
+    assert 'title "Date of birth or formation"' in lines["- investor.dob"]
+    assert "format date (YYYY-MM-DD)" in lines["- investor.dob"]
+    tax_id = lines["- investor.tax_id"]
+    assert f"pattern {SCHEMA['properties']['investor']['properties']['tax_id']['pattern']}" in tax_id
+    assert tax_id.endswith("; required]")
+    assert "required" not in lines["- owners[].name"] and 'title "Owner name"' in lines["- owners[].name"]
+    # a date with a pattern of its own, in a values call
+    schema = {"type": "object", "properties": {"due": {"type": "string", "format": "date", "pattern": r"^\d{4}-"}}}
+    llm = Scripted(json.dumps({"values": {"due": "2024-01-02"}}))
+    read_values(schema, ["due"], sample_docs[0], 1, llm)
+    assert r"- due: date [format date (YYYY-MM-DD); pattern ^\d{4}-]" in user_text(llm.calls[0][1])
+
+
+def test_values_nested_under_a_group_key_are_asked_again_and_unrelated_keys_are_dropped(sample_docs):
+    nested = {"values": {"owners[0].percent": "40%", "owners": [{"name": "A"}], "zzz": 1}}
+    flat = {"values": {"owners[0].name": "A", "owners[0].percent": "40%", "zzz": 1}}
+    llm = Scripted(json.dumps(nested), json.dumps(flat))
+    values, _ = read_values(SCHEMA, ["owners[0].name", "owners[0].percent"], sample_docs[0], 1, llm)
+    assert values == {"owners[0].name": "A", "owners[0].percent": "40%"}
+    retry = str(llm.calls[1][-1].content)
+    assert "owners holds answers nested under a group" in retry and "zzz" not in retry
+
+
+def test_lines_are_compared_by_their_words_and_may_be_named_by_number(sample_docs):
+    reply = {"schema": {"type": "object", "properties": {"a": {"type": "string"}, "b": {"type": "string"}}},
+             "line_paths": {"1": ["a"], "SECOND  line": ["b"]}}  # fmt: skip
+    llm = Scripted(json.dumps(reply))
+    got = fields_from_lines(["first line", "First  Line", "second line"], sample_docs, llm)
+    assert got.line_paths == {"first line": ["a"], "second line": ["b"]}
+    text = user_text(llm.calls[0][1])
+    assert "2. second line" in text and "First" not in text
