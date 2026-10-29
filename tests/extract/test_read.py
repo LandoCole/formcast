@@ -710,3 +710,71 @@ def test_a_lone_check_box_the_document_lacks_reads_nothing_not_false(template):
     consent = _consent_template(template, "boolean", ChoiceRead(options={"yes": ChoiceMark(widget="consent")}))
     got = fields(extract(consent, _consent_form("flattened", True)))["consent"]  # a flattened copy has no widget
     assert (got.status, got.raw) == ("missing", None)
+
+
+@pytest.mark.parametrize("key", ["false", "No"])
+@pytest.mark.parametrize("on", [True, False])
+def test_a_lone_box_whose_key_is_no_reads_false_when_marked_and_true_when_not(template, key, on):
+    consent = _consent_template(template, "boolean", ChoiceRead(options={key: ChoiceMark(page=0, rect=CONSENT_BOX)}))
+    got = fields(extract(consent, _consent_form("flattened", on)))["consent"]
+    assert (got.status, got.strategy, got.value) == ("found", "choice", not on)
+
+
+def test_a_lone_box_whose_key_is_not_yes_or_no_reads_its_key_or_nothing_on_a_yes_no_path(template):
+    consent = _consent_template(
+        template, "boolean", ChoiceRead(options={"accept": ChoiceMark(page=0, rect=CONSENT_BOX)})
+    )
+    got = fields(extract(consent, _consent_form("flattened", True)))["consent"]
+    assert (got.raw, got.status) == ("accept", "failed_check")  # the key, which is not a yes or no
+    got = fields(extract(consent, _consent_form("flattened", False)))["consent"]
+    assert (got.status, got.raw) == ("missing", None)
+
+
+#: The rows of :func:`_rows_form`: each a name box and a check box, one row under another.
+ROW_NAME = [(150.0, 106.0 + 40 * n, 400.0, 126.0 + 40 * n) for n in range(3)]
+ROW_BOX = [(420.0, 110.0 + 40 * n, 432.0, 122.0 + 40 * n) for n in range(3)]
+
+
+def _rows_form(rows: list[tuple[str, bool]]) -> bytes:
+    """A one-page form with three rows, each a printed "Holder n" label, a name and a drawn check box."""
+    doc = pymupdf.open()
+    page = doc.new_page(width=612, height=792)
+    page.insert_text((72, 80), "Account holders", fontsize=14)
+    for n in range(3):
+        page.insert_text((72, 120 + 40 * n), f"Holder {n + 1}", fontsize=10)
+        page.draw_rect(pymupdf.Rect(*ROW_BOX[n]), width=0.75)
+        name, on = rows[n] if n < len(rows) else ("", False)
+        if name:
+            page.insert_text((ROW_NAME[n][0] + 4, ROW_NAME[n][3] - 6), name, fontsize=10)
+        if on:
+            page.insert_text((ROW_BOX[n][0] + 2.5, ROW_BOX[n][3] - 2.5), "X", fontsize=10)
+    page.insert_text((72, 300), "Thank you for your business.", fontsize=10)
+    return doc.tobytes()
+
+
+def test_an_empty_row_with_an_unmarked_lone_box_is_absent_and_a_row_with_only_its_box_marked_is_not(template):
+    item = {"type": "object", "properties": {"name": {"type": "string"}, "signer": {"type": "boolean"}},
+            "required": ["name"]}  # fmt: skip
+    readers = {}
+    for n in range(3):
+        readers[f"holders[{n}].name"] = Reader(strategies=[BoxRead(page=0, rect=ROW_NAME[n])])
+        readers[f"holders[{n}].signer"] = Reader(
+            strategies=[ChoiceRead(options={"yes": ChoiceMark(page=0, rect=ROW_BOX[n])})]
+        )
+    holders = ExtractionTemplate(
+        template_id="holders", name="holders", form=template.form,
+        schema={"type": "object", "properties": {"holders": {"type": "array", "maxItems": 3, "items": item}}},
+        layout=learn_layout([], blank=_rows_form([])), readers=readers,
+    )  # fmt: skip
+    result = extract(holders, _rows_form([("Dana Keller", False), ("", False), ("", True)]))
+    assert result.matched == "layout"
+    got = fields(result)
+    assert (got["holders[0].name"].status, got["holders[0].signer"].status) == ("found", "found")
+    assert got["holders[0].signer"].value is False
+    # the empty row: nothing written, so absent, its box not read as False and its name not missing
+    assert [got[f"holders[1].{k}"].status for k in ("name", "signer")] == ["absent", "absent"]
+    assert (got["holders[1].signer"].value, got["holders[1].signer"].raw) == (None, None)
+    # only the box marked: the row is there, its name missing
+    assert (got["holders[2].signer"].status, got["holders[2].signer"].value) == ("found", True)
+    assert got["holders[2].name"].status == "missing"
+    assert result.record() == {"holders": [{"name": "Dana Keller", "signer": False}, {"signer": True}]}

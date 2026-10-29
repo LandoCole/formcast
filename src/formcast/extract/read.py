@@ -33,9 +33,12 @@ Then, for every concrete path of the template's schema:
    first one is ``unsure`` (the reason names the first read): two strategies disagreeing is never ``found``.
    A ``choice`` gives the key of the one marked option, nothing when no option is marked, and ``", ".join`` of
    the keys when several are (``"individual, joint"``), which fails with the reason ``"N boxes checked"``: never
-   found, whatever the schema allows. On a ``boolean`` path a ``choice`` of exactly one option (a lone check box)
-   reads yes or no: ``true`` when it is marked and ``false`` when not, both found; a widget the document does not
-   have, or a drawn box on an unmatched layout, reads nothing, so a later strategy may still read it.
+   found, whatever the schema allows. On a ``boolean`` path a ``choice`` of exactly one option whose key is yes or
+   no (``"true"``/``"yes"`` or ``"false"``/``"no"``, any case, as fill's boolean coercion reads it) is a lone check
+   box: marked it reads that answer and unmarked its opposite, both found (a ``"no"`` box marked is ``false``); a
+   widget the document does not have, or a drawn box on an unmatched layout, reads nothing, so a later strategy may
+   still read it. Any other key reads as every choice does. An unmarked lone box is not something written: in a
+   repeated item whose other fields are empty it does not keep the item (step 5).
 3. **Cleaning.** The reader's ``clean`` transforms run on the raw text (``formcast.data.mapping._run``), then the
    value is coerced to the path's schema type (``_coerce``). The raw text is kept beside the value. A value that
    cleans to nothing is ``missing``, with its raw text and a reason. Coercion never turns one number into another
@@ -50,10 +53,10 @@ Then, for every concrete path of the template's schema:
    checked as an empty group, so its own required fields are named (no investor answers -> ``investor.tax_id``
    is missing, with the reason). An error located at a group goes to every field in it.
 5. **Statuses**, decided in one place (:func:`_field`): a path in ``template.absent`` is ``not_on_form`` and never
-   read; every field of a repeated item that has nothing at all (no text, and no reason such as a skipped box) is
-   ``absent`` and the item is left out of the
-   record; a field with no value is ``missing``; a value with a reason is ``failed_check``; a value read by
-   ``anchor`` or ``phrase`` is ``unsure`` when its labels or phrases matched more than one place (all wordings
+   read; every field of a repeated item that has nothing at all (no text, and no reason such as a skipped box; an
+   unmarked lone yes/no box counts as nothing) is ``absent``, with no value, and the item is left out of the
+   record and its checks; a field with no value is ``missing``; a value with a reason is ``failed_check``; a value
+   read by ``anchor`` or ``phrase`` is ``unsure`` when its labels or phrases matched more than one place (all wordings
    counted together, so two wordings found once each are two places) or the document's layout is ``"none"``;
    a value read after a box was skipped is ``unsure`` (``"layout differs near this box"``); a value read by
    ``anchor`` or ``phrase`` whose raw text is another path's raw text is ``unsure``, and so is that other path
@@ -84,13 +87,14 @@ import hashlib
 import re
 from collections import defaultdict
 from collections.abc import Iterator
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import pymupdf
 
-from formcast.data.mapping import _INDEX, _coerce, _empty, _generic, _number, _run, _set
+from formcast.data.mapping import _INDEX, _bool, _coerce, _empty, _generic, _number, _run, _set
 from formcast.errors import FormcastError
 from formcast.extract.layout import LAYOUT_MATCH, PageFit, layout_score, page_fit
 from formcast.extract.model import (
@@ -133,6 +137,7 @@ class _Read:
     rect: Rect | None = None
     reasons: list[str] = field(default_factory=list)  # failed checks: the value is in doubt
     doubts: list[str] = field(default_factory=list)  # why a value that passes is not certain (makes it unsure)
+    unmarked: bool = False  # a lone yes/no box read unmarked: a value, but nothing was written on the document
 
 
 class _SchemaError(Exception):
@@ -263,9 +268,11 @@ def _extract_open(
             path: _read_path(path, template.readers.get(path), ctx) for path in paths if path not in template.absent
         }
         reads = {path: next(tried, None) or _Read() for path, tried in tries.items()}
-        errors = _record_errors(schema, reads, ctx.schema_paths)
+        # a repeated item with nothing written in it is left out of the record, its unmarked boxes included
+        empty = _absent_items(reads)
+        errors = _record_errors(schema, reads, ctx.schema_paths, leave_out=empty)
         if _fall_back(schema, tries, reads, errors):
-            errors = _record_errors(schema, reads, ctx.schema_paths)
+            errors = _record_errors(schema, reads, ctx.schema_paths, leave_out=empty)
         for path, messages in errors.items():
             reads[path].reasons += [m for m in messages if m not in reads[path].reasons]
         _cross_check(reads, ctx)
@@ -296,8 +303,8 @@ def _field(path: str, read: _Read | None, absent: bool) -> FieldResult:
         return FieldResult(path=path, status="not_on_form", raw=None)
     status: Status
     if absent:
-        status = "absent"
-    elif read.value is None:
+        return FieldResult(path=path, status="absent", raw=None)  # an unmarked box in an empty row is not False
+    if read.value is None:
         status = "missing"
     elif read.reasons:
         status = "failed_check"
@@ -520,15 +527,19 @@ def _doubts(what: str, places: int, ctx: _Context) -> list[str]:
 def _choice(strategy: ChoiceRead, ctx: _Context, *, yes_no: bool = False) -> _Read | _Skip | None:
     """The marked option's key; the keys of all marked options, with a reason, when several are.
 
-    With ``yes_no`` (a ``boolean`` path) a choice of exactly one option, a lone check box, reads ``"true"`` when it is
-    marked and ``"false"`` when not; nothing when its widget is not on the document or its drawn box is not looked at.
+    With ``yes_no`` (a ``boolean`` path) a choice of exactly one option whose key is yes or no (as ``_bool`` reads it:
+    "true", "yes", "false", "no", ...), a lone check box, reads that answer when it is marked and its opposite, marked
+    ``unmarked``, when not; nothing when its widget is not on the document or its drawn box is not looked at. Any
+    other key reads as for every choice: the key when marked, nothing when not.
     Drawn boxes are places on the page, as a box read is: when the layout does not hold around any of them, the
     choice is skipped with :data:`LAYOUT_DIFFERS`.
     """
     drawn = [m for m in strategy.options.values() if m.widget is None]
     if ctx.matched != "none" and not all(ctx.agrees(m.page, m.rect) for m in drawn):  # type: ignore[arg-type]
         return _Skip(LAYOUT_DIFFERS, doubt=True)
-    lone = yes_no and len(strategy.options) == 1
+    lone = _bool(next(iter(strategy.options))) if yes_no and len(strategy.options) == 1 else None
+    if not isinstance(lone, bool):
+        lone = None  # a key that is not yes or no: the option's key, as for any choice
     marked: list[tuple[str, int | None, Rect | None]] = []
     for key, mark in strategy.options.items():
         if mark.widget is not None:
@@ -539,8 +550,11 @@ def _choice(strategy: ChoiceRead, ctx: _Context, *, yes_no: bool = False) -> _Re
         else:
             page, rect = mark.page, ctx.moved(mark.page, mark.rect)  # type: ignore[arg-type]
             on = ctx.doc.marked(page, rect)  # type: ignore[arg-type]
-        if lone:
-            return None if on is None else _Read(raw="true" if on else "false", strategy="choice", page=page, rect=rect)
+        if lone is not None:
+            if on is None:
+                return None
+            value = lone if on else not lone
+            return _Read(raw=str(value).lower(), strategy="choice", page=page, rect=rect, unmarked=not on)
         if on:
             marked.append((key, page, rect))
     if not marked:
@@ -556,9 +570,14 @@ def _choice(strategy: ChoiceRead, ctx: _Context, *, yes_no: bool = False) -> _Re
 # ------------------------------------------------------------- the whole record
 
 
-def _record_errors(schema: dict, reads: dict[str, _Read], schema_paths: list[SchemaPath]) -> dict[str, list[str]]:
-    """The values read checked as one record: each error message under every read path it belongs to."""
-    valued = {path: read for path, read in reads.items() if read.value is not None}
+def _record_errors(
+    schema: dict, reads: dict[str, _Read], schema_paths: list[SchemaPath], *, leave_out: AbstractSet[str] = frozenset()
+) -> dict[str, list[str]]:
+    """The values read checked as one record: each error message under every read path it belongs to.
+
+    The paths in ``leave_out`` (the fields of repeated items with nothing written in them) are not in the record.
+    """
+    valued = {path: read for path, read in reads.items() if read.value is not None and path not in leave_out}
     compact = _compact_indices(list(valued))
     record: dict = {}
     where: dict[str, str] = {}  # a location in the record -> the same place in the schema's concrete paths
@@ -642,13 +661,21 @@ def _is_group(schema_paths: list[SchemaPath], path: str) -> bool:
 
 
 def _absent_items(reads: dict[str, _Read]) -> set[str]:
-    """The paths in a repeated item none of whose read fields has anything (no text and no reason)."""
+    """The paths in a repeated item none of whose read fields has anything (no text and no reason).
+
+    A lone yes/no box read unmarked, with no doubt about it, counts as nothing: nothing was written in the item.
+    """
     by_item: dict[str, list[str]] = defaultdict(list)
     for path in reads:
         for m in _INDEX.finditer(path):
             by_item[path[: m.end()]].append(path)
     out: set[str] = set()
     for paths in by_item.values():
-        if all(reads[p].raw is None and not reads[p].reasons for p in paths):
+        if all(_nothing(reads[p]) for p in paths):
             out.update(paths)
     return out
+
+
+def _nothing(read: _Read) -> bool:
+    """Whether ``read`` has nothing written: no text (or only an unmarked lone box, with no doubt) and no reason."""
+    return (read.raw is None or (read.unmarked and not read.doubts)) and not read.reasons
