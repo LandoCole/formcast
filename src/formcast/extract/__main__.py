@@ -1,12 +1,14 @@
 """The command line: ``python -m formcast.extract scan | run | export``.
 
     python -m formcast.extract scan DIR [--first-page]
-    python -m formcast.extract run TEMPLATE.json [TEMPLATE.json ...] DIR --out OUT [--workers N]
+    python -m formcast.extract run TEMPLATE.json [TEMPLATE.json ...] DIR --out OUT [--workers N] [--timeout S]
     python -m formcast.extract export OUT --template TEMPLATE.json [...] --format xlsx|parquet|csv --to PATH
 
 ``scan`` groups the PDFs under ``DIR`` by layout and prints each group (size, fillable and flattened, pages, three
 example files) and the files it could not read. ``run`` reads every PDF under ``DIR`` with the templates into ``OUT``
-(resuming a run already there), writes progress to stderr every 100 documents, and ends with the run's summary.
+(resuming a run already there), writes progress to stderr every 100 documents, and ends with the run's summary;
+``--timeout`` is the seconds a document may take before it is set aside as hung (120; ``--workers 1`` reads in
+this process, with no timeout and no crash isolation).
 ``export`` writes the finished run as a workbook (``xlsx``) or a folder of files (``parquet``, ``csv``).
 
 ``export`` takes the templates again with ``--template`` instead of reading them back from ``OUT``: ``run.json``
@@ -29,7 +31,7 @@ from pathlib import Path
 from pydantic import ValidationError
 
 from formcast.errors import FormcastError
-from formcast.extract.batch import Results, RunSummary, run_batch
+from formcast.extract.batch import TIMEOUT, Results, RunSummary, run_batch
 from formcast.extract.export import export
 from formcast.extract.model import ExtractionTemplate
 from formcast.extract.scan import ScanGroup, sample, scan
@@ -55,6 +57,16 @@ def _workers(text: str) -> int:
     return n
 
 
+def _timeout(text: str) -> float:
+    try:
+        seconds = float(text)
+    except ValueError:
+        seconds = 0.0
+    if not seconds > 0 or seconds == float("inf"):
+        raise argparse.ArgumentTypeError(f"{text!r} is not a timeout (a positive number of seconds)")
+    return seconds
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = _Parser(prog="python -m formcast.extract", description="Read filled PDFs of one layout, no model call.")
     commands = parser.add_subparsers(dest="command", required=True, parser_class=_Parser)
@@ -68,6 +80,10 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("dir", type=Path, help="folder of PDFs (searched recursively)")
     p.add_argument("--out", type=Path, required=True, help="output folder; a run already there is resumed")
     p.add_argument("--workers", type=_workers, default=0, help="worker processes (default: one per CPU)")
+    p.add_argument(
+        "--timeout", type=_timeout, default=TIMEOUT,
+        help=f"seconds a document may take before it is set aside as hung (default {TIMEOUT:g}; not with --workers 1)",
+    )  # fmt: skip
 
     p = commands.add_parser("export", help="write a finished run as xlsx, Parquet or CSV")
     p.add_argument("out", type=Path, help="the run's output folder")
@@ -145,7 +161,7 @@ def _run(args: argparse.Namespace) -> None:
             print(f"{done} of {total} documents", file=sys.stderr, flush=True)
 
     summary = run_batch(
-        templates, files, args.out, root=args.dir, workers=args.workers, on_progress=progress
+        templates, files, args.out, root=args.dir, workers=args.workers, timeout=args.timeout, on_progress=progress
     )
     print(_summary_line(summary), file=sys.stderr, flush=True)
 

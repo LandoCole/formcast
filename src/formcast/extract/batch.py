@@ -24,15 +24,21 @@ a template gives "internal error: ..." (R18), also recorded, never raised.
 them and hands both, with the match routing found, to ``read._extract_open``, the body of ``extract``. The PDF is
 not opened, fingerprinted or layout-scored a second time; ``extract()`` itself is unchanged.
 
-**Workers.** ``workers=0`` is ``os.cpu_count()``; with ``workers=1`` documents are read in this process (no crash
-isolation: a file that crashes MuPDF ends the run). Otherwise a ``ProcessPoolExecutor`` of the platform's default
+**Workers.** ``workers=0`` is ``os.cpu_count()``; with ``workers=1`` documents are read in this process: no crash
+isolation (a file that crashes MuPDF ends the run, and every resume meets it again) and no timeout (a file that
+hangs stalls the run). Otherwise a ``ProcessPoolExecutor`` of the platform's default
 start method (spawn on macOS) gets the templates once per worker, as JSON through its initializer (plain data, no
 pickling of pydantic models), and returns each result already as its JSON line, which this process writes as it is.
 At most four documents per worker are in flight, so memory stays flat however long the list. When a worker process
 dies (MuPDF crashing on a file), every document then in flight is read again alone, one at a time in a one-worker
 pool; the one that kills that worker too is recorded as unreadable with ``"cannot read PDF: the reader crashed"``
 and no fields, and the run goes on in a new pool (Ruling R22). So a resume never meets the crashing file again.
-A document that hangs still stalls its worker: there is no per-document timeout.
+A document that hangs is caught by ``timeout`` (seconds, 120 by default, Ruling F5): when one has been in flight
+that long since it was submitted, the pool's workers are terminated, which breaks the pool, and what was in flight
+is read alone as after a crash. Alone, a document has ``timeout`` seconds of its own (the worker is started before
+the clock does); one that still takes longer is recorded as unreadable with ``"cannot read PDF: the reader hung"``
+and no fields, and the run goes on. A document that waited behind a slow one may pass the timeout in the pool; it
+is then simply read again alone.
 
 **Document ids.** ``doc_id`` is the file's path relative to ``root``, with ``/`` separators (``"sub/a.pdf"``);
 ``root`` defaults to the common parent of the paths, is stored in ``run.json``, and a resumed run keeps it (a
@@ -66,6 +72,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import re
 import time
@@ -97,6 +104,10 @@ _NO_TEMPLATE = re.compile(r"no template fits \(closest: (.*), (\d+\.\d+)\)", re.
 INTERNAL_ERROR = "internal error:"
 #: The error of a document whose reading killed the worker process, read alone as well (Ruling R22).
 CRASHED = "cannot read PDF: the reader crashed"
+#: The error of a document that was still being read, alone, after the run's timeout (Ruling F5).
+HUNG = "cannot read PDF: the reader hung"
+#: Seconds a document may take in a worker before it is taken for hung.
+TIMEOUT = 120.0
 #: Documents handed to each worker ahead of the one it is reading.
 _AHEAD = 4
 _ITEM = re.compile(r"\[(\d+)\](\.)?")
@@ -232,11 +243,28 @@ def _pool(workers: int, payload: str) -> ProcessPoolExecutor:
     return ProcessPoolExecutor(max_workers=workers, initializer=_start_worker, initargs=(payload,))
 
 
-def _read_all(templates: list[ExtractionTemplate], todo: list[tuple[str, str]], workers: int) -> Iterator[str]:
+def _ping() -> None:
+    """Nothing: run once in a new worker so its start-up is not charged to a document's timeout."""
+
+
+def _kill_workers(pool: ProcessPoolExecutor) -> None:
+    """Terminate the pool's worker processes; the pool then breaks, and its pending futures fail."""
+    terminate = getattr(pool, "terminate_workers", None)  # Python 3.14+
+    if terminate is not None:
+        terminate()
+        return
+    for process in list((pool._processes or {}).values()):  # no public way before 3.14
+        process.terminate()
+
+
+def _read_all(
+    templates: list[ExtractionTemplate], todo: list[tuple[str, str]], workers: int, timeout: float
+) -> Iterator[str]:
     """Each ``(doc_id, file)`` of ``todo`` read, as result lines, in the order they finish.
 
-    When a worker process dies, every document in flight is read again on its own (:func:`_read_alone`) and the
-    rest of ``todo`` goes on in a new pool.
+    When a worker process dies, or a document has been in flight longer than ``timeout`` seconds (its workers are
+    then terminated), every document in flight is read again on its own (:func:`_read_alone`) and the rest of
+    ``todo`` goes on in a new pool.
     """
     workers = workers or os.cpu_count() or 1
     if workers == 1:
@@ -249,21 +277,30 @@ def _read_all(templates: list[ExtractionTemplate], todo: list[tuple[str, str]], 
         count = min(workers, len(queue))
         pool = _pool(count, payload)
         pending: dict[Future[str], tuple[str, str]] = {}  # future -> (doc_id, file)
+        sent: dict[Future[str], float] = {}  # future -> when it was submitted
         suspects: list[tuple[str, str]] = []  # read alone once this pool is down
+        killed = False  # a document ran past the timeout and the workers were terminated
         try:
             while not suspects:
-                while len(pending) < count * _AHEAD and queue:
+                while not killed and len(pending) < count * _AHEAD and queue:
                     item = queue.popleft()
                     try:
-                        pending[pool.submit(_work, item[1], item[0])] = item
+                        future = pool.submit(_work, item[1], item[0])
                     except BrokenProcessPool:  # it broke while this process was busy writing or reporting
                         suspects.append(item)  # never sent; read alone with the ones in flight
                         break
+                    pending[future], sent[future] = item, time.monotonic()
                 if suspects:
                     break
                 if not pending:
                     return
-                finished, _ = wait(pending, return_when=FIRST_COMPLETED)
+                # wait for a result, or until the oldest document in flight runs past the timeout
+                left = None if killed else max(0.0, min(sent[f] for f in pending) + timeout - time.monotonic())
+                finished, _ = wait(pending, timeout=left, return_when=FIRST_COMPLETED)
+                if not finished:
+                    _kill_workers(pool)  # the pool breaks: what is in flight is read alone, with its own timeout
+                    killed = True
+                    continue
                 for future in finished:
                     if isinstance(future.exception(), BrokenProcessPool):
                         suspects.append(pending.pop(future))  # one of these documents killed its worker
@@ -271,6 +308,8 @@ def _read_all(templates: list[ExtractionTemplate], todo: list[tuple[str, str]], 
                     del pending[future]
                     yield future.result()
         finally:
+            if any(not f.done() for f in pending):  # left early (the caller stopped): a hung worker never ends
+                _kill_workers(pool)
             pool.shutdown(wait=True, cancel_futures=True)
         # the pool broke: settle every future still pending (all are done now), each document once
         for future, item in pending.items():
@@ -278,24 +317,31 @@ def _read_all(templates: list[ExtractionTemplate], todo: list[tuple[str, str]], 
                 yield future.result()  # finished before the break, not yet written
             else:
                 suspects.append(item)
-        yield from _read_alone(payload, suspects)
+        yield from _read_alone(payload, suspects, timeout)
 
 
-def _read_alone(payload: str, suspects: list[tuple[str, str]]) -> Iterator[str]:
-    """Each suspect read alone in a one-worker pool; one that kills that worker too is recorded as crashed.
+def _read_alone(payload: str, suspects: list[tuple[str, str]], timeout: float) -> Iterator[str]:
+    """Each suspect read alone in a one-worker pool; one that kills that worker too is recorded as crashed, one
+    that takes longer than ``timeout`` seconds as hung (its worker is terminated).
 
-    A new one-worker pool is started after each crash, so every suspect is read on its own by a live worker.
+    A new one-worker pool is started after each crash or hang, and runs :func:`_ping` before the document, so every
+    suspect is read on its own by a live worker and its timeout counts the reading, not the worker's start.
     """
     pool: ProcessPoolExecutor | None = None
     try:
         for doc_id, file in suspects:
-            pool = pool or _pool(1, payload)
             try:
-                line = pool.submit(_work, file, doc_id).result()
-            except BrokenProcessPool:
-                pool.shutdown(wait=True)
+                if pool is None:
+                    pool = _pool(1, payload)
+                    pool.submit(_ping).result()
+                line = pool.submit(_work, file, doc_id).result(timeout=timeout)
+            except (BrokenProcessPool, TimeoutError) as exc:
+                if pool is not None:
+                    _kill_workers(pool)
+                    pool.shutdown(wait=True)
                 pool = None
-                line = _failed(None, CRASHED, b"", doc_id, file, now()).model_dump_json()
+                error = HUNG if isinstance(exc, TimeoutError) else CRASHED
+                line = _failed(None, error, b"", doc_id, file, now()).model_dump_json()
             yield line
     finally:
         if pool is not None:
@@ -312,21 +358,26 @@ def run_batch(
     *,
     root: str | Path | None = None,
     workers: int = 0,
+    timeout: float = TIMEOUT,
     on_progress: Callable[[int, int], None] | None = None,
 ) -> RunSummary:
     """Route and read every PDF of ``paths`` into ``out_dir``, skipping the ones already there (see the module).
 
-    ``on_progress(done, total)`` is called after each document read; ``done`` counts the documents of ``paths``
-    already in the results from an earlier run. Returns the summary of the whole ``out_dir``, with ``seconds`` this
-    call's.
+    ``timeout`` is the seconds one document may take in a worker before it is taken for hung (see the module;
+    ``workers=1`` reads in this process and has no timeout). ``on_progress(done, total)`` is called after each
+    document read; ``done`` counts the documents of ``paths`` already in the results from an earlier run. Returns
+    the summary of the whole ``out_dir``, with ``seconds`` this call's.
 
     Raises:
-        FormcastError: no templates; ``out_dir`` holds a run with other templates or another root; a path outside
-            the run's root; a line of ``results.jsonl`` before its last that is not a record.
+        FormcastError: no templates; a timeout that is not positive; ``out_dir`` holds a run with other templates,
+            an edited template or another root; a path outside the run's root; a line of ``results.jsonl`` before
+            its last that is not a record.
     """
     started = time.perf_counter()
     if not templates:
         raise FormcastError("a batch run needs at least one template")
+    if not (timeout > 0 and math.isfinite(timeout)):
+        raise FormcastError(f"the timeout must be a positive number of seconds, not {timeout!r}")
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     files = [Path(p).resolve() for p in paths]
@@ -346,7 +397,7 @@ def run_batch(
     count = len(docs) - len(todo)
     try:
         with (out / RESULTS).open("a", encoding="utf-8") as sink:
-            for line in _read_all(templates, todo, workers):
+            for line in _read_all(templates, todo, workers, timeout):
                 sink.write(line + "\n")
                 sink.flush()
                 count += 1

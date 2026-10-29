@@ -209,6 +209,32 @@ def test_a_file_that_kills_its_worker_is_recorded_and_the_run_goes_on(tmp_path, 
     assert seen == [] and len(lines(out / "results.jsonl")) == 10  # the resume does not meet the crash again
 
 
+def test_a_file_that_hangs_is_recorded_after_the_timeout_and_the_run_goes_on(tmp_path, monkeypatch):
+    folder = tmp_path / "in"
+    folder.mkdir()
+    names = [f"{c}.pdf" for c in "abcdefghij"]  # h.pdf hangs; more than the 8 in flight
+    for name, client in zip(names, clients(len(names))):
+        (folder / name).write_bytes(make_form(client, kind="fillable"))
+    monkeypatch.setattr(batch, "_work", crashing.hang)
+    out = tmp_path / "out"
+    started = time.perf_counter()
+    summary = run_batch([hand_template()], [folder / n for n in names], out, workers=2, timeout=5.0)
+    assert time.perf_counter() - started < 120  # the hang (an hour) was cut short, in the pool and alone
+    assert (summary.total, summary.unreadable, summary.internal_errors) == (10, 1, 0)
+    rows = lines(out / "results.jsonl")
+    assert sorted(r["doc_id"] for r in rows) == names  # every file once
+    by_id = {r["doc_id"]: r for r in rows}
+    assert (by_id[crashing.HANG_ON]["error"], by_id[crashing.HANG_ON]["fields"]) == (batch.HUNG, [])
+    assert batch.HUNG == "cannot read PDF: the reader hung"
+    assert all(r["error"] is None and r["fields"] for d, r in by_id.items() if d != crashing.HANG_ON)
+
+
+def test_a_timeout_must_be_positive(tmp_path):
+    for timeout in (0, -1.0, float("nan"), float("inf")):
+        with pytest.raises(FormcastError, match="timeout"):
+            run_batch([hand_template()], [], tmp_path / "out", timeout=timeout)
+
+
 def test_a_resume_with_other_templates_or_another_root_is_refused(tmp_path):
     (tmp_path / "a").mkdir()
     (tmp_path / "a" / "x.pdf").write_bytes(b"")

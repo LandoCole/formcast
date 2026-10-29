@@ -58,7 +58,7 @@ def test_scan_lists_unreadable_files_and_takes_first_page(corpus_dir: Path):
 
 def test_run_then_export_csv(corpus_dir: Path, template_file: Path, tmp_path: Path):
     out = tmp_path / "out"
-    done = cli("run", template_file, corpus_dir, "--out", out, "--workers", "2")
+    done = cli("run", template_file, corpus_dir, "--out", out, "--workers", "2", "--timeout", "60")
     summary = done.stderr.splitlines()[-1]
     assert "total 22" in summary and "no template 2" in summary and "unreadable 0" in summary
     assert "internal errors 0" in summary and "seconds" in summary
@@ -107,6 +107,13 @@ def test_a_negative_worker_count_exits_2(corpus_dir: Path, template_file: Path, 
     done = cli("run", template_file, corpus_dir, "--out", tmp_path / "out", "--workers", "-1", check=False)
     assert done.returncode == 2 and "--workers" in done.stderr and "Traceback" not in done.stderr
     assert cli("run", template_file, corpus_dir, "--out", tmp_path / "out", "--workers", "x", check=False).returncode == 2
+
+
+@pytest.mark.parametrize("timeout", ["0", "-5", "soon"])
+def test_a_timeout_that_is_not_a_positive_number_exits_2(corpus_dir: Path, template_file: Path, tmp_path: Path, timeout):
+    done = cli("run", template_file, corpus_dir, "--out", tmp_path / "out", "--timeout", timeout, check=False)
+    assert done.returncode == 2 and "--timeout" in done.stderr and "Traceback" not in done.stderr
+    assert len(done.stderr.strip().splitlines()) == 1 and not (tmp_path / "out").exists()
 
 
 def test_an_out_or_to_path_of_the_wrong_kind_exits_2_in_one_line(
