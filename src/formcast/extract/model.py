@@ -220,7 +220,9 @@ class SetupInfo(_Model):
     ``start`` is ``"ai"`` (the model proposed the fields), ``"lines"`` (a person described them, one ``lines`` entry
     each, ``line_paths`` naming the schema paths each line became) or ``"destination"`` (the fields of an existing
     schema or fill template, ``destination`` naming it). ``detect`` is the field-detection setting the samples were
-    looked at with; ``sample_how`` says, in the person's words, how the samples were chosen.
+    looked at with (``pages``: for ``"manual"``, each sample's position -> the page numbers searched), ``ocr``
+    whether scanned pages were OCR'd, and ``vision`` whether the model saw page images; ``sample_how`` says, in the
+    person's words, how the samples were chosen. Together they reopen the setup as it was ("Change the setup").
     """
 
     start: Literal["ai", "lines", "destination"]
@@ -228,6 +230,9 @@ class SetupInfo(_Model):
     line_paths: dict[str, list[str]] = Field(default_factory=dict)
     destination: str | None = None
     detect: Literal["auto", "all", "manual", "off"] = "auto"
+    pages: dict[int, list[int]] = Field(default_factory=dict)
+    ocr: Literal["auto", "never"] = "auto"
+    vision: bool = True
     sample_how: str = ""
 
 

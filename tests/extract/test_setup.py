@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 from dataclasses import dataclass
 
@@ -9,6 +10,7 @@ import pytest
 
 import formcast.extract.setup as setup_mod
 from formcast.errors import FormcastError, SessionCancelled
+from formcast.extract.batch import route
 from formcast.extract.model import concrete_paths
 from formcast.extract.prompts import READERS_SYSTEM
 from formcast.extract.proof import Proof, learn_maps, prove
@@ -16,6 +18,7 @@ from formcast.extract.read import extract
 from formcast.extract.samples import SamplePdf
 from formcast.extract.setup import MAX_SAMPLES, STAGES, SetupSpec, StageEvent, add_line, build_setup
 from formcast.llm import LLMConfig, LLMResponse
+from formcast.match import PdfFeatures
 from formcast.pagemap.build import DetectPolicy
 from formcast.schema import flatten_schema
 from tests.extract.conftest import corpus_clients
@@ -260,3 +263,35 @@ def test_add_line_refuses_samples_that_are_not_the_templates_before_any_model_ca
     with pytest.raises(FormcastError, match="not the template's samples"):
         add_line(r.template, "wire details", r.samples[:4], model)
     assert model.calls == before
+
+
+def test_every_public_name_of_setup_is_a_public_name_of_the_package():
+    import formcast.extract as package
+
+    assert set(setup_mod.__all__) <= set(package.__all__)
+    assert package.MAX_SAMPLES == MAX_SAMPLES
+
+
+def test_the_built_templates_form_has_the_blind_fingerprint_so_a_fillable_copy_routes_by_it(five_samples):
+    r = build_setup(five_samples.pdfs, SetupSpec(name="x"), CorpusModel(five_samples.clients), **NO_DETECTORS)
+    first = five_samples.clients["sample_1.pdf"]  # the first fillable sample, whose form the template records
+    assert r.template.form.fingerprint == PdfFeatures(five_samples.pdfs[0].pdf).fingerprint_blind
+    # another client's answers in the form fields (the wire paragraph is page text: the same bank and account)
+    other = dataclasses.replace(clients(1, seed=77)[0], bank=first.bank, account=first.account)
+    assert other.legal_name != first.legal_name and other.tax_id != first.tax_id
+    copy = make_form(other, kind="fillable")
+    use, _, score = route([r.template], copy)
+    assert use is r.template and score == 1.0
+    got = extract(r.template, copy)
+    assert got.matched == "fingerprint"
+    assert_no_wrong_found(got, other)
+
+
+def test_the_setup_keeps_how_the_samples_were_read_and_shown(five_samples):
+    spec = SetupSpec(name="x", detect="manual", pages={3: [0]}, ocr="never", vision=False, sample_how="the first five")
+    r = build_setup(five_samples.pdfs, spec, CorpusModel(five_samples.clients), **NO_DETECTORS)
+    setup = r.template.setup
+    assert (setup.detect, setup.pages, setup.ocr, setup.vision) == ("manual", {3: [0]}, "never", False)
+    assert setup.sample_how == "the first five"
+    again = type(r.template).model_validate_json(r.template.model_dump_json(by_alias=True))
+    assert again.setup == setup  # the page numbers' keys come back as ints from JSON

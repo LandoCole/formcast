@@ -53,7 +53,8 @@ from formcast.extract.samples import Detect, SampleDoc, SamplePdf, _detect, _rea
 from formcast.llm import LLMConfig, Provider, Usage, make_provider
 from formcast.pagemap.build import DetectPolicy, PageProgress
 from formcast.pagemap.detect import Detector
-from formcast.template.model import form_info_for
+from formcast.match import PdfFeatures
+from formcast.template.model import FormInfo, form_info_for
 
 __all__ = [
     "FIELDS_LABELS",
@@ -196,7 +197,7 @@ def build_setup(
 
         emit("readers", "running", _label("readers"))
         layout = learn_layout([d.pdf for d in docs])
-        form = form_info_for(next((d.form_map for d in docs if _has_widgets(d)), docs[0].form_map))
+        form = _form(docs)
         proposals, used = propose_readers(schema, paths, docs, provider, vision=spec.vision, max_parallel=max_parallel)
         usage = _sum(usage, used)
         readers, dropped = resolve(proposals, docs, layout, schema)
@@ -209,7 +210,7 @@ def build_setup(
         setup = SetupInfo(
             start=spec.start, lines=list(line_paths), line_paths=line_paths,
             destination=spec.destination_name if spec.start == "destination" else None, detect=spec.detect,
-            sample_how=spec.sample_how,
+            pages=spec.pages, ocr=spec.ocr, vision=spec.vision, sample_how=spec.sample_how,
         )  # fmt: skip
         template = ExtractionTemplate(
             template_id=spec.template_id or _template_id(spec.name), name=spec.name, schema=schema, form=form,
@@ -385,6 +386,18 @@ def _count(n: int, noun: str) -> str:
 
 def _sum(a: Usage, b: Usage) -> Usage:
     return Usage(a.input_tokens + b.input_tokens, a.output_tokens + b.output_tokens)
+
+
+def _form(docs: list[SampleDoc]) -> FormInfo:
+    """The form info of the first sample with form fields (else the first), with its blind fingerprint.
+
+    A filled sample's own fingerprint holds its answers, so only that very sample would match it; the fingerprint
+    with field values ignored (as :class:`~formcast.match.PdfFeatures` computes it, and routing compares it) is the
+    blank form's, so a fillable copy with other answers routes by fingerprint.
+    """
+    doc = next((d for d in docs if _has_widgets(d)), docs[0])
+    form = form_info_for(doc.form_map)
+    return form.model_copy(update={"fingerprint": PdfFeatures(doc.pdf).fingerprint_blind})
 
 
 def _has_widgets(doc: SampleDoc) -> bool:

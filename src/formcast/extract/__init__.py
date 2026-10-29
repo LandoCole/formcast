@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any
 
 _LAZY = {
     "FIELDS_LABELS": "formcast.extract.setup",
+    "MAX_SAMPLES": "formcast.extract.setup",
     "STAGES": "formcast.extract.setup",
     "AiPassSummary": "formcast.extract.aipass",
     "AnchorRead": "formcast.extract.model",
@@ -105,7 +106,7 @@ if TYPE_CHECKING:
     from formcast.extract.readers import BoxRef, OptionProposal, ReaderProposal, resolve
     from formcast.extract.samples import SampleDoc, SamplePdf, detected_pages, read_samples, sample_images, sample_view
     from formcast.extract.setup import (
-        FIELDS_LABELS, STAGES, SetupResult, SetupSpec, StageEvent, add_line, build_setup,
+        FIELDS_LABELS, MAX_SAMPLES, STAGES, SetupResult, SetupSpec, StageEvent, add_line, build_setup,
     )  # fmt: skip
 
 
