@@ -2,6 +2,7 @@
 
     ExtractionTemplate, Reader, ...   formcast.extract.model   (the template and the result of reading a document)
     DocText, label_key                formcast.extract.page    (one open PDF and the lookups made on it)
+    extract                           formcast.extract.read    (one document read with a template)
 
 The public names load on first use, as in ``formcast``, so importing one module does not pull in the rest.
 """
@@ -28,6 +29,7 @@ _LAZY = {
     "Strategy": "formcast.extract.model",
     "WidgetRead": "formcast.extract.model",
     "concrete_paths": "formcast.extract.model",
+    "extract": "formcast.extract.read",
     "label_key": "formcast.extract.page",
 }
 
@@ -37,6 +39,7 @@ if TYPE_CHECKING:
         PhraseRead, Reader, StaticLine, Status, Strategy, WidgetRead, concrete_paths,
     )  # fmt: skip
     from formcast.extract.page import DocText, label_key
+    from formcast.extract.read import extract
 
 
 def __getattr__(name: str) -> Any:

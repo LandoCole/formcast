@@ -184,7 +184,7 @@ def test_the_hand_template_is_valid_and_reads_every_schema_path_once():
     template = hand_template()
     assert ExtractionTemplate.model_validate(template.model_dump(by_alias=True)) == template
     assert set(template.readers) == set(concrete_paths(template.schema_))
-    assert template.layout.lines == [] and template.layout.page_sizes == []
+    assert template.layout.lines and template.layout.page_sizes == [(612.0, 792.0)] * 2
     assert template.form.page_count == 2 and template.form.page_sizes == [(612, 792), (612, 792)]
     assert [s.kind for s in template.readers["investor.tax_id"].strategies] == ["widget", "box", "anchor"]
     assert [s.kind for s in template.readers["investor.type"].strategies] == ["choice", "choice"]

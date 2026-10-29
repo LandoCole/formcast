@@ -28,6 +28,7 @@ from typing import Literal
 import pymupdf
 
 from formcast.data.mapping import Transform
+from formcast.extract.layout import learn_layout
 from formcast.extract.model import (
     AnchorRead,
     BoxRead,
@@ -241,6 +242,7 @@ def _draw_page_zero(
     painted: bool,
     labels: dict[str, str],
     header: str | None = None,
+    checked: tuple[str, ...] | None = None,
 ) -> None:
     def word(text: str) -> str:
         return labels.get(text, text)
@@ -267,7 +269,7 @@ def _draw_page_zero(
 
     for value, (label, square) in TYPE_BOXES.items():
         r = _shifted(square, shift)
-        on = client is not None and client.investor_type == value
+        on = value in checked if checked is not None else client is not None and client.investor_type == value
         page.insert_text((r.x1 + 6, r.y1 - 2), word(label), fontsize=FONT_SIZE, fontname="helv")
         if kind == "fillable":
             _check_widget(page, f"type_{value}", r, on)
@@ -317,17 +319,19 @@ def make_form(
     painted: bool = False,
     labels: dict[str, str] | None = None,
     header: str | None = None,
+    checked: tuple[str, ...] | None = None,
 ) -> bytes:
     """A two-page client-information form as PDF bytes; ``client=None`` is the blank form.
 
     ``labels`` replaces printed wordings (``{"Taxpayer ID:": "TIN:"}``) for a copy that words a label differently.
     ``header`` draws one more line of text under the title (``"Taxpayer ID:"``, so that label is on the page twice).
+    ``checked`` names the investor-type boxes that are on (``("individual", "joint")``) in place of the client's type.
     """
     if kind not in ("fillable", "flattened"):
         raise ValueError(f"kind must be 'fillable' or 'flattened', not {kind!r}")
     doc = pymupdf.open()
     first = doc.new_page(width=PAGE_SIZE[0], height=PAGE_SIZE[1])
-    _draw_page_zero(first, client, kind, shift, painted, labels or {}, header)
+    _draw_page_zero(first, client, kind, shift, painted, labels or {}, header, checked)
     _draw_page_one(doc.new_page(width=PAGE_SIZE[0], height=PAGE_SIZE[1]))
     if rotate:
         for page in doc:
@@ -374,7 +378,11 @@ def _schema() -> dict:
                         "Whether the investor is an individual, a joint account, a trust or an LLC.",
                         enum=list(INVESTOR_TYPES),
                     ),
-                    "country": text("Country", "The investor's country, as a two-letter code."),
+                    "country": text(
+                        "Country",
+                        "The investor's country, as a two-letter code.",
+                        enum=sorted(set(_COUNTRY_CODES.values())),
+                    ),
                 },
                 "required": ["tax_id"],
             },
@@ -408,6 +416,7 @@ def _schema() -> dict:
                 },
             },
         },
+        "required": ["investor"],  # so a document with no investor answers at all reports its tax ID missing
     }
 
 
@@ -427,7 +436,7 @@ def _readers() -> dict[str, Reader]:
             strategies=[
                 WidgetRead(names=["tax_id"]),
                 box("tax_id"),
-                AnchorRead(labels=["Taxpayer ID", "TIN"], page=0, max_width=200),
+                AnchorRead(labels=["Taxpayer ID", "TIN"], page=0, max_width=300),  # "TIN:" ends far from the answer
             ]
         ),
         "investor.dob": Reader(
@@ -476,16 +485,36 @@ def _form_info() -> FormInfo:
     return form_info_for(build_form_map(make_form(None, kind="fillable"), detect=False))
 
 
+#: The clients whose filled copies the hand template's layout is learned from (not the corpus folder's clients).
+LAYOUT_SEED = 99
+
+
+@functools.cache
+def _layout() -> Layout:
+    """The layout learned from six varied filled copies: both kinds, plain, rotated and with an extra page."""
+    people = clients(6, seed=LAYOUT_SEED)
+    samples = [
+        make_form(people[0], kind="fillable"),
+        make_form(people[1], kind="flattened"),
+        make_form(people[2], kind="fillable", rotate=ROTATE),
+        make_form(people[3], kind="flattened", extra_page=True),
+        make_form(people[4], kind="fillable", painted=True),
+        make_form(people[5], kind="flattened"),
+    ]
+    return learn_layout(samples)
+
+
 def hand_template() -> ExtractionTemplate:
     """The template a person would write for this form.
 
-    Its ``layout`` is empty until a test sets one with ``learn_layout``; its ``form`` is the blank fillable form's.
+    Its ``layout`` is learned from filled copies of other clients (:data:`LAYOUT_SEED`); its ``form`` is the blank
+    fillable form's. Both are made once and copied, so a test may change its template freely.
     """
     return ExtractionTemplate(
         template_id="client_information",
         name="Client information",
         schema=_schema(),
         form=_form_info().model_copy(deep=True),
-        layout=Layout(lines=[], page_sizes=[]),
+        layout=_layout().model_copy(deep=True),
         readers=_readers(),
     )
