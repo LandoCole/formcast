@@ -64,8 +64,11 @@ apply by ``doc_id`` and path, the latest one per path winning, so a rerun keeps 
 in ``ai.jsonl`` (read the same way: a torn last line ignored, the latest answer per ``doc_id`` and path winning): an
 answer with a value is put on a field that is ``missing`` or ``failed_check`` as ``unsure`` by strategy ``"ai"``,
 with the reason :data:`AI_REASON`, before any review decision is applied, so a decision always wins over it, and an
-``accept`` is checked against the field with the answer on it. An answer of ``None`` changes nothing: it only
-records that the field was asked. ``rows()`` and
+``accept`` is checked against the field with the answer on it, and an ``accept`` of an AI answer is recorded as a
+``value`` decision carrying the value the person saw, so it stands whatever ``ai.jsonl`` holds later. An answer
+never replaces the read of a field that has a decision. An answer of ``None`` changes nothing: it only records
+that the field was asked. An ``accept`` of a field that now has no value (the value it accepted is gone) leaves the
+field as read, never ``found`` with no value. ``rows()`` and
 ``status_rows()`` flatten paths to columns as the Global Constraints say (:func:`column_name`: ``owners[0].name``
 -> ``owners_1_name``; ``investor.tax_id`` stays), after ``doc_id``, ``file``, ``template``, ``matched`` and
 ``extracted_at``; failed documents are never rows. :class:`RunSummary` counts the whole ``out_dir``: ``complete``
@@ -526,6 +529,8 @@ def _decided(field: FieldResult, decision: ReviewDecision) -> FieldResult:
     if decision.decision == "value":
         update: dict[str, Any] = {"status": "found", "value": decision.value, "strategy": "review", "reasons": []}
     elif decision.decision == "accept":
+        if field.value is None:  # nothing to accept now (the value it accepted is gone): the field stays as read
+            return field
         update = {"status": "found", "reasons": []}
     else:
         update = {"status": "absent", "value": None, "reasons": []}
@@ -616,12 +621,13 @@ class Results:
                 f.seek(offset)
                 yield DocumentResult.model_validate_json(f.read(length))
 
-    def _with_ai(self, doc: DocumentResult) -> DocumentResult:
+    def _with_ai(self, doc: DocumentResult, decided: Iterable[str] = ()) -> DocumentResult:
         """``doc`` with each AI answer that has a value on its field, when that field is ``missing`` or
-        ``failed_check``."""
+        ``failed_check`` and has no decision (``decided`` are the paths that have one)."""
         answers = self._ai.get(doc.doc_id)
         if not answers:
             return doc
+        answers = {path: a for path, a in answers.items() if path not in set(decided)}
         fields = [
             _from_ai(f, answers[f.path])
             if f.path in answers and answers[f.path].value is not None and f.status in ("missing", "failed_check")
@@ -634,8 +640,8 @@ class Results:
         """``doc`` with the AI's answers (see the module) and then the latest decision on each of its paths applied:
         a typed value is ``found`` by ``"review"``, an accepted read ``found``, a field not in the document
         ``absent``."""
-        doc = self._with_ai(doc)
         decided = self._decisions.get(doc.doc_id)
+        doc = self._with_ai(doc, decided or ())
         if not decided:
             return doc
         fields = [_decided(f, decided[f.path]) if f.path in decided else f for f in doc.fields]
@@ -662,7 +668,8 @@ class Results:
 
         Raises:
             FormcastError: no such document in the run, no such field in it, or an ``accept`` of a field that has
-                no value read (an AI answer counts as a read value).
+                no value read (an AI answer counts as a read value). An ``accept`` of an AI answer is recorded as a
+                ``value`` decision carrying that value.
         """
         if decision.doc_id not in self._index:
             raise FormcastError(f"no document {decision.doc_id!r} in this run")
@@ -672,6 +679,11 @@ class Results:
             raise FormcastError(f"{decision.doc_id}: no field {decision.path!r}")
         if decision.decision == "accept" and field.value is None:
             raise FormcastError(f"{decision.doc_id}: {decision.path}: nothing to accept, no value was read")
+        if decision.decision == "accept" and field.strategy == "ai":
+            # the value the person saw is kept in the decision, so it stands whatever ai.jsonl holds later
+            decision = ReviewDecision(
+                doc_id=decision.doc_id, path=decision.path, decision="value", value=field.value, at=decision.at
+            )
         reviews = self.out_dir / REVIEWS
         _cut(reviews, _whole_lines(reviews, lambda offset, length, record: None))
         with reviews.open("a", encoding="utf-8") as sink:

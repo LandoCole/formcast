@@ -205,3 +205,62 @@ def test_the_pass_refuses_a_template_the_run_did_not_read_with(tmp_path):
     with pytest.raises(FormcastError, match="differs|not a template"):
         ai_pass([changed], out, nobody, vision=False)
     assert nobody.calls == [] and not (out / AI).exists()
+
+
+# ------------------------------------------------------------------ an accept stands on its own
+
+
+def append_line(path: Path, record: dict) -> None:
+    with path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(record) + "\n")
+
+
+def accepted_ai_value(tmp_path) -> tuple[Path, str]:
+    out = write_batch(tmp_path)
+    bad = sorted(failing(out))
+    ai_pass([hand_template()], out, Scripted(*[ANSWER] * len(bad)), vision=False)
+    Results.load(out).decide(ReviewDecision(doc_id=bad[0], path=TAX_ID, decision="accept"))
+    return out, bad[0]
+
+
+def test_accepting_an_ai_answer_is_recorded_as_the_value_the_person_saw(tmp_path):
+    out, _ = accepted_ai_value(tmp_path)
+    recorded = [json.loads(line) for line in (out / REVIEWS).read_text().splitlines()]
+    assert [(r["decision"], r["value"]) for r in recorded] == [("value", "12-3456789")]
+
+
+def test_an_accepted_ai_answer_stays_whatever_a_later_ai_answer_says(tmp_path):
+    out, doc_id = accepted_ai_value(tmp_path)
+    append_line(out / AI, {"doc_id": doc_id, "path": TAX_ID, "value": "00-0000000", "at": "later"})
+    f = field(out, doc_id)
+    assert (f.status, f.value, f.strategy) == ("found", "12-3456789", "review")
+
+
+def test_an_accepted_ai_answer_stays_when_the_answers_file_is_gone(tmp_path):
+    out, doc_id = accepted_ai_value(tmp_path)
+    (out / AI).unlink()
+    f = field(out, doc_id)
+    assert (f.status, f.value, f.strategy) == ("found", "12-3456789", "review")
+
+
+def test_an_accept_of_a_field_that_has_no_value_now_is_not_shown_as_found(tmp_path):
+    out = write_batch(tmp_path)
+    doc_id = sorted(failing(out))[0]  # its tax ID is missing, with no value
+    append_line(out / REVIEWS, {"doc_id": doc_id, "path": TAX_ID, "decision": "accept", "value": None, "at": "then"})
+    f = field(out, doc_id)
+    assert (f.status, f.value) == ("missing", None)
+    assert Results.load(out).summary().with_problems == len(failing(out))
+
+
+def test_an_accept_of_a_read_value_is_not_replaced_by_a_later_ai_answer(tmp_path):
+    folder = tmp_path / "in"
+    folder.mkdir()
+    bad_tin = dataclasses.replace(clients(1, seed=5)[0], tax_id="8422-19037")  # read, but fails the pattern
+    (folder / "bad_tin.pdf").write_bytes(make_form(bad_tin, kind="flattened"))
+    out = tmp_path / "out"
+    run_batch([hand_template()], [folder / "bad_tin.pdf"], out, workers=1)
+    Results.load(out).decide(ReviewDecision(doc_id="bad_tin.pdf", path=TAX_ID, decision="accept"))
+    append_line(out / AI, {"doc_id": "bad_tin.pdf", "path": TAX_ID, "value": "00-0000000", "at": "later"})
+    f = field(out, "bad_tin.pdf")
+    assert (f.status, f.value, f.reasons) == ("found", "8422-19037", [])
+    assert f.strategy != "ai"
