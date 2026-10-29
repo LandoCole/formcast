@@ -293,6 +293,8 @@ def _read_all(
                 if suspects:
                     break
                 if not pending:
+                    if killed:
+                        break  # everything in flight finished after all; the rest goes on in a new pool
                     return
                 # wait for a result, or until the oldest document in flight runs past the timeout
                 left = None if killed else max(0.0, min(sent[f] for f in pending) + timeout - time.monotonic())
@@ -302,6 +304,7 @@ def _read_all(
                     killed = True
                     continue
                 for future in finished:
+                    del sent[future]
                     if isinstance(future.exception(), BrokenProcessPool):
                         suspects.append(pending.pop(future))  # one of these documents killed its worker
                         continue
