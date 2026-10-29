@@ -699,6 +699,43 @@ The browser flows use Playwright, which comes with the `dev` extra, and Chromium
 the scripted fake provider, so no test calls a model. See [Demo](#demo) for the browser-only version and
 the JS tests.
 
+### Extracting in the workbench
+
+The page opens on *What would you like to do?*: *Fill a PDF* is the flow above, and *Extract from PDFs* (shown
+when the server can extract) is [extraction](#extraction-many-filled-pdfs-to-rows) in four steps. No model is
+called per document unless you ask for it.
+
+1. **The batch and the sample** (the Extract modal). Drop PDFs or zips (up to 50 MB a zip; choose the files or a
+   folder for a bigger batch), or type a folder on the server's machine (`FORMCAST_DEMO_FOLDER_SCAN=false` turns
+   that off). The batch is scanned by layout: its line says how many PDFs are copies of its main layout, fillable or
+   flattened, and a strip marks the documents the sample would take. Pick 3 to 20 sample documents (spread across
+   the batch, the first ones, or by hand), what to extract (*AI suggests*, *I'll list them*, one line per thing, or
+   a saved fill template as the *Destination*), and how the blanks are found. *Read the sample* builds the template
+   in a panel of stages; the model reads the samples here, and only here.
+2. **Set up** (the setup screen). The fields on the left, each with its state across the samples (● every sample,
+   ◐ some, ? unsure, ○ not on this form) and *Add a field* from a line of your words; a sample page in the middle
+   with where each field is read (drag a box to move it); the selected field on the right: its name, title, type,
+   definition, how it is read, its answers and checks, and its result on each sample. Every edit is proven again
+   on the samples with no model call. *Save* stores the template with its samples.
+3. **Run on all.** Saves the template first if it is not saved, then reads every document of the batch with it
+   (`FORMCAST_DEMO_EXTRACT_WORKERS` processes; one per CPU by default), shown as documents read of the total. *AI
+   per document* in the modal's settings also asks the model about the documents whose required fields fail; its
+   answers are marked and still reviewed. A run cancelled keeps what it read, and *Run on all* again carries on.
+4. **Review.** The run's numbers (documents, complete, with problems, set aside, run time), the documents that still
+   have a problem (filter by field and by *Missing*, *Fails a check* or *Unsure*; *Set aside* lists the documents
+   no template fits or that could not be read, with the closest template), the chosen document's page with the
+   problem's place outlined, and a card per problem: *Use this value* (type it), *Accept as read* or *Not in this
+   document*. Decisions are kept apart from the reads, in the run's folder. *Export xlsx* and *Export Parquet*
+   (`pip install 'formcast[parquet]'`) download the values, statuses, set-aside documents and field definitions,
+   each document named as in the batch. *Send to fill →* opens the fill start screen with the run's results as
+   *Your data* (the destination form picked when the template was made for one); a field still unsettled is left
+   blank there, and the fill reports it as a gap.
+
+The choice lists the saved runs (*Open a saved run*) and extraction templates, so a run can be reviewed again
+later, and opens a command line run (`python -m formcast.extract run ... --out out/`) by its folder's path, when
+its template is saved in the workbench. Batches, saved extraction templates and runs live under `local/` in the
+data folder (`batches/`, `extractions/`, `runs/`); a setup being made is kept in memory until it is saved.
+
 ## Spec
 
 Design spec: [docs/superpowers/specs/2026-10-20-form-projection-design.md](docs/superpowers/specs/2026-10-20-form-projection-design.md)

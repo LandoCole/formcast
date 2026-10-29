@@ -4,8 +4,11 @@ import { test } from "node:test";
 
 import {
   batchLine,
+  asideLine,
   batchNote,
   checksOf,
+  decisionText,
+  docLine,
   fieldSchema,
   fieldState,
   groupFields,
@@ -15,6 +18,10 @@ import {
   problemLabel,
   readFrom,
   rowProof,
+  runLine,
+  runStats,
+  runTime,
+  sendNotice,
   stripCells,
 } from "../../demo/web/workbench/extract-model.js";
 
@@ -300,4 +307,70 @@ test("batchNote says nothing before the scan is done, and says so when no docume
   assert.equal(batchNote({ ...BATCH, scan: { phase: "scanning", done: 1, total: 4, error: null, groups: [] } }, 4), "");
   assert.equal(batchNote({ ...BATCH, count: 0, scan: { ...BATCH.scan, groups: [] } }, 0), "");
   assert.equal(batchNote({ ...BATCH, count: 2, scan: { ...BATCH.scan, groups: [] } }, 2), "None of them could be read as a form, so there is no layout to learn.");
+});
+
+// ------------------------------------------------------------------ a run's review
+
+const SUMMARY = { total: 1248, complete: 1163, with_problems: 38, no_template: 40, unreadable: 6, internal_errors: 1, seconds: 123.4 };
+
+test("runStats gives the review's five numbers, the set aside counting every document not read, and the run time", () => {
+  assert.deepEqual(runStats(SUMMARY), [
+    { key: "total", value: "1,248", label: "Documents" },
+    { key: "complete", value: "1,163", label: "Complete" },
+    { key: "with_problems", value: "38", label: "With problems" },
+    { key: "set_aside", value: "47", label: "Set aside" },
+    { key: "time", value: "2:03", label: "Run time" },
+  ]);
+});
+
+test("runTime is minutes and seconds, with hours past the hour", () => {
+  assert.equal(runTime(0), "0:00");
+  assert.equal(runTime(4.6), "0:05");
+  assert.equal(runTime(59.4), "0:59");
+  assert.equal(runTime(3725), "1:02:05");
+});
+
+test("docLine names a document's open problems, two by name and more as the first and a count, or all settled", () => {
+  const problems = [{ path: "investor.tax_id" }, { path: "wire.account" }, { path: "investor.type" }];
+  assert.equal(docLine(problems.slice(0, 1)), "1 problem: investor.tax_id");
+  assert.equal(docLine(problems.slice(0, 2)), "2 problems: investor.tax_id, wire.account");
+  assert.equal(docLine(problems), "3 problems: investor.tax_id +2 others");
+  assert.equal(docLine(problems, new Set(["investor.tax_id", "investor.type"])), "1 problem: wire.account");
+  assert.equal(docLine(problems, new Set(problems.map((p) => p.path))), "all settled");
+});
+
+test("asideLine says why a document was set aside and the closest template, when there is one", () => {
+  assert.equal(asideLine({ reason: "no template fits", closest_template: "Client info", closest_score: 0.414 }), "no template fits · closest: Client info, 41%");
+  assert.equal(asideLine({ reason: "encrypted PDF", closest_template: null, closest_score: null }), "encrypted PDF");
+});
+
+test("decisionText says what was decided, with the value typed or accepted", () => {
+  assert.equal(decisionText("value", "12-3456789"), "Value entered: 12-3456789");
+  assert.equal(decisionText("accept", "8422-19037"), "Accepted as read: 8422-19037");
+  assert.equal(decisionText("accept", ["a", "b"]), "Accepted as read: a · b");
+  assert.equal(decisionText("not_in_document"), "Marked not in this document");
+});
+
+test("runLine names a saved run, its template, its documents and the ones with problems", () => {
+  const run = { id: "r", name: "Client forms", extraction: "Client info", started: "2026-10-29T09:15:00+00:00", summary: SUMMARY };
+  assert.equal(runLine(run), "Client forms · Client info · 1,248 documents · 38 with problems");
+  assert.equal(runLine({ ...run, summary: { ...SUMMARY, total: 1, with_problems: 0 } }), "Client forms · Client info · 1 document · no problems");
+});
+
+test("sendNotice warns of documents still with problems and of a dataset cut short, else says nothing", () => {
+  const dataset = { rows: 10000 };
+  assert.equal(sendNotice({ dataset, truncated: false, with_problems: 0 }), "");
+  assert.equal(
+    sendNotice({ dataset, truncated: false, with_problems: 3 }),
+    "3 documents still have problems; their unsettled fields are left blank, and fill will report them as gaps.",
+  );
+  assert.equal(
+    sendNotice({ dataset, truncated: false, with_problems: 1 }),
+    "1 document still has problems; its unsettled fields are left blank, and fill will report them as gaps.",
+  );
+  assert.equal(
+    sendNotice({ dataset, truncated: true, with_problems: 0 }),
+    "Only the first 10,000 documents are in the data, as many as a dataset holds; export the run for every one.",
+  );
+  assert.match(sendNotice({ dataset, truncated: true, with_problems: 2 }), /^2 documents still have problems; .* gaps\. Only the first 10,000 documents/);
 });

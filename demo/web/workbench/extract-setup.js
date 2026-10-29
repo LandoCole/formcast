@@ -29,10 +29,13 @@
 // is never pulled from under the pointer.
 //
 // Save asks for a name (#setup-save-box, as the fill template's save) and stores the template with its sample PDFs
-// (`engine.extract.save`). A setup the server no longer has (it restarted, or dropped it) answers any call with 404
-// "no such setup": the screen closes and the choice opens with "This setup is no longer on the server; start again."
+// (`engine.extract.save`); `promptSave()` resolves the name saved (null when the prompt closed unsaved), so Run on
+// all (extract-review.js, enabled when the setup has a batch to read) saves first. A setup the server no longer has
+// (it restarted, or dropped it) answers any call with 404 "no such setup": the screen closes and the choice opens with
+// "This setup is no longer on the server; start again."
 //
-// The page view here is a PageView of its own, on a bus of its own, so the fill editor's handlers never hear it.
+// The page view here is a PageView of its own, on a bus of its own, so the fill editor's handlers never hear it. Its
+// zoom (`mountZoom`) is the review's document page's too.
 
 import { createBus } from "../core/bus.js";
 import { makeView, viewSize } from "../core/geometry.js";
@@ -99,9 +102,76 @@ function typeOf(prop) {
 }
 
 /**
+ * The zoom of a page column, as the mockup has it (the setup screen's sample page and the review's document page
+ * share it): the bar's Fit width and Fit page (`[data-fit]`), − and + (`[data-step]`) through ZOOMS, the level
+ * (`[data-level]`, back to fit width), and Ctrl (or ⌘) and the wheel over the column; a fit follows the column when it
+ * changes size or is shown again.
+ * @param {{col: HTMLElement, bar: HTMLElement, below: HTMLElement, size: () => number[] | null,
+ *   apply: (scale: number, fit: "width" | "page" | number) => void}} opts `col` the `.col-page`, `bar` its zoom bar,
+ *   `below` the caption under the page (a fit leaves room for it), `size()` the page's [width, height] in points
+ *   (null while there is none to show), `apply` sizes the page for `scale` pixels per point (`fit` the setting)
+ * @returns {{refresh: () => void}} `refresh()` sizes the page again (a new page, or the column shown again)
+ */
+export function mountZoom({ col, bar, below, size, apply }) {
+  let zoom = "width"; // "width" or "page" (a fit), or a fixed scale in pixels per point
+
+  /** The two fits for the column: as wide as the column, and the whole page in view (within the window). */
+  function fits([width, height]) {
+    const cs = getComputedStyle(col);
+    const wide = col.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+    const used = col.querySelector(".pagebar").offsetHeight + below.offsetHeight + 12;
+    const high = Math.min(col.clientHeight, innerHeight) - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - used;
+    const fitWidth = Math.max(0.1, wide / width);
+    return { width: fitWidth, page: Math.max(0.1, Math.min(fitWidth, high / height)) };
+  }
+
+  const scaleOf = (pageSize) => (typeof zoom === "number" ? zoom : fits(pageSize)[zoom]);
+
+  function refresh() {
+    const pageSize = size();
+    if (pageSize === null || col.offsetParent === null) return; // nothing to show, or not on show
+    const scale = scaleOf(pageSize);
+    apply(scale, zoom);
+    bar.querySelector("[data-level]").textContent = `${Math.round(scale * 100)}%`;
+    for (const b of bar.querySelectorAll("[data-fit]")) b.setAttribute("aria-pressed", String(b.dataset.fit === zoom));
+    bar.querySelector('[data-step="-1"]').disabled = scale <= ZOOMS[0] + 1e-3;
+    bar.querySelector('[data-step="1"]').disabled = scale >= ZOOMS.at(-1) - 1e-3;
+  }
+
+  /** One zoom step from the scale now (a fit's included) to the next level up or down. */
+  function step(dir) {
+    const pageSize = size();
+    if (pageSize === null) return;
+    const now = scaleOf(pageSize);
+    const next = dir > 0 ? ZOOMS.find((z) => z > now + 1e-3) : [...ZOOMS].reverse().find((z) => z < now - 1e-3);
+    if (next === undefined) return;
+    zoom = next;
+    refresh();
+  }
+
+  const set = (value) => {
+    zoom = value;
+    refresh();
+  };
+  for (const b of bar.querySelectorAll("[data-fit]")) b.addEventListener("click", () => set(b.dataset.fit));
+  for (const b of bar.querySelectorAll("[data-step]")) b.addEventListener("click", () => step(Number(b.dataset.step)));
+  bar.querySelector("[data-level]").addEventListener("click", () => set("width"));
+  col.addEventListener("wheel", (e) => {
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    step(e.deltaY < 0 ? 1 : -1);
+  }, { passive: false }); // prettier-ignore
+  new ResizeObserver(() => {
+    if (typeof zoom === "string") refresh();
+  }).observe(col);
+  return { refresh };
+}
+
+/**
  * @param {object} app see workbench.js
- * @returns {{open: (setup: object) => void, promptSave: () => void, readonly current: object | null,
- *   readonly savedName: string | null, readonly changed: boolean, readonly idle: boolean}}
+ * @returns {{open: (setup: object, opts?: {savedName?: string | null}) => void, promptSave: () => Promise<string | null>,
+ *   settled: () => Promise<void>, readonly current: object | null, readonly savedName: string | null,
+ *   readonly changed: boolean, readonly idle: boolean}}
  */
 export function mountSetup(app) {
   const { $, engine } = app;
@@ -117,7 +187,6 @@ export function mountSetup(app) {
     selected: null, // the concrete path of the field selected, or null
     sample: 0, // the sample shown, from 0 in the template's order
     page: 0, // its page shown, from 0
-    zoom: "width", // "width" or "page" (a fit), or a fixed scale in pixels per point
     marks: [], // the shown sample's marks
     savedName: null, // the name it was last saved as
     changed: false, // edited since it was opened or saved
@@ -142,33 +211,29 @@ export function mountSetup(app) {
   const proofOf = (path) => state.setup.proof.fields.find((f) => f.path === path) ?? null;
   const firstPath = () => rows()[0]?.path ?? null;
 
-  /** Show `setup` on the setup screen, from its first sample and field. */
-  function open(setup) {
+  /**
+   * Show `setup` on the setup screen, from its first sample and field; `savedName` is the name it is saved under
+   * (a saved extraction template reopened), so Run on all needs no name for it.
+   */
+  function open(setup, { savedName = null } = {}) {
     for (const o of document.querySelectorAll(".overlay")) o.hidden = true;
     app.extract.setMode("extract");
     marksToken += 1;
-    Object.assign(state, { setup, batch: null, sample: 0, page: 0, marks: [], savedName: null, changed: false });
+    Object.assign(state, { setup, batch: null, sample: 0, page: 0, marks: [], savedName, changed: false });
     state.selected = firstPath();
-    showView("setup");
+    app.extract.showView("setup");
     loadBatch();
     renderAll();
     showPage();
     loadMarks();
   }
 
-  /** Show the extraction view `name` ("setup", or null for none) with its toolbar part. */
-  function showView(name) {
-    for (const el of document.querySelectorAll("#extract-views [data-only], #toolbar [data-only]")) el.hidden = el.dataset.only !== name;
-    $("extract-empty").hidden = name !== null;
-    $("view-pick").hidden = name === null;
-    for (const btn of $("view-pick").querySelectorAll("[data-view]")) btn.setAttribute("aria-pressed", String(btn.dataset.view === name));
-  }
-
   /** The setup is gone from the server: close the screen and open the choice with the reason. */
   function lost() {
     marksToken += 1;
     Object.assign(state, { setup: null, batch: null, selected: null, marks: [] });
-    showView(null);
+    settlePrompt(null);
+    app.extract.showView(null);
     $("doc-pick").textContent = "No extraction open";
     for (const o of document.querySelectorAll(".overlay")) o.hidden = true;
     app.say($("choose-msg"), GONE);
@@ -270,6 +335,11 @@ export function mountSetup(app) {
     if (state.batch) parts.push(plural(state.batch.count, "PDF"));
     parts.push(plural(s.samples.length, "sample"));
     $("doc-pick").textContent = parts.join(" · ");
+    const run = $("run");
+    run.disabled = !s.batch; // a saved template reopened has no batch to read
+    run.title = s.batch
+      ? "Save the template, then read every document of the batch with it"
+      : "This template was reopened without its batch: start from Extract from PDFs to read a batch with it";
   }
 
   /** The strip: where the fields started, the sample and the detection, and Change the setup. */
@@ -805,82 +875,60 @@ export function mountSetup(app) {
 
   // ------------------------------------------------------------------ zoom
 
-  const zoomBar = $("setup-zoom");
-  const col = pvEl.closest(".col-page");
-
   /** The page's width at scale 1, in pixels. */
   function naturalWidth() {
     const [width, height] = pageSize();
     return viewSize(makeView({ width, height, rotation: 0, scale: 1 })).width;
   }
 
-  /** The two fits for the column: as wide as the column, and the whole page in view (within the window). */
-  function fits() {
-    const cs = getComputedStyle(col);
-    const wide = col.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
-    const used = col.querySelector(".pagebar").offsetHeight + $("cap").offsetHeight + 12;
-    const high = Math.min(col.clientHeight, innerHeight) - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - used;
-    const [, height] = pageSize();
-    const width = Math.max(0.1, wide / naturalWidth());
-    return { width, page: Math.max(0.1, Math.min(width, high / height)) };
-  }
-
-  const scaleNow = () => (typeof state.zoom === "number" ? state.zoom : fits()[state.zoom]);
-
-  /** Size the page for the zoom, and show the level and which fit is on. */
-  function applyZoom() {
-    if (state.setup === null || col.offsetParent === null) return; // not on show
-    const scale = scaleNow();
-    pvEl.style.width = state.zoom === "width" ? "" : `${Math.floor(naturalWidth() * scale)}px`;
-    view.setScale(scale);
-    zoomBar.querySelector("[data-level]").textContent = `${Math.round(scale * 100)}%`;
-    for (const b of zoomBar.querySelectorAll("[data-fit]")) b.setAttribute("aria-pressed", String(b.dataset.fit === state.zoom));
-    zoomBar.querySelector('[data-step="-1"]').disabled = scale <= ZOOMS[0] + 1e-3;
-    zoomBar.querySelector('[data-step="1"]').disabled = scale >= ZOOMS.at(-1) - 1e-3;
-  }
-
-  /** One zoom step from the scale now (a fit's included) to the next level up or down. */
-  function stepZoom(dir) {
-    const now = scaleNow();
-    const next = dir > 0 ? ZOOMS.find((z) => z > now + 1e-3) : [...ZOOMS].reverse().find((z) => z < now - 1e-3);
-    if (next === undefined) return;
-    state.zoom = next;
-    applyZoom();
-  }
-
-  for (const b of zoomBar.querySelectorAll("[data-fit]")) {
-    b.addEventListener("click", () => {
-      state.zoom = b.dataset.fit;
-      applyZoom();
-    });
-  }
-  for (const b of zoomBar.querySelectorAll("[data-step]")) b.addEventListener("click", () => stepZoom(Number(b.dataset.step)));
-  zoomBar.querySelector("[data-level]").addEventListener("click", () => {
-    state.zoom = "width";
-    applyZoom();
+  const zoom = mountZoom({
+    col: pvEl.closest(".col-page"),
+    bar: $("setup-zoom"),
+    below: $("cap"),
+    size: () => (state.setup === null ? null : pageSize()),
+    apply(scale, fit) {
+      pvEl.style.width = fit === "width" ? "" : `${Math.floor(naturalWidth() * scale)}px`;
+      view.setScale(scale);
+    },
   });
-  // Ctrl (or ⌘) and the wheel over the page zoom it, as in a PDF viewer
-  col.addEventListener("wheel", (e) => {
-    if (!e.ctrlKey && !e.metaKey) return;
-    e.preventDefault();
-    stepZoom(e.deltaY < 0 ? 1 : -1);
-  }, { passive: false }); // prettier-ignore
-  // a fit follows the column when the window or the panes change size, and when the screen is shown again
-  new ResizeObserver(() => {
-    if (typeof state.zoom === "string") applyZoom();
-  }).observe(col);
+
+  /** Size the page for the zoom (a new page, or the screen shown again). */
+  function applyZoom() {
+    zoom.refresh();
+  }
 
   // ------------------------------------------------------------------ save
 
   const saveMsg = $("setup-save-msg");
+  let answer = null; // the open prompt's promise's resolve, or null
 
-  /** Ask for a name (the last one saved, else the template's) and save the template under it. */
+  /** End the prompt's promise with `name` (the name saved), or null when it closed unsaved. */
+  function settlePrompt(name) {
+    const resolve = answer;
+    answer = null;
+    resolve?.(name);
+  }
+
+  /**
+   * Ask for a name (the last one saved, else the template's) and save the template under it. Resolves the name it
+   * was saved as, or null when the prompt was closed without saving (Run on all waits for it).
+   * @returns {Promise<string | null>}
+   */
   function promptSave() {
-    if (state.setup === null) return;
+    if (state.setup === null) return Promise.resolve(null);
+    settlePrompt(null);
     $("setup-save-name").value = state.savedName ?? suggest(template().name);
     app.say(saveMsg, "");
     saveBox.hidden = false;
     $("setup-save-name").select();
+    return new Promise((resolve) => {
+      answer = resolve;
+    });
+  }
+
+  function closePrompt() {
+    saveBox.hidden = true;
+    settlePrompt(null);
   }
 
   let saving = false; // a save is under way: Save and Enter in the name box start no second one
@@ -905,6 +953,7 @@ export function mountSetup(app) {
       state.changed = false;
       saveBox.hidden = true;
       app.notice(`Saved “${name}”, with its ${plural(s.samples.length, "sample")}.`);
+      settlePrompt(name);
     } catch (e) {
       if (isGone(e)) lost();
       else app.say(saveMsg, e.message);
@@ -915,23 +964,26 @@ export function mountSetup(app) {
   }
 
   $("setup-save").addEventListener("click", promptSave);
-  $("setup-save-cancel").addEventListener("click", () => {
-    saveBox.hidden = true;
-  });
+  $("setup-save-cancel").addEventListener("click", closePrompt);
   $("setup-save-go").addEventListener("click", save);
   saveBox.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") saveBox.hidden = true;
+    if (e.key === "Escape") closePrompt();
     if (e.key === "Enter" && e.target === $("setup-save-name")) save();
   });
   for (const btn of $("view-pick").querySelectorAll("[data-view]")) {
     btn.addEventListener("click", () => {
-      if (state.setup !== null && btn.dataset.view === "setup") showView("setup");
+      if (state.setup === null || btn.dataset.view !== "setup") return;
+      app.extract.showView("setup"); // back from the review of a run of it
+      renderToolbar();
+      applyZoom();
     });
   }
 
   return {
     open,
     promptSave,
+    /** Resolves once the changes on their way (an edit sent as a text box lost focus, say) have been made or refused. */
+    settled: () => queue.then(() => {}),
     get current() {
       return state.setup;
     },

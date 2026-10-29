@@ -42,6 +42,11 @@
     <button type="button" class="btn quiet" id="setup-save">Save</button>
     <button type="button" class="btn dark" id="run" disabled>Run on all →</button>
   </div>
+  <div class="tb-right" data-for="extract" data-only="review" hidden>
+    <button type="button" class="btn quiet" id="export-xlsx">Export xlsx</button>
+    <button type="button" class="btn quiet" id="export-parquet">Export Parquet</button>
+    <button type="button" class="btn dark" id="send-fill">Send to fill →</button>
+  </div>
 </div>
 <p class="ai-note" id="ai-note" data-for="fill" hidden>AI is off. To turn it on, set <code>FORMCAST_DEMO_BASE_URL</code>, <code>FORMCAST_DEMO_API_KEY</code> and <code>FORMCAST_DEMO_MODEL</code> (and <code>FORMCAST_DEMO_API_FORMAT</code> if your endpoint uses the Responses API) in <code>.env</code>, then restart the server.</p>
 <div class="notice" id="notice" role="status" aria-live="polite" hidden>
@@ -159,6 +164,54 @@
       </aside>
     </div>
   </div>
+
+  <!-- the review of a run (extract-review.js) -->
+  <div class="view" data-only="review" hidden>
+    <div class="stats" id="stats"></div>
+    <div class="bench">
+      <aside class="col col-schema pane" aria-label="Documents with problems">
+        <p class="label" id="docs-label">Documents with problems</p>
+        <div class="filters">
+          <select class="fc-in" id="filter-path" aria-label="Field"><option value="">Every field</option></select>
+          <select class="fc-in" id="filter-status" aria-label="Problem">
+            <option value="">Every problem</option>
+            <option value="missing">Missing</option>
+            <option value="failed_check">Fails a check</option>
+            <option value="unsure">Unsure</option>
+            <option value="set_aside">Set aside</option>
+          </select>
+        </div>
+        <ul class="docs pane-scroll" id="docs"></ul>
+        <button type="button" class="btn quiet small" id="docs-more" hidden>More</button>
+        <p class="legend" id="docs-legend"></p>
+      </aside>
+
+      <section class="col col-page" aria-label="Document page">
+        <div class="pagebar">
+          <div class="pager"><span id="rdoc-name"></span><span class="page-state" id="rdoc-kind"></span></div>
+          <div class="zoom" id="review-zoom">
+            <button type="button" class="ib" id="rprev-p" aria-label="Previous page">‹</button>
+            <span class="page-of" id="rpage-of">Page 1</span>
+            <button type="button" class="ib" id="rnext-p" aria-label="Next page">›</button>
+            <span class="seg" role="group" aria-label="Fit the page">
+              <button type="button" class="btn quiet small" data-fit="width" aria-pressed="true" title="The page as wide as the column">Fit width</button>
+              <button type="button" class="btn quiet small" data-fit="page" aria-pressed="false" title="The whole page in view">Fit page</button>
+            </span>
+            <button type="button" class="ib" data-step="-1" aria-label="Zoom out">−</button>
+            <button type="button" class="zoom-level" data-level title="Back to fit width">100%</button>
+            <button type="button" class="ib" data-step="1" aria-label="Zoom in">+</button>
+          </div>
+        </div>
+        <div class="stage" id="review-stage"><div class="pg" id="rpage"></div></div>
+        <p class="cap" id="rcap"></p>
+      </section>
+
+      <aside class="col col-side pane" aria-label="Problems in this document">
+        <p class="label" id="problems-label">Problems in this document</p>
+        <div class="pane-scroll" id="problems"></div>
+      </aside>
+    </div>
+  </div>
 </main>
 
 <!-- fill or extract: the way in -->
@@ -176,6 +229,21 @@
       </button>
     </div>
     <p class="msg" id="choose-msg" role="alert" hidden></p>
+    <!-- saved runs and extraction templates to open again (extract-review.js), shown when the server can extract -->
+    <div class="saved" id="saved" hidden>
+      <div class="group" id="saved-runs-group" hidden>
+        <p class="label">Open a saved run</p>
+        <ul class="saved-list" id="saved-runs" aria-label="Saved runs"></ul>
+      </div>
+      <div class="group" id="saved-extractions-group" hidden>
+        <p class="label">Open a saved extraction</p>
+        <ul class="saved-list" id="saved-extractions" aria-label="Saved extraction templates"></ul>
+      </div>
+      <div class="pathrow">
+        <input type="text" class="text" id="run-folder" placeholder="Or a command line run's folder on this machine: /data/runs/2026" aria-label="A command line run's folder on this machine" autocomplete="off" spellcheck="false">
+        <button type="button" class="btn quiet" id="open-run-folder">Open</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -284,6 +352,16 @@
     <ol class="stages" id="build-stages"></ol>
     <p class="readout" id="build-readout" aria-live="polite"></p>
     <div class="row"><button type="button" class="btn quiet" id="build-cancel">Cancel</button></div>
+  </div>
+</div>
+
+<!-- reading every document of the batch with the saved template (extract-review.js) -->
+<div class="overlay" id="running" role="dialog" aria-modal="true" aria-labelledby="running-title" hidden>
+  <div class="sheet">
+    <h2 id="running-title">Reading every document</h2>
+    <ol class="stages" id="run-stages"></ol>
+    <p class="readout" id="run-readout" aria-live="polite"></p>
+    <div class="row"><button type="button" class="btn quiet" id="run-cancel">Cancel</button></div>
   </div>
 </div>
 

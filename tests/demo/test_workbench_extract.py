@@ -6,8 +6,12 @@ it can extract. The Extract modal (``#extract``) takes the batch (files chosen o
 server's machine), the sample, what to extract and how to read it; *Read the sample* builds the template in the
 building panel (``#building``) and hands the setup on (``extract:setup`` on the bus) to the setup screen
 (``.view[data-only=setup]``: the fields and their status across the samples, a sample page with the readers' boxes, the
-field's inspector and its results on each sample), where every change is an edit of the setup on the server. The
-review (Task 9) comes later in this file. The server runs in-process over a throwaway copy of ``demo/data`` (conftest
+field's inspector and its results on each sample), where every change is an edit of the setup on the server. *Run on
+all* saves the template and reads the batch in the run panel (``#running``), then opens the review
+(``.view[data-only=review]``: the run's numbers, its documents with problems or set aside, a document's page with the
+problem's place outlined, a card per problem with its decisions), which exports the run and sends it to fill; the
+choice lists the saved runs and extractions to open again. The server runs in-process over a throwaway copy of
+``demo/data`` (conftest
 ``start_demo_server``), with form maps built without detectors, as in ``test_workbench_page``, whose ``Bench`` drives
 the page here too; a template is built from the five corpus samples of ``test_server_extract`` by ``CorpusModel``
 (gated there as ``GatedModel``), with no detector weights loaded.
@@ -17,20 +21,23 @@ from __future__ import annotations
 
 import base64
 import dataclasses
+import importlib.util
 import io
+import re
 import threading
 import zipfile
 
 import pytest
 from playwright.sync_api import expect
 from test_server_documents import get_json, small_pdf
-from test_server_extract import (
-    SHIFTED, GatedModel, add_files, assert_proven, job_ended, new_batch, sample_set, start_job, zip_of,
+from test_server_extract import (  # noqa: F401 (corpus_files and problem_files are fixtures)
+    PROBLEM_FILES, SHIFTED, GatedModel, add_files, assert_proven, corpus_files, job_ended, new_batch, problem_files,
+    sample_set, start_job, zip_of,
 )
 from test_server_jobs import wait_for
 from test_workbench_page import Bench, bench, no_model_loads, widget_pdf  # noqa: F401 (bench and no_model_loads are fixtures)
 
-from demo.server import extraction
+from demo.server import extract_api, extraction
 from demo.server.api import Api
 from formcast.extract.setup import STAGES
 from tests.extract.corpus import FIELD_RECTS, SHIFT, clients
@@ -562,12 +569,13 @@ def test_a_double_click_on_read_the_sample_starts_one_build(start_demo_server, b
 # ------------------------------------------------------------------ the setup screen
 
 
-def setup_on(base: str, files: list[tuple[str, bytes]] = FILES, **spec) -> dict:
-    """A setup built through the API from a new batch of ``files`` (every one a sample), as the modal builds it."""
+def setup_on(base: str, files: list[tuple[str, bytes]] = FILES, samples: list[int] | None = None, **spec) -> dict:
+    """A setup built through the API from a new batch of ``files`` (``samples`` the sample, else every file), as the
+    modal builds it."""
     batch = new_batch(base, name="Client forms")
     status, _ = add_files(base, batch["id"], files)
     assert status == 200
-    samples = list(range(len(files)))
+    samples = list(range(len(files))) if samples is None else samples
     status, out = start_job(base, {"kind": "extract-setup", "batch": batch["id"], "samples": samples, "spec": {"name": "Client forms", **spec}})
     assert status == 200, out
     job = job_ended(base, out["id"])
@@ -1002,3 +1010,370 @@ def test_a_wording_seen_on_the_samples_is_added_to_the_answers_map_when_asked(st
     assert model.calls == calls  # no model call
     reader = get_json(base, f"/api/setups/{setup['id']}")[1]["template"]["readers"]["investor.country"]
     assert reader["clean"][0]["args"]["values"]["Estados Unidos"] == "US"
+
+
+# ------------------------------------------------------------------ running on the batch, the review, export, fill
+
+#: A run's documents: the five samples, the corpus folder's 22 PDFs (20 client forms and 2 copies of the W-9, which
+#: no template fits) and the three problem copies (``PROBLEM_FILES``: a bad tax ID, none, a country not in the map).
+RUN_TOTAL = 5 + 22 + 3
+
+
+@pytest.fixture
+def run_files(corpus_files, problem_files) -> list[tuple[str, bytes]]:
+    return FILES + corpus_files + problem_files
+
+
+def saved_run(base: str, files: list[tuple[str, bytes]], **spec) -> tuple[dict, str]:
+    """(the setup, its run's id): a setup of the batch ``files`` (its first five the sample) saved as "Client info"
+    and run on the whole batch through the API."""
+    setup = setup_on(base, files, samples=list(range(5)), **spec)
+    status, out = get_json(base, "/api/extractions/Client%20info", "PUT", {"setup": setup["id"]})
+    assert status == 200, out
+    status, out = start_job(base, {"kind": "extract-run", "extraction": "Client info", "batch": setup["batch"]})
+    assert status == 200, out
+    job = job_ended(base, out["id"])
+    assert job["status"] == "done", job
+    return setup, job["result"]["run"]
+
+
+def show_review(b: Bench, run_id: str) -> None:
+    """Open the run's review, as Run on all does once the run is done."""
+    b.page.evaluate("id => window.__workbench.openRun(id)", run_id)
+    expect(b.page.locator('.view[data-only="review"]')).to_be_visible()
+    expect(b.page.locator("#docs li").first).to_be_visible()
+
+
+def stat(b: Bench, key: str):
+    """The number of the review's stat ``key`` (total, complete, with_problems, set_aside, time)."""
+    return b.page.locator(f'#stats .stat[data-stat="{key}"] b')
+
+
+def listed(b: Bench, name: str):
+    """The review list's document ``name``."""
+    return b.page.locator(f'#docs li[data-name="{name}"]')
+
+
+def card(b: Bench, path: str):
+    """The problem card of ``path`` in the document shown."""
+    return b.page.locator(f'#problems .problem[data-path="{path}"]')
+
+
+def problem_doc(base: str, run_id: str, name: str) -> dict:
+    """The document ``name`` of the run's problems, as the API lists it."""
+    documents = get_json(base, f"/api/runs/{run_id}/problems")[1]["documents"]
+    return next(d for d in documents if d["name"] == name)
+
+
+def page_loaded(b: Bench) -> None:
+    b.page.wait_for_function("(() => { const i = document.querySelector('#rpage img'); return i?.complete && i.naturalWidth > 0; })()")
+
+
+def gate_at_three(monkeypatch) -> tuple[threading.Event, threading.Event]:
+    """(reached, go): the run job's reading stops after its third document until ``go`` is set."""
+    reached, go = threading.Event(), threading.Event()
+    real = extract_api.run_batch
+
+    def gated(*args, on_progress, **kwargs):
+        def progress(done, total):
+            on_progress(done, total)
+            if done == 3:
+                reached.set()
+                assert go.wait(30)
+
+        return real(*args, on_progress=progress, **kwargs)
+
+    monkeypatch.setattr(extract_api, "run_batch", gated)
+    return reached, go
+
+
+def test_run_on_all_saves_the_setup_first_reads_every_document_with_its_progress_and_opens_the_review(start_demo_server, bench, run_files, monkeypatch):
+    reached, go = gate_at_three(monkeypatch)
+    base = extract_server(start_demo_server)
+    setup = setup_on(base, run_files, samples=list(range(5)))
+    b = bench(base, fill=False)
+    show_setup(b, setup)
+    started = []
+    b.page.on("request", lambda r: started.append(r.post_data_json) if r.method == "POST" and r.url.endswith("/api/jobs") else None)
+    expect(b.page.locator("#run")).to_be_enabled()
+    b.page.click("#run")
+    expect(b.page.locator("#setup-save-box")).to_be_visible()  # never saved: the name first
+    b.page.fill("#setup-save-name", "Client info")
+    b.page.click("#setup-save-go")
+    expect(b.page.locator("#running")).to_be_visible()
+    assert reached.wait(30)
+    expect(b.page.locator("#run-stages li")).to_have_count(1)
+    expect(b.page.locator("#run-stages li")).to_contain_text("Read every document")
+    expect(b.page.locator("#run-stages li .detail")).to_have_text(f"3 of {RUN_TOTAL}")
+    expect(b.page.locator("#run-readout")).to_have_text(f"3 / {RUN_TOTAL} documents")
+    go.set()
+    expect(b.page.locator('.view[data-only="review"]')).to_be_visible(timeout=60_000)
+    expect(b.page.locator("#running")).to_be_hidden()
+    assert started == [{"kind": "extract-run", "extraction": "Client info", "batch": setup["batch"], "ai": False}]
+    assert [e["name"] for e in get_json(base, "/api/extractions")[1]["extractions"]] == ["Client info"]
+    [entry] = get_json(base, "/api/runs")[1]["runs"]
+    summary = entry["summary"]
+    assert summary["total"] == RUN_TOTAL and summary["with_problems"] == 3 and summary["no_template"] == 2
+    expect(stat(b, "total")).to_have_text(str(RUN_TOTAL))
+    expect(stat(b, "complete")).to_have_text(str(summary["complete"]))
+    expect(stat(b, "with_problems")).to_have_text("3")
+    expect(stat(b, "set_aside")).to_have_text("2")
+    expect(stat(b, "time")).to_have_text(re.compile(r"^\d+:\d\d$"))
+    shown = [int(stat(b, key).inner_text()) for key in ("complete", "with_problems", "set_aside")]
+    assert sum(shown) == RUN_TOTAL
+    expect(b.page.locator("#doc-pick")).to_have_text(f"Client forms · {RUN_TOTAL} documents · Client info")
+
+    views = b.page.locator("#view-pick [data-view]")
+    expect(views.nth(1)).to_have_attribute("aria-pressed", "true")
+    expect(views.nth(0)).to_be_enabled()
+    views.nth(0).click()  # back to the setup it was run from, and to its review again
+    expect(b.page.locator('.view[data-only="setup"]')).to_be_visible()
+    expect(b.page.locator("#run")).to_be_visible()
+    expect(b.page.locator("#doc-pick")).to_contain_text("5 samples")
+    views.nth(1).click()
+    expect(b.page.locator('.view[data-only="review"]')).to_be_visible()
+    expect(b.page.locator("#export-xlsx")).to_be_visible()
+
+
+def test_run_on_all_of_a_saved_setup_asks_no_name_and_a_cancel_opens_what_was_read(start_demo_server, bench, run_files, monkeypatch):
+    reached, go = gate_at_three(monkeypatch)
+    base = extract_server(start_demo_server)
+    setup = setup_on(base, run_files, samples=list(range(5)))
+    b = bench(base, fill=False)
+    show_setup(b, setup)
+    b.page.click("#setup-save")
+    b.page.fill("#setup-save-name", "Client info")
+    b.page.click("#setup-save-go")
+    expect(b.page.locator("#setup-save-box")).to_be_hidden()
+    b.page.click("#run")
+    expect(b.page.locator("#running")).to_be_visible()
+    expect(b.page.locator("#setup-save-box")).to_be_hidden()  # saved and unchanged: no name asked
+    assert reached.wait(30)
+    b.page.click("#run-cancel")
+    expect(b.page.locator("#run-readout")).to_contain_text("Stopping")
+    go.set()
+    expect(b.page.locator('.view[data-only="review"]')).to_be_visible(timeout=60_000)
+    expect(b.page.locator("#notice-text")).to_contain_text(f"stopped after 3 of {RUN_TOTAL} documents")
+    expect(stat(b, "total")).to_have_text("3")
+
+
+def test_run_on_all_right_after_an_edit_asks_for_the_name_again_and_closing_it_starts_nothing(start_demo_server, bench, run_files):
+    base = extract_server(start_demo_server)
+    setup = setup_on(base, run_files, samples=list(range(5)))
+    b = bench(base, fill=False)
+    show_setup(b, setup)
+    b.page.click("#setup-save")
+    b.page.fill("#setup-save-name", "Client info")
+    b.page.click("#setup-save-go")
+    expect(b.page.locator("#setup-save-box")).to_be_hidden()
+    row(b, "investor.tax_id").click()
+    b.page.fill("#ins-title", "Tax ID")
+    b.page.click("#run")  # the title's edit is sent as the click takes the focus: the saved template is out of date
+    expect(b.page.locator("#setup-save-box")).to_be_visible()
+    expect(b.page.locator("#setup-save-name")).to_have_value("Client info")
+    b.page.click("#setup-save-cancel")
+    expect(b.page.locator("#setup-save-box")).to_be_hidden()
+    expect(b.page.locator("#running")).to_be_hidden()
+    assert get_json(base, "/api/runs")[1] == {"runs": []}
+
+
+def test_the_review_lists_the_documents_with_problems_and_filters_them_by_field_problem_or_set_aside(start_demo_server, bench, run_files):
+    base = extract_server(start_demo_server)
+    _, run_id = saved_run(base, run_files)
+    b = bench(base, fill=False)
+    show_review(b, run_id)
+    names = b.page.locator("#docs li .doc-name")
+    expect(b.page.locator("#docs-label")).to_have_text("Documents with problems · 3")
+    expect(names).to_have_text(list(PROBLEM_FILES))
+    expect(listed(b, "no_tin.pdf").locator("small")).to_have_text("1 problem: investor.tax_id")
+    expect(b.page.locator("#docs-legend")).to_have_text("3 of 3 still have problems")
+    expect(b.page.locator("#filter-path option").first).to_have_text("Every field")
+    expect(b.page.locator("#filter-path option[value='investor.tax_id']")).to_have_count(1)
+
+    b.page.select_option("#filter-status", "missing")
+    expect(names).to_have_text(["no_tin.pdf"])
+    expect(b.page.locator("#docs-label")).to_have_text("Documents with problems · 1")
+    expect(card(b, "investor.tax_id")).to_contain_text("Missing")
+    b.page.select_option("#filter-status", "")
+    b.page.select_option("#filter-path", "investor.tax_id")
+    expect(names).to_have_text(["bad_tin.pdf", "no_tin.pdf"])
+
+    b.page.select_option("#filter-status", "set_aside")  # the documents not read, with why, in place of problems
+    expect(b.page.locator("#filter-path")).to_be_disabled()
+    expect(b.page.locator("#docs-label")).to_have_text("Documents set aside · 2")
+    expect(names).to_have_text(["client_00021.pdf", "client_00022.pdf"])
+    expect(listed(b, "client_00021.pdf").locator("small")).to_contain_text("no template fits · closest: Client info, ")
+    expect(b.page.locator("#rdoc-name")).to_have_text("client_00021.pdf")
+    expect(b.page.locator("#problems")).to_contain_text("no template fits")
+    expect(b.page.locator("#problems")).to_contain_text("Extract from PDFs again")
+    page_loaded(b)
+
+
+def test_choosing_a_document_shows_its_page_with_the_problems_place_outlined_and_its_cards(start_demo_server, bench, run_files):
+    base = extract_server(start_demo_server)
+    _, run_id = saved_run(base, run_files)
+    b = bench(base, fill=False)
+    show_review(b, run_id)
+    expect(listed(b, "bad_tin.pdf")).to_have_class(re.compile(r"\bon\b"))  # the first is shown
+    listed(b, "mars.pdf").click()
+    expect(listed(b, "mars.pdf")).to_have_class(re.compile(r"\bon\b"))
+    expect(b.page.locator("#rdoc-name")).to_have_text("mars.pdf")
+    listed(b, "bad_tin.pdf").click()
+    doc = problem_doc(base, run_id, "bad_tin.pdf")
+    [problem] = doc["problems"]
+    assert problem["path"] == "investor.tax_id" and problem["rect"] and problem["page"] == 0
+    img = b.page.locator("#rpage img")
+    expect(img).to_have_attribute("src", re.compile(rf"/api/runs/{run_id}/pages\.png\?doc={re.escape(doc['doc_id'])}&page=0&dpi=\d+$"))
+    page_loaded(b)
+    mark = b.page.locator('#rpage .rmark.is-picked[data-path="investor.tax_id"]')
+    expect(mark).to_be_visible()
+    width_pt = b.page.evaluate("() => { const i = document.querySelector('#rpage img'); return i.naturalWidth * 72 / Number(new URL(i.src).searchParams.get('dpi')); }")
+    box, page = mark.bounding_box(), img.bounding_box()
+    scale = page["width"] / width_pt
+    x0, y0, x1, _ = problem["rect"]
+    assert abs(box["x"] - page["x"] - x0 * scale) < 3 and abs(box["y"] - page["y"] - y0 * scale) < 3
+    assert abs(box["width"] - (x1 - x0) * scale) < 3
+    expect(b.page.locator("#rcap")).to_have_text("The boxes are where each problem field was read, or looked for")
+    c = card(b, "investor.tax_id")
+    expect(c).to_contain_text("Taxpayer ID · Fails a check")
+    expect(c).to_contain_text("Read: 8422-19037")
+    expect(c.locator("input")).to_have_value("8422-19037")
+    expect(c.locator('[data-act="accept"]')).to_be_visible()  # a value was read
+    listed(b, "no_tin.pdf").click()
+    expect(card(b, "investor.tax_id").locator('[data-act="accept"]')).to_have_count(0)  # nothing was read to accept
+    expect(card(b, "investor.tax_id")).to_contain_text("Read: nothing")
+
+    b.page.click("#review-zoom [data-fit='page']")  # the page's zoom, as the setup screen's
+    expect(b.page.locator("#review-zoom [data-fit='page']")).to_have_attribute("aria-pressed", "true")
+    b.page.click("#review-zoom [data-step='1']")
+    expect(b.page.locator("#review-zoom [data-fit='page']")).to_have_attribute("aria-pressed", "false")
+
+
+def test_each_decision_settles_its_card_and_updates_the_stats_and_the_list(start_demo_server, bench, run_files):
+    base = extract_server(start_demo_server)
+    _, run_id = saved_run(base, run_files)
+    b = bench(base, fill=False)
+    show_review(b, run_id)
+    complete = int(stat(b, "complete").inner_text())
+    listed(b, "no_tin.pdf").click()
+    c = card(b, "investor.tax_id")
+    c.locator('[data-act="value"]').click()  # nothing typed: nothing sent
+    expect(c.locator("input")).to_be_focused()
+    c.locator("input").fill("12-3456789")
+    c.locator('[data-act="value"]').click()
+    expect(c.locator(".state")).to_have_text("Value entered: 12-3456789")
+    expect(c.locator("input")).to_have_count(0)
+    expect(stat(b, "with_problems")).to_have_text("2")
+    expect(stat(b, "complete")).to_have_text(str(complete + 1))
+    expect(listed(b, "no_tin.pdf").locator("small")).to_have_text("all settled")
+    expect(b.page.locator("#docs-legend")).to_have_text("2 of 3 still have problems")
+    assert get_json(base, f"/api/runs/{run_id}/problems")[1]["total"] == 2
+
+    listed(b, "bad_tin.pdf").click()
+    card(b, "investor.tax_id").locator('[data-act="accept"]').click()
+    expect(card(b, "investor.tax_id").locator(".state")).to_have_text("Accepted as read: 8422-19037")
+    listed(b, "mars.pdf").click()
+    card(b, "investor.country").locator('[data-act="not_in_document"]').click()
+    expect(card(b, "investor.country").locator(".state")).to_have_text("Marked not in this document")
+    expect(stat(b, "with_problems")).to_have_text("0")
+    expect(b.page.locator("#docs-legend")).to_have_text("0 of 3 still have problems")
+    run = get_json(base, f"/api/runs/{run_id}")[1]
+    assert run["summary"]["with_problems"] == 0
+    assert next(f for f in run["fields"] if f["path"] == "investor.tax_id")["reviewed"] == 2
+
+    b.page.select_option("#filter-status", "missing")  # the list asked again: nothing is left to settle
+    expect(b.page.locator("#docs li")).to_have_text(["No document has a problem of this kind."])
+
+
+def test_export_xlsx_downloads_the_runs_workbook_and_export_parquet_needs_pyarrow(start_demo_server, bench, run_files):
+    import openpyxl
+
+    base = extract_server(start_demo_server)
+    _, run_id = saved_run(base, run_files)
+    b = bench(base, fill=False)
+    show_review(b, run_id)
+    with b.page.expect_download() as download:
+        b.page.click("#export-xlsx")
+    assert download.value.suggested_filename == "Client forms-results.xlsx"
+    book = openpyxl.load_workbook(io.BytesIO(download.value.path().read_bytes()), read_only=True)
+    assert book.sheetnames[0] == "values"
+    assert len(list(book["values"].iter_rows(values_only=True))) == 1 + RUN_TOTAL - 2  # each document read
+    if importlib.util.find_spec("pyarrow") is None:
+        b.page.click("#export-parquet")
+        expect(b.page.locator("#export-parquet")).to_be_hidden()  # the server says it can't: the button goes
+        expect(b.page.locator("#notice-text")).to_contain_text("Parquet isn't available on this server")
+        expect(b.page.locator("#notice-text")).to_contain_text("formcast[parquet]")
+    else:
+        with b.page.expect_download() as download:
+            b.page.click("#export-parquet")
+        assert download.value.suggested_filename == "Client forms-results.zip"
+
+
+def test_send_to_fill_opens_the_start_screen_with_the_runs_results_as_your_data_and_says_what_is_left_blank(start_demo_server, bench, run_files, monkeypatch):
+    base = extract_server(start_demo_server)
+    _, run_id = saved_run(base, run_files)
+    b = bench(base, fill=False)
+    show_review(b, run_id)
+    b.page.click("#send-fill")
+    expect(b.page.locator("#start")).to_be_visible()
+    assert b.page.evaluate("document.body.dataset.mode") == "fill"
+    expect(b.page.locator("#data-given")).to_contain_text("Client forms results")
+    expect(b.page.locator("#notice-text")).to_have_text(
+        "3 documents still have problems; their unsettled fields are left blank, and fill will report them as gaps."
+    )
+    expect(b.page.locator("#form-pick")).to_have_value("")  # an AI-suggested template names no destination
+
+    monkeypatch.setattr(extraction, "MAX_ROWS", 5)  # more documents than a dataset holds: it says so
+    b.page.evaluate("document.getElementById('start').hidden = true")
+    show_review(b, run_id)
+    b.page.click("#send-fill")
+    expect(b.page.locator("#start")).to_be_visible()
+    expect(b.page.locator("#notice-text")).to_have_text(
+        "Only the first 5 documents are in the data, as many as a dataset holds; export the run for every one."
+    )
+
+
+def test_send_to_fill_of_a_run_made_for_a_destination_picks_that_form(start_demo_server, bench):
+    base = extract_server(start_demo_server)
+    _, run_id = saved_run(base, FILES, start="destination", destination="fw9")
+    b = bench(base, fill=False)
+    show_review(b, run_id)
+    b.page.click("#send-fill")
+    expect(b.page.locator("#start")).to_be_visible()
+    expect(b.page.locator("#form-pick")).to_have_value("saved:fw9")
+    expect(b.page.locator("#data-given")).to_contain_text("Client forms results")
+
+
+def test_the_choice_lists_the_saved_runs_and_extractions_and_opens_them_or_a_run_folder_on_the_server(start_demo_server, bench, run_files, tmp_path):
+    base = extract_server(start_demo_server)
+    _, run_id = saved_run(base, run_files)
+    b = bench(base, fill=False)  # the page opened again later: the run is on the server
+    runs = b.page.locator("#saved-runs li")
+    expect(runs).to_have_count(1)
+    expect(runs).to_contain_text(f"Client forms · Client info · {RUN_TOTAL} documents · 3 with problems")
+    expect(b.page.locator("#saved-extractions li")).to_contain_text(["Client info"])
+    runs.first.locator("button").click()
+    expect(b.page.locator("#choose")).to_be_hidden()
+    expect(b.page.locator('.view[data-only="review"]')).to_be_visible()
+    assert b.page.evaluate("document.body.dataset.mode") == "extract"
+    expect(stat(b, "total")).to_have_text(str(RUN_TOTAL))
+    expect(b.page.locator("#docs li .doc-name")).to_have_text(list(PROBLEM_FILES))
+    expect(b.page.locator("#view-pick [data-view='setup']")).to_be_disabled()  # no setup of it is open
+
+    b.page.click("#doc-pick")
+    expect(b.page.locator("#choose")).to_be_visible()
+    b.page.fill("#run-folder", str(tmp_path))  # a folder with no run in it
+    b.page.click("#open-run-folder")
+    expect(b.page.locator("#choose-msg")).to_contain_text("There is no run in that folder")
+    folder = start_demo_server.servers[-1].api.settings.data_dir / "local" / "runs" / run_id  # a run's own folder
+    b.page.fill("#run-folder", str(folder))
+    b.page.click("#open-run-folder")
+    expect(b.page.locator('.view[data-only="review"]')).to_be_visible()
+    expect(b.page.locator("#choose-msg")).to_be_hidden()
+    expect(stat(b, "total")).to_have_text(str(RUN_TOTAL))
+
+    b.page.click("#doc-pick")
+    b.page.locator("#saved-extractions li button").first.click()  # a saved extraction opens on the setup screen
+    expect(b.page.locator('.view[data-only="setup"]')).to_be_visible(timeout=30_000)
+    expect(b.page.locator("#doc-pick")).to_contain_text("Client info")
+    expect(b.page.locator("#run")).to_be_disabled()  # it has no batch to run on

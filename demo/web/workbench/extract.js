@@ -3,7 +3,9 @@
 // extraction mode and opens the Extract modal (#extract), offered only when the server can extract (the engine has
 // `extract`). The toolbar's name button of either mode (#doc-name filling, #doc-pick extracting) brings the choice
 // back, and so do the start screen's Back while no form is open and the Extract modal's Back. A message the choice
-// opens with (#choose-msg: the setup screen's "no longer on the server") goes once a choice is made.
+// opens with (#choose-msg: the setup screen's "no longer on the server") goes once a choice is made. Under the two
+// choices the review (extract-review.js) lists the saved runs and extraction templates to open again (`onShow`).
+// `showView(name)` shows one of extraction's views (the setup screen, the review) with its toolbar part.
 //
 // The mode is `body[data-mode]`, "fill" or "extract": the parts of the page that belong to one mode carry
 // `data-for="fill"` or `data-for="extract"`, and extract.css shows only the current mode's (its toolbar groups, its
@@ -55,8 +57,10 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
  * @param {object} app see workbench.js
- * @returns {{show: () => void, setMode: (mode: "fill" | "extract") => void, openModal: (setupInfo?: object) => void,
- *   openSetup?: (setup: object) => void}}
+ * @returns {{show: () => void, setMode: (mode: "fill" | "extract") => void, showView: (name: string | null) => void,
+ *   openModal: (setupInfo?: object) => void, openSetup?: (setup: object, opts?: object) => void, onShow: () => void,
+ *   linked: () => boolean}} `onShow` and `linked` are set by the review (extract-review.js): what the choice lists
+ *   each time it is shown, and whether the setup and the run on screen belong together
  */
 export function mountExtract(app) {
   const { $, bus, engine } = app;
@@ -69,6 +73,7 @@ export function mountExtract(app) {
   /** Show the choice (the caller has closed the overlay it came from: one overlay is open at a time). */
   function show() {
     choose.hidden = false;
+    api.onShow();
   }
 
   /** Switch the page to filling or extracting. */
@@ -78,7 +83,23 @@ export function mountExtract(app) {
     bus.emit("mode", { mode });
   }
 
-  const api = { show, setMode, openModal: () => {} };
+  /**
+   * Show the extraction view `name` ("setup" or "review", null for none) with its toolbar part. The view buttons
+   * (#view-pick) press the one shown; the other is open to the person only when `linked()` says the setup and the run
+   * on screen belong together (the run was read with that setup's template).
+   */
+  function showView(name) {
+    for (const el of document.querySelectorAll("#extract-views [data-only], #toolbar [data-only]")) el.hidden = el.dataset.only !== name;
+    $("extract-empty").hidden = name !== null;
+    $("view-pick").hidden = name === null;
+    const linked = api.linked();
+    for (const btn of $("view-pick").querySelectorAll("[data-view]")) {
+      btn.setAttribute("aria-pressed", String(btn.dataset.view === name));
+      btn.disabled = btn.dataset.view !== name && !linked;
+    }
+  }
+
+  const api = { show, setMode, showView, openModal: () => {}, onShow: () => {}, linked: () => false };
 
   fill.addEventListener("click", () => {
     app.say($("choose-msg"), ""); // a message the choice was shown with goes with the choice made

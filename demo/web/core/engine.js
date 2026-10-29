@@ -16,8 +16,8 @@ export const OPTIONAL_METHODS = Object.freeze(["detect", "build", "revise", "mat
 export const EXTRACT_METHODS = Object.freeze([
   "createBatch", "addFiles", "batch", "files", "pickSample", "pageUrl",
   "startSetup", "setup", "reopen", "edit", "learn", "marks", "samplePageUrl", "startLine",
-  "save", "list", "remove",
-  "startRun", "runs", "openRun", "run", "problems", "setAside", "decide", "runPageUrl", "exportUrl", "toData",
+  "save", "list", "extraction", "remove",
+  "startRun", "runs", "openRun", "run", "problems", "setAside", "decide", "runPageUrl", "exportUrl", "exportRun", "toData",
 ]);  // prettier-ignore
 
 /** Optional method groups: the group's name -> the methods it must hold. */

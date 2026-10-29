@@ -43,8 +43,9 @@
 // request passes the server's body limit, and skips and names a file over a lower limit the server has, `batch`,
 // `files`, `pickSample`, `pageUrl`), a setup built from a sample of
 // it (`startSetup` and `startLine` are jobs; `setup`, `reopen` of a saved extraction template, `edit`, `learn`,
-// `marks`, `samplePageUrl`), the saved extraction templates (`save`, `list`, `remove`) and runs (`startRun` is a job;
-// `runs`, `openRun`, `run`, `problems`, `setAside`, `decide`, `runPageUrl`, `exportUrl`, `toData`). They are the
+// `marks`, `samplePageUrl`), the saved extraction templates (`save`, `list`, `extraction`, `remove`) and runs
+// (`startRun` is a job; `runs`, `openRun`, `run`, `problems`, `setAside`, `decide`, `runPageUrl`, `exportUrl`,
+// `exportRun`, which downloads the export, `toData`). They are the
 // server's routes (demo/server/extract_api.py) one for one, and fail with EngineError as every call does: a setup or
 // run the server no longer has (it restarted) is `not_found`, an edit while a line job runs on the setup
 // `busy_setup`, and so on.
@@ -146,6 +147,12 @@ function recordBody(record, recordRef) {
   return { record: record ?? {} };
 }
 
+/** The file name a Content-Disposition header gives (`attachment; filename="a b.xlsx"`), or "download". */
+function attachmentName(header) {
+  const m = /filename="([^"]*)"/.exec(header ?? "") ?? /filename=([^;\s]+)/.exec(header ?? "");
+  return m?.[1] || "download";
+}
+
 /**
  * Create the server engine; fetches the server's capabilities first (rejects with an EngineError
  * when the server can't be reached).
@@ -165,9 +172,10 @@ export async function createServerEngine({
 
   /**
    * One request: `json` is sent as the JSON body, `form` as a multipart body. Returns the parsed
-   * JSON of a 2xx; throws EngineError otherwise.
+   * JSON of a 2xx (with `file`, the body as `{bytes, type, filename}`, the name from its
+   * Content-Disposition); throws EngineError otherwise.
    */
-  async function call(method, path, { json, form, timeout = timeoutMs } = {}) {
+  async function call(method, path, { json, form, timeout = timeoutMs, file = false } = {}) {
     const init = { method, signal: AbortSignal.timeout(timeout), headers: {} };
     if (json !== undefined) {
       init.body = JSON.stringify(json);
@@ -179,6 +187,10 @@ export async function createServerEngine({
     let text;
     try {
       res = await fetchImpl(`${root}${path}`, init);
+      if (file && res.ok) {
+        const bytes = new Uint8Array(await res.arrayBuffer());
+        return { bytes, type: res.headers.get("Content-Type") ?? "", filename: attachmentName(res.headers.get("Content-Disposition")) };
+      }
       text = await res.text();
     } catch (e) {
       if (e?.name === "TimeoutError" || e?.name === "AbortError") throw new EngineError("timeout", MESSAGES.timeout);
@@ -386,6 +398,8 @@ export async function createServerEngine({
       save: (name, setupId) => call("PUT", savedPath(name), { json: { setup: setupId } }),
       /** The saved extraction templates: `[{name, template_id, fields, samples, updated}]`. */
       list: async () => (await call("GET", "/api/extractions")).extractions,
+      /** The saved extraction template `name` (its `setup.destination` names the fill template it was made for). */
+      extraction: async (name) => (await call("GET", savedPath(name))).template,
       /** @returns {Promise<string>} the deleted name */
       remove: async (name) => (await call("DELETE", savedPath(name), { json: {} })).name,
 
@@ -424,6 +438,13 @@ export async function createServerEngine({
       runPageUrl: (id, docId, page, dpi = DEFAULT_DPI) => `${root}${runPath(id)}/pages.png${query({ doc: docId, page, dpi: Math.round(dpi) })}`,
       /** The URL that downloads the run's results: `xlsx`, or a zip of the `parquet` or `csv` files. */
       exportUrl: (id, format = "xlsx") => `${root}${runPath(id)}/export${query({ format })}`,
+      /**
+       * The run's results downloaded: `{bytes, type, filename}` (the .xlsx, or a zip of the Parquet or CSV files). A
+       * format whose extra the server lacks (Parquet without pyarrow) rejects with code `not_supported`.
+       * @param {string} id
+       * @param {"xlsx" | "parquet" | "csv"} [format]
+       */
+      exportRun: (id, format = "xlsx") => call("GET", `${runPath(id)}/export${query({ format })}`, { file: true, timeout: formMapTimeoutMs }),
       /** The run's read documents as a dataset for the fill flow: `{dataset, truncated, with_problems}`. */
       toData: (id) => call("POST", `${runPath(id)}/to-data`, { json: {}, timeout: formMapTimeoutMs }),
     };

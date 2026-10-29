@@ -15,7 +15,9 @@
 // A field's schema says how it is checked (`checksOf`) and its reader how it is found (`readFrom`), each as lines of
 // plain words; `fieldSchema` finds a concrete path's schema node. A batch (`batchLine`, `stripCells`, `batchNote`) is
 // told by its scan: how many of its PDFs are copies of its largest layout, the rest being set aside for another
-// template.
+// template. A run's review says its numbers (`runStats`, `runTime`), each document's open problems (`docLine`) or why
+// it was set aside (`asideLine`), a decision made (`decisionText`), a saved run in a line (`runLine`) and what Send to
+// fill warns of first (`sendNotice`).
 
 /** Items a repeated group has when its schema gives no `maxItems`, as the library gives it (formcast.extract.model). */
 const DEFAULT_ITEMS = 4;
@@ -259,6 +261,90 @@ export function rowProof(row, proof) {
  */
 export function problemLabel(status) {
   return PROBLEM_LABELS[status] ?? status;
+}
+
+/** Seconds as the review's run time: m:ss, or h:mm:ss from an hour. */
+export function runTime(seconds) {
+  const total = Math.round(Number(seconds) || 0);
+  const two = (n) => String(n).padStart(2, "0");
+  const [h, m, s] = [Math.floor(total / 3600), Math.floor((total % 3600) / 60), total % 60];
+  return h > 0 ? `${h}:${two(m)}:${two(s)}` : `${m}:${two(s)}`;
+}
+
+/**
+ * The review's numbers from a run's summary: its documents, the complete ones, the ones with problems, the ones set
+ * aside (no template fits, unreadable, or an internal error: not read) and the run time.
+ * @param {{total: number, complete: number, with_problems: number, no_template: number, unreadable: number,
+ *   internal_errors: number, seconds: number}} summary a RunSummary
+ * @returns {{key: string, value: string, label: string}[]}
+ */
+export function runStats(summary) {
+  const aside = (summary.no_template ?? 0) + (summary.unreadable ?? 0) + (summary.internal_errors ?? 0);
+  return [
+    { key: "total", value: number(summary.total), label: "Documents" },
+    { key: "complete", value: number(summary.complete), label: "Complete" },
+    { key: "with_problems", value: number(summary.with_problems), label: "With problems" },
+    { key: "set_aside", value: number(aside), label: "Set aside" },
+    { key: "time", value: runTime(summary.seconds), label: "Run time" },
+  ];
+}
+
+/**
+ * A listed document's line: its problems not yet settled, two by path and more as the first and a count; or "all
+ * settled".
+ * @param {{path: string}[]} problems the document's problems
+ * @param {Set<string>} [settled] the paths decided in this review
+ * @returns {string}
+ */
+export function docLine(problems, settled = new Set()) {
+  const open = problems.filter((p) => !settled.has(p.path)).map((p) => p.path);
+  if (open.length === 0) return "all settled";
+  const which = open.length > 2 ? `${open[0]} +${open.length - 1} others` : open.join(", ");
+  return `${plural(open.length, "problem")}: ${which}`;
+}
+
+/** Why a document was set aside, with the closest template and its score when there is one. */
+export function asideLine(doc) {
+  if (!doc.closest_template) return doc.reason;
+  return `${doc.reason} · closest: ${doc.closest_template}, ${Math.round((doc.closest_score ?? 0) * 100)}%`;
+}
+
+/**
+ * What a review decision settled, as its card says it.
+ * @param {"value" | "accept" | "not_in_document"} decision
+ * @param {unknown} [value] the value typed, or the one accepted
+ * @returns {string}
+ */
+export function decisionText(decision, value) {
+  if (decision === "value") return `Value entered: ${shown(value)}`;
+  if (decision === "accept") return `Accepted as read: ${shown(value)}`;
+  return "Marked not in this document";
+}
+
+/** A saved run in one line: its name, its template, its documents and how many still have problems. */
+export function runLine(run) {
+  const s = run.summary ?? {};
+  const problems = s.with_problems ? `${number(s.with_problems)} with problems` : "no problems";
+  return [run.name, run.extraction, plural(s.total ?? 0, "document"), problems].join(" · ");
+}
+
+/**
+ * What Send to fill says first (ruling P13): the documents that still have problems, whose unsettled fields are gaps,
+ * and a dataset cut short (`truncated`); "" when neither.
+ * @param {{dataset: {rows: number}, truncated: boolean, with_problems: number}} sent the run's `toData`
+ * @returns {string}
+ */
+export function sendNotice(sent) {
+  const parts = [];
+  const n = sent.with_problems ?? 0;
+  if (n > 0) {
+    const [has, its] = n === 1 ? ["has", "its"] : ["have", "their"];
+    parts.push(`${plural(n, "document")} still ${has} problems; ${its} unsettled fields are left blank, and fill will report them as gaps.`);
+  }
+  if (sent.truncated) {
+    parts.push(`Only the first ${number(sent.dataset?.rows)} documents are in the data, as many as a dataset holds; export the run for every one.`);
+  }
+  return parts.join(" ");
 }
 
 /** Bytes as the batch line gives them: MB from one, else KB. */

@@ -586,6 +586,33 @@ test("the run calls: list, open a folder, problems and set-aside paged, decision
   assert.deepEqual(await engine.extract.toData(RUN_ID), { dataset: { id: "d", name: "r results" }, truncated: false, with_problems: 3 });
 });
 
+test("exportRun downloads the run's file with its name and type, and a refusal rejects with its code", async () => {
+  const xlsx = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  const { engine, fetch } = await engineWith({
+    "GET /api/capabilities": json(200, EXTRACT_CAPS),
+    [`GET /api/runs/${RUN_ID}/export?format=xlsx`]: new Response(new Uint8Array([80, 75, 3, 4]), {
+      status: 200,
+      headers: { "Content-Type": xlsx, "Content-Disposition": 'attachment; filename="Client forms-results.xlsx"' },
+    }),
+    [`GET /api/runs/${RUN_ID}/export?format=parquet`]: json(400, { error: "not_supported", detail: "Parquet export needs pyarrow: pip install formcast[parquet]" }),
+  });
+  const file = await engine.extract.exportRun(RUN_ID, "xlsx");
+  assert.deepEqual([...file.bytes], [80, 75, 3, 4]);
+  assert.equal(file.type, xlsx);
+  assert.equal(file.filename, "Client forms-results.xlsx");
+  assert.equal(fetch.calls.at(-1).method, "GET");
+  await assert.rejects(engine.extract.exportRun(RUN_ID, "parquet"), (e) => e instanceof EngineError && e.code === "not_supported" && /pyarrow/.test(e.message));
+});
+
+test("extraction reads a saved extraction template by name", async () => {
+  const template = { name: "Client info", setup: { destination: "fw9" } };
+  const { engine } = await engineWith({
+    "GET /api/capabilities": json(200, EXTRACT_CAPS),
+    "GET /api/extractions/Client%20info": json(200, { template }),
+  });
+  assert.deepEqual(await engine.extract.extraction("Client info"), template);
+});
+
 test("an extraction call the server refuses rejects with its code, as every engine call does", async () => {
   const { engine } = await engineWith({
     "GET /api/capabilities": json(200, EXTRACT_CAPS),

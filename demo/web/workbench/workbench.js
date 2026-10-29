@@ -3,7 +3,8 @@
 // shared parts, renders on the session's events, and hands the overlays to their modules: the
 // choice of Fill or Extract the page opens on and the page's mode (extract.js), the start screen and
 // match prompt (start.js), AI jobs and area revise (jobs.js), the fill drawer (fill.js), saving to
-// the store (save.js) and extraction's setup screen (extract-setup.js), which call back through `app`.
+// the store (save.js), extraction's setup screen (extract-setup.js) and its runs and their review
+// (extract-review.js), which call back through `app`.
 //
 // Rendering under latency. Every edit is a round trip to the server, and the session runs edits one
 // at a time. Redrawing the page's boxes when one edit lands would put a box the person has since
@@ -20,7 +21,8 @@
 // the start screen's `showStart({dataset, form})` (as an extraction run's Send to fill calls it), the
 // Extract modal's `openExtract(setupInfo)` (as the setup screen's "Change the setup" calls it), the
 // setup screen's `openSetup(setup)` (as a build hands a setup on) and whether it has no change on its
-// way (`setupIdle`), and the bus's `on(type, fn)`.
+// way (`setupIdle`), the review's `openRun(id)` (as Run on all opens a run once it is read), and the
+// bus's `on(type, fn)`.
 
 import { createBus } from "../core/bus.js";
 import { makeView, viewSize } from "../core/geometry.js";
@@ -32,6 +34,7 @@ import { schemaPathsOf } from "../core/schema.js";
 import { SchemaList, fieldWarnings } from "../core/schemalist.js";
 import { createSession } from "../core/session.js";
 import { POLL_MS, createServerEngine } from "../engines/server/client.js";
+import { mountReview } from "./extract-review.js";
 import { mountSetup } from "./extract-setup.js";
 import { mountExtract } from "./extract.js";
 import { mountFill } from "./fill.js";
@@ -387,7 +390,7 @@ addEventListener("resize", () => {
 
 // ------------------------------------------------------------------ overlays are modal
 
-// While an overlay (choose, start, match, job, save, extract, building) is open, everything else on
+// While an overlay (choose, start, match, job, save, extract, building, running) is open, everything else on
 // the page is inert: no focus, no clicks, no keys reach the boxes behind it. Focus moves into the overlay, Tab cycles
 // inside it, and focus goes back to where it was when the last overlay closes.
 const overlays = [...document.querySelectorAll(".overlay")];
@@ -476,6 +479,7 @@ if (LOCAL) {
     showStart: (opts) => app.start.showStart(opts),
     openExtract: (setupInfo) => app.extract.openModal(setupInfo),
     openSetup: (setup) => app.extract.openSetup(setup),
+    openRun: (id) => app.review.openRun(id),
     get setupIdle() {
       return app.setup?.idle ?? true;
     },
@@ -492,6 +496,7 @@ app.extract = mountExtract(app);
 if (engine.extract) {
   app.setup = mountSetup(app);
   app.extract.openSetup = app.setup.open; // a template built in the Extract modal opens here
+  app.review = mountReview(app);
 }
 app.pages = mountPages(app);
 syncModal();
