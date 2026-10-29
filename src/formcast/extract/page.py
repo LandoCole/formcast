@@ -30,7 +30,7 @@ import numpy as np
 import pymupdf
 
 from formcast.geometry import Rect, area, intersect
-from formcast.pagemap.extract import PDF_LOCK, extract_page, open_pdf
+from formcast.pagemap.extract import PDF_LOCK, extract_page, open_pdf, page_size
 from formcast.pagemap.model import Word
 
 #: Marks that stand for "checked" when typed or drawn as text in a check box.
@@ -271,6 +271,19 @@ class DocText:
         """
         text = self._page(page)
         return list(text.words) if text else []
+
+    def lines(self, page: int) -> list[tuple[str, Rect]]:
+        """The page's text lines as ``(text, rect)``, top to bottom, made of the words :meth:`words` keeps.
+
+        A page the document does not have gives ``[]``.
+        """
+        text = self._page(page)
+        return [(ln.text, ln.rect) for ln in text.lines] if text else []
+
+    def page_sizes(self) -> list[tuple[float, float]]:
+        """Width and height of every page's unrotated crop box, in points."""
+        with PDF_LOCK:
+            return [page_size(p) for p in self._doc]
 
     # ----------------------------------------------------------------- labels
 

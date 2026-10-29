@@ -255,6 +255,16 @@ def _ink_part(a: FormSignature, b: FormSignature) -> float:
     return total / max(len(a.ink), len(b.ink))
 
 
+def signature_similarity(a: FormSignature, b: FormSignature) -> float:
+    """How alike two forms' text and ink are, 0 to 1: the mean of the text part and the ink part.
+
+    A side with no text layer leaves the text part out, so the ink part stands alone. Page counts and sizes are
+    not compared (``similarity`` does that and weighs the parts differently).
+    """
+    text, ink = _text_part(a, b), _ink_part(a, b)
+    return ink if text is None else (text + ink) / 2
+
+
 def _label_phrases(template: Template) -> set[tuple[str, ...]]:
     """The template's field labels as word pairs (a one-word label is its single word)."""
     phrases: set[tuple[str, ...]] = set()

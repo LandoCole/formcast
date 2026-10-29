@@ -158,6 +158,18 @@ def test_words_come_in_reading_order():
         assert doc.words(5) == [] and doc.words(-1) == []
 
 
+def test_lines_and_page_sizes():
+    with DocText(FLATTENED) as doc:
+        lines = doc.lines(0)
+        assert lines[0][0] == "Client Information Form"
+        assert ("Taxpayer ID:", pytest.approx(doc.find_label(["Taxpayer ID"], 0)[0][1], abs=1.0)) in lines
+        assert [ln[1][1] for ln in lines] == sorted(ln[1][1] for ln in lines)  # top to bottom
+        assert doc.lines(5) == [] and doc.lines(-1) == []
+        assert doc.page_sizes() == [(612.0, 792.0)] * 2
+    with DocText(make_form(CLIENT, kind="flattened", rotate=ROTATE, extra_page=True)) as rotated:
+        assert rotated.page_sizes() == [(612.0, 792.0)] * 3  # unrotated crop-box points
+
+
 def test_a_painted_fillable_value_is_read_once_not_twice():
     painted = make_form(CLIENT, kind="fillable", painted=True)
     with DocText(painted) as doc:

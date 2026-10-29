@@ -349,3 +349,13 @@ def test_matches_fingerprint_checks_the_blind_one_only_when_needed(monkeypatch, 
     blind.clear()
     assert pdf_features(fw9_filled_bytes).matches_fingerprint(fp) and blind == [None, True, None]  # a filled copy needs the blind one (which recurses once on the hidden-values copy)
     assert not pdf_features(FW9).matches_fingerprint(None) and not pdf_features(FW9).matches_fingerprint("0" * 16)
+
+
+def test_signature_similarity_is_one_for_the_same_form_and_low_for_another():
+    from formcast.match import pdf_features, signature_similarity
+
+    fw9, fw4 = pdf_features(FW9).signature, pdf_features(FW4).signature
+    assert signature_similarity(fw9, fw9) == pytest.approx(1.0)
+    assert signature_similarity(fw9, pdf_features(resaved(FW9)).signature) > 0.95
+    assert signature_similarity(fw9, fw4) < 0.3
+    assert signature_similarity(fw9, fw4) == signature_similarity(fw4, fw9)  # symmetric
