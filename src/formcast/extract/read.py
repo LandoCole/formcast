@@ -33,7 +33,9 @@ Then, for every concrete path of the template's schema:
    first one is ``unsure`` (the reason names the first read): two strategies disagreeing is never ``found``.
    A ``choice`` gives the key of the one marked option, nothing when no option is marked, and ``", ".join`` of
    the keys when several are (``"individual, joint"``), which fails with the reason ``"N boxes checked"``: never
-   found, whatever the schema allows.
+   found, whatever the schema allows. On a ``boolean`` path a ``choice`` of exactly one option (a lone check box)
+   reads yes or no: ``true`` when it is marked and ``false`` when not, both found; a widget the document does not
+   have, or a drawn box on an unmatched layout, reads nothing, so a later strategy may still read it.
 3. **Cleaning.** The reader's ``clean`` transforms run on the raw text (``formcast.data.mapping._run``), then the
    value is coerced to the path's schema type (``_coerce``). The raw text is kept beside the value. A value that
    cleans to nothing is ``missing``, with its raw text and a reason. Coercion never turns one number into another
@@ -326,7 +328,7 @@ def _read_path(path: str, reader: Reader | None, ctx: _Context) -> Iterator[_Rea
     skipped: list[_Skip] = []
     read_any = False
     for strategy in reader.strategies:
-        read = _try(strategy, ctx)
+        read = _try(strategy, ctx, yes_no=sp.type == "boolean")
         if isinstance(read, _Skip):
             if read.reason not in (s.reason for s in skipped):
                 skipped.append(read)
@@ -412,9 +414,11 @@ def _at_or_below(location: str, path: str) -> bool:
     return location == path or location.startswith((path + ".", path + "["))
 
 
-def _try(strategy: Strategy, ctx: _Context) -> _Read | _Skip | None:
+def _try(strategy: Strategy, ctx: _Context, *, yes_no: bool = False) -> _Read | _Skip | None:
     """What one strategy reads on the document; ``None`` when it finds no text, a :class:`_Skip` when it could not
-    be trusted to read (a box whose neighbourhood moved) or an answer could not be told from a label."""
+    be trusted to read (a box whose neighbourhood moved) or an answer could not be told from a label.
+
+    ``yes_no`` says the path is a ``boolean``, so a choice of one option reads yes or no (:func:`_choice`)."""
     doc = ctx.doc
     if isinstance(strategy, WidgetRead):
         for name in strategy.names:
@@ -454,7 +458,7 @@ def _try(strategy: Strategy, ctx: _Context) -> _Read | _Skip | None:
         page, text, rect = hits[0]
         doubts = _doubts("phrase", places, ctx)
         return _Read(raw=text.strip(), strategy="phrase", page=page, rect=rect, doubts=doubts)
-    return _choice(strategy, ctx)
+    return _choice(strategy, ctx, yes_no=yes_no)
 
 
 def _cross_check(reads: dict[str, _Read], ctx: _Context) -> None:
@@ -513,15 +517,18 @@ def _doubts(what: str, places: int, ctx: _Context) -> list[str]:
     return doubts
 
 
-def _choice(strategy: ChoiceRead, ctx: _Context) -> _Read | _Skip | None:
+def _choice(strategy: ChoiceRead, ctx: _Context, *, yes_no: bool = False) -> _Read | _Skip | None:
     """The marked option's key; the keys of all marked options, with a reason, when several are.
 
+    With ``yes_no`` (a ``boolean`` path) a choice of exactly one option, a lone check box, reads ``"true"`` when it is
+    marked and ``"false"`` when not; nothing when its widget is not on the document or its drawn box is not looked at.
     Drawn boxes are places on the page, as a box read is: when the layout does not hold around any of them, the
     choice is skipped with :data:`LAYOUT_DIFFERS`.
     """
     drawn = [m for m in strategy.options.values() if m.widget is None]
     if ctx.matched != "none" and not all(ctx.agrees(m.page, m.rect) for m in drawn):  # type: ignore[arg-type]
         return _Skip(LAYOUT_DIFFERS, doubt=True)
+    lone = yes_no and len(strategy.options) == 1
     marked: list[tuple[str, int | None, Rect | None]] = []
     for key, mark in strategy.options.items():
         if mark.widget is not None:
@@ -532,6 +539,8 @@ def _choice(strategy: ChoiceRead, ctx: _Context) -> _Read | _Skip | None:
         else:
             page, rect = mark.page, ctx.moved(mark.page, mark.rect)  # type: ignore[arg-type]
             on = ctx.doc.marked(page, rect)  # type: ignore[arg-type]
+        if lone:
+            return None if on is None else _Read(raw="true" if on else "false", strategy="choice", page=page, rect=rect)
         if on:
             marked.append((key, page, rect))
     if not marked:

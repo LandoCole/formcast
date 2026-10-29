@@ -6,6 +6,7 @@
     apply_edit, SetField, ...         formcast.extract.edit    (a person's edits to a template, with no model call)
     prove, learn_maps, sample_marks   formcast.extract.proof   (the readers checked against the samples' readings)
     read_samples, sample_view, ...    formcast.extract.samples (the sample PDFs read, and what a model sees of them)
+    resolve, ReaderProposal, ...      formcast.extract.readers (a model's reader proposals made readers, by code)
 
 The public names load on first use, as in ``formcast``, so importing one module does not pull in the rest.
 """
@@ -18,6 +19,7 @@ from typing import TYPE_CHECKING, Any
 _LAZY = {
     "AnchorRead": "formcast.extract.model",
     "BoxRead": "formcast.extract.model",
+    "BoxRef": "formcast.extract.readers",
     "ChoiceMark": "formcast.extract.model",
     "ChoiceRead": "formcast.extract.model",
     "DocText": "formcast.extract.page",
@@ -28,11 +30,13 @@ _LAZY = {
     "FieldResult": "formcast.extract.model",
     "Layout": "formcast.extract.model",
     "Mark": "formcast.extract.proof",
+    "OptionProposal": "formcast.extract.readers",
     "MarkAbsent": "formcast.extract.edit",
     "Outcome": "formcast.extract.proof",
     "PhraseRead": "formcast.extract.model",
     "Proof": "formcast.extract.proof",
     "Reader": "formcast.extract.model",
+    "ReaderProposal": "formcast.extract.readers",
     "RemoveField": "formcast.extract.edit",
     "Restore": "formcast.extract.edit",
     "SampleDoc": "formcast.extract.samples",
@@ -57,6 +61,7 @@ _LAZY = {
     "learn_maps": "formcast.extract.proof",
     "prove": "formcast.extract.proof",
     "read_samples": "formcast.extract.samples",
+    "resolve": "formcast.extract.readers",
     "same_value": "formcast.extract.proof",
     "sample_marks": "formcast.extract.proof",
     "sample_images": "formcast.extract.samples",
@@ -76,6 +81,7 @@ if TYPE_CHECKING:
         FieldProof, Mark, Outcome, Proof, SampleProof, learn_maps, prove, same_value, sample_marks,
     )  # fmt: skip
     from formcast.extract.read import extract
+    from formcast.extract.readers import BoxRef, OptionProposal, ReaderProposal, resolve
     from formcast.extract.samples import SampleDoc, SamplePdf, detected_pages, read_samples, sample_images, sample_view
 
 

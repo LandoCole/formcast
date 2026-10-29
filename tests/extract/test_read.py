@@ -10,7 +10,16 @@ import pymupdf
 import pytest
 
 from formcast.extract.layout import LAYOUT_MATCH, layout_score, learn_layout
-from formcast.extract.model import AnchorRead, BoxRead, ExtractionTemplate, Layout, Reader, concrete_paths
+from formcast.extract.model import (
+    AnchorRead,
+    BoxRead,
+    ChoiceMark,
+    ChoiceRead,
+    ExtractionTemplate,
+    Layout,
+    Reader,
+    concrete_paths,
+)
 from formcast.extract.page import DocText
 from formcast.extract.read import extract
 from formcast.match import pdf_features
@@ -641,3 +650,63 @@ def test_other_form_reads_nothing_found(template):
     result = extract(template, other_form())
     assert result.matched == "none" and result.error is None
     assert not any(f.status == "found" for f in result.fields)
+
+
+#: Where the lone check box of :func:`_consent_form` sits.
+CONSENT_BOX = (72.0, 120.0, 84.0, 132.0)
+
+
+def _consent_form(kind: str, on: bool) -> bytes:
+    """A one-page form with one check box: a widget on a fillable copy, a drawn square (an "X" in it when on) else."""
+    doc = pymupdf.open()
+    page = doc.new_page(width=612, height=792)
+    page.insert_text((72, 90), "Consent to electronic delivery", fontsize=14)
+    page.insert_text((90, 130), "I agree to receive statements by email", fontsize=10)
+    page.insert_text((72, 300), "Thank you for your business.", fontsize=10)
+    rect = pymupdf.Rect(*CONSENT_BOX)
+    if kind == "fillable":
+        w = pymupdf.Widget()
+        w.field_name, w.field_type, w.rect, w.field_value = "consent", pymupdf.PDF_WIDGET_TYPE_CHECKBOX, rect, on
+        page.add_widget(w)
+    else:
+        page.draw_rect(rect, width=0.75)
+        if on:
+            page.insert_text((rect.x0 + 2.5, rect.y1 - 2.5), "X", fontsize=10)
+    return doc.tobytes()
+
+
+def _consent_template(template: ExtractionTemplate, type_: str, *strategies) -> ExtractionTemplate:
+    return ExtractionTemplate(
+        template_id="consent", name="consent", form=template.form,
+        schema={"type": "object", "properties": {"consent": {"type": type_}}},
+        layout=learn_layout([], blank=_consent_form("flattened", False)),
+        readers={"consent": Reader(strategies=list(strategies))},
+    )  # fmt: skip
+
+
+@pytest.mark.parametrize("kind", ["fillable", "flattened"])
+@pytest.mark.parametrize("on", [True, False])
+def test_a_lone_check_box_on_a_yes_no_path_reads_true_when_marked_and_false_when_not(template, kind, on):
+    consent = _consent_template(
+        template, "boolean",
+        ChoiceRead(options={"yes": ChoiceMark(widget="consent")}),
+        ChoiceRead(options={"yes": ChoiceMark(page=0, rect=CONSENT_BOX)}),
+    )  # fmt: skip
+    result = extract(consent, _consent_form(kind, on))
+    got = fields(result)["consent"]
+    assert (got.status, got.strategy, got.value, got.reasons) == ("found", "choice", on, [])
+    assert result.record() == {"consent": on}
+    if kind == "flattened":
+        assert result.matched == "layout" and got.page == 0 and got.rect is not None
+
+
+def test_a_lone_check_box_on_a_text_path_still_reads_its_key_or_nothing(template):
+    consent = _consent_template(template, "string", ChoiceRead(options={"yes": ChoiceMark(page=0, rect=CONSENT_BOX)}))
+    assert fields(extract(consent, _consent_form("flattened", True)))["consent"].value == "yes"
+    assert fields(extract(consent, _consent_form("flattened", False)))["consent"].status == "missing"
+
+
+def test_a_lone_check_box_the_document_lacks_reads_nothing_not_false(template):
+    consent = _consent_template(template, "boolean", ChoiceRead(options={"yes": ChoiceMark(widget="consent")}))
+    got = fields(extract(consent, _consent_form("flattened", True)))["consent"]  # a flattened copy has no widget
+    assert (got.status, got.raw) == ("missing", None)
