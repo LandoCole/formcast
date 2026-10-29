@@ -21,10 +21,18 @@ A path is *ready* when it is not absent, no sample disagrees, and at least one s
 readers that agree only on blanks have proven nothing. A path the model was not asked about on a sample counts its
 reading as ``None`` there, and so does a blank reading (``""``).
 
-:func:`learn_maps` takes a wording the model answered with an allowed answer of an ``enum`` path ("United States of
-America" -> ``"US"``) into the reader's ``map`` transform, so the next proof agrees; :func:`sample_marks` gives the
-places on one sample a person edits a reader by (where a value was read, the boxes, labels and options the readers
-look at). None of them calls a model.
+A proof only suggests wordings, it never learns them: for an ``enum`` path, a raw text the readers read on a sample
+that disagrees, which is not an allowed answer where the model read an allowed one ("Estados Unidos" -> ``"US"``),
+is put in the path's :attr:`FieldProof.suggested`, and the outcome stays ``disagree``, so the path is not ready until
+a person accepts the map on the field panel (the spec: the person checks it). A wording is suggested only when every
+sample that has it was read by the model as the same allowed answer, and never when it is printed text of the form
+(its ``label_key`` is a static line's of ``template.layout``, on any page: a box over the title reads the title on
+every copy) or another path's raw text on a sample that has it (a box over the city reads the city's answer). Either
+would map whatever the box happens to cover to one answer, and read every later copy as that answer, found.
+
+:func:`learn_maps` puts exactly the suggested wordings into the readers' ``map`` transforms (the workbench calls it
+when the person accepts them, then proves again); :func:`sample_marks` gives the places on one sample a person edits
+a reader by (where a value was read, the boxes, labels and options the readers look at). None of them calls a model.
 """
 
 from __future__ import annotations
@@ -33,7 +41,7 @@ import hashlib
 import re
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from formcast.data.mapping import Transform, _empty, _generic, _text
 from formcast.errors import FormcastError
@@ -80,12 +88,17 @@ class SampleProof(_Model):
 
 
 class FieldProof(_Model):
-    """One path proven on every sample: whether its readers are ready, and each sample's outcome in order."""
+    """One path proven on every sample: whether its readers are ready, and each sample's outcome in order.
+
+    ``suggested`` maps each wording the readers read to the allowed answer the model read there (raw -> answer), for
+    a person to accept with :func:`learn_maps`; see the module docstring. It never makes the path ready by itself.
+    """
 
     path: str
     ready: bool
     absent: bool
     samples: list[SampleProof]
+    suggested: dict[str, Any] = Field(default_factory=dict)
 
     @property
     def count(self) -> tuple[int, int]:
@@ -202,7 +215,8 @@ def _opinion(sample: SampleRecord, path: str) -> Any:
 def prove(template: ExtractionTemplate, pdfs: list[bytes]) -> Proof:
     """The template's readers proven on its samples: ``pdfs`` are the samples' bytes, in the template's order.
 
-    Every concrete path of the schema gets a :class:`FieldProof`, as the module says. No model is called.
+    Every concrete path of the schema gets a :class:`FieldProof`, as the module says, with the wordings it suggests.
+    No model is called.
 
     Raises:
         FormcastError: when ``pdfs`` are not the template's samples (another count, or a file whose sha256 is not
@@ -218,6 +232,8 @@ def prove(template: ExtractionTemplate, pdfs: list[bytes]) -> Proof:
 
     schema = template.schema_
     schema_paths = flatten_schema(schema)
+    printed = {label_key(line.text) for line in template.layout.lines}
+    raws = [_raw_paths(by_path) for by_path in results]
     fields: list[FieldProof] = []
     for path in concrete_paths(schema):
         absent = path in template.absent
@@ -232,8 +248,22 @@ def prove(template: ExtractionTemplate, pdfs: list[bytes]) -> Proof:
         ready = (
             not absent and "disagree" not in outcomes and any(o in ("agree", "failed_check") for o in outcomes)
         )
-        fields.append(FieldProof(path=path, ready=ready, absent=absent, samples=samples))
+        suggested: dict[str, Any] = {}
+        if not absent and reader is not None and sp.type == "enum" and sp.enum:
+            refused = [printed | {key for key, at in r.items() if at - {path}} for r in raws]
+            suggested = _wordings(samples, sp.enum, refused)
+        fields.append(FieldProof(path=path, ready=ready, absent=absent, samples=samples, suggested=suggested))
     return Proof(fields=fields, ready=sum(f.ready for f in fields), total=sum(not f.absent for f in fields))
+
+
+def _raw_paths(by_path: dict[str, FieldResult]) -> dict[str, set[str]]:
+    """Each raw text one sample's reads have (by ``label_key``) -> the paths that read it."""
+    out: dict[str, set[str]] = {}
+    for path, read in by_path.items():
+        key = label_key(read.raw or "")
+        if key:
+            out.setdefault(key, set()).add(path)
+    return out
 
 
 # ------------------------------------------------------------- learning maps
@@ -247,47 +277,50 @@ def _allowed(value: Any, enum: list[str]) -> str | None:
     return next((answer for answer in enum if answer.casefold() == key), None)
 
 
-def _wordings(field: FieldProof, enum: list[str]) -> dict[str, str]:
+def _wordings(samples: list[SampleProof], enum: list[str], refused: list[set[str]]) -> dict[str, str]:
     """Each raw text the readers read that is not an allowed answer -> the allowed answer the model read there.
 
-    A wording is learned only when every sample that has it was read by the model as the same allowed answer.
+    A wording is suggested only when a sample that has it disagrees, every sample that has it was read by the model
+    as the same allowed answer, and on no sample is its ``label_key`` in that sample's ``refused`` keys (the form's
+    printed lines, and the other paths' raw texts there).
     """
     seen: dict[str, str] = {}  # casefolded raw -> the raw as first read
     answers: dict[str, set[str | None]] = {}
-    for s in field.samples:
+    wanted: set[str] = set()
+    banned: set[str] = set()
+    for s, refuse in zip(samples, refused):
         raw = s.read.raw
         if raw is None or not raw.strip() or _allowed(raw, enum) is not None:
             continue
         key = raw.strip().casefold()
         seen.setdefault(key, raw.strip())
         answers.setdefault(key, set()).add(_allowed(s.opinion, enum))
-    learned: dict[str, str] = {}
+        if s.outcome == "disagree":
+            wanted.add(key)
+        if label_key(raw) in refuse:
+            banned.add(key)
+    suggested: dict[str, str] = {}
     for key, got in answers.items():
         answer = got.pop() if len(got) == 1 else None
-        if answer is not None:
-            learned[seen[key]] = answer
-    return learned
+        if answer is not None and key in wanted and key not in banned:
+            suggested[seen[key]] = answer
+    return suggested
 
 
 def learn_maps(template: ExtractionTemplate, proof: Proof) -> ExtractionTemplate:
-    """A copy of ``template`` whose ``enum`` readers map each wording the model answered with an allowed answer.
+    """A copy of ``template`` whose readers map the wordings ``proof`` suggests (:attr:`FieldProof.suggested`).
 
-    For every path of ``proof`` whose schema has an ``enum``, a raw text the readers read on a sample that is not an
-    allowed answer, where the model read an allowed one, is added to the reader's ``map`` transform (raw -> answer;
-    case-insensitive, as ``map`` is). The map is the reader's first clean step, so it sees the raw text: one is put
-    first when the first step is not a map. A wording the model read as different answers on different samples is
-    not learned. No model is called.
+    The workbench calls it when a person accepts the suggestions, then proves again. Each suggested wording is added
+    to its path's reader's ``map`` transform (raw -> answer; case-insensitive, as ``map`` is, replacing an entry of
+    the same wording). The map is the reader's first clean step, so it sees the raw text: one is put first when the
+    first step is not a map. A path that is absent or has no reader is left alone. No model is called.
     """
-    schema_paths: list[SchemaPath] = flatten_schema(template.schema_)
     out = template.model_copy(deep=True)
     for field in proof.fields:
         reader = out.readers.get(field.path)
         if field.absent or reader is None:
             continue
-        sp = resolve(schema_paths, _generic(field.path)[0])
-        if sp.type != "enum" or not sp.enum:
-            continue
-        learned = _wordings(field, sp.enum)
+        learned = dict(field.suggested)
         if not learned:
             continue
         clean = list(reader.clean)

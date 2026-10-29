@@ -15,8 +15,9 @@ ends (``done``, or ``skipped``):
                              and every other path is marked absent ("not on this form")
     readers   the layout learned from the samples; the model proposes how to read every path that is not
               absent, and ``resolve`` keeps only what the samples have
-    check     the model reads every sample (its opinion, kept in the template's samples), the readers are proven
-              against those readings, wordings of an enum's answers are learned into maps, and the proof is redone
+    check     the model reads every sample (its opinion, kept in the template's samples) and the readers are
+              proven against those readings once; the wordings of an enum's answers the proof suggests
+              (``FieldProof.suggested``) are left for the person to accept with ``learn_maps``
 
 These two functions (and ``ai_pass``) are the only ones of :mod:`formcast.extract` that call a model; the template
 they give reads every later document, and is re-proven after each edit, with no model call. Every call goes
@@ -46,7 +47,7 @@ from formcast.errors import FormcastError
 from formcast.extract.ask import _generic, fields_from_lines, fields_on_form, propose_readers, read_values
 from formcast.extract.layout import learn_layout
 from formcast.extract.model import ExtractionTemplate, SampleRecord, SetupInfo, concrete_paths
-from formcast.extract.proof import Proof, _check_samples, learn_maps, prove
+from formcast.extract.proof import Proof, _check_samples, prove
 from formcast.extract.readers import ReaderProposal, resolve
 from formcast.extract.samples import Detect, SampleDoc, SamplePdf, _detect, _read
 from formcast.llm import LLMConfig, Provider, Usage, make_provider
@@ -213,7 +214,7 @@ def build_setup(
             template_id=spec.template_id or _template_id(spec.name), name=spec.name, schema=schema, form=form,
             layout=layout, readers=readers, absent=absent, setup=setup, samples=_records(docs, opinions),
         )  # fmt: skip
-        template, proof = _proven(template, docs)
+        proof = prove(template, [d.pdf for d in docs])
         emit("check", "done", f"{proof.ready} of {proof.total} fields ready")
     return SetupResult(template, proof, docs, usage, warnings)
 
@@ -293,7 +294,7 @@ def add_line(
             "samples": records,
         }
     )
-    built, proof = _proven(built, samples)
+    proof = prove(built, [d.pdf for d in samples])
     return SetupResult(built, proof, samples, usage, warnings)
 
 
@@ -345,16 +346,6 @@ def _records(docs: list[SampleDoc], opinions: list[dict[str, Any]]) -> list[Samp
         SampleRecord(file=doc.file, sha256=hashlib.sha256(doc.pdf).hexdigest(), opinion=opinion)
         for doc, opinion in zip(docs, opinions)
     ]
-
-
-def _proven(template: ExtractionTemplate, docs: list[SampleDoc]) -> tuple[ExtractionTemplate, Proof]:
-    """``template`` with the maps the proof teaches (:func:`~formcast.extract.proof.learn_maps`), and its proof."""
-    pdfs = [d.pdf for d in docs]
-    proof = prove(template, pdfs)
-    learned = learn_maps(template, proof)
-    if learned != template:
-        proof = prove(learned, pdfs)
-    return learned, proof
 
 
 def _unproposed(paths: list[str], proposals: list[ReaderProposal]) -> list[str]:

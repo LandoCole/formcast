@@ -11,7 +11,7 @@ import formcast.extract.setup as setup_mod
 from formcast.errors import FormcastError, SessionCancelled
 from formcast.extract.model import concrete_paths
 from formcast.extract.prompts import READERS_SYSTEM
-from formcast.extract.proof import Proof
+from formcast.extract.proof import Proof, learn_maps, prove
 from formcast.extract.read import extract
 from formcast.extract.samples import SamplePdf
 from formcast.extract.setup import MAX_SAMPLES, STAGES, SetupSpec, StageEvent, add_line, build_setup
@@ -179,6 +179,30 @@ def test_a_path_the_model_proposes_nothing_for_is_warned_of_and_gets_no_reader(f
     assert "wire.account" not in r.template.readers
     account = next(f for f in r.proof.fields if f.path == "wire.account")
     assert not account.ready  # the model read an account on every sample, and no reader did
+
+
+class Unmapped(CorpusModel):
+    """The corpus model, but its proposal for ``investor.country`` has no clean steps (no map of the wordings)."""
+
+    def complete(self, messages, tools, **kwargs):
+        reply = super().complete(messages, tools, **kwargs)
+        if messages[0].content != READERS_SYSTEM:
+            return reply
+        answer = json.loads(reply.text)
+        for r in answer["readers"]:
+            if r["path"] == "investor.country":
+                r.pop("clean", None)
+        return LLMResponse(text=json.dumps(answer), tool_calls=[], usage=reply.usage, raw={})
+
+
+def test_a_build_only_suggests_the_wordings_it_saw_and_learn_maps_applies_them_when_accepted(five_samples):
+    r = build_setup(five_samples.pdfs, SetupSpec(name="x"), Unmapped(five_samples.clients), **NO_DETECTORS)
+    assert r.template.readers["investor.country"].clean == []  # nothing learned behind the person's back
+    country = next(f for f in r.proof.fields if f.path == "investor.country")
+    assert not country.ready and country.suggested == {"Canada": "CA", "United States": "US"}
+    accepted = learn_maps(r.template, r.proof)
+    assert next(f for f in prove(accepted, [p.pdf for p in five_samples.pdfs]).fields
+                if f.path == "investor.country").ready  # fmt: skip
 
 
 def test_a_model_config_opens_one_provider_for_the_whole_build_and_closes_it(monkeypatch, five_samples):

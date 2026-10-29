@@ -7,8 +7,9 @@ import pytest
 
 from formcast.data.mapping import Transform
 from formcast.errors import FormcastError
-from formcast.extract.model import SampleRecord
+from formcast.extract.model import BoxRead, Reader, SampleRecord
 from formcast.extract.proof import learn_maps, prove, same_value, sample_marks
+from formcast.extract.read import extract
 from tests.extract.corpus import FIELD_RECTS, INVESTOR_TYPES, TYPE_BOXES, clients, hand_template, make_form, truth
 
 
@@ -132,17 +133,25 @@ def test_prove_refuses_pdfs_that_are_not_the_templates_samples():
         prove(t, pdfs)
 
 
-def test_learn_maps_adds_a_wording_the_model_answered_with_an_allowed_answer():
+def _country(proof):
+    return next(f for f in proof.fields if f.path == "investor.country")
+
+
+def test_a_wording_the_model_answered_with_an_allowed_answer_is_suggested_and_learned_only_on_request():
     # printed as it is (Client.country is free text); the hand map lacks it, and no later strategy reads it otherwise
     # ("United States of America" would not do: the Country label's read stops at "United States", which maps to US)
     p = dataclasses.replace(clients(1, seed=7)[0], country="Estados Unidos")
     pdf = make_form(p, kind="fillable")
     t = _with_samples(hand_template(), [pdf], [{**truth(p), "investor.country": "US"}])
-    before = next(f for f in prove(t, [pdf]).fields if f.path == "investor.country")
-    assert before.samples[0].outcome in ("disagree", "failed_check")
-    learned = learn_maps(t, prove(t, [pdf]))
-    after = next(f for f in prove(learned, [pdf]).fields if f.path == "investor.country")
-    assert after.samples[0].outcome == "agree" and after.samples[0].read.value == "US"
+    proof = prove(t, [pdf])
+    before = _country(proof)
+    assert before.samples[0].outcome == "disagree" and not before.ready  # a suggestion changes no outcome
+    assert before.suggested == {"Estados Unidos": "US"}
+    assert all(not f.suggested for f in proof.fields if f.path != "investor.country")
+    learned = learn_maps(t, proof)
+    after = _country(prove(learned, [pdf]))
+    assert after.samples[0].outcome == "agree" and after.samples[0].read.value == "US" and after.ready
+    assert after.suggested == {}  # the samples agree now: nothing more to suggest
     assert t.readers["investor.country"].clean[0].args["values"].get("Estados Unidos") is None  # a copy
 
 
@@ -153,10 +162,52 @@ def test_learn_maps_puts_a_map_first_when_the_reader_has_none_and_learns_nothing
     t.readers["investor.country"].clean = []
     contradicting = _with_samples(t, pdfs, [{**truth(people[0]), "investor.country": "US"},
                                             {**truth(people[1]), "investor.country": "CA"}])  # fmt: skip
-    assert learn_maps(contradicting, prove(contradicting, pdfs)).readers["investor.country"].clean == []
+    proof = prove(contradicting, pdfs)
+    assert _country(proof).suggested == {}
+    assert learn_maps(contradicting, proof).readers["investor.country"].clean == []
     one = _with_samples(t, pdfs[:1], [{**truth(people[0]), "investor.country": "US"}])
     clean = learn_maps(one, prove(one, pdfs[:1])).readers["investor.country"].clean
     assert [(c.op, c.args) for c in clean] == [("map", {"values": {"America": "US"}})]
+
+
+def test_a_box_over_the_forms_printed_title_is_never_suggested_as_a_wording_and_never_proves_ready():
+    # a misplaced box reads the title on every sample, where the model read "US": mapping the title to "US" would
+    # make the field ready and read every later copy, a Canadian client's too, as found "US"
+    t = hand_template()
+    title = t.layout.lines[0]
+    t.readers["investor.country"] = Reader(strategies=[BoxRead(page=title.page, rect=title.rect)])
+    people = [dataclasses.replace(c, country="United States") for c in clients(4, seed=7)]
+    pdfs = [make_form(c, kind=k) for c, k in zip(people, ("fillable", "flattened", "fillable", "flattened"))]
+    t = _with_samples(t, pdfs, [truth(c) for c in people])
+    proof = prove(t, pdfs)
+    field = _country(proof)
+    assert field.samples[0].read.raw == "Client Information Form"
+    assert [s.outcome for s in field.samples] == ["disagree"] * 4 and not field.ready
+    assert field.suggested == {}
+    learned = learn_maps(t, proof)
+    assert learned == t and not _country(prove(learned, pdfs)).ready
+    canadian = dataclasses.replace(clients(1, seed=99)[0], country="Canada")
+    got = next(f for f in extract(learned, make_form(canadian, kind="flattened")).fields
+               if f.path == "investor.country")  # fmt: skip
+    assert not (got.status == "found" and got.value == "US"), got
+
+
+def test_a_raw_text_that_is_another_paths_raw_text_on_the_sample_is_never_suggested():
+    # a box over the city line reads each sample's city, state and ZIP, each read as "US" by the model; it is the
+    # address's answer, not a wording of the country
+    t = hand_template()
+    t.readers["investor.country"] = Reader(strategies=[BoxRead(page=0, rect=FIELD_RECTS["address_2"])])
+    cities = ("Madison, WI 53703", "Austin, TX 78701", "Denver, CO 80202")
+    people = [dataclasses.replace(c, country="United States", city_state_zip=city)
+              for c, city in zip(clients(3, seed=7), cities)]  # fmt: skip
+    pdfs = [make_form(c, kind="flattened") for c in people]
+    t = _with_samples(t, pdfs, [truth(c) for c in people])
+    proof = prove(t, pdfs)
+    field = _country(proof)
+    raws = [s.read.raw for s in field.samples]
+    assert raws == [c.city_state_zip for c in people] and len(set(raws)) == 3
+    assert [s.outcome for s in field.samples] == ["disagree"] * 3
+    assert field.suggested == {} and learn_maps(t, proof) == t
 
 
 def test_sample_marks_give_the_read_place_and_the_editable_boxes():
