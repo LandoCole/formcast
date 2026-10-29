@@ -8,6 +8,7 @@ import pymupdf
 import pytest
 
 from formcast.errors import FormcastError
+from formcast.extract import batch
 from formcast.extract.batch import (
     ReviewDecision,
     Results,
@@ -18,6 +19,7 @@ from formcast.extract.batch import (
 )
 from formcast.extract.layout import LAYOUT_MATCH, learn_layout
 from formcast.match import fingerprint
+from tests.extract import crashing
 from tests.extract.conftest import write_corpus
 from tests.extract.corpus import OWNER_ROWS, clients, hand_template, make_form, other_form
 
@@ -170,6 +172,31 @@ def test_an_unreadable_file_is_recorded_and_the_run_goes_on(tmp_path):
         "closest_template": None, "closest_score": None,
     }  # fmt: skip
     assert [row["doc_id"] for row in results.rows()] == ["good.pdf"]
+
+
+def test_a_file_that_kills_its_worker_is_recorded_and_the_run_goes_on(tmp_path, monkeypatch):
+    folder = tmp_path / "in"
+    folder.mkdir()
+    names = [f"{c}.pdf" for c in "abcdefghij"]  # more than the 8 in flight, so the run goes on in a new pool
+    for name, client in zip(names, clients(len(names))):
+        (folder / name).write_bytes(make_form(client, kind="fillable"))
+    monkeypatch.setattr(batch, "_work", crashing.work)
+    out = tmp_path / "out"
+    seen: list[tuple[int, int]] = []
+    summary = run_batch(
+        [hand_template()], [folder / n for n in names], out, workers=2, on_progress=lambda d, t: seen.append((d, t))
+    )
+    assert (summary.total, summary.unreadable) == (10, 1)
+    assert seen == [(n, 10) for n in range(1, 11)]
+    rows = lines(out / "results.jsonl")
+    assert sorted(r["doc_id"] for r in rows) == names  # every file once
+    by_id = {r["doc_id"]: r for r in rows}
+    assert (by_id[crashing.CRASH_ON]["error"], by_id[crashing.CRASH_ON]["fields"]) == (batch.CRASHED, [])
+    assert all(r["error"] is None and r["fields"] for d, r in by_id.items() if d != crashing.CRASH_ON)
+
+    seen.clear()
+    run_batch([hand_template()], [folder / n for n in names], out, workers=2, on_progress=lambda d, t: seen.append(1))
+    assert seen == [] and len(lines(out / "results.jsonl")) == 10  # the resume does not meet the crash again
 
 
 def test_a_resume_with_other_templates_or_another_root_is_refused(tmp_path):

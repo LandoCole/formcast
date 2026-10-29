@@ -23,12 +23,15 @@ a template gives "internal error: ..." (R18), also recorded, never raised.
 them and hands both, with the match routing found, to ``read._extract_open``, the body of ``extract``. The PDF is
 not opened, fingerprinted or layout-scored a second time; ``extract()`` itself is unchanged.
 
-**Workers.** ``workers=0`` is ``os.cpu_count()``; with one worker (or one document left to read) documents are read
-in this process. Otherwise a ``ProcessPoolExecutor`` of the platform's default start method (spawn on macOS) gets
-the templates once per worker, as JSON through its initializer (plain data, no pickling of pydantic models), and
-returns each result already as its JSON line, which this process writes as it is. At most four documents per
-worker are in flight, so memory stays flat however long the list. A worker process that dies (MuPDF crashing on a
-file) stops the run with a ``FormcastError`` naming the documents in flight; everything written is kept.
+**Workers.** ``workers=0`` is ``os.cpu_count()``; with ``workers=1`` documents are read in this process (no crash
+isolation: a file that crashes MuPDF ends the run). Otherwise a ``ProcessPoolExecutor`` of the platform's default
+start method (spawn on macOS) gets the templates once per worker, as JSON through its initializer (plain data, no
+pickling of pydantic models), and returns each result already as its JSON line, which this process writes as it is.
+At most four documents per worker are in flight, so memory stays flat however long the list. When a worker process
+dies (MuPDF crashing on a file), every document then in flight is read again alone, one at a time in a one-worker
+pool; the one that kills that worker too is recorded as unreadable with ``"cannot read PDF: the reader crashed"``
+and no fields, and the run goes on in a new pool (Ruling R22). So a resume never meets the crashing file again.
+A document that hangs still stalls its worker: there is no per-document timeout.
 
 **Document ids.** ``doc_id`` is the file's path relative to ``root``, with ``/`` separators (``"sub/a.pdf"``);
 ``root`` defaults to the common parent of the paths, is stored in ``run.json``, and a resumed run keeps it (a
@@ -61,6 +64,7 @@ import json
 import os
 import re
 import time
+from collections import deque
 from collections.abc import Callable, Iterable, Iterator
 from concurrent.futures import FIRST_COMPLETED, Future, ProcessPoolExecutor, wait
 from concurrent.futures.process import BrokenProcessPool
@@ -84,6 +88,8 @@ PROBLEMS: tuple[Status, ...] = ("missing", "failed_check", "unsure")
 #: The start of the error of a document no template fits.
 NO_TEMPLATE = "no template fits"
 _NO_TEMPLATE = re.compile(r"no template fits \(closest: (.*), (\d+\.\d+)\)", re.DOTALL)
+#: The error of a document whose reading killed the worker process, read alone as well (Ruling R22).
+CRASHED = "cannot read PDF: the reader crashed"
 #: Documents handed to each worker ahead of the one it is reading.
 _AHEAD = 4
 _ITEM = re.compile(r"\[(\d+)\](\.)?")
@@ -213,34 +219,67 @@ def _work(file: str, doc_id: str) -> str:
     return _line(_TEMPLATES, file, doc_id)
 
 
+def _pool(workers: int, payload: str) -> ProcessPoolExecutor:
+    return ProcessPoolExecutor(max_workers=workers, initializer=_start_worker, initargs=(payload,))
+
+
 def _read_all(templates: list[ExtractionTemplate], todo: list[tuple[str, str]], workers: int) -> Iterator[str]:
-    """Each ``(doc_id, file)`` of ``todo`` read, as result lines, in the order they finish."""
-    count = min(workers or os.cpu_count() or 1, len(todo))
-    if count <= 1:
+    """Each ``(doc_id, file)`` of ``todo`` read, as result lines, in the order they finish.
+
+    When a worker process dies, every document in flight is read again on its own (:func:`_read_alone`) and the
+    rest of ``todo`` goes on in a new pool.
+    """
+    workers = workers or os.cpu_count() or 1
+    if workers == 1:
         for doc_id, file in todo:
             yield _line(templates, file, doc_id)
         return
     payload = json.dumps([t.model_dump(mode="json", by_alias=True) for t in templates])
-    pool = ProcessPoolExecutor(max_workers=count, initializer=_start_worker, initargs=(payload,))
-    queue = iter(todo)
-    pending: dict[Future[str], str] = {}
+    queue = deque(todo)
+    while queue:  # one pool until the queue is done or the pool breaks
+        count = min(workers, len(queue))
+        pool = _pool(count, payload)
+        pending: dict[Future[str], tuple[str, str]] = {}  # future -> (doc_id, file)
+        broken = False
+        try:
+            while not broken:
+                while len(pending) < count * _AHEAD and queue:
+                    item = queue.popleft()
+                    pending[pool.submit(_work, item[1], item[0])] = item
+                if not pending:
+                    return
+                finished, _ = wait(pending, return_when=FIRST_COMPLETED)
+                for future in finished:
+                    if isinstance(future.exception(), BrokenProcessPool):
+                        broken = True  # kept in pending: one of these documents killed its worker
+                        continue
+                    del pending[future]
+                    yield future.result()
+        finally:
+            pool.shutdown(wait=True, cancel_futures=True)
+        # every document still pending was in flight when the pool broke (a finished one was yielded above)
+        yield from _read_alone(payload, list(pending.values()))
+
+
+def _read_alone(payload: str, suspects: list[tuple[str, str]]) -> Iterator[str]:
+    """Each suspect read alone in a one-worker pool; one that kills that worker too is recorded as crashed.
+
+    A new one-worker pool is started after each crash, so every suspect is read on its own by a live worker.
+    """
+    pool: ProcessPoolExecutor | None = None
     try:
-        while True:
-            while len(pending) < count * _AHEAD and (item := next(queue, None)) is not None:
-                pending[pool.submit(_work, item[1], item[0])] = item[0]
-            if not pending:
-                return
-            finished, _ = wait(pending, return_when=FIRST_COMPLETED)
-            for future in finished:
-                del pending[future]
-                yield future.result()
-    except BrokenProcessPool as exc:
-        names = ", ".join(sorted(pending.values()))
-        raise FormcastError(
-            f"a worker process died while reading one of: {names}; the results so far are kept, run again to resume"
-        ) from exc
+        for doc_id, file in suspects:
+            pool = pool or _pool(1, payload)
+            try:
+                line = pool.submit(_work, file, doc_id).result()
+            except BrokenProcessPool:
+                pool.shutdown(wait=True)
+                pool = None
+                line = _failed(None, CRASHED, b"", doc_id, file, now()).model_dump_json()
+            yield line
     finally:
-        pool.shutdown(wait=True, cancel_futures=True)
+        if pool is not None:
+            pool.shutdown(wait=True)
 
 
 # ------------------------------------------------------------------- the run
@@ -263,7 +302,7 @@ def run_batch(
 
     Raises:
         FormcastError: no templates; ``out_dir`` holds a run with other templates or another root; a path outside
-            the run's root; a line of ``results.jsonl`` before its last that is not a record; a worker process died.
+            the run's root; a line of ``results.jsonl`` before its last that is not a record.
     """
     started = time.perf_counter()
     if not templates:
