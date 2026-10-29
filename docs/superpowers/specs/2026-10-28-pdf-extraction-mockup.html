@@ -763,7 +763,10 @@ function renderSetup() {
 function renderReview() {
   $("docs").innerHTML = DOCS.map((d, i) => {
     const open = d.problems.filter((p) => !state.decided[`${i}:${p[0]}`]);
-    const text = open.length ? `${open.length} problem${open.length === 1 ? "" : "s"}: ${open.map((p) => fieldOf(p[0]).path).join(", ")}` : "all settled";
+    // two problems are named; more than two name the first and count the rest
+    const names = open.map((p) => fieldOf(p[0]).path);
+    const which = names.length > 2 ? `${names[0]} +${names.length - 1} others` : names.join(", ");
+    const text = open.length ? `${open.length} problem${open.length === 1 ? "" : "s"}: ${which}` : "all settled";
     return `<li class="${i === state.doc ? "on" : ""}" data-i="${i}">${esc(d.file)}<small>${esc(text)}</small></li>`;
   }).join("");
   $("docs").querySelectorAll("li").forEach((li) => li.addEventListener("click", () => { state.doc = +li.dataset.i; render(); }));
