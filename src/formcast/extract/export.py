@@ -15,6 +15,11 @@ The export has four parts, the same in every format:
 * ``set_aside``: one row per failed document with ``reason`` (``no template fits`` or why it could not be read),
   ``closest_template`` and ``closest_score``. A failed document is never a row of ``values`` or ``status``.
 
+``export(..., names={doc_id: name})`` adds a ``name`` column after ``doc_id`` to ``values``, ``status`` and
+``set_aside``, in every format: the name a person knows each document by (the workbench's uploads are stored by
+number, so their ``doc_id`` is ``3.pdf``), or the ``doc_id`` itself for a document the map does not name. A field
+whose column would be ``name`` is then refused as a document column.
+
 xlsx is one workbook with a sheet per part; Parquet and CSV are a folder with ``values``, ``status``, ``fields`` and
 ``set_aside`` files. Column order follows the schema: top-level fields in schema order, and the outermost repeated
 group item by item (``owners_1_name``, ``owners_1_percent``, ``owners_2_name`` ...), as ``concrete_paths`` gives
@@ -37,7 +42,6 @@ from __future__ import annotations
 import csv
 import importlib
 import json
-import re
 from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
 from typing import Any, Literal
@@ -52,6 +56,8 @@ ExportFormat = Literal["xlsx", "parquet", "csv"]
 #: The columns of the ``fields`` part and of the ``set_aside`` part.
 FIELD_COLUMNS = ("column", "path", "title", "definition", "type", "checks")
 SET_ASIDE_COLUMNS = ("doc_id", "file", "reason", "closest_template", "closest_score")
+#: The column ``export(names=...)`` adds after ``doc_id``: the name a person knows each document by.
+NAME_COLUMN = "name"
 
 _FORMATS = ("xlsx", "parquet", "csv")
 _PARTS = ("values", "status", "fields", "set_aside")
@@ -166,13 +172,15 @@ def _template_columns(template: ExtractionTemplate) -> list[tuple[str, str, Sche
     return [(column_name(path), path, generic[path]) for path in concrete_paths(schema)]
 
 
-def _columns_and_fields(templates: Sequence[ExtractionTemplate]) -> tuple[list[str], list[dict]]:
-    """The value columns (document columns, then each template's) and one ``fields`` row per schema column."""
-    columns = list(_DOC_COLUMNS)
+def _columns_and_fields(
+    templates: Sequence[ExtractionTemplate], doc_columns: Sequence[str] = _DOC_COLUMNS
+) -> tuple[list[str], list[dict]]:
+    """The value columns (``doc_columns``, then each template's) and one ``fields`` row per schema column."""
+    columns = list(doc_columns)
     fields: dict[str, dict] = {}
     for template in templates:
         for column, path, sp in _template_columns(template):
-            if column in _DOC_COLUMNS:
+            if column in doc_columns:
                 raise FormcastError(
                     f"{template.template_id}: {path!r} would make a column named {column!r}, which is a document "
                     "column of the export; rename the path in the template"
@@ -195,6 +203,19 @@ def _columns_and_fields(templates: Sequence[ExtractionTemplate]) -> tuple[list[s
 
 
 # ---------------------------------------------------------------------- rows
+
+
+def _named(columns: Sequence[str]) -> tuple[str, ...]:
+    """``columns`` with ``name`` after ``doc_id``."""
+    return (columns[0], NAME_COLUMN, *columns[1:])
+
+
+def _with_names(rows: Iterable[dict], names: dict[str, str]) -> Iterator[dict]:
+    """Each row with its document's name (its ``doc_id`` when ``names`` has none) after ``doc_id``."""
+    for row in rows:
+        doc_id = row["doc_id"]
+        rest = {k: v for k, v in row.items() if k != "doc_id"}
+        yield {"doc_id": doc_id, NAME_COLUMN: names.get(doc_id, doc_id), **rest}
 
 
 def _checked(rows: Iterable[dict], columns: Sequence[str], part: str) -> Iterator[dict]:
@@ -293,14 +314,17 @@ def export(
     out: str | Path,
     *,
     format: ExportFormat,
+    names: dict[str, str] | None = None,
 ) -> list[Path]:
     """Write ``results`` to ``out`` (see the module): a workbook for ``"xlsx"``, a folder for ``"parquet"`` or
     ``"csv"``. Files already there are replaced. ``templates`` are the templates the run used; they give the
-    column order and the field definitions. Returns the files written.
+    column order and the field definitions. ``names`` (``doc_id`` -> the name a person knows the document by) adds
+    a ``name`` column after ``doc_id`` to ``values``, ``status`` and ``set_aside``. Returns the files written.
 
     Raises:
         FormcastError: ``format`` is not one of the three, the extra it needs is not installed, a template's
-            column is a document column or clashes with another template's, ``out`` is a file where a folder
+            column is a document column (``name`` too, with ``names``) or clashes with another template's, ``out`` is
+            a file where a folder
             is needed, or a document has columns that none of ``templates`` has.
     """
     if format not in _FORMATS:
@@ -312,12 +336,16 @@ def export(
         pa = _need("pyarrow", "Parquet", "parquet")
         pq = _need("pyarrow.parquet", "Parquet", "parquet")
     target = Path(out)
-    columns, fields = _columns_and_fields(templates)
+    doc_columns = _named(_DOC_COLUMNS) if names is not None else _DOC_COLUMNS
+    columns, fields = _columns_and_fields(templates, doc_columns)
+    rows, status_rows, aside = results.rows(), results.status_rows(), results.set_aside()
+    if names is not None:
+        rows, status_rows, aside = (_with_names(part, names) for part in (rows, status_rows, aside))
     parts: dict[str, tuple[Sequence[str], Iterable[dict]]] = {
-        "values": (columns, _checked(results.rows(), columns, "values")),
-        "status": (columns, _checked(results.status_rows(), columns, "status")),
+        "values": (columns, _checked(rows, columns, "values")),
+        "status": (columns, _checked(status_rows, columns, "status")),
         "fields": (FIELD_COLUMNS, fields),
-        "set_aside": (SET_ASIDE_COLUMNS, results.set_aside()),
+        "set_aside": (_named(SET_ASIDE_COLUMNS) if names is not None else SET_ASIDE_COLUMNS, aside),
     }
     if format == "xlsx":
         target.parent.mkdir(parents=True, exist_ok=True)

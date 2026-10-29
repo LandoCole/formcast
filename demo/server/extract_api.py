@@ -74,7 +74,7 @@ Runs (``api.runs``):
     POST /api/runs/{r}/decisions     {doc_id, path, decision, value?} -> Run
     GET  /api/runs/{r}/pages.png?doc=&page=&dpi=                    -> image/png (a page of a document of the run)
     GET  /api/runs/{r}/export?format=xlsx|parquet|csv               -> the .xlsx, or a .zip of the Parquet or CSV files
-    POST /api/runs/{r}/to-data                                      -> {dataset: Dataset.summary(), truncated}
+    POST /api/runs/{r}/to-data                                      -> {dataset: Dataset.summary(), truncated, with_problems}
 
     Run     = {id, name, extraction, summary: RunSummary, fields: [{path, title, found, missing, failed_check, unsure,
                reviewed, not_on_form}], seconds}
@@ -93,13 +93,17 @@ needs no model. A run takes one job at a time: another ``extract-run`` of it mea
 of ``missing``, ``failed_check`` and ``unsure``. A document's ``name`` is its file's name in the batch (a command
 line run's: its path in its folder), a problem's ``title`` its field's title in the schema. A decision is a
 ``ReviewDecision``; one the library refuses is 400 ``bad_decision`` with its message. A page image is of a document
-of the run only, read from its file (404 for any other ``doc``). The export is ``formcast.extract.export``'s,
-written to a temporary folder in ``<data>/local/runs`` and sent as
+of the run only, read from its file (404 for any other ``doc``). The export is ``formcast.extract.export``'s
+(``Run.export``) with a ``name`` column after ``doc_id``: each document's shown name. An uploaded document's
+``file`` is its shown name too, not the server's numbered copy of it; a folder batch's documents keep their own
+paths in the folder the person named. It is written to a temporary folder in ``<data>/local/runs`` and sent as
 ``Content-Disposition: attachment; filename="<run name>-results.xlsx"`` (or ``.zip``); a format whose extra is not
 installed (Parquet needs ``pyarrow``) is 400 ``not_supported`` with the library's message. ``to-data`` makes the
-read documents a dataset (``api.datasets``): a column per schema path the template reads, a row per document with
-its values as review left them, the first ``MAX_ROWS`` when there are more (``truncated``); columns named by
-schema path let the fill flow map it to a destination of those paths directly.
+read documents a dataset (``api.datasets``): a column per schema path the template reads, a row per document, the
+first ``MAX_ROWS`` when there are more (``truncated``). A cell holds only a ``found`` value (AI answers and
+decisions applied: a value typed or accepted in review is found), so a field still ``missing``, ``failed_check``
+or ``unsure`` is a gap the fill reports, never a value nobody trusted; ``with_problems`` counts the rows that still
+have such a field. Columns named by schema path let the fill flow map it to a destination of those paths directly.
 
 ``POST /api/runs {folder}`` opens a ``python -m formcast.extract run`` output folder (403 ``not_allowed`` when
 ``settings.folder_scan`` is off): each template its ``run.json`` names must be saved here, unchanged, else 400
@@ -154,7 +158,6 @@ from formcast import FormcastError, SessionCancelled
 from formcast.extract.aipass import ai_pass
 from formcast.extract.batch import INTERNAL_ERROR, Results, ReviewDecision, run_batch
 from formcast.extract.edit import Edit
-from formcast.extract.export import export
 from formcast.extract.model import concrete_paths
 from formcast.extract.proof import prove
 from formcast.extract.samples import SamplePdf, read_samples
@@ -637,7 +640,7 @@ def _start_run(api: Api, payload: dict) -> dict:
 
     def runner(job: Job) -> None:
         try:
-            job.set_result(run=run.id, done=0, total=len(names))
+            job.set_result(run=run.id, done=run.read_count(names), total=len(names))  # a resumed run starts where it was
             run.set_names(names)
             job.stage(READ_STAGE[0], "running")
 
@@ -649,14 +652,15 @@ def _start_run(api: Api, payload: dict) -> dict:
                 templates, paths, run.out_dir, root=root, workers=workers, on_progress=progress,
                 should_stop=lambda: job.cancel_requested,
             )  # fmt: skip
-            if job.cancel_requested:  # the documents read so far are kept; a run of the batch again resumes
-                job.set_result(summary=run.summary()["summary"])
-                raise SessionCancelled("cancelled")
+            _stop_if_cancelled(job)  # the documents read so far are kept; a run of the batch again resumes
             job.set_result(done=len(names))
             job.stage(READ_STAGE[0], "done", f"{len(names):,} documents")
             if ai:
                 _ask_the_ai(api, job, run)
             job.set_result(summary=run.summary()["summary"])
+        except SessionCancelled:  # in either stage: the result still says where the run stands
+            job.set_result(summary=run.summary()["summary"])
+            raise
         finally:
             run.release()
 
@@ -829,13 +833,13 @@ def export_run(api: Api, req: Request) -> Response:
     fmt = req.query.get("format", "xlsx")
     if fmt not in EXPORT_NEEDS:
         raise ApiError(400, "bad_request", "format must be xlsx, parquet or csv")
-    results = _results(run)
-    results.check_templates(run.templates)
     api.runs.root.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=".export-", dir=api.runs.root) as tmp:
         target = Path(tmp) / f"results.{fmt}" if fmt == "xlsx" else Path(tmp) / "results"
         try:
-            written = export(results, run.templates, target, format=fmt)
+            written = run.export(target, fmt, api.batches.root)
+        except RunNotStarted as exc:
+            raise ApiError(409, "not_started", str(exc)) from None
         except FormcastError as exc:
             if importlib.util.find_spec(EXPORT_NEEDS[fmt]) is None:  # the library names the extra to install
                 raise ApiError(400, "not_supported", str(exc)) from None
@@ -858,13 +862,14 @@ def _download_name(name: str) -> str:
 
 
 def run_to_data(api: Api, req: Request) -> dict:
-    """The run's documents read become a dataset for the fill flow -> ``{dataset: summary, truncated}``."""
+    """The run's documents read become a dataset for the fill flow -> ``{dataset: summary, truncated, with_problems}``."""
     run = _run(api, req)
     try:
-        table = run.table()
+        table, with_problems = run.table()
     except RunNotStarted as exc:
         raise ApiError(409, "not_started", str(exc)) from None
-    return {"dataset": api.datasets.add_table(table).summary(), "truncated": table.truncated}
+    dataset = api.datasets.add_table(table).summary()
+    return {"dataset": dataset, "truncated": table.truncated, "with_problems": with_problems}
 
 
 def _first_error(exc: pydantic.ValidationError) -> str:

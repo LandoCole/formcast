@@ -47,7 +47,7 @@ from formcast.extract import samples as samples_mod
 from formcast.extract.batch import run_batch
 from formcast.extract.model import ExtractionTemplate, SampleRecord, concrete_paths
 from formcast.extract.proof import Proof, prove
-from formcast.extract.prompts import FIELDS_SYSTEM
+from formcast.extract.prompts import FIELDS_SYSTEM, VALUES_SYSTEM
 from formcast.extract.samples import SamplePdf
 from formcast.extract.setup import STAGES
 from formcast.pagemap.build import DetectPolicy
@@ -1329,7 +1329,16 @@ def test_a_run_exports_as_a_workbook_or_a_zip_of_csv_files(reviewed):
     assert headers["content-disposition"] == 'attachment; filename="Client forms-results.xlsx"'
     book = openpyxl.load_workbook(io.BytesIO(body), read_only=True)
     assert "values" in book.sheetnames
-    assert len(list(book["values"].iter_rows(values_only=True))) == 1 + 23  # the header, then each document read
+    values = list(book["values"].iter_rows(values_only=True))
+    assert len(values) == 1 + 23  # the header, then each document read
+    assert list(values[0][:3]) == ["doc_id", "name", "file"]
+    shown = {row[1] for row in values[1:]}
+    assert set(PROBLEM_FILES) <= shown and "client_00001.pdf" in shown  # the uploaded files' own names
+    assert all(row[2] == row[1] for row in values[1:])  # an uploaded batch's file is its name, not where it is stored
+    aside = list(book["set_aside"].iter_rows(values_only=True))
+    assert list(aside[0][:3]) == ["doc_id", "name", "file"] and [row[1] for row in aside[1:]] == ["client_00021.pdf", "client_00022.pdf"]
+    cells = [str(c) for sheet in book.sheetnames for row in book[sheet].iter_rows(values_only=True) for c in row if c is not None]
+    assert not [c for c in cells if "local/batches" in c or str(r.api.settings.data_dir) in c]  # no data-dir path
     status, headers, body = http_request(r.base, "GET", f"/api/runs/{run_id}/export?format=csv")
     assert status == 200 and headers["content-type"] == "application/zip"
     assert headers["content-disposition"] == 'attachment; filename="Client forms-results.zip"'
@@ -1352,11 +1361,8 @@ def test_a_parquet_export_is_a_zip_or_not_supported_without_pyarrow(reviewed):
         assert "values.parquet" in zipfile.ZipFile(io.BytesIO(body)).namelist()
 
 
-def test_a_run_sent_to_fill_is_a_dataset_of_the_read_documents_by_schema_path(reviewed):
+def test_a_run_sent_to_fill_is_a_dataset_of_the_found_values_of_the_read_documents_by_schema_path(reviewed):
     r, run_id = reviewed
-    [doc] = problems_of(r, run_id, "?status=missing")[1]["documents"]
-    decision = {"doc_id": doc["doc_id"], "path": "investor.tax_id", "decision": "value", "value": "12-3456789"}
-    assert get_json(r.base, f"/api/runs/{run_id}/decisions", "POST", decision)[0] == 200
     status, out = get_json(r.base, f"/api/runs/{run_id}/to-data", "POST", {})
     assert status == 200, out
     dataset = out["dataset"]
@@ -1364,9 +1370,19 @@ def test_a_run_sent_to_fill_is_a_dataset_of_the_read_documents_by_schema_path(re
     assert (dataset["name"], dataset["kind"], dataset["format"]) == ("Client forms results", "table", "json")
     assert [c["name"] for c in dataset["columns"]] == read_fields(r.template)
     assert dataset["rows"] == 23  # every document read; the two set aside are not rows
-    api_dataset = r.api.datasets.get(dataset["id"])
-    assert "12-3456789" in [row["investor.tax_id"] for row in api_dataset.table.rows]  # the decision is applied
+    assert out["with_problems"] == 3  # bad_tin, no_tin and mars still have a problem each
+    rows = r.api.datasets.get(dataset["id"]).table.rows
+    tax_ids = [row["investor.tax_id"] for row in rows]
+    assert "8422-19037" not in tax_ids and tax_ids.count(None) == 2  # a value that failed its check is a gap, not a cell
+    assert [row["investor.country"] for row in rows].count(None) == 1  # nor is mars's country, which is not in the map
     assert get_json(r.base, f"/api/data/{dataset['id']}")[1]["rows"] == 23
+    [doc] = problems_of(r, run_id, "?status=missing")[1]["documents"]
+    decision = {"doc_id": doc["doc_id"], "path": "investor.tax_id", "decision": "value", "value": "12-3456789"}
+    assert get_json(r.base, f"/api/runs/{run_id}/decisions", "POST", decision)[0] == 200
+    out = get_json(r.base, f"/api/runs/{run_id}/to-data", "POST", {})[1]
+    assert out["with_problems"] == 2
+    tax_ids = [row["investor.tax_id"] for row in r.api.datasets.get(out["dataset"]["id"]).table.rows]
+    assert "12-3456789" in tax_ids and tax_ids.count(None) == 1  # the typed value is found
 
 
 def test_a_run_sent_to_fill_keeps_the_first_rows_when_it_has_more_than_a_dataset_holds(reviewed, monkeypatch):
@@ -1387,6 +1403,19 @@ def test_a_run_with_the_ai_asks_it_only_about_the_documents_whose_required_field
     assert runner.model.calls["values"] - calls == 2  # bad_tin and no_tin: the tax ID is the one required field
     assert job["usage"]["input_tokens"] == 2 * 10 and job["result"]["summary"]["total"] == 3
     assert (runs_dir(runner) / job["result"]["run"] / "ai.jsonl").is_file()
+
+
+def test_a_run_cancelled_while_it_asks_the_ai_ends_cancelled_with_its_summary(runner, problem_files):
+    runner.model.KINDS = {**GatedModel.KINDS, VALUES_SYSTEM: "values"}
+    runner.model.gate = "values"
+    status, out = start_run(runner, batch_of(runner, problem_files), ai=True)
+    assert status == 200, out
+    assert runner.model.reached.wait(20)
+    assert get_json(runner.base, f"/api/jobs/{out['id']}/cancel", "POST", {})[0] == 200
+    runner.model.released.set()
+    job = job_ended(runner.base, out["id"])
+    assert job["status"] == "cancelled" and job["result"]["summary"]["total"] == 3
+    assert [s["status"] for s in job["stages"]] == ["done", "skipped"]
 
 
 def test_a_second_run_while_the_jobs_slots_are_taken_is_busy_and_starts_nothing(runner, corpus_files):
@@ -1434,8 +1463,21 @@ def test_a_run_cancelled_after_three_documents_keeps_them_and_a_new_run_of_the_b
     job = job_ended(runner.base, out["id"])
     assert job["status"] == "cancelled" and job["result"]["run"] == run_id and job["result"]["done"] == 3
     assert get_json(runner.base, f"/api/runs/{run_id}")[1]["summary"]["total"] == 3
-    monkeypatch.setattr(extract_api, "run_batch", real)
-    again = run_on(runner, batch)
+    entered, resume = threading.Event(), threading.Event()
+
+    def held(*args, **kwargs):
+        entered.set()
+        assert resume.wait(10)
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(extract_api, "run_batch", held)
+    status, out = start_run(runner, batch)
+    assert status == 200, out
+    assert entered.wait(20)
+    job = job_of(runner.base, out["id"])
+    assert (job["result"]["run"], job["result"]["done"], job["result"]["total"]) == (run_id, 3, 22)  # from where it was
+    resume.set()
+    again = job_ended(runner.base, out["id"])
     assert again["status"] == "done" and again["result"]["run"] == run_id
     assert again["result"]["summary"]["total"] == 22 and again["result"]["done"] == 22
     lines = (runs_dir(runner) / run_id / "results.jsonl").read_text().splitlines()

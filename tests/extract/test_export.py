@@ -255,6 +255,36 @@ def template_with(schema: dict, template_id: str = "other") -> ExtractionTemplat
     )
 
 
+def test_with_names_each_part_but_the_fields_has_a_name_column_after_doc_id_in_every_format(tmp_path):
+    openpyxl = pytest.importorskip("openpyxl")
+    run = Stub(
+        [doc_row(doc_id="0.pdf"), doc_row(doc_id="1.pdf")],
+        [doc_row(doc_id="0.pdf"), doc_row(doc_id="1.pdf")],
+        [{"doc_id": "2.pdf", "file": "/x/2.pdf", "reason": "no template fits", "closest_template": "C", "closest_score": 0.5}],
+    )
+    names = {"0.pdf": "Acme W-9.pdf", "2.pdf": "scan.pdf"}  # 1.pdf has no name: it is named by its doc_id
+    written = export(run, [hand_template()], tmp_path / "csv", format="csv", names=names)
+    values, status, fields, aside = (read_csv(p) for p in written)
+    for part in (values, status):
+        assert list(part[0])[:3] == ["doc_id", "name", "file"]
+        assert [(r["doc_id"], r["name"]) for r in part] == [("0.pdf", "Acme W-9.pdf"), ("1.pdf", "1.pdf")]
+    assert list(aside[0])[:3] == ["doc_id", "name", "file"] and aside[0]["name"] == "scan.pdf"
+    assert "name" not in [f["column"] for f in fields]
+    book = openpyxl.load_workbook(export(run, [hand_template()], tmp_path / "r.xlsx", format="xlsx", names=names)[0])
+    for sheet in ("values", "status", "set_aside"):
+        assert list(next(book[sheet].iter_rows(values_only=True)))[:2] == ["doc_id", "name"]
+    assert [row[1] for row in book["values"].iter_rows(min_row=2, values_only=True)] == ["Acme W-9.pdf", "1.pdf"]
+    without = read_csv(export(run, [hand_template()], tmp_path / "plain", format="csv")[0])
+    assert "name" not in without[0]  # no names, no column
+
+
+def test_with_names_a_field_named_name_is_refused_as_a_document_column(tmp_path):
+    schema = {"type": "object", "properties": {"name": {"type": "string"}}}
+    with pytest.raises(FormcastError, match="'name'"):
+        export(Stub([]), [template_with(schema)], tmp_path / "csv", format="csv", names={})
+    assert export(Stub([]), [template_with(schema)], tmp_path / "plain", format="csv")  # without names it is a field
+
+
 def test_a_field_named_like_a_document_column_is_refused_before_anything_is_written(tmp_path):
     for name in ("doc_id", "file", "template", "matched", "extracted_at"):
         schema = {"type": "object", "properties": {name: {"type": "string"}}}

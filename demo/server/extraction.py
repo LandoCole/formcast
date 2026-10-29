@@ -80,7 +80,9 @@ path in that folder).
 ``Run.results()`` loads the results afresh on each call, so what a job or a decision wrote since is always seen.
 ``Run.summary()`` (the run as the API shows it: the ``RunSummary``, each field's counts with its title from the
 schema, the seconds spent) keeps its last answer until one of the run's files changes size or time. A run takes one
-job at a time (``Run.claim``, ``RunBusy``) and one decision at a time.
+job at a time (``Run.claim``, ``RunBusy``) and one decision at a time. ``Run.export`` names each document (the
+export's ``name`` column) and gives an uploaded one's shown name as its ``file``, never the server's copy of it.
+``Run.table`` (sent to fill) holds only ``found`` values: whatever review has not settled is a gap.
 
 Threads: ``Batches`` has one lock for its table. Each ``Batch`` has a lock for its state (files, counts, scan) and a
 second one that lets one upload at a time write; the state lock is never held while files are written or read.
@@ -108,6 +110,7 @@ import uuid
 import zipfile
 import zlib
 from collections import OrderedDict
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -118,10 +121,10 @@ from demo.server.store import NAME_RE, StoredTemplateError, _write, check_name
 from formcast.data.table import MAX_ROWS, Table
 from formcast.errors import FormcastError
 from formcast.extract.batch import (
-    AI, RESULTS, REVIEWS, RUN, Results, ReviewDecision, RunSummary, column_name, template_sha256,
+    AI, PROBLEMS, RESULTS, REVIEWS, RUN, Results, ReviewDecision, RunSummary, template_sha256,
 )
 from formcast.extract.edit import Edit, apply_edit
-from formcast.extract.export import _template_columns, _title  # the titles the export's ``fields`` part gives
+from formcast.extract.export import ExportFormat, _template_columns, _title, export  # _title: as the ``fields`` part
 from formcast.extract.model import DocumentResult, ExtractionTemplate, concrete_paths
 from formcast.extract.proof import Mark, Proof, learn_maps, prove, sample_marks
 from formcast.extract.samples import SampleDoc, SamplePdf
@@ -887,14 +890,16 @@ class Run:
 
     def name_of(self, doc_id: str) -> str:
         """The name shown for a document: its file's name in the batch, or (a command line run's) its ``doc_id``."""
-        if self.folder:
-            return doc_id
+        return self.names().get(doc_id) or (doc_id if self.folder else _shown(doc_id))
+
+    def names(self) -> dict[str, str]:
+        """The shown name of each document by ``doc_id`` (from ``RUN_NAMES``; none for a command line run)."""
         if self._names is None:
             try:
-                self._names = json.loads((self.out_dir / RUN_NAMES).read_text(encoding="utf-8"))
+                self._names = {} if self.folder else json.loads((self.out_dir / RUN_NAMES).read_text(encoding="utf-8"))
             except (OSError, ValueError):
                 self._names = {}
-        return self._names.get(doc_id) or _shown(doc_id)
+        return self._names
 
     def set_names(self, names: dict[str, str]) -> None:
         """Keep the shown name of each document (``doc_id`` -> name) in the run's folder, as ``RUN_NAMES``."""
@@ -911,23 +916,55 @@ class Run:
         with self._lock:
             self.results().decide(decision)
 
-    def table(self) -> Table:
-        """The documents read, as a table for the fill flow: a column per path (``paths``), a row per document with
-        its values as ``Results.rows`` gives them (AI answers and decisions applied), at most ``MAX_ROWS`` rows,
-        ``truncated`` when there were more.
+    def table(self) -> tuple[Table, int]:
+        """The documents read, as a table for the fill flow, and how many of its rows still have a problem.
+
+        A column per path (``paths``) and a row per document, at most ``MAX_ROWS`` rows (``truncated`` when there were
+        more). A cell holds the field's value only when it is ``found``, with the AI's answers and the decisions
+        applied (a value typed or accepted in review is found; an AI answer not yet accepted is ``unsure``): a field
+        ``missing``, ``failed_check`` or ``unsure`` is left empty, so the fill reports it as a gap instead of filling
+        in a value nobody trusted.
 
         Raises:
             RunNotStarted: the run has not begun reading.
         """
         paths = self.paths()
+        results = self.results()
         rows: list[dict] = []
+        with_problems = 0
         truncated = False
-        for row in self.results().rows():
+        for doc in results.documents():
+            if doc.error is not None:
+                continue  # set aside: not a row
             if len(rows) == MAX_ROWS:
                 truncated = True
                 break
-            rows.append({p: row.get(column_name(p)) for p in paths})
-        return Table(columns=paths, rows=rows, kind="json", name=f"{self.name} results", truncated=truncated)
+            fields = {f.path: f for f in results.effective(doc).fields}
+            rows.append({p: fields[p].value if p in fields and fields[p].status == "found" else None for p in paths})
+            with_problems += any(f.status in PROBLEMS for f in fields.values())
+        table = Table(columns=paths, rows=rows, kind="json", name=f"{self.name} results", truncated=truncated)
+        return table, with_problems
+
+    def export(self, out: Path, format: ExportFormat, stored: Path) -> list[Path]:
+        """``formcast.extract.export`` of the run into ``out``, with a ``name`` column (``names``); a document kept
+        under ``stored`` (the batches' uploads) has its shown name as its ``file``, not where the server keeps it.
+
+        Raises:
+            RunNotStarted: the run has not begun reading.
+            FormcastError: as ``export`` (a missing extra, a column clash), or a template is not the run's.
+        """
+        results = self.results()
+        results.check_templates(self.templates)
+        shown = _ShownFiles(results, self, stored.resolve())
+        return export(shown, self.templates, out, format=format, names=self.names())
+
+    def read_count(self, doc_ids: Iterable[str]) -> int:
+        """How many of ``doc_ids`` the run has read already (0 before it begins)."""
+        try:
+            done = self.results()._index  # Results indexes each document's line by doc_id; it has no public lookup
+        except RunNotStarted:
+            return 0
+        return sum(doc_id in done for doc_id in doc_ids)
 
     def claim(self) -> None:
         """Mark a job as running on the run.
@@ -944,6 +981,29 @@ class Run:
         """The run's job has ended (or never started)."""
         with self._lock:
             self._busy = False
+
+
+class _ShownFiles:
+    """A run's results as its export reads them (``rows``, ``status_rows``, ``set_aside``), with the ``file`` of a
+    document under ``stored`` replaced by its shown name: an uploaded file's path is the server's numbered copy."""
+
+    def __init__(self, results: Results, run: Run, stored: Path) -> None:
+        self._results, self._run, self._stored = results, run, stored
+
+    def rows(self) -> Iterator[dict]:
+        return self._shown(self._results.rows())
+
+    def status_rows(self) -> Iterator[dict]:
+        return self._shown(self._results.status_rows())
+
+    def set_aside(self) -> Iterator[dict]:
+        return self._shown(self._results.set_aside())
+
+    def _shown(self, rows: Iterable[dict]) -> Iterator[dict]:
+        for row in rows:
+            if Path(row["file"]).is_relative_to(self._stored):
+                row = {**row, "file": self._run.name_of(row["doc_id"])}
+            yield row
 
 
 def _stat(path: Path) -> tuple[int, int] | None:

@@ -299,6 +299,25 @@ def test_a_stopped_pool_run_lets_what_is_in_flight_finish_and_leaves_no_torn_lin
     assert sorted(r["doc_id"] for r in lines(out / "results.jsonl")) == [f.name for f in files]
 
 
+def test_every_pool_starts_its_workers_by_spawn_never_fork(corpus_dir, tmp_path, monkeypatch):
+    # a fork of a threaded caller (the workbench server) can copy a lock another thread holds, and hang on it
+    made: list[str] = []
+    real = batch.ProcessPoolExecutor
+
+    class Recorded(real):
+        def __init__(self, *args, mp_context=None, **kwargs):
+            made.append(mp_context.get_start_method() if mp_context is not None else "default")
+            super().__init__(*args, mp_context=mp_context, **kwargs)
+
+    monkeypatch.setattr(batch, "ProcessPoolExecutor", Recorded)
+    files = sorted(corpus_dir.glob("*.pdf"))[:3]
+    assert run_batch([hand_template()], files, tmp_path / "out", workers=2).total == 3
+    payload = json.dumps([hand_template().model_dump(mode="json", by_alias=True)])
+    [line] = list(batch._read_alone(payload, [(files[0].name, str(files[0]))], 60))  # the pool of one, after a crash
+    assert json.loads(line)["doc_id"] == files[0].name
+    assert len(made) == 2 and set(made) == {"spawn"}
+
+
 def test_a_stop_ends_the_alone_reads_of_what_was_in_flight_when_a_worker_died(tmp_path, monkeypatch):
     folder = tmp_path / "in"
     folder.mkdir()

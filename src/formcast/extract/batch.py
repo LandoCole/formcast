@@ -27,9 +27,11 @@ not opened, fingerprinted or layout-scored a second time; ``extract()`` itself i
 
 **Workers.** ``workers=0`` is ``os.cpu_count()``; with ``workers=1`` documents are read in this process: no crash
 isolation (a file that crashes MuPDF ends the run, and every resume meets it again) and no timeout (a file that
-hangs stalls the run). Otherwise a ``ProcessPoolExecutor`` of the platform's default
-start method (spawn on macOS) gets the templates once per worker, as JSON through its initializer (plain data, no
-pickling of pydantic models), and returns each result already as its JSON line, which this process writes as it is.
+hangs stalls the run). Otherwise a ``ProcessPoolExecutor`` gets the templates once per worker, as JSON through its
+initializer (plain data, no pickling of pydantic models), and returns each result already as its JSON line, which this
+process writes as it is. Every pool (the run's, and the pool of one a document is read alone in) starts its workers
+by spawn on every platform, never by fork: a caller with threads (the workbench server) may hold a lock, MuPDF's
+``PDF_LOCK`` among them, while a fork copies it held into the child, where nothing ever releases it.
 At most four documents per worker are in flight, so memory stays flat however long the list. When a worker process
 dies (MuPDF crashing on a file), every document then in flight is read again alone, one at a time in a one-worker
 pool; the one that kills that worker too is recorded as unreadable with ``"cannot read PDF: the reader crashed"``
@@ -97,6 +99,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import multiprocessing
 import os
 import re
 import time
@@ -280,7 +283,10 @@ def _work(file: str, doc_id: str) -> str:
 
 
 def _pool(workers: int, payload: str) -> ProcessPoolExecutor:
-    return ProcessPoolExecutor(max_workers=workers, initializer=_start_worker, initargs=(payload,))
+    """A pool of ``workers`` processes started by spawn (see the module, *Workers*), each given the templates."""
+    return ProcessPoolExecutor(
+        max_workers=workers, mp_context=multiprocessing.get_context("spawn"), initializer=_start_worker, initargs=(payload,)
+    )
 
 
 def _ping() -> None:
