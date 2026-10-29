@@ -161,7 +161,22 @@ def test_a_failed_first_read_gives_way_to_a_later_one_that_passes(template):
     wrong = AnchorRead(labels=["Investor legal name"], page=0)
     wrong_first = with_reader(template, "investor.tax_id", wrong, *strategies)
     tax_id = fields(extract(wrong_first, make_form(CLIENT, kind="flattened")))["investor.tax_id"]
-    assert (tax_id.status, tax_id.strategy, tax_id.value) == ("found", "box", "84-2219037")
+    # the two reads disagree, so the one that passes is not trusted outright
+    assert (tax_id.status, tax_id.strategy, tax_id.value) == ("unsure", "box", "84-2219037")
+    assert tax_id.reasons == [f"the first read (anchor) gave {CLIENT.legal_name!r}, which failed its checks"]
+
+
+def test_a_fillable_copy_whose_widget_disagrees_with_its_drawn_text_is_unsure(template):
+    # the widget's value was changed without redrawing it: the value fails, the drawn text passes
+    doc = pymupdf.open(stream=make_form(CLIENT, kind="fillable"))
+    for w in doc[0].widgets():
+        if w.field_name == "tax_id":
+            doc.xref_set_key(w.xref, "V", "(8422-19037)")
+    stale = doc.tobytes()
+    doc.close()
+    tax_id = fields(extract(template, stale))["investor.tax_id"]
+    assert (tax_id.status, tax_id.strategy, tax_id.raw) == ("unsure", "box", "84-2219037")
+    assert tax_id.reasons == ["the first read (widget) gave '8422-19037', which failed its checks"]
 
 
 @pytest.mark.parametrize("kind", ["fillable", "flattened"])
@@ -201,9 +216,10 @@ def test_a_label_found_twice_makes_the_anchor_read_unsure(template):
     copy = make_form(CLIENT, kind="flattened", header="Taxpayer ID:")
     tax_id = fields(extract(anchor_only(template), copy))["investor.tax_id"]
     assert (tax_id.status, tax_id.strategy, tax_id.value) == ("unsure", "anchor", "84-2219037")
+    assert tax_id.reasons == ["label found in 2 places"]
     # the same read with the label printed once is trusted
     tax_id = fields(extract(anchor_only(template), make_form(CLIENT, kind="flattened")))["investor.tax_id"]
-    assert (tax_id.status, tax_id.strategy) == ("found", "anchor")
+    assert (tax_id.status, tax_id.strategy, tax_id.reasons) == ("found", "anchor", [])
 
 
 def test_two_wordings_found_once_each_count_as_two_places(template):
@@ -226,7 +242,8 @@ def test_on_an_unmatched_layout_label_reads_are_unsure_and_boxes_do_not_run(temp
     assert result.matched == "none"
     got = fields(result)
     assert (got["investor.tax_id"].status, got["investor.tax_id"].strategy) == ("unsure", "anchor")
-    assert got["wire.account"].status == "unsure"
+    assert got["investor.tax_id"].reasons == ["layout not matched"]
+    assert got["wire.account"].status == "unsure" and got["wire.account"].reasons == ["layout not matched"]
     assert got["owners[0].name"].status == "absent"  # read by widget or box only: neither runs here
     assert got["investor.type"].status == "missing"  # drawn boxes are places on a matching layout only
     assert not any(f.status == "found" for f in result.fields)
@@ -310,6 +327,50 @@ def test_an_encrypted_pdf_gives_an_error_result(template):
     result = extract(template, locked)
     assert (result.matched, result.error, result.fields) == ("none", "encrypted PDF", [])
     assert result.doc_id  # a doc id even for a file that cannot be read
+
+
+def test_a_document_mupdf_fails_on_while_read_is_unreadable(template, monkeypatch):
+    def broken(self, page, rect):
+        raise pymupdf.FileDataError("broken content stream")
+
+    monkeypatch.setattr(DocText, "text_in", broken)
+    result = extract(template, make_form(CLIENT, kind="flattened"), doc_id="d1")
+    assert (result.matched, result.fields, result.error) == ("none", [], "cannot read PDF: broken content stream")
+
+
+def test_a_fault_of_the_code_or_template_is_an_internal_error_not_a_bad_pdf(template, monkeypatch):
+    def boom(value, sp):
+        raise ValueError("boom")
+
+    monkeypatch.setattr("formcast.extract.read._coerce", boom)
+    result = extract(template, make_form(CLIENT, kind="fillable"))
+    assert (result.matched, result.fields, result.error) == ("none", [], "internal error: ValueError: boom")
+
+
+def test_an_invalid_schema_is_an_internal_error(template):
+    schema = copy.deepcopy(template.schema_)
+    schema["properties"]["investor"]["properties"]["legal_name"]["minLength"] = "long"
+    bad = ExtractionTemplate.model_validate({**template.model_dump(by_alias=True), "schema": schema})
+    result = extract(bad, make_form(CLIENT, kind="fillable"))
+    assert result.fields == [] and result.error.startswith("internal error: FormcastError: invalid JSON Schema")
+
+
+def test_one_bad_answer_in_a_list_fails_the_lists_check(template):
+    # a list of answers from a fixed set, read from one text field: an error on its second item is the field's
+    tags_schema = {"type": "array", "items": {"type": "string", "enum": ["a", "b"]}}
+    schema = {"type": "object", "properties": {"tags": tags_schema}}
+    tags = ExtractionTemplate.model_validate(
+        {
+            **template.model_dump(by_alias=True),
+            "schema": schema,
+            "readers": {"tags": {"strategies": [{"kind": "widget", "names": ["country"]}]}},
+        }
+    )
+    got = fields(extract(tags, make_form(dataclasses.replace(CLIENT, country="a, zz"), kind="fillable")))["tags"]
+    assert (got.status, got.raw, got.value) == ("failed_check", "a, zz", ["a", "zz"])
+    assert got.reasons == ["'zz' is not one of ['a', 'b']"]
+    got = fields(extract(tags, make_form(dataclasses.replace(CLIENT, country="a, b"), kind="fillable")))["tags"]
+    assert (got.status, got.value, got.reasons) == ("found", ["a", "b"], [])
 
 
 def test_the_doc_id_defaults_to_the_blind_fingerprint(template):

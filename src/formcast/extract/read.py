@@ -1,8 +1,9 @@
 """Read one filled PDF with an extraction template: every schema path gets a value and a status, with no model call.
 
-``extract(template, pdf)`` reads the file once and opens it once for reading (one
-:class:`~formcast.extract.page.DocText`, closed on every path out); its fingerprints are computed from the same bytes
-by :class:`formcast.match.PdfFeatures`, only when needed (the template has a fingerprint, or no ``doc_id`` is given).
+``extract(template, pdf)`` reads the file's bytes once. It opens them for reading in one
+:class:`~formcast.extract.page.DocText` (closed on every path out), and :class:`formcast.match.PdfFeatures` opens
+them once more for each fingerprint it computes (the full one and the one with field values ignored), only when
+needed (the template has a fingerprint, or no ``doc_id`` is given): up to three opens per document.
 Then, for every concrete path of the template's schema:
 
 1. **Layout.** The document matches by ``"fingerprint"`` when its fingerprint, or its fingerprint with field values
@@ -13,15 +14,18 @@ Then, for every concrete path of the template's schema:
    template has it; on a layout match it is moved down by the page's :func:`~formcast.extract.layout.layout_offset`.
 2. **Strategies in order.** The first strategy that gives non-empty text is the candidate. When the candidate fails a
    check (or cleans to nothing) the next strategies are tried, and the first of them whose value passes wins;
-   when none passes, the first candidate stays, with its reasons. A ``choice`` gives the key of the one marked
-   option, nothing when no option is marked, and ``", ".join`` of the keys when several are (``"individual,
-   joint"``), which fails with the reason ``"N boxes checked"``: never found, whatever the schema allows.
+   when none passes, the first candidate stays, with its reasons. A later value that differs from the failed
+   first one is ``unsure`` (the reason names the first read): two strategies disagreeing is never ``found``.
+   A ``choice`` gives the key of the one marked option, nothing when no option is marked, and ``", ".join`` of
+   the keys when several are (``"individual, joint"``), which fails with the reason ``"N boxes checked"``: never
+   found, whatever the schema allows.
 3. **Cleaning.** The reader's ``clean`` transforms run on the raw text (``formcast.data.mapping._run``), then the
    value is coerced to the path's schema type (``_coerce``). The raw text is kept beside the value. A value that
    cleans to nothing is ``missing``, with its raw text and a reason.
 4. **Checks.** Every path's first candidate is checked in one record with ``validate_data_located``; a later
    strategy's value is checked on its own (the errors located at its path), and when one replaces a failing
-   candidate the record is checked again. Every error of the final record is attached to its path as a reason;
+   candidate the record is checked again. Every error of the final record is attached to its path as a reason
+   (an error below a path, such as one item of a list of answers, ``tags[1]``, belongs to ``tags``);
    a ``required`` error goes to the missing child's path, and a required group that has no answers at all is
    checked as an empty group, so its own required fields are named (no investor answers -> ``investor.tax_id``
    is missing, with the reason). An error located at a group goes to every field in it.
@@ -30,16 +34,20 @@ Then, for every concrete path of the template's schema:
    record; a field with no value is ``missing``; a value with a reason is ``failed_check``; a value read by
    ``anchor`` or ``phrase`` is ``unsure`` when its labels or phrases matched more than one place (all wordings
    counted together, so two wordings found once each are two places) or the document's layout is ``"none"``;
-   every other value (``widget``, ``box``, ``choice``, a trusted label read) is ``found``.
+   every other value (``widget``, ``box``, ``choice``, a trusted label read) is ``found``. An ``unsure`` field says
+   why in its reasons ("label found in 2 places", "layout not matched"); a ``failed_check`` field's reasons are
+   its failed checks, followed by any doubts.
 
 A phrase's places are the most of its occurrences with text after them and its occurrences on one row
 (``find_label``), so an occurrence with nothing readable after it still makes the read unsure. An anchor's value is
-read at the first of its places that has text on the reader's side; ``side="inside"`` reads like ``"right"`` (the
-answer after the label in the label's own box). Widget reads have no place (page and rect are ``None``).
+read at the first of its places that has text on the reader's side. Widget reads have no place (page and rect are
+``None``).
 
-``extract`` never raises for a bad document: one that cannot be opened (missing, not a PDF, encrypted, empty) or
-read gives ``matched="none"``, no fields and ``error`` set, which the batch runner records as unreadable. A bad
-template still raises (an invalid JSON Schema is a ``FormcastError``).
+``extract`` never raises. A document that cannot be opened (missing, not a PDF, encrypted, empty) or that MuPDF fails
+on while it is read gives ``matched="none"``, no fields and ``error`` set ("cannot open PDF", "encrypted PDF",
+"cannot read PDF: ..."), which the batch runner records as unreadable. Any other exception is a fault of the
+template or of this code, not of the document, and gives ``error="internal error: <ExceptionType>: <message>"``
+(an invalid JSON Schema: ``"internal error: FormcastError: invalid JSON Schema: ..."``).
 """
 
 from __future__ import annotations
@@ -52,6 +60,8 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+
+import pymupdf
 
 from formcast.data.mapping import _INDEX, _coerce, _empty, _generic, _run, _set
 from formcast.errors import FormcastError
@@ -75,6 +85,8 @@ from formcast.geometry import Rect
 from formcast.match import PdfFeatures
 from formcast.schema import SchemaPath, data_location, flatten_schema, resolve, validate_data_located
 
+#: What MuPDF raises for a document it cannot read (beside open_pdf's FormcastError).
+_PDF_ERRORS = (pymupdf.mupdf.FzErrorBase, pymupdf.FileDataError, pymupdf.EmptyFileError)
 _REQUIRED = re.compile(r"""^(['"])(.*)\1 is a required property$""")
 #: Rounds of checking a required group that has no answers as an empty group (one per level of nesting).
 _MAX_GROUP_ROUNDS = 16
@@ -89,8 +101,12 @@ class _Read:
     strategy: str | None = None
     page: int | None = None
     rect: Rect | None = None
-    weak: bool = False  # an anchor or phrase read whose place is not certain
-    reasons: list[str] = field(default_factory=list)
+    reasons: list[str] = field(default_factory=list)  # failed checks: the value is in doubt
+    doubts: list[str] = field(default_factory=list)  # why a value that passes is not certain (makes it unsure)
+
+
+class _SchemaError(Exception):
+    """A ``FormcastError`` from checking a record: the template's schema is at fault, not the document."""
 
 
 @dataclass
@@ -104,7 +120,7 @@ class _Context:
     offsets: dict[int, float] = field(default_factory=dict)
 
     def moved(self, page: int, rect: Rect) -> Rect:
-        """``rect`` where it sits on this document's ``page``: in place on a fingerprint match, moved on a layout one."""
+        """``rect`` where it sits on the document's ``page``: in place on a fingerprint match, moved on a layout one."""
         if self.matched == "layout":
             if page not in self.offsets:
                 self.offsets[page] = layout_offset(self.template.layout, self.doc, page)
@@ -154,10 +170,13 @@ def extract(
         errors = _record_errors(schema, reads, ctx.schema_paths)
         if _fall_back(schema, tries, reads, errors):
             errors = _record_errors(schema, reads, ctx.schema_paths)
-    except FormcastError:
-        raise  # the template's fault (an invalid schema), not the document's
-    except Exception as exc:  # a document that opens but breaks while read (MuPDF raises several types)
+    except _SchemaError as exc:
+        cause = exc.__cause__
+        return failed(f"internal error: {type(cause).__name__}: {cause}", data)
+    except (FormcastError, *_PDF_ERRORS) as exc:  # a document that opens but breaks while read
         return failed(f"cannot read PDF: {exc}", data)
+    except Exception as exc:  # a fault of the template or of this code, not of the document
+        return failed(f"internal error: {type(exc).__name__}: {exc}", data)
     finally:
         doc.close()
 
@@ -193,13 +212,13 @@ def _field(path: str, read: _Read | None, absent: bool) -> FieldResult:
         status = "missing"
     elif read.reasons:
         status = "failed_check"
-    elif read.weak:
+    elif read.doubts:
         status = "unsure"
     else:
         status = "found"
     return FieldResult(
         path=path, status=status, raw=read.raw, value=read.value, strategy=read.strategy, page=read.page,
-        rect=read.rect, reasons=read.reasons,
+        rect=read.rect, reasons=read.reasons + read.doubts,
     )  # fmt: skip
 
 
@@ -234,18 +253,34 @@ def _fall_back(
     for path, tried in tries.items():
         if not (reads[path].reasons or errors.get(path)):
             continue
+        first = reads[path]
         for later in tried:
             if not later.reasons and not _errors_at(schema, path, later.value):
+                if later.value != first.value:  # two strategies disagree: the later one is not certain
+                    doubt = f"the first read ({first.strategy}) gave {first.raw!r}, which failed its checks"
+                    later.doubts.append(doubt)
                 reads[path], changed = later, True
                 break
     return changed
 
 
 def _errors_at(schema: dict, path: str, value: Any) -> list[str]:
-    """The schema's errors located at ``path`` for ``value`` checked alone (the other fields left out)."""
+    """The schema's errors at or below ``path`` for ``value`` checked alone (the other fields left out)."""
     record: dict = {}
     _set(record, path, value)
-    return [message for location, message in validate_data_located(schema, record) if location == path]
+    return [message for location, message in _validate(schema, record) if _at_or_below(location, path)]
+
+
+def _validate(schema: dict, record: dict) -> list[tuple[str, str]]:
+    try:
+        return validate_data_located(schema, record)
+    except FormcastError as exc:  # an invalid schema or $ref
+        raise _SchemaError from exc
+
+
+def _at_or_below(location: str, path: str) -> bool:
+    """Whether ``location`` is ``path`` or a place inside it (``tags[1]`` is inside ``tags``)."""
+    return location == path or location.startswith((path + ".", path + "["))
 
 
 def _try(strategy: Strategy, ctx: _Context) -> _Read | None:
@@ -265,15 +300,15 @@ def _try(strategy: Strategy, ctx: _Context) -> _Read | None:
         raw = doc.text_in(strategy.page, rect)
         return _Read(raw=raw.strip(), strategy="box", page=strategy.page, rect=rect) if raw and raw.strip() else None
     if isinstance(strategy, AnchorRead):
-        places = doc.find_label(strategy.labels, strategy.page)
+        places = doc.find_label(strategy.labels, strategy.page)  # every wording counts towards the places
         for page, label in places:
             if strategy.side == "below":
                 got = doc.text_below(page, label, strategy.max_lines)
             else:
                 got = doc.text_right_of(page, label, strategy.max_width)
             if got and got[0].strip():
-                weak = len(places) > 1 or ctx.matched == "none"
-                return _Read(raw=got[0].strip(), strategy="anchor", page=page, rect=got[1], weak=weak)
+                doubts = _doubts("label", len(places), ctx)
+                return _Read(raw=got[0].strip(), strategy="anchor", page=page, rect=got[1], doubts=doubts)
         return None
     if isinstance(strategy, PhraseRead):
         hits = doc.after_phrase(strategy.phrases, strategy.page, strategy.stop)
@@ -281,9 +316,17 @@ def _try(strategy: Strategy, ctx: _Context) -> _Read | None:
             return None
         places = max(len(hits), len(doc.find_label(strategy.phrases, strategy.page)))
         page, text, rect = hits[0]
-        weak = places > 1 or ctx.matched == "none"
-        return _Read(raw=text.strip(), strategy="phrase", page=page, rect=rect, weak=weak)
+        doubts = _doubts("phrase", places, ctx)
+        return _Read(raw=text.strip(), strategy="phrase", page=page, rect=rect, doubts=doubts)
     return _choice(strategy, ctx)
+
+
+def _doubts(what: str, places: int, ctx: _Context) -> list[str]:
+    """Why a label or phrase read is not certain: more than one place, or a layout that does not match."""
+    doubts = [f"{what} found in {places} places"] if places > 1 else []
+    if ctx.matched == "none":
+        doubts.append("layout not matched")
+    return doubts
 
 
 def _choice(strategy: ChoiceRead, ctx: _Context) -> _Read | None:
@@ -326,8 +369,8 @@ def _record_errors(schema: dict, reads: dict[str, _Read], schema_paths: list[Sch
     located: list[tuple[str, str]] = []
     for _ in range(_MAX_GROUP_ROUNDS):
         located, grown = [], False
-        for location, message in validate_data_located(schema, record):
-            target = where.get(location, location)
+        for location, message in _validate(schema, record):
+            target = _original(location, where)
             m = _REQUIRED.match(message)
             if m is None:
                 located.append((target, message))
@@ -345,9 +388,18 @@ def _record_errors(schema: dict, reads: dict[str, _Read], schema_paths: list[Sch
     out: dict[str, list[str]] = defaultdict(list)
     for target, message in located:
         for path in reads:
-            if not target or path == target or path.startswith((target + ".", target + "[")):
+            # the error is at the path, at a group the path is in, or inside the path (one item of a list leaf)
+            if not target or _at_or_below(path, target) or _at_or_below(target, path):
                 out[path].append(message)
     return out
+
+
+def _original(location: str, where: dict[str, str]) -> str:
+    """A record location in the schema's concrete paths: its longest known prefix mapped, the rest kept as it is."""
+    for prefix in reversed(_prefixes(location)):
+        if prefix in where:
+            return where[prefix] + location[len(prefix) :]
+    return location
 
 
 def _compact_indices(paths: list[str]) -> dict[str, str]:

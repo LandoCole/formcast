@@ -67,7 +67,7 @@ class AnchorRead(_Model):
     kind: Literal["anchor"] = "anchor"
     labels: list[str] = Field(min_length=1)
     page: int | None = None  # None: search every page
-    side: Literal["right", "below", "inside"] = "right"
+    side: Literal["right", "below"] = "right"
     max_width: float = 300.0
     max_lines: int = 1
 

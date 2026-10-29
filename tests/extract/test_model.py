@@ -105,6 +105,12 @@ def test_a_strategy_needs_at_least_one_name_label_or_phrase():
         PhraseRead(phrases=[])
 
 
+def test_an_anchor_reads_to_the_right_or_below_only():
+    assert AnchorRead(labels=["Name"], side="below").side == "below"
+    with pytest.raises(ValidationError):
+        AnchorRead(labels=["Name"], side="inside")  # nothing reads "inside" a label's box
+
+
 def test_models_refuse_unknown_keys():
     with pytest.raises(ValidationError):
         WidgetRead(names=["a"], colour="red")
