@@ -5,6 +5,7 @@
     extract                           formcast.extract.read    (one document read with a template)
     apply_edit, SetField, ...         formcast.extract.edit    (a person's edits to a template, with no model call)
     prove, learn_maps, sample_marks   formcast.extract.proof   (the readers checked against the samples' readings)
+    read_samples, sample_view, ...    formcast.extract.samples (the sample PDFs read, and what a model sees of them)
 
 The public names load on first use, as in ``formcast``, so importing one module does not pull in the rest.
 """
@@ -34,6 +35,8 @@ _LAZY = {
     "Reader": "formcast.extract.model",
     "RemoveField": "formcast.extract.edit",
     "Restore": "formcast.extract.edit",
+    "SampleDoc": "formcast.extract.samples",
+    "SamplePdf": "formcast.extract.samples",
     "SampleProof": "formcast.extract.proof",
     "SampleRecord": "formcast.extract.model",
     "SetBox": "formcast.extract.edit",
@@ -48,12 +51,16 @@ _LAZY = {
     "WidgetRead": "formcast.extract.model",
     "apply_edit": "formcast.extract.edit",
     "concrete_paths": "formcast.extract.model",
+    "detected_pages": "formcast.extract.samples",
     "extract": "formcast.extract.read",
     "label_key": "formcast.extract.page",
     "learn_maps": "formcast.extract.proof",
     "prove": "formcast.extract.proof",
+    "read_samples": "formcast.extract.samples",
     "same_value": "formcast.extract.proof",
     "sample_marks": "formcast.extract.proof",
+    "sample_images": "formcast.extract.samples",
+    "sample_view": "formcast.extract.samples",
 }
 
 if TYPE_CHECKING:
@@ -69,6 +76,7 @@ if TYPE_CHECKING:
         FieldProof, Mark, Outcome, Proof, SampleProof, learn_maps, prove, same_value, sample_marks,
     )  # fmt: skip
     from formcast.extract.read import extract
+    from formcast.extract.samples import SampleDoc, SamplePdf, detected_pages, read_samples, sample_images, sample_view
 
 
 def __getattr__(name: str) -> Any:
