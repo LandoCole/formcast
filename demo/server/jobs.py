@@ -220,7 +220,7 @@ class Jobs:
         """Keep ``job``, taking one of the ``max_running`` slots. Raises ``JobsBusy`` when none is free."""
         with self._lock:
             if sum(1 for j in self._jobs.values() if j.status == "running") >= self.max_running:
-                raise JobsBusy(f"{self.max_running} AI jobs are already running; wait for one to finish or cancel it.")
+                raise JobsBusy(f"{self.max_running} jobs are already running; wait for one to finish or cancel it.")
             self._jobs[job.id] = job
 
     def _launch(self, job: Job, target: Callable[..., None], *args) -> None:

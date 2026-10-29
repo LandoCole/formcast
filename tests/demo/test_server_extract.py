@@ -1,11 +1,14 @@
 """demo/server extraction: task jobs, the two settings, several files per upload, ``page_png``, batches of PDFs,
-setups and saved extraction templates.
+setups, saved extraction templates and runs.
 
 Task jobs run a caller's function on a job thread (``Jobs.start_task``); the extraction jobs of the workbench are
 built on them. Batches are PDFs uploaded (singly or in zips) or found in a server-side folder, scanned by layout on
 a thread, with a paged file list, a sample picked from the main layout and page images. A setup is a template built
 from a batch's sample by the ``extract-setup`` job, edited and proven again with no model call, grown by the
-``extract-line`` job, and saved as an extraction template (with its sample PDFs) that reopens as a setup. The PDFs
+``extract-line`` job, and saved as an extraction template (with its sample PDFs) that reopens as a setup. A run
+reads a batch with a saved extraction (the ``extract-run`` job, resumed after a cancel), and its problems, set-aside
+documents, decisions, page images, export and dataset are served from its folder; a command-line run is opened by
+its folder. The PDFs
 are the generated client-information corpus (``tests/extract/corpus.py``); the model is ``CorpusModel``, which
 answers from the corpus's own truth. Everything runs in process: no network, and no detector weights are loaded.
 """
@@ -14,8 +17,12 @@ from __future__ import annotations
 
 import dataclasses
 import hashlib
+import importlib.util
 import io
 import json
+import os
+import subprocess
+import sys
 import threading
 import time
 import zipfile
@@ -28,7 +35,7 @@ from test_server_documents import get_json, http_request, png_size, small_pdf
 from test_server_jobs import wait_for
 
 from demo.server import documents as documents_mod
-from demo.server import extraction
+from demo.server import extract_api, extraction
 from demo.server.api import Api, ApiError, Request, _uploads
 from demo.server.documents import PYMUPDF_LOCK, page_png
 from demo.server.jobs import Jobs, JobsBusy
@@ -37,12 +44,14 @@ from demo.server.store import StoredTemplateError
 from formcast import FormcastError, SessionCancelled
 from formcast.data.ai import DERIVE_SYSTEM
 from formcast.extract import samples as samples_mod
+from formcast.extract.batch import run_batch
 from formcast.extract.model import ExtractionTemplate, SampleRecord, concrete_paths
 from formcast.extract.proof import Proof, prove
 from formcast.extract.prompts import FIELDS_SYSTEM
 from formcast.extract.samples import SamplePdf
 from formcast.extract.setup import STAGES
 from formcast.pagemap.build import DetectPolicy
+from tests.extract.conftest import write_corpus
 from tests.extract.corpus import FIELD_RECTS, SHIFT, clients, hand_template, make_form
 from tests.extract.fakes import CorpusModel
 
@@ -1071,3 +1080,432 @@ def test_setups_are_kept_in_memory_up_to_the_limit_least_recently_used_dropped_f
     assert setups.get(made[0].id) is made[0] and setups.get(made[2].id) is made[2]
     with pytest.raises(KeyError):
         setups.get(made[1].id)
+
+
+# ------------------------------------------------------------------ runs
+
+
+PROBLEM_FILES = ("bad_tin.pdf", "no_tin.pdf", "mars.pdf")  # a bad tax ID, no tax ID, a country not in the map
+ROOT = Path(__file__).resolve().parents[2]
+
+
+@pytest.fixture(scope="module")
+def corpus_files(tmp_path_factory) -> list[tuple[str, bytes]]:
+    """The corpus folder's 22 PDFs (``client_00001.pdf`` ...): 20 filled client forms, then 2 copies of the W-9."""
+    folder = write_corpus(tmp_path_factory.mktemp("runs") / "corpus")
+    return [(p.name, p.read_bytes()) for p in sorted(folder.glob("*.pdf"))]
+
+
+@pytest.fixture(scope="module")
+def problem_files() -> list[tuple[str, bytes]]:
+    """Three filled client forms with one problem each (``PROBLEM_FILES``)."""
+    base = clients(1, seed=5)[0]
+    copies = [
+        dataclasses.replace(base, tax_id="8422-19037"),
+        dataclasses.replace(base, tax_id=""),
+        dataclasses.replace(base, country="Mars"),
+    ]
+    return [(name, make_form(client, kind="flattened")) for name, client in zip(PROBLEM_FILES, copies)]
+
+
+@dataclass
+class Runner:
+    """A server (``extract_workers=1``) with the extraction ``Client info`` saved from a setup, as Task 4 makes it."""
+
+    base: str
+    api: Api
+    model: GatedModel
+    template: dict  # the saved template, as GET /api/extractions/Client%20info gives it
+
+
+@pytest.fixture
+def runner(start_demo_server, setup_pdfs, setup_people) -> Runner:
+    model = model_for(setup_pdfs, setup_people)
+    base = start_demo_server(provider_factory=model, extract_workers=1)
+    api = start_demo_server.servers[-1].api
+    samples = new_batch(base, name="Samples")
+    assert add_files(base, samples["id"], setup_pdfs)[0] == 200
+    setup = built(Bench(base, api, model, samples["id"], [data for _, data in setup_pdfs]))
+    status, saved = get_json(base, "/api/extractions/Client%20info", "PUT", {"setup": setup["id"]})
+    assert status == 200, saved
+    return Runner(base, api, model, get_json(base, "/api/extractions/Client%20info")[1]["template"])
+
+
+def batch_of(r: Runner, files: list[tuple[str, bytes]], name: str = "Client forms") -> str:
+    batch = new_batch(r.base, name=name)
+    if files:
+        status, out = add_files(r.base, batch["id"], files)
+        assert status == 200, out
+    return batch["id"]
+
+
+def start_run(r: Runner, batch: str, **body) -> tuple[int, dict]:
+    return start_job(r.base, {"kind": "extract-run", "extraction": "Client info", "batch": batch, **body})
+
+
+def run_on(r: Runner, batch: str, **body) -> dict:
+    """The ``extract-run`` job on ``batch``, once it has ended."""
+    status, out = start_run(r, batch, **body)
+    assert status == 200, out
+    return job_ended(r.base, out["id"])
+
+
+def read_fields(template: dict) -> list[str]:
+    """The template's concrete paths it reads (not marked absent), in schema order."""
+    return [p for p in concrete_paths(template["schema"]) if p not in template["absent"]]
+
+
+def runs_dir(r: Runner) -> Path:
+    return r.api.settings.data_dir / "local" / "runs"
+
+
+@pytest.fixture
+def reviewed(runner, corpus_files, problem_files) -> tuple[Runner, str]:
+    """(the runner, a finished run's id) of the corpus folder's PDFs and the three problem copies: 25 documents."""
+    job = run_on(runner, batch_of(runner, corpus_files + problem_files))
+    assert job["status"] == "done", job
+    return runner, job["result"]["run"]
+
+
+def problems_of(r: Runner, run_id: str, query: str = "") -> tuple[int, dict]:
+    return get_json(r.base, f"/api/runs/{run_id}/problems{query}")
+
+
+def test_a_run_reads_every_document_of_the_batch_with_no_model_call_lists_it_and_counts_each_field(runner, corpus_files):
+    calls = dict(runner.model.calls)
+    batch = batch_of(runner, corpus_files)
+    job = run_on(runner, batch)
+    assert job["status"] == "done", job
+    assert [(s["key"], s["label"], s["status"]) for s in job["stages"]] == [("read", "Read every document", "done")]
+    result = job["result"]
+    assert result["done"] == result["total"] == 22 and result["summary"]["total"] == 22
+    assert result["summary"]["no_template"] == 2 and result["summary"]["complete"] + result["summary"]["with_problems"] == 20
+    assert runner.model.calls == calls and job["usage"] == {"input_tokens": 0, "output_tokens": 0}
+    run_id = result["run"]
+    status, listed = get_json(runner.base, "/api/runs")
+    assert status == 200
+    [entry] = listed["runs"]
+    assert (entry["id"], entry["name"], entry["extraction"]) == (run_id, "Client forms", "Client info")
+    assert entry["started"] and entry["summary"] == result["summary"]
+    status, run = get_json(runner.base, f"/api/runs/{run_id}")
+    assert status == 200, run
+    assert (run["id"], run["name"], run["extraction"], run["summary"]) == (run_id, "Client forms", "Client info", result["summary"])
+    assert run["seconds"] == run["summary"]["seconds"] > 0
+    assert [f["path"] for f in run["fields"]] == read_fields(runner.template)
+    tax_id = next(f for f in run["fields"] if f["path"] == "investor.tax_id")
+    assert set(tax_id) == {"path", "title", "found", "missing", "failed_check", "unsure", "reviewed", "not_on_form"}
+    assert tax_id["title"] == runner.template["schema"]["properties"]["investor"]["properties"]["tax_id"]["title"]
+    assert tax_id["found"] == 20 and tax_id["missing"] == tax_id["failed_check"] == tax_id["unsure"] == tax_id["reviewed"] == 0
+    folder = runs_dir(runner) / run_id
+    meta = json.loads((folder / "run-meta.json").read_text())
+    assert meta == {"name": "Client forms", "extraction": "Client info", "batch": batch, "started": entry["started"]}
+    assert (folder / "run.json").is_file() and len((folder / "results.jsonl").read_text().splitlines()) == 22
+
+
+def test_a_run_is_read_back_from_its_folder_after_a_restart_and_an_unknown_run_is_not_found(runner, corpus_files):
+    run_id = run_on(runner, batch_of(runner, corpus_files[:3]))["result"]["run"]
+    before = get_json(runner.base, f"/api/runs/{run_id}")[1]
+    again = extraction.Runs(runs_dir(runner))  # what a restarted server has
+    assert again.get(run_id).summary() == before
+    assert [entry["id"] for entry in again.list()] == [run_id]
+    with pytest.raises(KeyError):
+        again.get("0" * 32)
+    status, out = get_json(runner.base, f"/api/runs/{'0' * 32}")
+    assert (status, out["error"]) == (404, "not_found") and "no such run" in out["detail"]
+
+
+def test_a_run_is_refused_before_it_starts_for_an_unknown_extraction_or_batch_or_ai_with_no_model(runner, corpus_files, demo_server):
+    batch = batch_of(runner, corpus_files[:2])
+    status, out = start_job(runner.base, {"kind": "extract-run", "extraction": "Nope", "batch": batch})
+    assert (status, out["error"]) == (404, "not_found") and "no such extraction" in out["detail"]
+    status, out = start_job(runner.base, {"kind": "extract-run", "extraction": "../x", "batch": batch})
+    assert (status, out["error"]) == (400, "bad_name")
+    status, out = start_job(runner.base, {"kind": "extract-run", "batch": batch})
+    assert (status, out["error"]) == (400, "bad_request")
+    status, out = start_run(runner, "f" * 32)
+    assert (status, out["error"]) == (400, "bad_batch")
+    status, out = start_run(runner, batch_of(runner, [], name="Empty"))
+    assert (status, out["error"]) == (400, "bad_batch")
+    status, out = start_run(runner, batch, ai="yes")
+    assert (status, out["error"]) == (400, "bad_request")
+    status, out = start_job(demo_server, {"kind": "extract-run", "extraction": "Client info", "batch": batch, "ai": True})
+    assert (status, out["error"]) == (400, "ai_not_configured")
+    # demo_server has no model and shares the data folder (and so the extraction), not the batches, which are in memory
+    status, out = start_job(demo_server, {"kind": "extract-run", "extraction": "Client info", "batch": batch})
+    assert (status, out["error"]) == (400, "bad_batch")  # a run without the AI needs no model: it got as far as the batch
+    assert get_json(runner.base, "/api/runs")[1] == {"runs": []}
+
+
+def test_the_problems_are_paged_by_document_each_with_its_problems_titled_and_named(reviewed):
+    r, run_id = reviewed
+    status, page = problems_of(r, run_id, "?limit=2")
+    assert status == 200, page
+    assert page["total"] == 3 and len(page["documents"]) == 2
+    titles = {f["path"]: f["title"] for f in get_json(r.base, f"/api/runs/{run_id}")[1]["fields"]}
+    for doc in page["documents"]:
+        assert set(doc) == {"doc_id", "name", "problems"} and doc["name"] in PROBLEM_FILES and doc["problems"]
+        for problem in doc["problems"]:
+            assert set(problem) == {"path", "title", "status", "raw", "value", "reasons", "page", "rect"}
+            assert problem["status"] in ("missing", "failed_check", "unsure") and problem["title"] == titles[problem["path"]]
+    rest = problems_of(r, run_id, "?offset=2&limit=2")[1]
+    assert rest["total"] == 3 and len(rest["documents"]) == 1
+    assert {d["name"] for d in page["documents"] + rest["documents"]} == set(PROBLEM_FILES)
+    assert problems_of(r, run_id, "?offset=3")[1] == {"total": 3, "documents": []}
+    assert problems_of(r, run_id, "?offset=50&limit=2")[1] == {"total": 3, "documents": []}
+    assert problems_of(r, run_id, "?path=investor.tax_id")[1]["total"] == 2
+    missing = problems_of(r, run_id, "?status=missing")[1]
+    assert missing["total"] == 1 and missing["documents"][0]["name"] == "no_tin.pdf"
+    for query in ("?limit=0", "?limit=201", "?offset=-1", "?status=found"):
+        status, out = problems_of(r, run_id, query)
+        assert (status, out["error"]) == (400, "bad_request"), query
+
+
+def test_the_set_aside_documents_are_the_corpus_folders_w9_copies_with_the_closest_template(reviewed):
+    r, run_id = reviewed
+    status, out = get_json(r.base, f"/api/runs/{run_id}/set-aside")
+    assert status == 200, out
+    assert out["total"] == 2
+    assert [d["name"] for d in out["documents"]] == ["client_00021.pdf", "client_00022.pdf"]
+    for doc in out["documents"]:
+        assert set(doc) == {"doc_id", "name", "reason", "closest_template", "closest_score"}
+        assert (doc["reason"], doc["closest_template"]) == ("no template fits", "Client info")
+        assert isinstance(doc["closest_score"], float) and 0 <= doc["closest_score"] < 1
+    assert get_json(r.base, f"/api/runs/{run_id}/set-aside?offset=1&limit=1")[1]["documents"] == out["documents"][1:]
+    assert get_json(r.base, f"/api/runs/{run_id}/set-aside?limit=201")[0] == 400
+
+
+def test_a_decision_settles_its_problem_and_the_document_when_it_was_its_only_one(reviewed):
+    r, run_id = reviewed
+    before = get_json(r.base, f"/api/runs/{run_id}")[1]
+    [doc] = problems_of(r, run_id, "?status=missing")[1]["documents"]
+    [problem] = doc["problems"]
+    decision = {"doc_id": doc["doc_id"], "path": problem["path"], "decision": "value", "value": "12-3456789"}
+    status, after = get_json(r.base, f"/api/runs/{run_id}/decisions", "POST", decision)
+    assert status == 200, after
+    assert after["summary"]["with_problems"] == before["summary"]["with_problems"] - 1
+    assert after["summary"]["complete"] == before["summary"]["complete"] + 1
+    assert next(f for f in after["fields"] if f["path"] == problem["path"])["reviewed"] == 1
+    left = problems_of(r, run_id)[1]
+    assert left["total"] == 2 and doc["doc_id"] not in [d["doc_id"] for d in left["documents"]]
+    assert get_json(r.base, f"/api/runs/{run_id}")[1]["summary"] == after["summary"]
+
+
+def test_a_decision_the_library_refuses_is_a_bad_decision_with_its_message(reviewed):
+    r, run_id = reviewed
+    [doc] = problems_of(r, run_id, "?status=missing")[1]["documents"]
+    for body, says in [
+        ({"doc_id": "nope.pdf", "path": "investor.tax_id", "decision": "value", "value": "1"}, "no document"),
+        ({"doc_id": doc["doc_id"], "path": "nope", "decision": "value", "value": "1"}, "no field"),
+        ({"doc_id": doc["doc_id"], "path": "investor.tax_id", "decision": "accept"}, "nothing to accept"),
+        ({"doc_id": doc["doc_id"], "path": "investor.tax_id", "decision": "value"}, "needs a value"),
+        ({"doc_id": doc["doc_id"], "path": "investor.tax_id", "decision": "maybe"}, "decision"),
+    ]:
+        status, out = get_json(r.base, f"/api/runs/{run_id}/decisions", "POST", body)
+        assert (status, out["error"]) == (400, "bad_decision"), body
+        assert says in out["detail"], out
+    assert problems_of(r, run_id)[1]["total"] == 3
+
+
+def test_a_page_of_a_document_of_the_run_is_a_png_and_anything_else_is_not_found(reviewed):
+    r, run_id = reviewed
+    [doc] = problems_of(r, run_id, "?status=missing")[1]["documents"]
+    status, headers, body = http_request(r.base, "GET", f"/api/runs/{run_id}/pages.png?doc={doc['doc_id']}&page=0&dpi=40")
+    assert status == 200 and headers["content-type"] == "image/png"
+    assert png_size(body)[0] == round(612 * 40 / 72)
+    for query in ("?doc=../etc/passwd&page=0", "?doc=..%2F..%2Fetc%2Fpasswd", f"?doc={doc['doc_id']}&page=9", "?doc=nope.pdf"):
+        status, _, out = http_request(r.base, "GET", f"/api/runs/{run_id}/pages.png{query}")
+        assert status == 404, query
+        assert str(r.api.settings.data_dir) not in json.loads(out)["detail"]
+    assert http_request(r.base, "GET", f"/api/runs/{run_id}/pages.png?page=0")[0] == 400
+
+
+def test_a_run_exports_as_a_workbook_or_a_zip_of_csv_files(reviewed):
+    import openpyxl
+
+    r, run_id = reviewed
+    status, headers, body = http_request(r.base, "GET", f"/api/runs/{run_id}/export?format=xlsx")
+    assert status == 200, body[:200]
+    assert headers["content-type"] == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    assert headers["content-disposition"] == 'attachment; filename="Client forms-results.xlsx"'
+    book = openpyxl.load_workbook(io.BytesIO(body), read_only=True)
+    assert "values" in book.sheetnames
+    assert len(list(book["values"].iter_rows(values_only=True))) == 1 + 23  # the header, then each document read
+    status, headers, body = http_request(r.base, "GET", f"/api/runs/{run_id}/export?format=csv")
+    assert status == 200 and headers["content-type"] == "application/zip"
+    assert headers["content-disposition"] == 'attachment; filename="Client forms-results.zip"'
+    with zipfile.ZipFile(io.BytesIO(body)) as z:
+        assert sorted(z.namelist()) == ["fields.csv", "set_aside.csv", "status.csv", "values.csv"]
+        assert len(z.read("values.csv").decode("utf-8").splitlines()) == 1 + 23
+    status, _, body = http_request(r.base, "GET", f"/api/runs/{run_id}/export?format=pdf")
+    assert (status, json.loads(body)["error"]) == (400, "bad_request")
+    assert [p.name for p in runs_dir(r).iterdir()] == [run_id]  # the export's files were not left behind
+
+
+def test_a_parquet_export_is_a_zip_or_not_supported_without_pyarrow(reviewed):
+    r, run_id = reviewed
+    status, headers, body = http_request(r.base, "GET", f"/api/runs/{run_id}/export?format=parquet")
+    if importlib.util.find_spec("pyarrow") is None:
+        out = json.loads(body)
+        assert (status, out["error"]) == (400, "not_supported") and "formcast[parquet]" in out["detail"]
+    else:
+        assert status == 200 and headers["content-type"] == "application/zip"
+        assert "values.parquet" in zipfile.ZipFile(io.BytesIO(body)).namelist()
+
+
+def test_a_run_sent_to_fill_is_a_dataset_of_the_read_documents_by_schema_path(reviewed):
+    r, run_id = reviewed
+    [doc] = problems_of(r, run_id, "?status=missing")[1]["documents"]
+    decision = {"doc_id": doc["doc_id"], "path": "investor.tax_id", "decision": "value", "value": "12-3456789"}
+    assert get_json(r.base, f"/api/runs/{run_id}/decisions", "POST", decision)[0] == 200
+    status, out = get_json(r.base, f"/api/runs/{run_id}/to-data", "POST", {})
+    assert status == 200, out
+    dataset = out["dataset"]
+    assert out["truncated"] is False and dataset["truncated"] is False
+    assert (dataset["name"], dataset["kind"], dataset["format"]) == ("Client forms results", "table", "json")
+    assert [c["name"] for c in dataset["columns"]] == read_fields(r.template)
+    assert dataset["rows"] == 23  # every document read; the two set aside are not rows
+    api_dataset = r.api.datasets.get(dataset["id"])
+    assert "12-3456789" in [row["investor.tax_id"] for row in api_dataset.table.rows]  # the decision is applied
+    assert get_json(r.base, f"/api/data/{dataset['id']}")[1]["rows"] == 23
+
+
+def test_a_run_sent_to_fill_keeps_the_first_rows_when_it_has_more_than_a_dataset_holds(reviewed, monkeypatch):
+    r, run_id = reviewed
+    monkeypatch.setattr(extraction, "MAX_ROWS", 5)
+    status, out = get_json(r.base, f"/api/runs/{run_id}/to-data", "POST", {})
+    assert status == 200, out
+    assert out["truncated"] is True and out["dataset"]["truncated"] is True and out["dataset"]["rows"] == 5
+
+
+def test_a_run_with_the_ai_asks_it_only_about_the_documents_whose_required_fields_failed(runner, problem_files):
+    calls = runner.model.calls.get("values", 0)
+    job = run_on(runner, batch_of(runner, problem_files), ai=True)
+    assert job["status"] == "done", job
+    assert [(s["key"], s["label"], s["status"]) for s in job["stages"]] == [
+        ("read", "Read every document", "done"), ("ai", "Ask the AI about the failing documents", "done"),
+    ]  # fmt: skip
+    assert runner.model.calls["values"] - calls == 2  # bad_tin and no_tin: the tax ID is the one required field
+    assert job["usage"]["input_tokens"] == 2 * 10 and job["result"]["summary"]["total"] == 3
+    assert (runs_dir(runner) / job["result"]["run"] / "ai.jsonl").is_file()
+
+
+def test_a_second_run_while_the_jobs_slots_are_taken_is_busy_and_starts_nothing(runner, corpus_files):
+    batch = batch_of(runner, corpus_files[:2])
+    release = threading.Event()
+    held = [runner.api.jobs.start_task("extract-run", lambda job: release.wait(10)) for _ in range(2)]
+    try:
+        status, out = start_run(runner, batch)
+        assert (status, out["error"]) == (429, "busy")
+        assert out["detail"] == "2 jobs are already running; wait for one to finish or cancel it."
+        assert get_json(runner.base, "/api/runs")[1] == {"runs": []}
+        assert not runs_dir(runner).exists() or not list(runs_dir(runner).iterdir())
+    finally:
+        release.set()
+    for job in held:
+        wait_ended(runner.api.jobs, job.id)
+    assert run_on(runner, batch)["status"] == "done"
+
+
+def test_a_run_cancelled_after_three_documents_keeps_them_and_a_new_run_of_the_batch_resumes_it(runner, corpus_files, monkeypatch):
+    batch = batch_of(runner, corpus_files)
+    reached, go = threading.Event(), threading.Event()
+    real = extract_api.run_batch
+
+    def gated(*args, on_progress, **kwargs):
+        def progress(done, total):
+            on_progress(done, total)
+            if done == 3:
+                reached.set()
+                assert go.wait(10)
+
+        return real(*args, on_progress=progress, **kwargs)
+
+    monkeypatch.setattr(extract_api, "run_batch", gated)
+    status, out = start_run(runner, batch)
+    assert status == 200, out
+    assert reached.wait(20)
+    job = job_of(runner.base, out["id"])
+    assert job["status"] == "running" and (job["result"]["done"], job["result"]["total"]) == (3, 22)
+    run_id = job["result"]["run"]
+    status, busy = start_run(runner, batch)  # one job per run at a time
+    assert (status, busy["error"]) == (409, "busy_run")
+    assert get_json(runner.base, f"/api/jobs/{out['id']}/cancel", "POST", {})[0] == 200
+    go.set()
+    job = job_ended(runner.base, out["id"])
+    assert job["status"] == "cancelled" and job["result"]["run"] == run_id and job["result"]["done"] == 3
+    assert get_json(runner.base, f"/api/runs/{run_id}")[1]["summary"]["total"] == 3
+    monkeypatch.setattr(extract_api, "run_batch", real)
+    again = run_on(runner, batch)
+    assert again["status"] == "done" and again["result"]["run"] == run_id
+    assert again["result"]["summary"]["total"] == 22 and again["result"]["done"] == 22
+    lines = (runs_dir(runner) / run_id / "results.jsonl").read_text().splitlines()
+    ids = [json.loads(line)["doc_id"] for line in lines]
+    assert len(ids) == 22 and len(set(ids)) == 22
+    assert [entry["id"] for entry in get_json(runner.base, "/api/runs")[1]["runs"]] == [run_id]
+
+
+@pytest.mark.parametrize(("setting", "cpus", "workers"), [(0, 8, 8), (3, 8, 3), (16, 8, 8), (0, None, 1)])
+def test_a_runs_workers_are_one_per_cpu_by_default_and_never_more_than_the_cpus(monkeypatch, setting, cpus, workers):
+    monkeypatch.setattr(extract_api.os, "cpu_count", lambda: cpus)
+    settings = Settings.from_env({})
+    settings.extract_workers = setting
+    assert extract_api._workers(settings) == workers
+
+
+def test_a_document_set_aside_by_an_internal_error_shows_its_kind_but_not_the_exceptions_words():
+    assert extract_api._reason("internal error: KeyError: '/srv/secret/a.pdf'") == "internal error: KeyError"
+    assert extract_api._reason("cannot read PDF: the reader crashed") == "cannot read PDF: the reader crashed"
+    assert extract_api._reason("no template fits") == "no template fits"
+
+
+def cli_run(template: dict, folder: Path, out: Path, tmp_path: Path) -> None:
+    """``python -m formcast.extract run`` with ``template`` (written as JSON) over ``folder`` into ``out``."""
+    path = tmp_path / f"{template['template_id']}.json"
+    path.write_text(json.dumps(template))
+    done = subprocess.run(
+        [sys.executable, "-m", "formcast.extract", "run", str(path), str(folder), "--out", str(out), "--workers", "1"],
+        capture_output=True, text=True, timeout=120, cwd=ROOT,
+        env={**os.environ, "PYTHONPATH": os.pathsep.join([str(ROOT / "src"), str(ROOT)])},
+    )  # fmt: skip
+    assert done.returncode == 0, done.stderr
+
+
+def folder_of(files: list[tuple[str, bytes]], folder: Path) -> Path:
+    folder.mkdir()
+    for name, data in files:
+        (folder / name).write_bytes(data)
+    return folder
+
+
+def test_a_command_line_run_is_opened_by_its_folder_when_its_template_is_a_saved_extraction(runner, corpus_files, tmp_path):
+    cli_run(runner.template, folder_of(corpus_files, tmp_path / "corpus"), tmp_path / "out", tmp_path)
+    status, run = get_json(runner.base, "/api/runs", "POST", {"folder": str(tmp_path / "out")})
+    assert status == 200, run
+    assert (run["name"], run["extraction"], run["summary"]["total"]) == ("out", "Client info", 22)
+    assert [entry["id"] for entry in get_json(runner.base, "/api/runs")[1]["runs"]] == [run["id"]]
+    assert get_json(runner.base, "/api/runs", "POST", {"folder": str(tmp_path / "out")})[1]["id"] == run["id"]  # opened once
+    aside = get_json(runner.base, f"/api/runs/{run['id']}/set-aside")[1]
+    assert [d["name"] for d in aside["documents"]] == ["client_00021.pdf", "client_00022.pdf"]
+    status, headers, _ = http_request(runner.base, "GET", f"/api/runs/{run['id']}/pages.png?doc=client_00001.pdf&page=0&dpi=40")
+    assert status == 200 and headers["content-type"] == "image/png"
+    assert not runs_dir(runner).exists() or not list(runs_dir(runner).iterdir())  # registered, not copied
+
+
+def test_a_command_line_run_of_another_template_or_no_run_at_all_is_a_bad_run(runner, corpus_files, tmp_path, start_demo_server):
+    folder = folder_of(corpus_files[:2], tmp_path / "corpus")
+    edited = ExtractionTemplate.model_validate({**runner.template, "name": "Edited"})
+    run_batch([edited], sorted(folder.glob("*.pdf")), tmp_path / "edited", workers=1)
+    unknown = edited.model_copy(update={"template_id": "someone_elses"})
+    run_batch([unknown], sorted(folder.glob("*.pdf")), tmp_path / "unknown", workers=1)
+    for out, says in [(tmp_path / "edited", "client_forms"), (tmp_path / "unknown", "someone_elses")]:
+        status, body = get_json(runner.base, "/api/runs", "POST", {"folder": str(out)})
+        assert (status, body["error"]) == (400, "bad_run") and says in body["detail"], body
+        assert str(tmp_path) not in body["detail"]
+    for value in (str(folder), "relative/path", 7):
+        status, body = get_json(runner.base, "/api/runs", "POST", {"folder": value})
+        assert (status, body["error"]) == (400, "bad_run"), value
+        assert str(tmp_path) not in body["detail"]
+    assert get_json(runner.base, "/api/runs")[1] == {"runs": []}
+    closed = start_demo_server(folder_scan=False)
+    status, body = get_json(closed, "/api/runs", "POST", {"folder": str(tmp_path / "edited")})
+    assert (status, body["error"]) == (403, "not_allowed")

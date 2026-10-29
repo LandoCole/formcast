@@ -63,6 +63,52 @@ runs on a setup, an edit, a wording or another line job is 409 ``busy_setup``. A
 "no such extraction: <name>"; a name ``store.check_name`` refuses is 400 ``bad_name``, a saved file that is not a
 valid template 422 ``bad_template_file``.
 
+Runs (``api.runs``):
+
+    POST /api/jobs {kind: "extract-run", extraction: name, batch, ai?: bool} -> {id}; result {run, done, total, summary}
+    GET  /api/runs                                                  -> {runs: [{id, name, extraction, started, summary}]}
+    POST /api/runs                   {folder}                       -> Run     (a command line run opened)
+    GET  /api/runs/{r}                                              -> Run
+    GET  /api/runs/{r}/problems?path=&status=&offset=&limit=        -> {total, documents: [{doc_id, name, problems: [Problem]}]}
+    GET  /api/runs/{r}/set-aside?offset=&limit=                     -> {total, documents: [{doc_id, name, reason, closest_template, closest_score}]}
+    POST /api/runs/{r}/decisions     {doc_id, path, decision, value?} -> Run
+    GET  /api/runs/{r}/pages.png?doc=&page=&dpi=                    -> image/png (a page of a document of the run)
+    GET  /api/runs/{r}/export?format=xlsx|parquet|csv               -> the .xlsx, or a .zip of the Parquet or CSV files
+    POST /api/runs/{r}/to-data                                      -> {dataset: Dataset.summary(), truncated}
+
+    Run     = {id, name, extraction, summary: RunSummary, fields: [{path, title, found, missing, failed_check, unsure,
+               reviewed, not_on_form}], seconds}
+    Problem = {path, title, status, raw, value, reasons, page, rect}
+
+An ``extract-run`` job reads every file of the batch with the saved template (``run_batch``, with
+``settings.extract_workers`` processes: 0 is one per CPU, never more than there are), in the run of that batch and
+extraction whose template is unchanged, which it resumes (``Runs.for_batch``), or a new run. Its stage ``read``
+counts the documents (``done`` of ``total`` in the result too); a cancel stops it once the documents being read are
+written, ends the job ``cancelled`` and keeps the run, which the next run of the batch carries on. With ``ai`` a
+second stage, ``ai``, runs ``ai_pass`` on the run: only documents with a required field still failing are sent to
+the model, and its answers are problems to review. It is the only model call of a run, so a run without ``ai``
+needs no model. A run takes one job at a time: another ``extract-run`` of it meanwhile is 409 ``busy_run``.
+
+``problems`` and ``set-aside`` are paged as the batch files are (``limit`` 1 to 200, default 50); ``status`` is one
+of ``missing``, ``failed_check`` and ``unsure``. A document's ``name`` is its file's name in the batch (a command
+line run's: its path in its folder), a problem's ``title`` its field's title in the schema. A decision is a
+``ReviewDecision``; one the library refuses is 400 ``bad_decision`` with its message. A page image is of a document
+of the run only, read from its file (404 for any other ``doc``). The export is ``formcast.extract.export``'s,
+written to a temporary folder in ``<data>/local/runs`` and sent as
+``Content-Disposition: attachment; filename="<run name>-results.xlsx"`` (or ``.zip``); a format whose extra is not
+installed (Parquet needs ``pyarrow``) is 400 ``not_supported`` with the library's message. ``to-data`` makes the
+read documents a dataset (``api.datasets``): a column per schema path the template reads, a row per document with
+its values as review left them, the first ``MAX_ROWS`` when there are more (``truncated``); columns named by
+schema path let the fill flow map it to a destination of those paths directly.
+
+``POST /api/runs {folder}`` opens a ``python -m formcast.extract run`` output folder (403 ``not_allowed`` when
+``settings.folder_scan`` is off): each template its ``run.json`` names must be saved here, unchanged, else 400
+``bad_run`` naming the template; a folder with no run is 400 ``bad_run`` too. An unknown run is 404 ``not_found``
+"no such run: <id>" (a command line run is unknown after a restart until opened again); a run whose job has not
+begun reading is 409 ``not_started`` for its problems, decisions, export and dataset. A response names a document
+by its shown name only, never by a path on the server, except a command line run's documents, named by their path
+in the run's own folder.
+
 Locks: these handlers and jobs hold no MuPDF lock of their own. ``formcast.extract`` takes ``PDF_LOCK`` (which is
 ``PYMUPDF_LOCK``) for each piece of MuPDF work it does and lets go after it: a sample's form map while it is built
 (one sample at a time), a sample's blanks while they are detected, each ``DocText`` open, read and close, each
@@ -70,7 +116,11 @@ Locks: these handlers and jobs hold no MuPDF lock of their own. ``formcast.extra
 It never holds the lock across a model call, so page images, marks, edits and scans asked for while a job runs wait
 for one such piece, not the job. When the server warms the field detectors up (``python -m demo.server``), the build
 uses the same detectors as the documents, and the ``detect`` stage waits for their weights before the library takes
-the lock to detect; without a warm-up the library loads its own.
+the lock to detect; without a warm-up the library loads its own. A run with one worker reads its documents in this
+process the same way (through ``DocText`` and ``PdfFeatures``), one MuPDF call at a time under the lock; with more,
+in worker processes of their own, which share no lock with the server. A run's page images (``page_png``) and the
+AI pass's readings of its documents take the lock the same way; its problems, decisions and export read only the
+run's files.
 
 The handlers are functions over the ``Api`` they are registered on, so the managers (``demo/server/extraction.py``)
 stay where the ``Api`` keeps them. This module imports ``api`` for ``ApiError``, ``Request`` and the upload helpers,
@@ -79,7 +129,13 @@ so ``api`` imports it only inside the methods that call it.
 
 from __future__ import annotations
 
+import importlib.util
+import io
+import os
+import re
+import tempfile
 import uuid
+import zipfile
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
@@ -88,11 +144,17 @@ import pydantic
 
 from demo.server.api import AI_NOT_CONFIGURED, DEFAULT_DPI, Api, ApiError, Request, Response, _object, _uploads, missing
 from demo.server.documents import MAX_DPI, MIN_DPI, page_png
-from demo.server.extraction import MIN_SAMPLE, PAGE_DEFAULT, PAGE_LIMIT, Batch, ScanNotDone, Setup, SetupBusy
+from demo.server.extraction import (
+    MIN_SAMPLE, PAGE_DEFAULT, PAGE_LIMIT, Batch, Run, RunBusy, RunNotStarted, ScanNotDone, Setup, SetupBusy,
+)
 from demo.server.jobs import Job, JobsBusy
+from demo.server.settings import Settings
 from demo.server.store import check_name
 from formcast import FormcastError, SessionCancelled
+from formcast.extract.aipass import ai_pass
+from formcast.extract.batch import INTERNAL_ERROR, Results, ReviewDecision, run_batch
 from formcast.extract.edit import Edit
+from formcast.extract.export import export
 from formcast.extract.model import concrete_paths
 from formcast.extract.proof import prove
 from formcast.extract.samples import SamplePdf, read_samples
@@ -101,12 +163,18 @@ from formcast.extract.setup import FIELDS_LABELS, MAX_SAMPLES, STAGES, SetupSpec
 BATCH = r"/api/batches/(?P<batch>[0-9a-f]{32})"
 SETUP = r"/api/setups/(?P<setup>[0-9a-f]{32})"
 EXTRACTION = r"/api/extractions/(?P<name>[^/]+)"
+RUN = r"/api/runs/(?P<run>[0-9a-f]{32})"
 EDIT = pydantic.TypeAdapter(Edit)  #: an edit as the page sends it, JSON discriminated by "op"
 NAME_RULE = "A name is 1 to 80 letters, digits, spaces and _ . -, starting with a letter or digit."
+READ_STAGE = ("read", "Read every document")  #: the ``extract-run`` job's stage
+AI_STAGE = ("ai", "Ask the AI about the failing documents")  #: its second stage, when the run asks the AI
+XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+#: The module each export format needs; without it the export is 400 ``not_supported``.
+EXPORT_NEEDS = {"xlsx": "openpyxl", "parquet": "pyarrow", "csv": "csv"}
 
 
 def add_extract_routes(api: Api) -> None:
-    """Register the extraction routes on ``api``: the batch, setup and saved extraction routes (the run routes come with their manager)."""
+    """Register the extraction routes on ``api``: the batch, setup, saved extraction and run routes."""
 
     def route(method: str, pattern: str, handler: Callable[[Api, Request], Any]) -> None:
         api._add(method, pattern, lambda req: handler(api, req))
@@ -127,6 +195,15 @@ def add_extract_routes(api: Api) -> None:
     route("GET", EXTRACTION, get_extraction)
     route("PUT", EXTRACTION, save_extraction)
     route("DELETE", EXTRACTION, delete_extraction)
+    route("GET", r"/api/runs", list_runs)
+    route("POST", r"/api/runs", open_run_folder)
+    route("GET", RUN, get_run)
+    route("GET", RUN + r"/problems", run_problems)
+    route("GET", RUN + r"/set-aside", run_set_aside)
+    route("POST", RUN + r"/decisions", decide)
+    route("GET", RUN + r"/pages\.png", run_page_image)
+    route("GET", RUN + r"/export", export_run)
+    route("POST", RUN + r"/to-data", run_to_data)
 
 
 def start_extract_job(api: Api, kind: str, payload: dict) -> dict:
@@ -135,10 +212,10 @@ def start_extract_job(api: Api, kind: str, payload: dict) -> dict:
     Everything is checked here, before the job's thread starts (see the module docstring for the errors).
 
     Raises:
-        ApiError: 501 ``not_available`` for ``extract-run`` (until the runs' manager exists); the errors above.
+        ApiError: the errors above.
     """
-    if kind == "extract-run":
-        raise ApiError(501, "not_available", f"{kind} is not available yet")
+    if kind == "extract-run":  # needs a model only for its AI pass
+        return _start_run(api, payload)
     if api.provider_factory is None:
         raise ApiError(400, "ai_not_configured", AI_NOT_CONFIGURED)
     if kind == "extract-setup":
@@ -518,6 +595,276 @@ def delete_extraction(api: Api, req: Request) -> dict:
     with missing("extraction"):
         api.extractions.delete(name)
     return {"name": name}
+
+
+# ------------------------------------------------------------------ the run job
+
+
+def _start_run(api: Api, payload: dict) -> dict:
+    """``{extraction, batch, ai?}`` -> an ``extract-run`` job: ``run_batch`` of the saved template over every file of
+    the batch, into the run of that batch and extraction (resumed) or a new one; then ``ai_pass`` when ``ai``."""
+    name = payload.get("extraction")
+    if not isinstance(name, str):
+        raise ApiError(400, "bad_request", "Send extraction as the name of a saved extraction template.")
+    ai = payload.get("ai", False)
+    if not isinstance(ai, bool):
+        raise ApiError(400, "bad_request", "Send ai as true or false.")
+    if ai and api.provider_factory is None:
+        raise ApiError(400, "ai_not_configured", AI_NOT_CONFIGURED)
+    _checked(name)
+    with missing("extraction"):
+        template = api.extractions.get(name)
+    try:
+        batch = api.batches.get(payload.get("batch"))
+    except (KeyError, TypeError):
+        raise ApiError(400, "bad_batch", "Send batch as the id of a batch this server has open.") from None
+    root = batch.root().resolve()
+    paths, names = [], {}  # the files to read, and each one's shown name by its doc_id (as run_batch makes it)
+    for f in batch.all_files():
+        path = f.path.resolve()
+        if path.is_relative_to(root):  # a folder's link to a file elsewhere is not of the folder
+            paths.append(path)
+            names[path.relative_to(root).as_posix()] = f.name
+    if not paths:
+        raise ApiError(400, "bad_batch", "That batch has no PDFs yet; add some first.")
+    templates = [template]
+    workers = _workers(api.settings)
+    run, created = api.runs.for_batch(batch.name, name, batch.id, templates)
+    try:
+        run.claim()
+    except RunBusy as exc:
+        raise ApiError(409, "busy_run", str(exc)) from None
+
+    def runner(job: Job) -> None:
+        try:
+            job.set_result(run=run.id, done=0, total=len(names))
+            run.set_names(names)
+            job.stage(READ_STAGE[0], "running")
+
+            def progress(done: int, total: int) -> None:
+                job.set_result(done=done, total=total)
+                job.stage(READ_STAGE[0], "running", f"{done:,} of {total:,}")
+
+            run_batch(
+                templates, paths, run.out_dir, root=root, workers=workers, on_progress=progress,
+                should_stop=lambda: job.cancel_requested,
+            )  # fmt: skip
+            if job.cancel_requested:  # the documents read so far are kept; a run of the batch again resumes
+                job.set_result(summary=run.summary()["summary"])
+                raise SessionCancelled("cancelled")
+            job.set_result(done=len(names))
+            job.stage(READ_STAGE[0], "done", f"{len(names):,} documents")
+            if ai:
+                _ask_the_ai(api, job, run)
+            job.set_result(summary=run.summary()["summary"])
+        finally:
+            run.release()
+
+    try:
+        return _task(api, "extract-run", runner, [READ_STAGE, AI_STAGE] if ai else [READ_STAGE])
+    except BaseException:  # no job started: nothing of it is kept
+        if created:
+            api.runs.discard(run)
+        run.release()
+        raise
+
+
+def _ask_the_ai(api: Api, job: Job, run: Run) -> None:
+    """The run job's ``ai`` stage: ``ai_pass`` over the run (only documents with a failing required field are asked)."""
+    job.stage(AI_STAGE[0], "running")
+
+    def progress(done: int, total: int) -> None:
+        job.stage(AI_STAGE[0], "running", f"{done:,} of {total:,} documents")
+        _stop_if_cancelled(job)
+
+    setup = run.templates[0].setup
+    vision = setup.vision if setup is not None else True
+    provider = api.provider_factory()
+    try:
+        summary = ai_pass(run.templates, run.out_dir, provider, vision=vision, on_progress=progress)
+    finally:
+        provider.close()
+    job.add_usage(summary.usage)
+    job.stage(AI_STAGE[0], "done", f"{summary.documents:,} asked, {summary.answered:,} answered")
+
+
+def _workers(settings: Settings) -> int:
+    """``settings.extract_workers`` for ``run_batch``: 0 is one per CPU, and never more than there are CPUs."""
+    cpus = os.cpu_count() or 1
+    return min(settings.extract_workers or cpus, cpus)
+
+
+# ------------------------------------------------------------------ runs
+
+
+def _run(api: Api, req: Request) -> Run:
+    with missing("run"):
+        return api.runs.get(req.match["run"])
+
+
+def _results(run: Run) -> Results:
+    """The run's results, loaded now; 409 ``not_started`` for a run whose job has not begun reading."""
+    try:
+        return run.results()
+    except RunNotStarted as exc:
+        raise ApiError(409, "not_started", str(exc)) from None
+
+
+def _page_query(req: Request) -> tuple[int, int]:
+    return _whole(req.query, "offset", 0, 0, None), _whole(req.query, "limit", PAGE_DEFAULT, 1, PAGE_LIMIT)
+
+
+def list_runs(api: Api, req: Request) -> dict:
+    return {"runs": api.runs.list()}
+
+
+def get_run(api: Api, req: Request) -> dict:
+    return _run(api, req).summary()
+
+
+def open_run_folder(api: Api, req: Request) -> dict:
+    """``{folder}`` -> a command line run (``python -m formcast.extract run``) opened where it is."""
+    if not api.settings.folder_scan:
+        raise ApiError(403, "not_allowed", "This server does not open folders on its machine.")
+    folder = _object(req).get("folder")
+    path = Path(folder.strip()).expanduser() if isinstance(folder, str) else None
+    if path is None or not path.is_absolute():
+        raise ApiError(400, "bad_run", "Send folder as the full path of a run's folder on the server's machine.")
+    try:
+        return api.runs.open_folder(path, api.extractions).summary()
+    except FormcastError as exc:
+        raise ApiError(400, "bad_run", str(exc)) from None
+
+
+def run_problems(api: Api, req: Request) -> dict:
+    """A page of the documents that still have problems, each with them: ``?path=&status=&offset=&limit=``."""
+    run = _run(api, req)
+    offset, limit = _page_query(req)
+    results = _results(run)
+    try:
+        total, page = results.page(offset, limit, path=req.query.get("path") or None, status=req.query.get("status") or None)
+    except FormcastError as exc:
+        raise ApiError(400, "bad_request", str(exc)) from None
+    titles = run.titles()
+    documents = [
+        {
+            "doc_id": doc.doc_id,
+            "name": run.name_of(doc.doc_id),
+            "problems": [
+                {
+                    "path": f.path, "title": titles.get(f.path, f.path), "status": f.status, "raw": f.raw,
+                    "value": f.value, "reasons": list(f.reasons), "page": f.page, "rect": list(f.rect) if f.rect else None,
+                }  # fmt: skip
+                for f in fields
+            ],
+        }
+        for doc, fields in page
+    ]
+    return {"total": total, "documents": documents}
+
+
+def run_set_aside(api: Api, req: Request) -> dict:
+    """A page of the documents set aside (no template fits, or unreadable): ``?offset=&limit=``."""
+    run = _run(api, req)
+    offset, limit = _page_query(req)
+    total, documents = 0, []
+    for row in _results(run).set_aside():
+        if offset <= total < offset + limit:
+            documents.append({
+                "doc_id": row["doc_id"], "name": run.name_of(row["doc_id"]), "reason": _reason(row["reason"]),
+                "closest_template": row["closest_template"], "closest_score": row["closest_score"],
+            })  # fmt: skip
+        total += 1
+    return {"total": total, "documents": documents}
+
+
+def _reason(reason: str) -> str:
+    """Why a document was set aside, as shown: an internal error keeps its kind, not the exception's own words."""
+    if reason.startswith(INTERNAL_ERROR):
+        kind = reason[len(INTERNAL_ERROR) :].split(":", 1)[0].strip()
+        return f"{INTERNAL_ERROR} {kind}" if kind else INTERNAL_ERROR.rstrip(":")
+    return reason
+
+
+def decide(api: Api, req: Request) -> dict:
+    """``{doc_id, path, decision: value|accept|not_in_document, value?}`` recorded on the run -> the run."""
+    run = _run(api, req)
+    payload = _object(req)
+    try:
+        decision = ReviewDecision(**{key: payload.get(key) for key in ("doc_id", "path", "decision", "value")})
+    except pydantic.ValidationError as exc:
+        raise ApiError(400, "bad_decision", _first_error(exc)) from None
+    try:
+        run.decide(decision)
+    except RunNotStarted as exc:
+        raise ApiError(409, "not_started", str(exc)) from None
+    except FormcastError as exc:
+        raise ApiError(400, "bad_decision", str(exc)) from None
+    return run.summary()
+
+
+def run_page_image(api: Api, req: Request) -> Response:
+    """``GET .../pages.png?doc=<doc_id>&page=0&dpi=110``: a page of one of the run's documents, read from its file."""
+    run = _run(api, req)
+    doc_id = req.query.get("doc")
+    if not doc_id:
+        raise ApiError(400, "bad_request", "Send doc as the doc_id of a document of the run.")
+    page = _whole(req.query, "page", 0, 0, None)
+    dpi = _dpi(req)
+    try:
+        doc = run.document(doc_id)
+    except KeyError:
+        raise ApiError(404, "not_found", "no such document in this run") from None
+    name = run.name_of(doc_id)
+    try:
+        data = Path(doc.file).read_bytes()
+    except OSError:
+        raise ApiError(404, "not_found", f"{name} is no longer on the server") from None
+    return _png(data, name, page, dpi)
+
+
+def export_run(api: Api, req: Request) -> Response:
+    """``?format=xlsx|parquet|csv`` -> the run as a workbook, or a zip of the folder of Parquet or CSV files."""
+    run = _run(api, req)
+    fmt = req.query.get("format", "xlsx")
+    if fmt not in EXPORT_NEEDS:
+        raise ApiError(400, "bad_request", "format must be xlsx, parquet or csv")
+    results = _results(run)
+    results.check_templates(run.templates)
+    api.runs.root.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".export-", dir=api.runs.root) as tmp:
+        target = Path(tmp) / f"results.{fmt}" if fmt == "xlsx" else Path(tmp) / "results"
+        try:
+            written = export(results, run.templates, target, format=fmt)
+        except FormcastError as exc:
+            if importlib.util.find_spec(EXPORT_NEEDS[fmt]) is None:  # the library names the extra to install
+                raise ApiError(400, "not_supported", str(exc)) from None
+            raise
+        if fmt == "xlsx":
+            body, kind, ext = target.read_bytes(), XLSX, "xlsx"
+        else:
+            buf = io.BytesIO()
+            with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+                for path in written:
+                    z.write(path, path.name)
+            body, kind, ext = buf.getvalue(), "application/zip", "zip"
+    disposition = f'attachment; filename="{_download_name(run.name)}-results.{ext}"'
+    return Response(200, {"Content-Type": kind, "Content-Disposition": disposition, "Cache-Control": "no-store"}, body)
+
+
+def _download_name(name: str) -> str:
+    """``name`` as a file name for a download header: letters, digits, spaces and ``_ . -`` only."""
+    return re.sub(r"[^A-Za-z0-9 _.-]+", "_", name).strip(" ._") or "run"
+
+
+def run_to_data(api: Api, req: Request) -> dict:
+    """The run's documents read become a dataset for the fill flow -> ``{dataset: summary, truncated}``."""
+    run = _run(api, req)
+    try:
+        table = run.table()
+    except RunNotStarted as exc:
+        raise ApiError(409, "not_started", str(exc)) from None
+    return {"dataset": api.datasets.add_table(table).summary(), "truncated": table.truncated}
 
 
 def _first_error(exc: pydantic.ValidationError) -> str:

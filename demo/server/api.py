@@ -53,7 +53,7 @@ import pydantic
 
 from demo.server.datasets import Dataset, Datasets
 from demo.server.documents import DETECT_MODES, MAX_DPI, MIN_DPI, PYMUPDF_LOCK, Doc, Documents
-from demo.server.extraction import Batches, ExtractionStore, Setups
+from demo.server.extraction import Batches, ExtractionStore, Runs, Setups
 from demo.server.jobs import EXTRACT_KINDS, KINDS, Jobs, JobsBusy
 from demo.server.oneshot import OneShotSpec, map_dataset
 from demo.server.records import MultiRecords, RecordSource, RecordSourceError
@@ -167,7 +167,7 @@ class Api:
         self.batches = Batches(settings.data_dir / "local" / "batches")
         self.setups = Setups()
         self.extractions = ExtractionStore(settings.data_dir / "local" / "extractions")
-        self.runs = None
+        self.runs = Runs(settings.data_dir / "local" / "runs")
         self._routes: list[tuple[str, re.Pattern[str], Callable[[Request], Any]]] = []
         self._add_routes()
 

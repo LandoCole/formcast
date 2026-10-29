@@ -2,8 +2,8 @@
 
 This module is where they live; ``Api`` holds one of each (``api.batches``, ``api.setups``, ``api.extractions``,
 ``api.runs``), and ``demo/server/extract_api.py`` is the HTTP face over them. Everything they write goes under
-``<data_dir>/local/`` (``batches/``, ``extractions/``, ``runs/``). The managers are added one at a time; until
-a manager exists its ``Api`` attribute is ``None``.
+``<data_dir>/local/`` (``batches/``, ``extractions/``, ``runs/``), except the review decisions of a command line
+run, which ``Results.decide`` keeps in that run's own folder.
 
 **Batches.** A batch is the PDFs one extraction starts from, held in memory by id (``Batches``, ``Batch``). It is
 filled in one of two ways:
@@ -60,20 +60,46 @@ readings are of. Names are the fill store's (``store.check_name``: ``ValueError`
 file that is not a valid template, or whose samples are missing, raises ``StoredTemplateError``. Files are written as
 ``store._write`` writes them (a temporary file and ``os.replace``), the samples before the template.
 
+**Runs.** A run is saved extraction templates read over a batch with ``formcast.extract.batch.run_batch`` (``Run``,
+``Runs``). A workbench run is a folder ``<data>/local/runs/<id>/`` holding the ``run_batch`` files (``run.json``,
+``results.jsonl``, and ``reviews.jsonl`` and ``ai.jsonl`` once there are decisions and AI answers) and three of its
+own: :data:`RUN_META` (``{name, extraction, batch, started}``; ``name`` is the batch's), :data:`RUN_TEMPLATES` (the
+templates as they were when the run was made, so a run is read with the templates its results are of, whatever is
+saved later) and :data:`RUN_NAMES` (each document's shown name, by ``doc_id``: an uploaded file is stored by its
+number, so its ``doc_id`` is ``"3.pdf"``). Its ``root`` is the batch's folder (``Batch.root``), so a document's
+``doc_id`` is the same each time the batch is read. ``Runs.for_batch`` gives the run of a batch and extraction
+whose templates have the same sha256, so a cancelled run resumes where it stopped (no document read twice);
+otherwise a new one. ``Runs.get`` reads a run's folder the first time it is asked for, so runs outlive the server
+(their batches do not: batches are in memory, so the same files read after a restart are a new batch and a new run).
+
+A command line run (``python -m formcast.extract run``) is opened by its folder (``Runs.open_folder``): each
+template its ``run.json`` names must be a saved extraction with the same ``template_id`` and sha256. It is held in
+memory under a new id and read where it is; nothing is copied. Its documents are named by their ``doc_id`` (their
+path in that folder).
+
+``Run.results()`` loads the results afresh on each call, so what a job or a decision wrote since is always seen.
+``Run.summary()`` (the run as the API shows it: the ``RunSummary``, each field's counts with its title from the
+schema, the seconds spent) keeps its last answer until one of the run's files changes size or time. A run takes one
+job at a time (``Run.claim``, ``RunBusy``) and one decision at a time.
+
 Threads: ``Batches`` has one lock for its table. Each ``Batch`` has a lock for its state (files, counts, scan) and a
 second one that lets one upload at a time write; the state lock is never held while files are written or read.
 Lock order: ``PYMUPDF_LOCK`` first, a batch's state lock second. ``Setups`` and ``ExtractionStore`` have one lock
 each for their table or folder. A ``Setup``'s lock is taken before ``PYMUPDF_LOCK``, never while holding it: an edit
 proves holding the setup's lock, and the library takes ``PYMUPDF_LOCK`` (its own ``PDF_LOCK``) for each MuPDF call
 it makes (a document opened, a page read or rendered), so a page image asked for meanwhile waits for one call, not
-the whole proof.
+the whole proof. ``Runs`` has one lock for its table (held while a run's folder is made or read); each ``Run`` has
+one for its job flag, its cached summary and its decisions. A run's job reads documents with no lock of the
+server's: the library takes ``PYMUPDF_LOCK`` for each MuPDF call it makes in this process.
 """
 
 from __future__ import annotations
 
 import io
+import json
 import logging
 import os
+import re
 import shutil
 import tempfile
 import threading
@@ -89,9 +115,14 @@ from typing import IO, Literal
 
 from demo.server.documents import PYMUPDF_LOCK
 from demo.server.store import NAME_RE, StoredTemplateError, _write, check_name
+from formcast.data.table import MAX_ROWS, Table
 from formcast.errors import FormcastError
+from formcast.extract.batch import (
+    AI, RESULTS, REVIEWS, RUN, Results, ReviewDecision, RunSummary, column_name, template_sha256,
+)
 from formcast.extract.edit import Edit, apply_edit
-from formcast.extract.model import ExtractionTemplate, concrete_paths
+from formcast.extract.export import _template_columns, _title  # the titles the export's ``fields`` part gives
+from formcast.extract.model import DocumentResult, ExtractionTemplate, concrete_paths
 from formcast.extract.proof import Mark, Proof, learn_maps, prove, sample_marks
 from formcast.extract.samples import SampleDoc, SamplePdf
 from formcast.extract.scan import ScanReport, sample, scan
@@ -109,6 +140,14 @@ DEFAULT_NAME = "Uploaded files"  #: a batch's name when it is given none
 SCAN_PAUSE = 0.001  #: seconds the scan leaves ``PYMUPDF_LOCK`` free between documents
 SCAN_FAILED = "The scan stopped because of an unexpected error. The server log has the details."
 SETUP_LIMIT = 8  #: the setups kept in memory; the least recently used is dropped first
+RUN_META = "run-meta.json"  #: a workbench run's own record, ``{name, extraction, batch, started}``
+RUN_TEMPLATES = "templates.json"  #: the templates a workbench run reads with, as they were when it was made
+RUN_NAMES = "names.json"  #: the name shown for each document of a workbench run, by ``doc_id``
+RUN_ID = re.compile(r"[0-9a-f]{32}")  #: a run's id, and the name of its folder
+#: The counts of each field a run shows, in this order (``Results.field_counts`` gives these and more).
+FIELD_COUNTS = ("found", "missing", "failed_check", "unsure", "reviewed", "not_on_form")
+#: The summary of a run that has not begun reading.
+NOT_STARTED = RunSummary(total=0, complete=0, with_problems=0, no_template=0, unreadable=0, internal_errors=0, seconds=0.0)
 
 
 class ScanNotDone(FormcastError):
@@ -194,6 +233,15 @@ class Batch:
         """``(number of files, the files from offset, at most limit of them)``, in index order."""
         with self._lock:
             return len(self.files), self.files[offset : offset + limit]
+
+    def all_files(self) -> list[BatchFile]:
+        """Every file of the batch, in index order (for a run, which reads them all)."""
+        with self._lock:
+            return list(self.files)
+
+    def root(self) -> Path:
+        """The folder the batch's files are under: the folder it was opened from, or where its uploads are stored."""
+        return self.folder if self.folder is not None else self.files_dir
 
     def file(self, index: int) -> BatchFile:
         """The file numbered ``index``.
@@ -727,3 +775,326 @@ class ExtractionStore:
             except FileNotFoundError:
                 raise KeyError(name) from None
             shutil.rmtree(assets, ignore_errors=True)
+
+
+# ------------------------------------------------------------------ runs
+
+
+class RunBusy(FormcastError):
+    """A job is already running on this run; a run takes one at a time."""
+
+
+class RunNotStarted(FormcastError):
+    """The run's job has not begun reading yet, so the run has no results yet."""
+
+
+@dataclass(eq=False)
+class Run:
+    """A run of saved extraction templates over a batch, in ``out_dir`` (see the module docstring).
+
+    ``batch`` is the id of the batch a workbench run reads (``None`` for a command line run), and ``folder`` is true
+    for a command line run opened by its folder. Read it with ``results`` (loaded afresh on each call), ``summary``,
+    ``document``, ``name_of`` and ``table``; ``decide`` records a review decision.
+    """
+
+    id: str
+    name: str
+    extraction: str
+    out_dir: Path
+    templates: list[ExtractionTemplate]
+    started: str = ""
+    batch: str | None = None
+    folder: bool = False
+    _names: dict[str, str] | None = field(default=None, repr=False)  # doc_id -> shown name, read from RUN_NAMES once
+    _titles: dict[str, str] | None = field(default=None, repr=False)  # concrete path -> title
+    _cached: tuple[tuple, dict] | None = field(default=None, repr=False)  # (the files' sizes and times, the summary)
+    _busy: bool = field(default=False, repr=False)  # a job is running on the run
+    _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
+
+    def results(self) -> Results:
+        """The run's results as its files hold them now, with the decisions and the AI's answers.
+
+        Raises:
+            RunNotStarted: the run has not begun reading (it has no ``run.json`` yet).
+            FormcastError: a line of its files before the last is not a record.
+        """
+        if not (self.out_dir / RUN).is_file():
+            raise RunNotStarted("This run has not read any document yet.")
+        return Results.load(self.out_dir)
+
+    def paths(self) -> list[str]:
+        """The concrete paths the run's templates read (not marked absent), the first template's first, each once."""
+        out: dict[str, None] = {}
+        for template in self.templates:
+            absent = set(template.absent)
+            out.update((p, None) for p in concrete_paths(template.schema_) if p not in absent)
+        return list(out)
+
+    def titles(self) -> dict[str, str]:
+        """Each concrete path's title in its template's schema, as the export's ``fields`` part gives it (the path
+        itself when the schema has none)."""
+        if self._titles is None:
+            titles: dict[str, str] = {}
+            for template in self.templates:
+                for _, path, schema_path in _template_columns(template):
+                    titles.setdefault(path, _title(template.schema_, schema_path) or path)
+            self._titles = titles
+        return self._titles
+
+    def summary(self) -> dict:
+        """The run as the API shows it: ``{id, name, extraction, summary, fields: [{path, title, found, missing,
+        failed_check, unsure, reviewed, not_on_form}], seconds}``. It is worked out again only when the run's files
+        have changed since."""
+        key = tuple(_stat(self.out_dir / name) for name in (RUN, RESULTS, REVIEWS, AI))
+        with self._lock:
+            if self._cached is not None and self._cached[0] == key:
+                return self._cached[1]
+        try:
+            results = self.results()
+        except RunNotStarted:
+            summary, counts = NOT_STARTED, {}
+        else:
+            summary, counts = results.summary(), results.field_counts()
+        titles = self.titles()
+        out = {
+            "id": self.id,
+            "name": self.name,
+            "extraction": self.extraction,
+            "summary": summary.model_dump(),
+            "fields": [
+                {"path": p, "title": titles.get(p, p), **{k: counts.get(p, {}).get(k, 0) for k in FIELD_COUNTS}}
+                for p in self.paths()
+            ],
+            "seconds": summary.seconds,
+        }
+        with self._lock:
+            self._cached = (key, out)
+        return out
+
+    def document(self, doc_id: str) -> DocumentResult:
+        """The document ``doc_id`` of the run, as it was read.
+
+        Raises:
+            KeyError: the run has no such document (or has not begun reading).
+        """
+        try:
+            results = self.results()
+        except RunNotStarted:
+            raise KeyError(doc_id) from None
+        if doc_id not in results._index:  # Results indexes each document's line by doc_id; it has no public lookup
+            raise KeyError(doc_id)
+        return results._document(doc_id)
+
+    def name_of(self, doc_id: str) -> str:
+        """The name shown for a document: its file's name in the batch, or (a command line run's) its ``doc_id``."""
+        if self.folder:
+            return doc_id
+        if self._names is None:
+            try:
+                self._names = json.loads((self.out_dir / RUN_NAMES).read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                self._names = {}
+        return self._names.get(doc_id) or _shown(doc_id)
+
+    def set_names(self, names: dict[str, str]) -> None:
+        """Keep the shown name of each document (``doc_id`` -> name) in the run's folder, as ``RUN_NAMES``."""
+        _write(self.out_dir / RUN_NAMES, json.dumps(names, ensure_ascii=False).encode("utf-8"))
+        self._names = dict(names)
+
+    def decide(self, decision: ReviewDecision) -> None:
+        """Record ``decision`` (``Results.decide``); the run takes one decision at a time.
+
+        Raises:
+            RunNotStarted: the run has not begun reading.
+            FormcastError: the library refused it (no such document or field, nothing to accept).
+        """
+        with self._lock:
+            self.results().decide(decision)
+
+    def table(self) -> Table:
+        """The documents read, as a table for the fill flow: a column per path (``paths``), a row per document with
+        its values as ``Results.rows`` gives them (AI answers and decisions applied), at most ``MAX_ROWS`` rows,
+        ``truncated`` when there were more.
+
+        Raises:
+            RunNotStarted: the run has not begun reading.
+        """
+        paths = self.paths()
+        rows: list[dict] = []
+        truncated = False
+        for row in self.results().rows():
+            if len(rows) == MAX_ROWS:
+                truncated = True
+                break
+            rows.append({p: row.get(column_name(p)) for p in paths})
+        return Table(columns=paths, rows=rows, kind="json", name=f"{self.name} results", truncated=truncated)
+
+    def claim(self) -> None:
+        """Mark a job as running on the run.
+
+        Raises:
+            RunBusy: one already is.
+        """
+        with self._lock:
+            if self._busy:
+                raise RunBusy("This run is being read already; wait for that job to finish, or cancel it.")
+            self._busy = True
+
+    def release(self) -> None:
+        """The run's job has ended (or never started)."""
+        with self._lock:
+            self._busy = False
+
+
+def _stat(path: Path) -> tuple[int, int] | None:
+    try:
+        st = path.stat()
+    except OSError:
+        return None
+    return st.st_size, st.st_mtime_ns
+
+
+class Runs:
+    """The runs: the workbench's, one folder each under ``root`` (``<data>/local/runs``) and read lazily, and the
+    command line runs opened by their folders, held in memory only (see the module docstring)."""
+
+    def __init__(self, root: Path) -> None:
+        self.root = Path(root)
+        self._runs: dict[str, Run] = {}
+        self._lock = threading.Lock()
+
+    def create(self, name: str, extraction: str, batch: str, templates: list[ExtractionTemplate]) -> Run:
+        """A new run of ``templates`` (the saved extraction ``extraction``) over the batch ``batch``, its folder written."""
+        with self._lock:
+            return self._create(name, extraction, batch, templates)
+
+    def for_batch(self, name: str, extraction: str, batch: str, templates: list[ExtractionTemplate]) -> tuple[Run, bool]:
+        """The run to read ``batch`` with: the run of that batch and extraction whose templates are ``templates`` (by
+        their sha256), which then resumes, else a new one (as ``create``); and whether it is new."""
+        shas = [template_sha256(t) for t in templates]
+        with self._lock:
+            for run in self._stored():
+                same = (run.batch, run.extraction) == (batch, extraction)
+                if same and [template_sha256(t) for t in run.templates] == shas:
+                    return run, False
+            return self._create(name, extraction, batch, templates), True
+
+    def discard(self, run: Run) -> None:
+        """Forget a run made for a job that never started, and remove its folder."""
+        with self._lock:
+            self._runs.pop(run.id, None)
+        if not run.folder and run.out_dir.parent == self.root:
+            shutil.rmtree(run.out_dir, ignore_errors=True)
+
+    def get(self, run_id: str) -> Run:
+        """The run ``run_id``: one already in memory, else the one in ``<root>/<run_id>/``.
+
+        Raises:
+            KeyError: there is no such run (a command line run is unknown after a restart until it is opened again).
+        """
+        with self._lock:
+            if run_id in self._runs:
+                return self._runs[run_id]
+            run = self._load(self.root / run_id) if RUN_ID.fullmatch(run_id) else None
+            if run is None:
+                raise KeyError(run_id)
+            self._runs[run_id] = run
+            return run
+
+    def list(self) -> list[dict]:
+        """``[{id, name, extraction, started, summary}]`` of every run, the newest first."""
+        with self._lock:
+            runs = {run.id: run for run in self._stored()} | self._runs
+        listed = [
+            {"id": r.id, "name": r.name, "extraction": r.extraction, "started": r.started, "summary": r.summary()["summary"]}
+            for r in runs.values()
+        ]
+        return sorted(listed, key=lambda entry: entry["started"], reverse=True)
+
+    def open_folder(self, folder: Path, extractions: ExtractionStore) -> Run:
+        """The command line run in ``folder`` (``python -m formcast.extract run``), registered under a new id with
+        nothing copied; opening the same folder again gives the same run.
+
+        Each template its ``run.json`` names must be a saved extraction (by ``template_id``) with the same sha256:
+        the results are of that template, and review and export need its schema.
+
+        Raises:
+            FormcastError: ``folder`` holds no run that can be read; a template of the run is not saved, or the saved
+                one differs from it (the message names its id, never the folder).
+        """
+        try:
+            folder = folder.resolve()
+            results = Results.load(folder)
+            used = [(t["template_id"], t.get("sha256")) for t in results.run["templates"]]
+            started = str(results.run.get("started", ""))
+        except (FormcastError, OSError, ValueError, KeyError, TypeError):  # their messages name the folder
+            raise FormcastError(
+                "There is no run in that folder that can be read (a run's folder holds its run.json and results.jsonl)."
+            ) from None
+        with self._lock:
+            for run in self._runs.values():
+                if run.folder and run.out_dir == folder:
+                    return run
+        saved = extractions.list()
+        names, templates = [], []
+        for template_id, sha in used:
+            same_id = [entry["name"] for entry in saved if entry["template_id"] == template_id]
+            if not same_id:
+                raise FormcastError(f"The run reads with the template {template_id!r}, which is not a saved extraction here.")
+            for name in same_id:
+                template = extractions.get(name)
+                if template_sha256(template) == sha:
+                    names.append(name)
+                    templates.append(template)
+                    break
+            else:
+                raise FormcastError(
+                    f"The run's template {template_id!r} differs from the one saved here ({', '.join(same_id)}): it was "
+                    "changed after the run, so the run can't be shown with it."
+                )
+        if not templates:
+            raise FormcastError("The run names no template.")
+        run = Run(uuid.uuid4().hex, _label(folder.name, "Command line run"), names[0], folder, templates, started, folder=True)
+        with self._lock:
+            self._runs[run.id] = run
+        return run
+
+    def _create(self, name: str, extraction: str, batch: str, templates: list[ExtractionTemplate]) -> Run:
+        """``create`` with the lock held."""
+        run_id = uuid.uuid4().hex
+        run = Run(run_id, name, extraction, self.root / run_id, list(templates), _now(), batch)
+        dumped = [t.model_dump(mode="json", by_alias=True) for t in templates]
+        meta = {"name": name, "extraction": extraction, "batch": batch, "started": run.started}
+        _write(run.out_dir / RUN_TEMPLATES, json.dumps(dumped, ensure_ascii=False).encode("utf-8"))
+        _write(run.out_dir / RUN_META, json.dumps(meta, ensure_ascii=False, indent=1).encode("utf-8"))
+        self._runs[run_id] = run
+        return run
+
+    def _stored(self) -> list[Run]:
+        """Every run in ``root``, kept in memory once read; the caller holds the lock."""
+        out = []
+        for folder in sorted(self.root.iterdir()) if self.root.is_dir() else []:
+            if not RUN_ID.fullmatch(folder.name):
+                continue
+            run = self._runs.get(folder.name) or self._load(folder)
+            if run is not None:
+                self._runs[run.id] = run
+                out.append(run)
+        return out
+
+    def _load(self, folder: Path) -> Run | None:
+        """The run in ``folder``, from its ``RUN_META`` and ``RUN_TEMPLATES``; ``None`` when it has none or they are bad."""
+        try:
+            meta = json.loads((folder / RUN_META).read_text(encoding="utf-8"))
+            raw = json.loads((folder / RUN_TEMPLATES).read_text(encoding="utf-8"))
+            templates = [ExtractionTemplate.model_validate(t) for t in raw]
+            return Run(folder.name, meta["name"], meta["extraction"], folder, templates, meta["started"], meta["batch"])
+        except FileNotFoundError:
+            return None
+        except (OSError, ValueError, KeyError, TypeError):
+            log.warning("the run in %s can't be read; leaving it out", folder.name)
+            return None
+
+
+def _now() -> str:
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
