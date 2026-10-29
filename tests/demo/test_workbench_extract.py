@@ -879,6 +879,73 @@ def test_an_edit_after_the_server_has_forgotten_the_setup_returns_to_the_choice_
     expect(b.page.locator("#choose-msg")).to_be_hidden()
 
 
+def test_a_repeated_fields_not_on_this_form_after_the_server_forgot_the_setup_leaves_the_screen_idle(start_demo_server, bench):
+    base = extract_server(start_demo_server)
+    setup = setup_on(base)
+    b = bench(base, fill=False)
+    show_setup(b, setup)
+    row(b, "owners[0].name").click()
+    sent = edits_sent(b)
+    start_demo_server.servers[-1].api.setups._setups.clear()
+    b.page.click("#ins-absent")  # one edit per owner: the first is refused, the other three are skipped
+    expect(b.page.locator("#choose")).to_be_visible()
+    expect(b.page.locator("#choose-msg")).to_have_text("This setup is no longer on the server; start again.")
+    setup_idle(b)
+    assert len(sent) == 1, sent
+
+
+def test_an_edit_made_while_a_line_job_runs_waits_for_it_and_is_then_made(start_demo_server, bench):
+    model = corpus_model()
+    base = extract_server(start_demo_server, model)
+    setup = setup_on(base, start="lines", lines=["tax ID"])
+    b = bench(base, fill=False)
+    show_setup(b, setup)
+    row(b, "investor.tax_id").click()
+    sent = edits_sent(b)
+    model.gate = "fields"  # the line job holds at the model
+    try:
+        b.page.fill("#add", "wire details")
+        b.page.click("#add-go")
+        assert model.reached.wait(20)
+        b.page.fill("#ins-def", "The EIN or SSN, with its dashes.")
+        b.page.locator("#ins-def").blur()
+        b.page.wait_for_timeout(300)
+        assert sent == []  # waiting behind the line job, never sent to be refused as busy
+    finally:
+        model.gate = None
+        model.released.set()
+    expect(row(b, "wire.bank")).to_be_visible(timeout=30_000)
+    setup_idle(b)
+    assert sent == [{"op": "set_field", "path": "investor.tax_id", "description": "The EIN or SSN, with its dashes."}]
+    schema = get_json(base, f"/api/setups/{setup['id']}")[1]["template"]["schema"]
+    assert schema["properties"]["investor"]["properties"]["tax_id"]["description"] == "The EIN or SSN, with its dashes."
+    assert "wire" in schema["properties"]
+    expect(b.page.locator("#notice")).to_be_hidden()
+
+
+def test_a_refused_edit_puts_back_its_own_box_and_keeps_what_is_typed_in_another(start_demo_server, bench):
+    base = extract_server(start_demo_server)
+    setup = setup_on(base)
+    b = bench(base, fill=False)
+    show_setup(b, setup)
+    row(b, "investor.tax_id").click()
+    held = []
+    b.page.route("**/edit", lambda route: held.append(route), times=1)  # its answer waits until another box is typed in
+    b.page.fill("#ins-pattern", "(")  # not a regular expression: the server refuses it
+    b.page.click("#ins-labels")
+    for _ in range(200):  # the route handler runs while the page is driven
+        if held:
+            break
+        b.page.wait_for_timeout(50)
+    assert len(held) == 1
+    b.page.fill("#ins-labels", "Taxpayer ID, TIN number")
+    held[0].continue_()
+    expect(b.page.locator("#notice")).to_contain_text("That change wasn't made")
+    expect(b.page.locator("#ins-pattern")).to_have_value(r"^\d{2}-\d{7}$|^\d{3}-\d{2}-\d{4}$")
+    expect(b.page.locator("#ins-labels")).to_have_value("Taxpayer ID, TIN number")
+    expect(b.page.locator("#ins-labels")).to_be_focused()
+
+
 def test_a_setup_from_your_lines_shows_them_in_the_strip_and_a_field_for_each_of_their_paths(start_demo_server, bench):
     base = extract_server(start_demo_server)
     setup = setup_on(base, start="lines", lines=["tax ID", "investor name"])

@@ -83,16 +83,16 @@ body[data-mode="extract"] [data-for="fill"] { display: none !important; }
 .strip p { margin: 0; flex: 1 1 360px; font-style: italic; overflow-wrap: anywhere; }
 .strip p .label { font-style: normal; margin: 0; }
 .strip textarea { flex: 1 1 360px; min-height: 92px; margin: 0; padding: 8px 10px; font: 12px/18px var(--mono); }
-.fc-sl-leaf .fc-sl-ty { font-size: 11px; }
-.fc-sl-leaf[data-state="weak"] { outline-style: dashed; outline-color: var(--graphite); }
-.fc-sl-leaf[data-state="absent"] { outline-style: dotted; color: var(--graphite); }
-.fc-sl-leaf.is-picked { outline-color: var(--ink); }
+#fields .fc-sl-leaf .fc-sl-ty { font-size: 11px; }
+#fields .fc-sl-leaf[data-state="weak"] { outline-style: dashed; outline-color: var(--graphite); }
+#fields .fc-sl-leaf[data-state="absent"] { outline-style: dotted; color: var(--graphite); }
+#fields .fc-sl-leaf.is-picked { outline-color: var(--ink); }
 .addfield { display: flex; gap: 6px; margin-top: 12px; }
 .addfield input { flex: 1; min-width: 0; }
 #add-msg { margin-top: 6px; }
 .legend { margin: 12px 0 0; font-style: italic; font-size: 14px; line-height: 20px; color: var(--graphite); }
-.zoom { flex-wrap: wrap; justify-content: flex-end; }
-.zoom .seg .btn { height: 32px; }
+#setup-zoom { flex-wrap: wrap; justify-content: flex-end; }
+#setup-zoom .seg .btn { height: 32px; }
 .page-of { margin: 0 4px; white-space: nowrap; }
 #setup-pv { margin: 0 auto; }
 #setup-pv .fc-pv-bar { display: none; } /* a box is added from a line, not drawn */

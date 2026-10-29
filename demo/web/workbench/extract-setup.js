@@ -19,7 +19,8 @@
 // list, its checks (Required, a format), "Not on this form" or "Bring back", and "Remove field"; under it, one line
 // per sample (`outcomeLine`), which shows that sample when clicked.
 //
-// Every change is one call to the server (`edit`, `learn`, or the line job), made one after another; the Setup it
+// Every change is one call to the server (`edit`, `learn`, or the line job), made one after another (a change made
+// while a line job runs waits for it, since the server takes none meanwhile); the Setup it
 // answers replaces the screen's (the fields, the inspector, the lines per sample, and the page's marks, fetched
 // again), with the field selected kept. A box moved on the page is a `set_box` (an option's, a `set_option_box`)
 // naming the sample shown (`sample`), since the marks are in that sample's frame: the server moves it into the
@@ -192,21 +193,22 @@ export function mountSetup(app) {
 
   /**
    * Make one change: `send(setupId)` is the call, resolving the Setup proven again, which replaces the screen's.
-   * Changes run one after another. Resolves whether it was made; a refusal is shown as a notice.
+   * Changes run one after another, behind a line job running (see `addField`). Resolves whether it was made; a
+   * refusal is shown as a notice, and puts back only `control` (the id of the box whose change it was).
    */
-  function change(send, { select = null } = {}) {
+  function change(send, { select = null, control = null } = {}) {
     const s = state.setup;
     if (s === null) return Promise.resolve(false);
     pending += 1;
     const run = queue.then(async () => {
-      if (state.setup?.id !== s.id) return false;
       try {
+        if (state.setup?.id !== s.id) return false; // replaced or gone meanwhile: skipped, and no longer pending
         const next = await send(s.id);
         if (state.setup?.id !== s.id) return false;
         replace(next, select);
         return true;
       } catch (e) {
-        failed(e, "That change wasn't made");
+        failed(e, "That change wasn't made", control);
         return false;
       } finally {
         pending -= 1;
@@ -230,14 +232,18 @@ export function mountSetup(app) {
     loadMarks();
   }
 
-  /** A call that failed: the screen closes when the setup is gone, else the notice says why and the page goes back. */
-  function failed(e, what) {
+  /**
+   * A call that failed: the screen closes when the setup is gone; else the notice says why, the box whose change it
+   * was (`control`, an id) shows the field as it is again, the others keep what is typed in them, and a moved box on
+   * the page goes back.
+   */
+  function failed(e, what, control = null) {
     if (isGone(e)) {
       lost();
       return;
     }
     app.notice(`${what}: ${e.message}`);
-    renderInspector(true);
+    renderInspector({ keepTyped: true, refused: control });
     drawMarks(); // a moved box goes back where the template has it
   }
 
@@ -368,29 +374,34 @@ export function mountSetup(app) {
   // ------------------------------------------------------------------ the field
 
   /**
-   * The inspector for the field selected. A text box the person is typing in keeps its text and focus while the
-   * inspector is drawn again for the same field (an earlier change came back meanwhile), unless `reset`.
+   * The inspector for the field selected. Drawn again for the same field (a change came back meanwhile), the text box
+   * the person is typing in keeps its text, focus and selection; with `keepTyped`, every text box does, but
+   * `refused` (an id), which shows the field as the server has it.
    */
-  function renderInspector(reset = false) {
+  function renderInspector({ keepTyped = false, refused = null } = {}) {
     const ins = $("ins");
     const path = state.selected;
     const active = document.activeElement;
-    const keep = !reset && path === inspected && ins.contains(active) && active.id && (active.tagName === "TEXTAREA" || active.type === "text")
-      ? { id: active.id, value: active.value, start: active.selectionStart, end: active.selectionEnd }
-      : null;
+    const same = path === inspected;
+    const typed = new Map();
+    for (const el of same ? ins.querySelectorAll("textarea, input[type=text]") : []) {
+      if (el.id && el.id !== refused && (keepTyped || el === active)) typed.set(el.id, el.value);
+    }
+    const focus = same && ins.contains(active) && typed.has(active.id) ? { id: active.id, start: active.selectionStart, end: active.selectionEnd } : null;
     inspected = path;
     if (state.setup === null || path === null) {
       ins.replaceChildren(make("p", { className: "fc-ins-empty", textContent: "Click a field, or a box on the page, to see how it is read." }));
       return;
     }
     ins.replaceChildren(...inspectorParts(path));
-    if (keep !== null) {
-      const el = document.getElementById(keep.id);
-      if (el) {
-        el.value = keep.value;
-        el.focus({ preventScroll: true });
-        el.setSelectionRange?.(keep.start, keep.end);
-      }
+    for (const [id, value] of typed) {
+      const el = document.getElementById(id);
+      if (el) el.value = value;
+    }
+    if (focus !== null) {
+      const el = document.getElementById(focus.id);
+      el?.focus({ preventScroll: true });
+      el?.setSelectionRange?.(focus.start, focus.end);
     }
   }
 
@@ -411,7 +422,7 @@ export function mountSetup(app) {
     const item = (label, control) => dl.append(make("dt", { textContent: label }), make("dd", {}, control));
     item("Name", make("span", { className: "ins-name", textContent: row?.items ? row.generic : path }));
     const title = make("input", { type: "text", className: "fc-in", id: "ins-title", value: prop.title ?? "", ariaLabel: "Title" });
-    commitOnChange(title, () => title.value.trim() !== (prop.title ?? "") && edit({ op: "set_field", path, title: title.value.trim() }));
+    commitOnChange(title, () => title.value.trim() !== (prop.title ?? "") && edit({ op: "set_field", path, title: title.value.trim() }, { control: title.id }));
     item("Title", title);
     item("Type", typeSelect(path, prop));
     if (row?.items) {
@@ -425,7 +436,7 @@ export function mountSetup(app) {
 
     out.push(lab("Definition"));
     const def = make("textarea", { className: "fc-in", id: "ins-def", rows: 3, value: prop.description ?? "", ariaLabel: "Definition" });
-    commitOnChange(def, () => def.value.trim() !== (prop.description ?? "") && edit({ op: "set_field", path, description: def.value.trim() }));
+    commitOnChange(def, () => def.value.trim() !== (prop.description ?? "") && edit({ op: "set_field", path, description: def.value.trim() }, { control: def.id }));
     out.push(def);
     const line = Object.entries(t.setup?.line_paths ?? {}).find(([, paths]) => paths.includes(generic(path)))?.[0];
     if (line !== undefined) out.push(hint(`From your line “${line}”.`));
@@ -453,7 +464,7 @@ export function mountSetup(app) {
       const labels = make("input", { type: "text", className: "fc-in", id: "ins-labels", ariaLabel: "Labels", placeholder: "Taxpayer ID, TIN" });
       labels.value = (anchor?.labels ?? []).join(", ");
       const typed = () => labels.value.split(",").map((s) => s.trim()).filter(Boolean);
-      commitOnChange(labels, () => typed().join("\n") !== (anchor?.labels ?? []).join("\n") && edit({ op: "set_labels", path, labels: typed() }));
+      commitOnChange(labels, () => typed().join("\n") !== (anchor?.labels ?? []).join("\n") && edit({ op: "set_labels", path, labels: typed() }, { control: labels.id }));
       out.push(labels, hint("The printed words the value sits beside, separated by commas. Empty, it is not read beside a label."));
     }
 
@@ -463,7 +474,7 @@ export function mountSetup(app) {
     out.push(make("label", { className: "fc-ins-check" }, req, "Required"));
     const pattern = make("input", { type: "text", className: "fc-in", id: "ins-pattern", value: prop.pattern ?? "", spellcheck: false });
     pattern.placeholder = "a regular expression, such as ^\\d{5}$";
-    commitOnChange(pattern, () => pattern.value !== (prop.pattern ?? "") && edit({ op: "set_field", path, pattern: pattern.value }));
+    commitOnChange(pattern, () => pattern.value !== (prop.pattern ?? "") && edit({ op: "set_field", path, pattern: pattern.value }, { control: pattern.id }));
     out.push(make("label", { className: "ins-format" }, "Format", pattern));
     for (const check of checksOf(prop, false)) if (!check.startsWith("Format ")) out.push(ro(check));
 
@@ -578,24 +589,30 @@ export function mountSetup(app) {
     app.say(msg, `Finding “${line}” on the samples…`);
     const s = state.setup;
     pending += 1;
-    try {
-      await queue; // the changes before it go in first
-      const job = await (await calls.startLine(s.id, line)).done;
-      if (state.setup?.id !== s.id) return;
-      if (job.status !== "done") throw new Error(job.status === "cancelled" ? "Adding the field was cancelled." : job.error || "The field couldn't be added.");
-      const { setup, paths } = job.result;
-      $("add").value = "";
-      app.say(msg, paths.length ? "" : `No new field came of “${line}”: nothing on the samples answers it, or its fields are in the list already.`);
-      replace(setup, paths[0] ?? null);
-      if (paths.length) select(paths[0], { turn: true });
-    } catch (e) {
-      if (isGone(e)) lost();
-      else app.say(msg, e.message);
-    } finally {
-      pending -= 1;
-      adding = false;
-      $("add-go").disabled = false;
-    }
+    // on the queue: the changes before it go in first, and those made while it runs (an edit, a drag, Save) wait
+    // for it, as the server takes no change to a setup while a line job runs on it
+    const run = queue.then(async () => {
+      try {
+        if (state.setup?.id !== s.id) return;
+        const job = await (await calls.startLine(s.id, line)).done;
+        if (state.setup?.id !== s.id) return;
+        if (job.status !== "done") throw new Error(job.status === "cancelled" ? "Adding the field was cancelled." : job.error || "The field couldn't be added.");
+        const { setup, paths } = job.result;
+        $("add").value = "";
+        app.say(msg, paths.length ? "" : `No new field came of “${line}”: nothing on the samples answers it, or its fields are in the list already.`);
+        replace(setup, paths[0] ?? null);
+        if (paths.length) select(paths[0], { turn: true });
+      } catch (e) {
+        if (isGone(e)) lost();
+        else app.say(msg, e.message);
+      } finally {
+        pending -= 1;
+        adding = false;
+        $("add-go").disabled = false;
+      }
+    });
+    queue = run;
+    await run;
   }
 
   $("add-go").addEventListener("click", addField);
@@ -866,13 +883,17 @@ export function mountSetup(app) {
     $("setup-save-name").select();
   }
 
+  let saving = false; // a save is under way: Save and Enter in the name box start no second one
+
   async function save() {
+    if (saving) return;
     const name = $("setup-save-name").value.trim();
     if (!NAME_RE.test(name)) {
       app.say(saveMsg, "Use 1 to 80 letters, digits, spaces, dots, dashes or underscores, starting with a letter or digit.");
       return;
     }
     const go = $("setup-save-go");
+    saving = true;
     go.disabled = true;
     app.say(saveMsg, "Saving…");
     try {
@@ -888,6 +909,7 @@ export function mountSetup(app) {
       if (isGone(e)) lost();
       else app.say(saveMsg, e.message);
     } finally {
+      saving = false;
       go.disabled = false;
     }
   }
