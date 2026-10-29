@@ -65,10 +65,11 @@ MODEL_FACING = [
     "src/formcast/pagepass/prompts.py", "src/formcast/data/ai.py",
     "src/formcast/template/ops.py", "src/formcast/template/coverage.py", "src/formcast/sandbox/worker.py",
     "src/formcast/pagemap/query.py", "src/formcast/pagemap/summarize.py", "src/formcast/transforms.py",
+    "src/formcast/extract/prompts.py", "src/formcast/extract/ask.py",
 ]  # fmt: skip
 # Schema property and widget names that are plain English words any form uses.
 GENERIC_NAMES = {
-    "address", "city", "code", "conditions", "date", "description", "details", "from", "height", "kind",
+    "address", "city", "code", "conditions", "date", "description", "details", "email", "from", "height", "kind",
     "name", "number", "per", "position", "reason", "reported", "result", "reviewer", "source", "state",
     "status", "title", "to", "type", "types", "uses", "valid", "where", "year", "yes", "zip",
 }  # fmt: skip

@@ -7,6 +7,7 @@
     prove, learn_maps, sample_marks   formcast.extract.proof   (the readers checked against the samples' readings)
     read_samples, sample_view, ...    formcast.extract.samples (the sample PDFs read, and what a model sees of them)
     resolve, ReaderProposal, ...      formcast.extract.readers (a model's reader proposals made readers, by code)
+    read_values, propose_readers, ... formcast.extract.ask     (the model calls that build a template from samples)
 
 The public names load on first use, as in ``formcast``, so importing one module does not pull in the rest.
 """
@@ -28,6 +29,7 @@ _LAZY = {
     "ExtractionTemplate": "formcast.extract.model",
     "FieldProof": "formcast.extract.proof",
     "FieldResult": "formcast.extract.model",
+    "FieldsAnswer": "formcast.extract.ask",
     "Layout": "formcast.extract.model",
     "Mark": "formcast.extract.proof",
     "OptionProposal": "formcast.extract.readers",
@@ -57,10 +59,14 @@ _LAZY = {
     "concrete_paths": "formcast.extract.model",
     "detected_pages": "formcast.extract.samples",
     "extract": "formcast.extract.read",
+    "fields_from_lines": "formcast.extract.ask",
+    "fields_on_form": "formcast.extract.ask",
     "label_key": "formcast.extract.page",
     "learn_maps": "formcast.extract.proof",
+    "propose_readers": "formcast.extract.ask",
     "prove": "formcast.extract.proof",
     "read_samples": "formcast.extract.samples",
+    "read_values": "formcast.extract.ask",
     "resolve": "formcast.extract.readers",
     "same_value": "formcast.extract.proof",
     "sample_marks": "formcast.extract.proof",
@@ -69,6 +75,7 @@ _LAZY = {
 }
 
 if TYPE_CHECKING:
+    from formcast.extract.ask import FieldsAnswer, fields_from_lines, fields_on_form, propose_readers, read_values
     from formcast.extract.edit import (
         Edit, MarkAbsent, RemoveField, Restore, SetBox, SetClean, SetField, SetLabels, SetOptionBox, apply_edit,
     )  # fmt: skip
