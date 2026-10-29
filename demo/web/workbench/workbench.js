@@ -21,8 +21,8 @@
 // the start screen's `showStart({dataset, form})` (as an extraction run's Send to fill calls it), the
 // Extract modal's `openExtract(setupInfo)` (as the setup screen's "Change the setup" calls it), the
 // setup screen's `openSetup(setup)` (as a build hands a setup on) and whether it has no change on its
-// way (`setupIdle`), the review's `openRun(id)` (as Run on all opens a run once it is read), and the
-// bus's `on(type, fn)`.
+// way (`setupIdle`), the review's `openRun(id)` (as Run on all opens a run once it is read) and
+// `reviewPageSize` (documents listed at a time), and the bus's `on(type, fn)`.
 
 import { createBus } from "../core/bus.js";
 import { makeView, viewSize } from "../core/geometry.js";
@@ -480,6 +480,9 @@ if (LOCAL) {
     openExtract: (setupInfo) => app.extract.openModal(setupInfo),
     openSetup: (setup) => app.extract.openSetup(setup),
     openRun: (id) => app.review.openRun(id),
+    set reviewPageSize(n) {
+      app.review.pageSize = n;
+    },
     get setupIdle() {
       return app.setup?.idle ?? true;
     },

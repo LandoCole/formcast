@@ -19,8 +19,9 @@
 // The way in. The page opens on the choice of Fill or Extract (extract.js); Fill a PDF opens this screen with
 // `showStart()`, and its Back goes back to the choice while no form is open (to the form on screen otherwise).
 // `showStart({dataset, form})` opens it with data already on the server, as an extraction run sends its results:
-// the dataset is *Your data* (shown by name, with Clear), used by Open instead of a file or pasted text, and `form`
-// (a saved template or demo form name) is picked. Opening a form uses that data up.
+// the dataset is *Your data* (shown by name, with Clear, and `note` under it: what the run leaves blank), used by
+// Open instead of a file or pasted text, and `form` (a saved template or demo form name) is picked. Opening a form
+// uses that data up.
 //
 // Reading the form. While the server reads a PDF (its form map: text, widgets, OCR, detected boxes) the
 // start screen shows what it is doing, page by page (reading.js), and asks for the seed once it is done.
@@ -59,6 +60,7 @@ export function mountStart(app) {
   let saved = []; // stored templates that keep their PDF
   let pick = null; // what the match prompt is about: {doc, schema, schemaName, fits, dataset, check}
   let given = null; // a dataset the server has already (an extraction run's results): Your data
+  let givenNote = ""; // what is said under it (what the run leaves blank), while it is given
   let wantForm = null; // the form to pick once the lists are read
 
   /** Show the start screen again, as it was, with a message (empty for none). */
@@ -76,6 +78,8 @@ export function mountStart(app) {
   function showGiven() {
     $("data-given").hidden = given === null;
     $("data-given-text").textContent = given === null ? "" : describeData(given);
+    if (given === null) givenNote = "";
+    say($("data-given-note"), givenNote);
     $("data-file-row").hidden = given !== null;
     $("data-text").hidden = given !== null;
     sync();
@@ -83,11 +87,13 @@ export function mountStart(app) {
 
   /**
    * Open the start screen: `dataset` (a dataset summary on the server) becomes Your data, and `form` (a saved
-   * template or a demo form, by name) is picked; without them the screen is as it was, with no data given.
-   * @param {{dataset?: object | null, form?: string | null}} [opts]
+   * template or a demo form, by name) is picked; without them the screen is as it was, with no data given. `note` is
+   * said under Your data while that dataset is given (an extraction run's: what it leaves blank).
+   * @param {{dataset?: object | null, form?: string | null, note?: string}} [opts]
    */
-  function showStart({ dataset = null, form = null } = {}) {
+  function showStart({ dataset = null, form = null, note = "" } = {}) {
     given = dataset;
+    givenNote = dataset === null ? "" : note;
     wantForm = form;
     showGiven();
     showAgain();

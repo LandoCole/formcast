@@ -21,19 +21,22 @@
 // read, or looked for, outlined (`rect`, in points from the page's top left), the picked one heavy. On the right a card
 // per problem (#problems): the field's title, the problem, what was read and why it is a problem, and the decisions:
 // Use this value (the value typed), Accept as read (only when a value was read) and Not in this document. A decision
-// settles its card, and the stats, the document's line and the list's legend follow; the documents settled stay
-// listed (marked "all settled") until the list is asked for again.
+// settles its card (only that card is drawn again; it stays disabled while the decision is on its way), and the stats,
+// the document's line and the list's legend follow; the documents settled stay listed (marked "all settled") until the
+// list is asked for again. The server lists only documents that still have problems, so More asks from the listed
+// ones not settled since, and the label and legend count from the list as it was first asked for.
 //
 // Export xlsx and Export Parquet download the run's results (`engine.extract.exportRun`); a server without pyarrow
 // answers Parquet with `not_supported`, which hides the button and says so. Send to fill → makes the run's documents a
 // dataset (`toData`: only found values, ruling P13) and opens the fill start screen with it as Your data
-// (`app.start.showStart`), the extraction's destination form picked when it was made for one; a notice says first how
-// many documents still have problems (their unsettled fields are gaps the fill reports) and when the dataset holds
-// only the first rows.
+// (`app.start.showStart`), the extraction's destination form picked when it was made for one; under Your data the
+// start screen says how many documents still have problems (their unsettled fields are gaps the fill reports), when
+// the dataset holds only the first rows, and when the destination couldn't be read.
 //
 // The choice (#choose) lists, under its two choices, the saved runs (#saved-runs, newest first: "Open a saved run") and
 // extraction templates (#saved-extractions: reopened on the setup screen, its samples read again), each time it is
-// shown, and opens a command line run's folder on the server's machine by its path (#run-folder).
+// shown (saying so in #choose-msg when they can't be read), and opens a command line run's folder on the server's
+// machine by its path (#run-folder).
 
 import { downloadBytes } from "../core/store.js";
 import { asideLine, decisionText, docLine, problemLabel, runLine, runStats, sendNotice } from "./extract-model.js";
@@ -72,7 +75,8 @@ function startedText(iso) {
 
 /**
  * @param {object} app see workbench.js
- * @returns {{openRun: (id: string, opts?: {setupId?: string | null}) => Promise<boolean>, refreshChoices: () => Promise<void>}}
+ * @returns {{openRun: (id: string, opts?: {setupId?: string | null}) => Promise<boolean>, refreshChoices: () => Promise<void>,
+ *   pageSize: number}} `pageSize`: documents listed at a time (PAGE; a test may lower it)
  */
 export function mountReview(app) {
   const { $, engine } = app;
@@ -86,7 +90,7 @@ export function mountReview(app) {
     path: "", // the field filter ("" for every field)
     status: "", // the problem filter: "" for every problem, a status, or "set_aside"
     docs: [], // the documents listed so far
-    total: 0, // how many documents the filters match
+    total: 0, // how many documents the filters matched when they were listed (the ones settled since included)
     listed: false, // the run's documents have been listed once
     doc: null, // the doc_id shown
     problem: null, // the path of the problem picked in it
@@ -94,7 +98,9 @@ export function mountReview(app) {
     pages: Infinity, // its page count, once a page past the end was asked for
     size: null, // the page image's [width, height] in points, once it has loaded
   };
+  const api = { pageSize: PAGE };
   const decided = new Map(); // keyOf(doc, path) -> what was decided, as its card says it
+  const deciding = new Set(); // keyOf(doc, path) of the decisions on their way
   let listing = 0; // the list asked for last
   let choices = 0; // the choice's lists asked for last
   let running = false; // Run on all is saving, starting or following its job
@@ -111,6 +117,8 @@ export function mountReview(app) {
   const isAside = () => state.status === "set_aside";
   const docOf = (docId) => state.docs.find((d) => d.doc_id === docId) ?? null;
   const settledOf = (d) => new Set((d.problems ?? []).filter((p) => decided.has(keyOf(d.doc_id, p.path))).map((p) => p.path));
+  /** The listed documents whose every problem has been settled here since they were listed. */
+  const settledListed = () => state.docs.filter((d) => d.problems && settledOf(d).size === d.problems.length).length;
 
   // ------------------------------------------------------------------ Run on all
 
@@ -264,19 +272,24 @@ export function mountReview(app) {
   async function list(more = false) {
     const run = state.run;
     const token = ++listing;
-    const offset = more ? state.docs.length : 0;
+    // the server lists only documents that still have problems: one listed here and settled since is no longer in
+    // its list, so the next page starts that many earlier
+    const offset = more ? state.docs.length - settledListed() : 0;
+    const limit = api.pageSize;
     let page;
     try {
       page = isAside()
-        ? await calls.setAside(run.id, { offset, limit: PAGE })
-        : await calls.problems(run.id, { path: state.path, status: state.status, offset, limit: PAGE });
+        ? await calls.setAside(run.id, { offset, limit })
+        : await calls.problems(run.id, { path: state.path, status: state.status, offset, limit });
     } catch (e) {
       if (token === listing) app.notice(`The documents couldn't be listed: ${e.message}`);
       return;
     }
     if (token !== listing || state.run !== run) return;
-    state.docs = more ? [...state.docs, ...page.documents] : page.documents;
-    state.total = page.total;
+    const seen = new Set(more ? state.docs.map((d) => d.doc_id) : []);
+    const fresh = page.documents.filter((d) => !seen.has(d.doc_id));
+    state.docs = more ? [...state.docs, ...fresh] : fresh;
+    state.total = page.total + (more ? settledListed() : 0); // as many as the filters matched when first listed
     state.listed = true;
     renderDocs();
     if (!more) selectDoc(state.docs[0]?.doc_id ?? null);
@@ -309,8 +322,7 @@ export function mountReview(app) {
     }
     $("docs").replaceChildren(...items);
     $("docs-more").hidden = state.docs.length >= state.total;
-    const settled = state.docs.filter((d) => d.problems && settledOf(d).size === d.problems.length).length;
-    $("docs-legend").textContent = aside ? ASIDE_LEGEND : `${number(state.total - settled)} of ${number(state.total)} still have problems`;
+    $("docs-legend").textContent = aside ? ASIDE_LEGEND : `${number(state.total - settledListed())} of ${number(state.total)} still have problems`;
   }
 
   /** Show the document `docId` (null for none), on the page of its first problem with a place. */
@@ -494,12 +506,10 @@ export function mountReview(app) {
       spellcheck: false,
     });
     input.setAttribute("aria-label", `The value of ${p.title}`);
-    const buttons = [];
     const act = (decision, text, dark = false) => {
       const b = make("button", { type: "button", className: `btn small ${dark ? "dark" : "quiet"}`, textContent: text });
       b.dataset.act = decision;
-      b.addEventListener("click", () => decide(d, p, decision, input, buttons));
-      buttons.push(b);
+      b.addEventListener("click", () => decide(d, p, decision, input));
       return b;
     };
     const row = make("div", { className: "row" }, act("value", "Use this value", true));
@@ -508,9 +518,10 @@ export function mountReview(app) {
     input.addEventListener("keydown", (e) => {
       if (e.key !== "Enter") return;
       e.preventDefault();
-      decide(d, p, "value", input, buttons);
+      decide(d, p, "value", input);
     });
     el.append(input, row);
+    setBusy(el, deciding.has(keyOf(d.doc_id, p.path))); // drawn again while its decision is on its way
     return el;
   }
 
@@ -529,30 +540,63 @@ export function mountReview(app) {
     }
   }
 
-  /** Record a decision on the problem `p` of the document `d`; the card, the stats and the list follow. */
-  async function decide(d, p, decision, input, buttons) {
-    if (buttons.some((b) => b.disabled)) return; // one on its way already
+  /** The card on show of the problem `path` of the document `docId`, or null (another document is shown). */
+  function cardOf(docId, path) {
+    if (state.doc !== docId) return null;
+    return [...$("problems").children].find((card) => card.dataset.path === path) ?? null;
+  }
+
+  /** Disable (or enable again) a card's input and buttons while its decision is on its way. */
+  function setBusy(card, busy) {
+    for (const el of card?.querySelectorAll("input, button") ?? []) el.disabled = busy;
+  }
+
+  /**
+   * Record a decision on the problem `p` of the document `d` (`input` its card's value box); its card, the stats and
+   * the list follow. Only that card is drawn again: the others keep what is typed in them, and their own decisions
+   * on their way.
+   */
+  async function decide(d, p, decision, input) {
+    const key = keyOf(d.doc_id, p.path);
+    if (deciding.has(key) || decided.has(key)) return; // one on its way already, or made
     const value = decision === "value" ? input.value.trim() : undefined;
     if (decision === "value" && !value) {
       input.focus();
       return;
     }
     const run = state.run;
-    for (const b of buttons) b.disabled = true;
+    deciding.add(key);
+    setBusy(cardOf(d.doc_id, p.path), true);
     try {
       const body = { doc_id: d.doc_id, path: p.path, decision, ...(decision === "value" ? { value } : {}) };
       const next = await calls.decide(run.id, body);
       if (state.run !== run) return;
       state.run = next;
-      decided.set(keyOf(d.doc_id, p.path), decisionText(decision, decision === "accept" ? p.value : value));
+      decided.set(key, decisionText(decision, decision === "accept" ? p.value : value));
       app.notice("");
       renderStats();
       renderDocs();
-      if (state.doc === d.doc_id) renderProblems();
+      settleCard(d, p);
     } catch (e) {
-      for (const b of buttons) b.disabled = false;
       app.notice(`That decision wasn't recorded: ${e.message}`);
+    } finally {
+      deciding.delete(key);
+      if (!decided.has(key)) setBusy(cardOf(d.doc_id, p.path), false);
     }
+  }
+
+  /** Draw the decided card of `p` again, settled; focus, when it was in that card, goes to the next open card. */
+  function settleCard(d, p) {
+    const card = cardOf(d.doc_id, p.path);
+    if (card === null) return;
+    const focused = card.contains(document.activeElement) || document.activeElement === document.body;
+    const fresh = problemCard(d, p);
+    fresh.tabIndex = -1;
+    card.replaceWith(fresh);
+    if (!focused) return;
+    const cards = [...$("problems").children];
+    const next = [...cards.slice(cards.indexOf(fresh) + 1), ...cards].find((c) => c.querySelector("input:not(:disabled)"));
+    (next?.querySelector("input") ?? fresh).focus();
   }
 
   // ------------------------------------------------------------------ export and send to fill
@@ -577,11 +621,13 @@ export function mountReview(app) {
   }
 
   /** The fill form a saved extraction template was made for (its destination), or null. */
+  /** `{form, error}`: the fill form a saved extraction template was made for (its destination, or null), and why it
+   * couldn't be read ("" when it could). */
   async function destinationOf(name) {
     try {
-      return (await calls.extraction(name)).setup?.destination ?? null;
-    } catch {
-      return null; // a template deleted since: no form is picked
+      return { form: (await calls.extraction(name)).setup?.destination ?? null, error: "" };
+    } catch (e) {
+      return { form: null, error: `The form “${name}” was made for couldn't be read (${e.message}); choose the form.` };
     }
   }
 
@@ -592,11 +638,13 @@ export function mountReview(app) {
     if (run === null || button.disabled) return;
     button.disabled = true;
     try {
-      const [sent, form] = await Promise.all([calls.toData(run.id), destinationOf(run.extraction)]);
+      const [sent, { form, error }] = await Promise.all([calls.toData(run.id), destinationOf(run.extraction)]);
       hideOverlays();
       app.extract.setMode("fill");
-      app.start.showStart({ dataset: sent.dataset, form });
-      app.notice(sendNotice(sent));
+      app.notice("");
+      // said on the start screen itself, under Your data: the notice under the toolbar is behind its overlay
+      const note = [sendNotice(sent), error].filter(Boolean).join(" ");
+      app.start.showStart({ dataset: sent.dataset, form, note });
     } catch (e) {
       app.notice(`The results couldn't be sent to fill: ${e.message}`);
     } finally {
@@ -617,7 +665,7 @@ export function mountReview(app) {
     return make("li", {}, button);
   }
 
-  /** List the saved runs and extraction templates under the choice (nothing more is said when they can't be read). */
+  /** List the saved runs and extraction templates under the choice; when they can't be read, the choice says so. */
   async function refreshChoices() {
     $("saved").hidden = false;
     const token = ++choices;
@@ -625,7 +673,8 @@ export function mountReview(app) {
     let saved;
     try {
       [runs, saved] = await Promise.all([calls.runs(), calls.list()]);
-    } catch {
+    } catch (e) {
+      if (token === choices) app.say(chooseMsg, `The saved runs and extractions couldn't be listed: ${e.message}`);
       return;
     }
     if (token !== choices) return;
@@ -686,5 +735,7 @@ export function mountReview(app) {
   });
 
   refreshChoices(); // the page opens on the choice
-  return { openRun, refreshChoices };
+  api.openRun = openRun;
+  api.refreshChoices = refreshChoices;
+  return api;
 }

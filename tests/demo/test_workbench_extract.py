@@ -40,7 +40,7 @@ from test_workbench_page import Bench, bench, no_model_loads, widget_pdf  # noqa
 from demo.server import extract_api, extraction
 from demo.server.api import Api
 from formcast.extract.setup import STAGES
-from tests.extract.corpus import FIELD_RECTS, SHIFT, clients
+from tests.extract.corpus import FIELD_RECTS, SHIFT, clients, make_form
 
 
 def test_the_workbench_opens_on_the_choice_of_fill_or_extract(demo_server, bench):
@@ -1285,6 +1285,67 @@ def test_each_decision_settles_its_card_and_updates_the_stats_and_the_list(start
     expect(b.page.locator("#docs li")).to_have_text(["No document has a problem of this kind."])
 
 
+def test_more_after_a_document_is_settled_lists_every_remaining_problem_document_once(start_demo_server, bench, run_files):
+    base = extract_server(start_demo_server)
+    _, run_id = saved_run(base, run_files)
+    b = bench(base, fill=False)
+    b.page.evaluate("window.__workbench.reviewPageSize = 2")
+    show_review(b, run_id)
+    names = b.page.locator("#docs li .doc-name")
+    expect(names).to_have_text(["bad_tin.pdf", "no_tin.pdf"])
+    expect(b.page.locator("#docs-more")).to_be_visible()
+    listed(b, "no_tin.pdf").click()
+    card(b, "investor.tax_id").locator("input").fill("12-3456789")
+    card(b, "investor.tax_id").locator('[data-act="value"]').click()
+    expect(listed(b, "no_tin.pdf").locator("small")).to_have_text("all settled")
+    expect(b.page.locator("#docs-legend")).to_have_text("2 of 3 still have problems")
+    b.page.click("#docs-more")  # the server's list no longer holds no_tin: the next page starts one earlier
+    expect(names).to_have_text(["bad_tin.pdf", "no_tin.pdf", "mars.pdf"])
+    expect(b.page.locator("#docs-more")).to_be_hidden()
+    expect(b.page.locator("#docs-label")).to_have_text("Documents with problems · 3")
+    expect(b.page.locator("#docs-legend")).to_have_text("2 of 3 still have problems")
+
+
+def test_a_decision_draws_only_its_own_card_again_and_a_card_stays_disabled_while_its_decision_is_on_its_way(start_demo_server, bench):
+    both = dataclasses.replace(clients(1, seed=5)[0], tax_id="8422-19037", country="Mars")  # two problems in one
+    base = extract_server(start_demo_server)
+    _, run_id = saved_run(base, [*FILES, ("both.pdf", make_form(both, kind="flattened"))])
+    b = bench(base, fill=False)
+    show_review(b, run_id)
+    expect(b.page.locator("#rdoc-name")).to_have_text("both.pdf")
+    tax, country = card(b, "investor.tax_id"), card(b, "investor.country")
+    country.locator("input").fill("US")
+    held = []
+    b.page.route("**/decisions", lambda route: held.append(route), times=1)
+    tax.locator('[data-act="not_in_document"]').click()
+    for _ in range(200):  # the route handler runs while the page is driven
+        if held:
+            break
+        b.page.wait_for_timeout(50)
+    assert len(held) == 1
+    expect(tax.locator('[data-act="value"]')).to_be_disabled()  # on its way
+    expect(country.locator('[data-act="value"]')).to_be_enabled()
+    held[0].continue_()
+    expect(tax.locator(".state")).to_have_text("Marked not in this document")
+    expect(country.locator("input")).to_have_value("US")  # the other card was not drawn again
+    expect(country.locator("input")).to_be_focused()  # focus moves on to the next open card
+    assert b.page.evaluate("document.getElementById('problems').contains(document.activeElement)")
+
+    b.page.route("**/decisions", lambda route: held.append(route), times=1)
+    country.locator('[data-act="value"]').click()
+    for _ in range(200):
+        if len(held) == 2:
+            break
+        b.page.wait_for_timeout(50)
+    assert len(held) == 2
+    listed(b, "both.pdf").click()  # the cards drawn again meanwhile: the one deciding stays disabled
+    expect(country.locator('[data-act="value"]')).to_be_disabled()
+    expect(country.locator("input")).to_be_disabled()
+    held[1].continue_()
+    expect(country.locator(".state")).to_have_text("Value entered: US")
+    expect(stat(b, "with_problems")).to_have_text("0")
+
+
 def test_export_xlsx_downloads_the_runs_workbook_and_export_parquet_needs_pyarrow(start_demo_server, bench, run_files):
     import openpyxl
 
@@ -1318,19 +1379,27 @@ def test_send_to_fill_opens_the_start_screen_with_the_runs_results_as_your_data_
     expect(b.page.locator("#start")).to_be_visible()
     assert b.page.evaluate("document.body.dataset.mode") == "fill"
     expect(b.page.locator("#data-given")).to_contain_text("Client forms results")
-    expect(b.page.locator("#notice-text")).to_have_text(
+    note = b.page.locator("#data-given-note")  # on the start sheet itself, not under its overlay
+    expect(note).to_be_visible()
+    expect(note).to_have_text(
         "3 documents still have problems; their unsettled fields are left blank, and fill will report them as gaps."
     )
+    expect(b.page.locator("#notice")).to_be_hidden()
     expect(b.page.locator("#form-pick")).to_have_value("")  # an AI-suggested template names no destination
 
     monkeypatch.setattr(extraction, "MAX_ROWS", 5)  # more documents than a dataset holds: it says so
-    b.page.evaluate("document.getElementById('start').hidden = true")
-    show_review(b, run_id)
+    b.page.click("#start-close")  # no form open: back to the choice, and the run's review from its list
+    expect(b.page.locator("#choose")).to_be_visible()
+    b.page.locator("#saved-runs li button").first.click()
+    expect(b.page.locator('.view[data-only="review"]')).to_be_visible()
     b.page.click("#send-fill")
     expect(b.page.locator("#start")).to_be_visible()
-    expect(b.page.locator("#notice-text")).to_have_text(
+    expect(note).to_be_visible()
+    expect(note).to_have_text(
         "Only the first 5 documents are in the data, as many as a dataset holds; export the run for every one."
     )
+    b.page.click("#data-given-clear")  # the note goes with the data it is about
+    expect(note).to_be_hidden()
 
 
 def test_send_to_fill_of_a_run_made_for_a_destination_picks_that_form(start_demo_server, bench):
