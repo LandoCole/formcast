@@ -163,7 +163,10 @@ buttons, the page on the dot grid), with an extraction mode:
 - With *I'll list them*, the top strip is a text area of lines; with *Destination*, it names the saved
   template and how many of its fields this form lacks.
 
-A mock-up of this screen in the workbench's style was reviewed in the conversation (fields
+A clickable HTML mock-up of this screen and of the review view, built on the workbench's own stylesheets,
+is [`2026-10-28-pdf-extraction-mockup.html`](2026-10-28-pdf-extraction-mockup.html) (open it from a local
+server at the repository root, e.g. `python -m http.server`, so its links to `demo/web/` resolve). An earlier
+sketch was reviewed in the conversation (fields
 `investor.legal_name` from a widget, `investor.tax_id` next to a label with a bad sample and a missing one,
 `investor.type` as a checkbox group, `wire.account_number` from paragraph text, `subscription.amount` not on
 the form).
@@ -262,8 +265,9 @@ A builder read this design cold and asked four questions only the owner could an
    required-field problems is filled with its gaps flagged in the fill report, as fill does for missing
    values today.
 
-Minor, settled by the author: the setup-screen mock-up lives in the conversation only; the written
-description under *The setup screen* is the reference, and layout details beyond it are the builder's call.
+Minor, settled by the author: the HTML mock-up next to this spec shows the intended layout and behaviour;
+where it and the written description differ, the written description wins, and details beyond both are the
+builder's call.
 
 ## Calls made here (check these)
 

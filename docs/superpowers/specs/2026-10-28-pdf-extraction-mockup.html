@@ -1,0 +1,536 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Extraction mockup</title>
+<meta name="description" content="A clickable mockup of the workbench's extraction mode (see 2026-10-28-pdf-extraction-design.md): set up an extraction template from samples, then review a bulk run. Static data, no server.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<!-- the workbench's own styles, so the mockup speaks its design language and follows it -->
+<link rel="stylesheet" href="../../../demo/web/core/parts.css">
+<link rel="stylesheet" href="../../../demo/web/workbench/workbench.css">
+<style>
+  /* only what extraction adds to the workbench */
+  .seg { display: inline-flex; gap: 0; }
+  .seg .btn { box-shadow: none; }
+  .seg .btn + .btn { margin-left: -1px; }
+  .seg .btn[aria-pressed="true"] { background: var(--ink); color: var(--paper); outline-color: var(--ink); position: relative; z-index: 1; }
+  .tb-label { font: 11px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--graphite); margin-left: 8px; }
+  .strip { padding: 10px 24px; box-shadow: inset 0 -.5px 0 0 var(--rule); font-size: 16px; line-height: 22px; display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: flex-start; }
+  .strip p { margin: 0; flex: 1 1 360px; font-style: italic; }
+  .strip textarea { flex: 1 1 360px; min-height: 92px; box-sizing: border-box; padding: 8px 10px; background: var(--paper); color: var(--ink); border: 0; outline: 1px solid var(--rule); outline-offset: -.5px; font: 12px/18px var(--mono); resize: vertical; }
+  .fc-sl-leaf .fc-sl-ty { font-size: 11px; }
+  .fc-sl-leaf[data-state="weak"] { outline-style: dashed; outline-color: var(--graphite); }
+  .fc-sl-leaf[data-state="absent"] { outline-style: dotted; color: var(--graphite); }
+  .addfield { display: flex; gap: 6px; margin-top: 12px; }
+  .addfield input { flex: 1; min-width: 0; }
+  .legend { margin: 12px 0 0; font-style: italic; font-size: 14px; line-height: 20px; color: var(--graphite); }
+  /* the page is a light sheet in both themes, so boxes on it keep the light-theme ink, as .fc-pv-page does */
+  .pg { --ink: #100F0F; --graphite: #6F6E69; --paper: #FFFCF0; --tint: rgba(16, 15, 15, .05); --tint-strong: rgba(16, 15, 15, .1); position: relative; width: 100%; aspect-ratio: 612 / 792; background: var(--page-paper); outline: 1px solid var(--rule); color: #100F0F; font-family: "Times New Roman", Times, serif; container-type: inline-size; }
+  .pg .t { position: absolute; font-size: 1.95cqw; line-height: 1.2; white-space: nowrap; }
+  .pg .h { font-size: 2.9cqw; font-weight: 700; }
+  .pg .rl { position: absolute; border-top: .5px solid #100F0F; }
+  .pg .w { position: absolute; background: rgba(54, 112, 200, .08); outline: .5px solid rgba(54, 112, 200, .35); }
+  .pg .v { position: absolute; font: 1.8cqw "Helvetica Neue", Arial, sans-serif; color: #1b1b1b; white-space: nowrap; }
+  .pg .para { position: absolute; font-size: 1.75cqw; line-height: 1.45; white-space: normal; color: #2b2b2b; }
+  .pg .cbx { position: absolute; width: 1.9cqw; height: 1.9cqw; outline: .7px solid #100F0F; display: grid; place-items: center; font: 1.6cqw Arial, sans-serif; }
+  .pg .fc-box { cursor: pointer; }
+  .pg .read { position: absolute; outline: 1px dotted #6F6E69; outline-offset: -.5px; pointer-events: none; }
+  .pg .anchor { position: absolute; box-shadow: inset 0 -1.5px 0 0 #100F0F; pointer-events: none; }
+  .pg .fc-tag { max-width: none; }
+  .samples { list-style: none; margin: 0; padding: 0; font: 11px/1.4 var(--mono); }
+  .samples li { display: grid; grid-template-columns: 16px minmax(0, 1fr); gap: 6px; padding: 5px 0; box-shadow: inset 0 -.5px 0 0 var(--rule); cursor: pointer; }
+  .samples li.on { background: var(--tint-strong); }
+  .samples .why { display: block; font: italic 13px/18px var(--serif); color: var(--graphite); }
+  .ro { font: 14px/20px var(--serif); padding: 6px 0; }
+  .ro em { font-family: var(--mono); font-style: normal; font-size: 11px; }
+  .answers { margin: 0; padding: 0; list-style: none; font: 11px/24px var(--mono); }
+  .answers li { display: flex; justify-content: space-between; box-shadow: inset 0 -.5px 0 0 var(--rule); }
+  .stats { display: flex; flex-wrap: wrap; gap: 8px 28px; padding: 12px 24px; box-shadow: inset 0 -.5px 0 0 var(--rule); }
+  .stat b { display: block; font: 500 22px/28px var(--serif); }
+  .stat span { font: 10px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--graphite); }
+  .docs { list-style: none; margin: 0; padding: 0; font: 12px/1.4 var(--mono); }
+  .docs li { padding: 8px; margin-bottom: 4px; outline: 1px solid var(--rule); outline-offset: -.5px; cursor: pointer; }
+  .docs li.on { background: var(--panel); outline-color: var(--ink); }
+  .docs li small { display: block; color: var(--graphite); font-size: 11px; margin-top: 2px; }
+  .filters { display: flex; gap: 6px; margin-bottom: 12px; }
+  .filters select { flex: 1; min-width: 0; }
+  .problem { padding: 10px 0; box-shadow: inset 0 -.5px 0 0 var(--rule); }
+  .problem .row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .problem.done { opacity: 1; }
+  .problem .state { font: italic 14px var(--serif); color: var(--graphite); }
+  @media (max-width: 1023px) { .strip, .stats { padding-left: 16px; padding-right: 16px; } }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <span>formcast · workbench</span>
+  <span>Extract · local server · AI on</span>
+</header>
+
+<div class="toolbar" role="toolbar" aria-label="Extraction">
+  <div class="tb-left">
+    <button type="button" class="btn sel" title="Choose other samples">client_info_form · 5 samples</button>
+    <span class="seg" role="group" aria-label="View">
+      <button type="button" class="btn quiet" data-view="setup" aria-pressed="true">Set up</button>
+      <button type="button" class="btn quiet" data-view="review" aria-pressed="false">Review</button>
+    </span>
+    <span class="tb-label" data-only="setup">Start from</span>
+    <span class="seg" role="group" aria-label="Start from" data-only="setup">
+      <button type="button" class="btn quiet" data-mode="ai" aria-pressed="true">AI suggests</button>
+      <button type="button" class="btn quiet" data-mode="user" aria-pressed="false">I'll list them</button>
+      <button type="button" class="btn quiet" data-mode="dest" aria-pressed="false">Destination</button>
+    </span>
+  </div>
+  <div class="tb-right" data-only="setup">
+    <button type="button" class="btn quiet" disabled>Undo</button>
+    <button type="button" class="btn quiet" disabled>Redo</button>
+    <button type="button" class="btn quiet">Save</button>
+    <button type="button" class="btn dark" id="run">Run on all →</button>
+  </div>
+  <div class="tb-right" data-only="review" hidden>
+    <button type="button" class="btn quiet">Export xlsx</button>
+    <button type="button" class="btn quiet">Export Parquet</button>
+    <button type="button" class="btn dark">Send to fill →</button>
+  </div>
+</div>
+
+<!-- ======================= set up ======================= -->
+<div data-only="setup">
+  <div class="strip" id="strip"></div>
+  <main class="bench">
+    <aside class="col col-schema" aria-label="Fields">
+      <p class="label" id="fields-label">Fields</p>
+      <ul class="fc-sl-list" id="fields"></ul>
+      <div class="addfield">
+        <input class="fc-in" id="add" placeholder="Add a field: wire instructions, bank and account">
+        <button type="button" class="btn quiet small" id="add-go">Add</button>
+      </div>
+      <p class="legend">● every sample · ◐ some · ? unsure · ○ not on this form</p>
+    </aside>
+
+    <section class="col col-page" aria-label="Sample page">
+      <div class="pagebar">
+        <div class="pager">
+          <button type="button" class="ib" id="prev-s" aria-label="Previous sample">‹</button>
+          <span id="sample-no">Sample 1 / 5</span>
+          <button type="button" class="ib" id="next-s" aria-label="Next sample">›</button>
+          <span class="page-state" id="sample-kind"></span>
+        </div>
+        <div class="zoom"><span>Page 1 / 2</span></div>
+      </div>
+      <div class="stage"><div class="pg" id="page"></div></div>
+      <p class="cap" id="cap"></p>
+    </section>
+
+    <aside class="col col-side" aria-label="Selected field">
+      <div class="group">
+        <p class="label">Field</p>
+        <div class="fc-inspector" id="ins"></div>
+      </div>
+      <div class="group">
+        <p class="label">On the samples</p>
+        <ul class="samples" id="per-sample"></ul>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<!-- ======================= review ======================= -->
+<div data-only="review" hidden>
+  <div class="stats">
+    <div class="stat"><b>100,000</b><span>Documents</span></div>
+    <div class="stat"><b>96,412</b><span>Complete</span></div>
+    <div class="stat"><b>3,104</b><span>With problems</span></div>
+    <div class="stat"><b>484</b><span>No template fits</span></div>
+    <div class="stat"><b>2:41:07</b><span>Run time</span></div>
+  </div>
+  <main class="bench">
+    <aside class="col col-schema" aria-label="Documents with problems">
+      <p class="label">Documents with problems · 3,104</p>
+      <div class="filters">
+        <select class="fc-in" aria-label="Field"><option>Every field</option><option>investor.tax_id</option><option>investor.type</option><option>wire.account_number</option></select>
+        <select class="fc-in" aria-label="Problem"><option>Every problem</option><option>Missing</option><option>Fails a check</option><option>Unsure</option></select>
+      </div>
+      <ul class="docs" id="docs"></ul>
+      <p class="legend">Showing 4 of 3,104 · page 1 of 776</p>
+    </aside>
+    <section class="col col-page" aria-label="Document page">
+      <div class="pagebar">
+        <div class="pager"><span id="doc-name">client_00412.pdf</span><span class="page-state" id="doc-kind"></span></div>
+        <div class="zoom"><span>Page 1 / 2</span></div>
+      </div>
+      <div class="stage"><div class="pg" id="rpage"></div></div>
+      <p class="cap" id="rcap"></p>
+    </section>
+    <aside class="col col-side" aria-label="Problems in this document">
+      <div class="group">
+        <p class="label">Problems in this document</p>
+        <div id="problems"></div>
+      </div>
+    </aside>
+  </main>
+</div>
+
+<script>
+// ------------------------------------------------------------------ data (static)
+
+// Five samples: three fillable (answers in form fields), two flattened (answers printed into the page),
+// sample 4 shifted down a little, as a re-exported copy would be.
+const SAMPLES = [
+  { file: "client_00017.pdf", kind: "fillable", shift: 0 },
+  { file: "client_00102.pdf", kind: "fillable", shift: 0 },
+  { file: "client_00388.pdf", kind: "flattened", shift: 0 },
+  { file: "client_00951.pdf", kind: "flattened", shift: 1.6 },
+  { file: "client_01230.pdf", kind: "fillable", shift: 0 },
+];
+const TYPES = ["Individual", "Joint", "Trust", "LLC"];
+
+// Where things sit on page 1, in percent of the page (left, top, width, height); `top` moves with a sample's shift.
+const LAYOUT = {
+  name: { label: [8, 13.2, "Investor legal name:"], box: [33, 12.2, 59, 2.8] },
+  tin: { label: [8, 18.4, "Taxpayer ID:"], box: [22.5, 17.4, 30, 2.8] },
+  dob: { label: [57, 18.4, "Date of birth or formation:"], box: [78, 17.4, 14, 2.8] },
+  type: { label: [8, 23.6, "Investor type:"], boxes: [[23, 23.4], [37, 23.4], [48.5, 23.4], [60, 23.4]] },
+  addr: { label: [8, 29, "Mailing address"], box: [8, 31.2, 84, 2.8], box2: [8, 34.4, 84, 2.8] },
+  owners: { label: [8, 40.4, "Beneficial owners (25% or more)"], rows: [[8, 43.6], [8, 47], [8, 50.4], [8, 53.8]] },
+  wire: { para: [8, 60, 84] },
+};
+
+const FIELDS = [
+  { id: "name", path: "investor.legal_name", group: "investor", title: "Investor legal name", type: "text",
+    def: "The investor's full legal name, as it should appear on the subscription document.",
+    reads: { fillable: ["Form field", "investor_name"], flattened: ["Next to the label", "Investor legal name:"] },
+    checks: ["Required"], line: "investor name",
+    values: ["Harbor Oak Family Trust", "Dana R. Whitfield", "Lark Capital LLC", "Omar and Lina Haddad", "Ruth Okafor"],
+    status: ["ok", "ok", "ok", "ok", "ok"] },
+  { id: "tin", path: "investor.tax_id", group: "investor", title: "Taxpayer ID", type: "text",
+    def: "EIN, or SSN for an individual. As printed, with dashes.",
+    reads: { fillable: ["Form field", "tax_id"], flattened: ["Next to the label", "Taxpayer ID:"] },
+    checks: ["Required", "Format ##-####### or ###-##-####"], line: "tax ID (EIN or SSN)",
+    values: ["84-2219037", "412-55-0198", "8422-19037", "31-7720456", ""],
+    status: ["ok", "ok", "bad", "ok", "missing"], why: { 2: "doesn't match the format", 4: "missing" } },
+  { id: "dob", path: "investor.date_of_birth_or_formation", group: "investor", title: "Date of birth or formation", type: "date",
+    def: "Date of birth for an individual, date of formation for an entity. Stored as YYYY-MM-DD.",
+    reads: { fillable: ["Form field", "dob"], flattened: ["Next to the label", "Date of birth or formation:"] },
+    checks: ["Is a date"], clean: "date: MM/DD/YYYY → YYYY-MM-DD", line: "date of birth or formation",
+    values: ["2011-04-19", "1968-09-02", "2019-01-07", "1975-12-30", "1981-06-14"],
+    shown: ["04/19/2011", "09/02/1968", "01/07/2019", "12/30/1975", "06/14/1981"],
+    status: ["ok", "ok", "ok", "unsure", "ok"], why: { 3: "label found twice on the page; the copy is shifted" } },
+  { id: "type", path: "investor.type", group: "investor", title: "Investor type", type: "one of",
+    def: "The kind of investor. Exactly one box is checked.",
+    reads: { fillable: ["Checkbox group", "4 form checkboxes"], flattened: ["Checkbox group", "4 drawn boxes, a mark inside"] },
+    checks: ["Required", "Exactly one box checked"], answers: ["individual", "joint", "trust", "llc"], line: "investor type",
+    values: ["trust", "individual", "llc", "joint", "individual, joint"],
+    marks: [[2], [0], [3], [1], [0, 1]],
+    status: ["ok", "ok", "ok", "ok", "bad"], why: { 4: "2 boxes checked" } },
+  { id: "addr", path: "investor.mailing_address", group: "investor", title: "Mailing address", type: "text",
+    def: "Street, city, state and ZIP on one line, as the client wrote it.",
+    reads: { fillable: ["Form fields", "address_1 + address_2"], flattened: ["Below the label", "Mailing address"] },
+    checks: ["Required"], line: "mailing address",
+    values: ["18 Wren St, Austin TX 78704", "4 Calder Rd, Denver CO 80206", "900 Pine Ave Ste 12, Boise ID 83702", "77 Hollis Ct, Tulsa OK 74103", "12 Oak Ln, Reno NV 89501"],
+    status: ["ok", "ok", "ok", "ok", "ok"] },
+  { id: "owners", path: "owners[].name", group: "owners[ ] · up to 4", title: "Beneficial owner name", type: "text, per owner",
+    def: "Each beneficial owner's full name. Up to 4 owners; an empty row is no owner.",
+    reads: { fillable: ["Form fields", "owner_1_name … owner_4_name"], flattened: ["Rows under the label", "Beneficial owners (25% or more)"] },
+    checks: ["Required for a trust or LLC"], items: 4, line: "beneficial owners: names and percent",
+    values: [["Ana Ruiz", "Ben Ruiz"], [], ["Kofi Mensah"], [], []],
+    status: ["ok", "ok", "ok", "ok", "ok"], note: { 1: "no owners (an individual)", 3: "no owners (joint)", 4: "no owners" } },
+  { id: "pct", path: "owners[].percent", group: "owners[ ] · up to 4", title: "Ownership percent", type: "number, per owner",
+    def: "Each owner's share, as a number from 0 to 100.",
+    reads: { fillable: ["Form fields", "owner_1_pct … owner_4_pct"], flattened: ["Rows under the label", "Beneficial owners (25% or more)"] },
+    checks: ["Between 0 and 100"], clean: "number: strip %", items: 4, line: "beneficial owners: names and percent",
+    values: [["60", "40"], [], ["100"], [], []],
+    status: ["ok", "ok", "ok", "ok", "ok"] },
+  { id: "bank", path: "wire.bank_name", group: "wire", title: "Bank", type: "text",
+    def: "The bank the investor's wire comes from.",
+    reads: { fillable: ["Page text, after", "Funds will be sent from"], flattened: ["Page text, after", "Funds will be sent from"] },
+    checks: [], line: "wire details: bank, ABA, account",
+    values: ["Frost Bank", "Chase", "Zions Bank", "", "Wells Fargo"],
+    status: ["ok", "ok", "ok", "missing", "ok"], why: { 3: "the wire paragraph is blank on this copy" } },
+  { id: "acct", path: "wire.account_number", group: "wire", title: "Account number", type: "text",
+    def: "The investor's account number for wires, digits only.",
+    reads: { fillable: ["Page text, after", "account"], flattened: ["Page text, after", "account"] },
+    checks: ["Digits only"], clean: "digits", line: "wire details: bank, ABA, account",
+    values: ["99304410", "40118822", "577100931", "", "21876650"],
+    status: ["ok", "ok", "ok", "missing", "ok"], why: { 3: "the wire paragraph is blank on this copy" } },
+];
+// only on the destination (the subscription document asks for them; this client form doesn't)
+const DEST_ONLY = [
+  { id: "amt", path: "subscription.amount", group: "subscription", title: "Commitment amount", type: "number", absent: true,
+    def: "From the destination: the amount subscribed, in USD.", checks: ["Required by the destination"] },
+  { id: "acc", path: "subscription.accredited_basis", group: "subscription", title: "Accredited investor basis", type: "one of", absent: true,
+    def: "From the destination: why the investor is accredited (income, net worth, entity assets…).", checks: ["Required by the destination"] },
+];
+
+const DOCS = [
+  { file: "client_00412.pdf", sample: 2, problems: [["tin", "Fails a check", "8422-19037", "doesn't match ##-#######"], ["acct", "Unsure", "57710093", "“account” found twice on the page"]] },
+  { file: "client_00788.pdf", sample: 4, problems: [["tin", "Missing", "", "nothing next to the label"]] },
+  { file: "client_01377.pdf", sample: 4, problems: [["type", "Fails a check", "individual, joint", "2 boxes checked"]] },
+  { file: "client_02019.pdf", sample: 3, problems: [["bank", "Missing", "", "the wire paragraph is blank"], ["acct", "Missing", "", "the wire paragraph is blank"]] },
+];
+
+// ------------------------------------------------------------------ state
+
+const state = { view: "setup", mode: "ai", sample: 0, field: "tin", doc: 0, decided: {} };
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const fields = () => (state.mode === "dest" ? FIELDS.concat(DEST_ONLY) : FIELDS);
+const fieldOf = (id) => fields().find((f) => f.id === id) ?? FIELDS[0];
+
+const GLYPH = { ok: "●", bad: "×", missing: "×", unsure: "?" };
+function summary(f) {
+  if (f.absent) return { glyph: "○", text: "0/5", state: "absent" };
+  const ok = f.status.filter((s) => s === "ok").length;
+  const unsure = f.status.includes("unsure");
+  return { glyph: ok === 5 ? "●" : unsure ? "?" : "◐", text: `${ok}/5`, state: ok === 5 ? "ready" : "weak" };
+}
+
+// ------------------------------------------------------------------ the page
+
+function drawPage(el, sampleIndex, { selected = null, highlight = [] } = {}) {
+  const s = SAMPLES[sampleIndex];
+  const y = (top) => top + s.shift;
+  const val = (id) => FIELDS.find((f) => f.id === id);
+  const out = [];
+  const text = (l, t, str, cls = "t") => out.push(`<div class="${cls}" style="left:${l}%;top:${y(t)}%">${esc(str)}</div>`);
+  const answer = (box, value) => {
+    if (s.kind === "fillable") out.push(`<div class="w" style="left:${box[0]}%;top:${y(box[1])}%;width:${box[2]}%;height:${box[3]}%"></div>`);
+    else out.push(`<div class="rl" style="left:${box[0]}%;top:${y(box[1] + box[3])}%;width:${box[2]}%"></div>`);
+    if (value) out.push(`<div class="v" style="left:${box[0] + 0.6}%;top:${y(box[1] + 0.5)}%">${esc(value)}</div>`);
+  };
+  text(8, 5, "Client Information Form", "t h");
+  text(8, 8.4, "Please complete every section. Attach additional pages if needed.");
+  for (const id of ["name", "tin", "dob"]) {
+    const L = LAYOUT[id];
+    text(L.label[0], L.label[1], L.label[2]);
+    const f = val(id);
+    answer(L.box, f.shown ? f.shown[sampleIndex] : f.values[sampleIndex]);
+  }
+  text(LAYOUT.type.label[0], LAYOUT.type.label[1], LAYOUT.type.label[2]);
+  LAYOUT.type.boxes.forEach(([l, t], k) => {
+    const on = val("type").marks[sampleIndex].includes(k);
+    out.push(`<div class="cbx" style="left:${l}%;top:${y(t)}%">${on ? "✕" : ""}</div>`);
+    text(l + 2.6, t + 0.2, TYPES[k]);
+  });
+  text(LAYOUT.addr.label[0], LAYOUT.addr.label[1], LAYOUT.addr.label[2]);
+  const addr = val("addr").values[sampleIndex];
+  const cut = addr.indexOf(", ");
+  answer(LAYOUT.addr.box, addr.slice(0, cut));
+  answer(LAYOUT.addr.box2, addr.slice(cut + 2));
+  text(LAYOUT.owners.label[0], LAYOUT.owners.label[1], LAYOUT.owners.label[2]);
+  LAYOUT.owners.rows.forEach(([l, t], k) => {
+    text(l, t + 0.4, `${k + 1}.`);
+    answer([l + 3, t, 58, 2.6], val("owners").values[sampleIndex][k] ?? "");
+    answer([l + 64, t, 14, 2.6], val("pct").values[sampleIndex][k] ? `${val("pct").values[sampleIndex][k]}%` : "");
+    text(l + 79, t + 0.4, "%");
+  });
+  const bank = val("bank").values[sampleIndex];
+  const acct = val("acct").values[sampleIndex];
+  // the answers inside the paragraph are spans, so their boxes can be put on the words wherever the text wraps
+  const wire = bank
+    ? `Wire instructions. Funds will be sent from <span data-v="bank">${esc(bank)}</span>, ABA 114000093, account <span data-v="acct">${esc(acct.replace(/(\d{4})(?=\d)/g, "$1 "))}</span>, in the name of the investor named above. The investor confirms the account is held in its own name.`
+    : `Wire instructions. Funds will be sent from <span data-v="bank">________________</span>, ABA __________, account <span data-v="acct">______________</span>, in the name of the investor named above.`;
+  out.push(`<div class="para" style="left:${LAYOUT.wire.para[0]}%;top:${y(LAYOUT.wire.para[1])}%;width:${LAYOUT.wire.para[2]}%">${wire}</div>`);
+  out.push(`<div class="para" style="left:8%;top:${y(74)}%;width:84%;color:#6F6E69">By signing, the investor certifies that the information above is complete and correct and agrees to notify the manager of any change within 30 days.</div>`);
+  text(8, 86, "Signature");
+  out.push(`<div class="rl" style="left:22%;top:${y(88)}%;width:40%"></div>`);
+
+  // the extraction boxes over the page
+  for (const f of FIELDS) {
+    const isSel = f.id === selected;
+    const isHi = highlight.includes(f.id);
+    if (!isSel && !isHi && selected !== "__all__") continue;
+    const cls = `fc-box is-linked${isSel || isHi ? " is-selected" : ""}`;
+    const tag = isSel || isHi ? `<span class="fc-tag">${esc(f.path)}</span>` : "";
+    regionsOf(f, s).forEach((r, k) => {
+      out.push(`<div class="${cls}" data-field="${f.id}" style="left:${r[0]}%;top:${y(r[1])}%;width:${r[2]}%;height:${r[3]}%">${k === 0 ? tag : ""}</div>`);
+    });
+    const L = LAYOUT[f.id] ?? (f.id === "pct" ? LAYOUT.owners : null);
+    if ((isSel || isHi) && s.kind === "flattened" && L?.label) {
+      out.push(`<div class="anchor" style="left:${L.label[0]}%;top:${y(L.label[1])}%;width:${L.label[2].length * 1.05}%;height:2.6%"></div>`);
+    }
+  }
+  el.innerHTML = out.join("");
+  // boxes for answers inside the paragraph go on their words
+  for (const id of ["bank", "acct"]) {
+    if (id !== selected && !highlight.includes(id)) continue;
+    const span = el.querySelector(`[data-v="${id}"]`);
+    const page = el.getBoundingClientRect();
+    const r = span.getBoundingClientRect();
+    const box = document.createElement("div");
+    box.className = "fc-box is-linked is-selected";
+    box.dataset.field = id;
+    Object.assign(box.style, {
+      left: `${((r.left - page.left) / page.width) * 100 - 0.4}%`, top: `${((r.top - page.top) / page.height) * 100 - 0.2}%`,
+      width: `${(r.width / page.width) * 100 + 0.8}%`, height: `${(r.height / page.height) * 100 + 0.4}%`,
+    });
+    box.innerHTML = `<span class="fc-tag">${esc(FIELDS.find((f) => f.id === id).path)}</span>`;
+    el.append(box);
+  }
+  el.querySelectorAll(".fc-box").forEach((b) => b.addEventListener("click", () => { state.field = b.dataset.field; render(); }));
+}
+
+/** The page areas a field reads, in percent (before the sample's shift). */
+function regionsOf(f, s) {
+  const L = LAYOUT;
+  switch (f.id) {
+    case "name": case "tin": case "dob": return [L[f.id].box];
+    case "addr": return [L.addr.box, L.addr.box2];
+    case "type": return L.type.boxes.map(([l, t]) => [l - 0.2, t - 0.2, 2.3, 2.3]);
+    case "owners": return L.owners.rows.map(([l, t]) => [l + 3, t, 58, 2.6]);
+    case "pct": return L.owners.rows.map(([l, t]) => [l + 64, t, 14, 2.6]);
+    default: return []; // bank and acct sit inside the paragraph: placed on their words after drawing
+  }
+}
+
+// ------------------------------------------------------------------ set up
+
+function renderStrip() {
+  const strip = $("strip");
+  if (state.mode === "ai") {
+    strip.innerHTML = `<p>The AI read the 5 samples and suggested 9 fields. Remove what you don't need, rename them, or add your own on the left.</p>`;
+  } else if (state.mode === "user") {
+    strip.innerHTML = `<textarea aria-label="What to extract, one per line">${FIELDS.map((f) => f.line).filter((v, i, a) => a.indexOf(v) === i).join("\n")}</textarea>
+      <p>One thing per line, in your words. The AI turns each line into defined fields and finds them on the samples; “wire details” became bank and account.</p>
+      <button type="button" class="btn small">Find these</button>`;
+  } else {
+    strip.innerHTML = `<p>From the saved template <b>Sprott subscription</b>: the fields it needs that a client form can supply. 2 of them aren't on this form; they stay in the list, marked ○, so the gap is known before the run.</p>`;
+  }
+}
+
+function renderFields() {
+  const list = fields();
+  const weak = list.filter((f) => summary(f).state !== "ready").length;
+  $("fields-label").textContent = `Fields · ${list.length} · ${weak} need a look`;
+  let group = null;
+  const rows = [];
+  for (const f of list) {
+    if (f.group !== group) {
+      group = f.group;
+      rows.push(`<li class="fc-sl-grp">${esc(group)}</li>`);
+    }
+    const sm = summary(f);
+    rows.push(`<li class="fc-sl-leaf${f.id === state.field ? " is-picked" : ""}" data-state="${sm.state}" data-field="${f.id}" style="--depth:1" tabindex="0">
+      <span class="fc-sl-st">${sm.glyph}</span><span class="fc-sl-name">${esc(f.path.split(".").slice(1).join(".") || f.path)}</span><span class="fc-sl-ty">${sm.text}</span></li>`);
+  }
+  $("fields").innerHTML = rows.join("");
+  $("fields").querySelectorAll(".fc-sl-leaf").forEach((li) => li.addEventListener("click", () => { state.field = li.dataset.field; render(); }));
+}
+
+function renderInspector() {
+  const f = fieldOf(state.field);
+  const s = SAMPLES[state.sample];
+  const read = f.absent ? null : f.reads[s.kind];
+  const dl = (k, v) => `<dt>${k}</dt><dd>${v}</dd>`;
+  let html = `<dl class="fc-ins-dl">`;
+  html += dl("Name", `<input class="fc-in" value="${esc(f.path)}" aria-label="Name">`);
+  html += dl("Title", `<input class="fc-in" value="${esc(f.title)}" aria-label="Title">`);
+  html += dl("Type", `<select class="fc-in" aria-label="Type"><option>${esc(f.type)}</option><option>text</option><option>number</option><option>date</option><option>yes or no</option><option>one of</option></select>`);
+  html += `</dl>`;
+  html += `<p class="fc-ins-lab">Definition</p><textarea class="fc-in" rows="3" style="font:14px/20px var(--serif);height:auto;padding:6px 8px">${esc(f.def)}</textarea>`;
+  if (state.mode === "user" && f.line) html += `<p class="fc-ins-hint">From your line “${esc(f.line)}”.</p>`;
+  html += `<p class="fc-ins-lab">Read from</p>`;
+  if (f.absent) {
+    html += `<div class="ro">Not on this client form. It is left empty in the results, to ask the client or fill in at review.</div>`;
+  } else {
+    html += `<div class="ro">${esc(read[0])} <em>${esc(read[1])}</em></div>`;
+    html += `<p class="fc-ins-hint">On ${s.kind} copies. ${s.kind === "fillable" ? "Flattened copies: " + esc(f.reads.flattened[0].toLowerCase()) + " " + esc(f.reads.flattened[1]) + "." : "Fillable copies: " + esc(f.reads.fillable[0].toLowerCase()) + " " + esc(f.reads.fillable[1]) + "."}</p>`;
+    if (f.clean) html += `<p class="fc-ins-hint">Cleaned: ${esc(f.clean)}.</p>`;
+  }
+  if (f.answers) html += `<p class="fc-ins-lab">Answers · a box each</p><ul class="answers">${f.answers.map((a, k) => `<li><span>${a}</span><span>box ${k + 1}</span></li>`).join("")}</ul>`;
+  if (f.items) html += `<p class="fc-ins-lab">Items</p><div class="ro">Up to ${f.items}, one per row. Exported as <em>${esc(f.path.replace("[].", "_1_"))}</em>, <em>${esc(f.path.replace("[].", "_2_"))}</em>…</div>`;
+  html += `<p class="fc-ins-lab">Checks</p>`;
+  html += (f.checks.length ? f.checks : ["None"]).map((c) => `<label class="fc-ins-check"><input type="checkbox" ${c === "None" ? "" : "checked"}> ${esc(c)}</label>`).join("");
+  html += `<p class="fc-ins-lab" style="margin-top:16px"></p><button type="button" class="btn quiet small">Remove field</button>`;
+  $("ins").innerHTML = html;
+
+  const per = $("per-sample");
+  if (f.absent) {
+    per.innerHTML = `<li><span>○</span><span>Not on any sample.<span class="why">Asked of the client, or filled in at review.</span></span></li>`;
+    return;
+  }
+  per.innerHTML = SAMPLES.map((smp, i) => {
+    const v = Array.isArray(f.values[i]) ? (f.values[i].length ? f.values[i].join(" · ") : "—") : f.values[i] || "—";
+    const st = f.status[i];
+    const why = f.why?.[i] ?? f.note?.[i];
+    return `<li class="${i === state.sample ? "on" : ""}" data-i="${i}"><span>${GLYPH[st]}</span><span>${i + 1}. ${esc(v)}<span class="why">${esc(smp.kind)}${why ? " · " + esc(why) : ""}</span></span></li>`;
+  }).join("");
+  per.querySelectorAll("li").forEach((li) => li.addEventListener("click", () => { state.sample = +li.dataset.i; render(); }));
+}
+
+function renderSetup() {
+  renderStrip();
+  renderFields();
+  const s = SAMPLES[state.sample];
+  $("sample-no").textContent = `Sample ${state.sample + 1} / ${SAMPLES.length}`;
+  $("sample-kind").textContent = `${s.file} · ${s.kind}${s.shift ? " · shifted" : ""}`;
+  const f = fieldOf(state.field);
+  drawPage($("page"), state.sample, { selected: f.absent ? null : f.id });
+  const ready = fields().filter((x) => summary(x).state === "ready").length;
+  $("cap").textContent = `Layout matches the samples · ${ready} of ${fields().length} fields ready · click a box or a field to see how it is read`;
+  renderInspector();
+}
+
+// ------------------------------------------------------------------ review
+
+function renderReview() {
+  $("docs").innerHTML = DOCS.map((d, i) => {
+    const open = d.problems.filter((p) => !state.decided[`${i}:${p[0]}`]);
+    const text = open.length ? `${open.length} problem${open.length === 1 ? "" : "s"}: ${open.map((p) => fieldOf(p[0]).path).join(", ")}` : "all settled";
+    return `<li class="${i === state.doc ? "on" : ""}" data-i="${i}">${esc(d.file)}<small>${esc(text)}</small></li>`;
+  }).join("");
+  $("docs").querySelectorAll("li").forEach((li) => li.addEventListener("click", () => { state.doc = +li.dataset.i; render(); }));
+  const d = DOCS[state.doc];
+  const s = SAMPLES[d.sample];
+  $("doc-name").textContent = d.file;
+  $("doc-kind").textContent = `${s.kind}${s.shift ? " · shifted" : ""} · template client_info_form`;
+  drawPage($("rpage"), d.sample, { highlight: d.problems.map((p) => p[0]) });
+  $("rcap").textContent = `The boxes are where each problem field was read, or looked for`;
+  $("problems").innerHTML = d.problems.map((p) => {
+    const f = fieldOf(p[0]);
+    const key = `${state.doc}:${p[0]}`;
+    const done = state.decided[key];
+    return `<div class="problem" data-key="${key}">
+      <div class="fc-inspector"><b style="font-weight:500">${esc(f.path)}</b> · ${esc(p[1])}</div>
+      <p class="fc-ins-hint">${esc(f.def)}</p>
+      <p class="fc-ins-hint">Read: <code>${esc(p[2] || "nothing")}</code> · ${esc(p[3])}</p>
+      ${done ? `<p class="state">${esc(done)}</p>` : `<input class="fc-in" style="margin-top:8px" placeholder="Type the value from the page" value="${esc(p[2])}">
+      <div class="row">
+        <button type="button" class="btn small dark" data-act="Value entered">Use this value</button>
+        <button type="button" class="btn small quiet" data-act="Accepted as read">Accept as read</button>
+        <button type="button" class="btn small quiet" data-act="Marked not in this document">Not in this document</button>
+      </div>`}
+    </div>`;
+  }).join("");
+  $("problems").querySelectorAll("[data-act]").forEach((b) => b.addEventListener("click", () => {
+    state.decided[b.closest(".problem").dataset.key] = b.dataset.act;
+    render();
+  }));
+}
+
+// ------------------------------------------------------------------ wiring
+
+function render() {
+  document.querySelectorAll("[data-only]").forEach((el) => { el.hidden = el.dataset.only !== state.view; });
+  document.querySelectorAll("[data-view]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === state.view)));
+  document.querySelectorAll("[data-mode]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === state.mode)));
+  if (state.view === "setup") renderSetup();
+  else renderReview();
+}
+
+document.querySelectorAll("[data-view]").forEach((b) => b.addEventListener("click", () => { state.view = b.dataset.view; render(); }));
+document.querySelectorAll("[data-mode]").forEach((b) => b.addEventListener("click", () => {
+  state.mode = b.dataset.mode;
+  if (!fields().some((f) => f.id === state.field)) state.field = "tin";
+  render();
+}));
+$("prev-s").addEventListener("click", () => { state.sample = (state.sample + SAMPLES.length - 1) % SAMPLES.length; render(); });
+$("next-s").addEventListener("click", () => { state.sample = (state.sample + 1) % SAMPLES.length; render(); });
+$("run").addEventListener("click", () => { state.view = "review"; render(); });
+render();
+</script>
+</body>
+</html>
