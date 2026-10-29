@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import pytest
 
 import formcast.extract.samples as samples_mod
@@ -86,3 +88,58 @@ def test_sample_images_put_the_pages_with_the_most_boxes_first():
     (doc,) = read_samples([SamplePdf("a.pdf", make_form(clients(1)[0], kind="fillable"))], **NO_DETECTORS)
     assert [n for n, _ in sample_images(doc)] == [0, 1]
     assert [n for n, _ in sample_images(doc, max_pages=1)] == [0]
+
+
+def _sample_with_values(values: dict[str, str | bool], pdf: bytes) -> samples_mod.SampleDoc:
+    (doc,) = read_samples([SamplePdf("a.pdf", pdf)], **NO_DETECTORS)
+    doc.values = values
+    return doc
+
+
+def test_a_flattened_samples_view_holds_its_answers_as_page_text():
+    p = clients(1, seed=3)[0]
+    (doc,) = read_samples([SamplePdf("a.pdf", make_form(p, kind="flattened"))], **NO_DETECTORS)
+    view = sample_view(doc, 1)
+    assert "PAGE 0 TEXT:" in view and "PAGE 1 TEXT:" in view
+    line = next(ln for ln in view.splitlines() if p.tax_id in ln)
+    assert re.fullmatch(rf"\[\d+,\d+,\d+,\d+\] {re.escape(p.tax_id)}", line)
+
+
+def test_the_form_field_values_come_before_the_pages_and_a_fillable_page_has_no_text_section():
+    (doc,) = read_samples([SamplePdf("a.pdf", make_form(clients(1, seed=3)[0], kind="fillable"))], **NO_DETECTORS)
+    view = sample_view(doc, 1)
+    assert view.index("FORM FIELD VALUES:") < view.index("PAGE 0") and "PAGE 0 TEXT:" not in view
+    assert "PAGE 1 TEXT:" in view  # the agreement page has no form fields
+
+
+def test_the_header_and_the_values_survive_a_small_budget_whole():
+    p = clients(1, seed=3)[0]
+    (doc,) = read_samples([SamplePdf("a.pdf", make_form(p, kind="fillable"))], **NO_DETECTORS)
+    full = sample_view(doc, 1)
+    values = full[full.index("FORM FIELD VALUES:") : full.index("PAGE 0")]
+    for limit in (len(values) + 60, len(values) + 400, 1500):
+        view = sample_view(doc, 1, max_chars=limit)
+        assert values in view and len(view) <= limit
+
+
+def test_a_long_page_cannot_push_the_values_out_and_the_view_stays_within_its_budget():
+    p = clients(1, seed=3)[0]
+    (doc,) = read_samples([SamplePdf("a.pdf", make_form(p, kind="flattened"))], **NO_DETECTORS)
+    doc.values = {"tax_id": p.tax_id, "notes": "x"}
+    view = sample_view(doc, 1, max_chars=900)
+    assert f'tax_id = "{p.tax_id}"' in view and len(view) <= 900
+    assert len(sample_view(doc, 1, max_chars=400)) <= 400
+
+
+def test_the_last_pages_text_goes_before_the_first_pages():
+    (doc,) = read_samples([SamplePdf("a.pdf", make_form(clients(1, seed=3)[0], kind="flattened"))], **NO_DETECTORS)
+    full = sample_view(doc, 1)
+    cut = sample_view(doc, 1, max_chars=len(full) - 100)
+    first, last = cut.split("PAGE 1\n")
+    assert "dropped]" not in first and "dropped]" in last
+
+
+def test_a_value_with_a_quote_or_a_newline_stays_on_one_line():
+    doc = _sample_with_values({"a": 'He said "hi"', "b": "two\nlines", "c": True}, make_form(None, kind="fillable"))
+    lines = sample_view(doc, 1).splitlines()
+    assert 'a = "He said \\"hi\\""' in lines and 'b = "two\\nlines"' in lines and "c = true" in lines

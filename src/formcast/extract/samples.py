@@ -16,6 +16,7 @@ renders its pages, those with the most boxes first. Nothing here calls a model.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Literal
@@ -158,22 +159,87 @@ def detected_pages(doc: SampleDoc) -> list[int]:
 
 
 def sample_view(doc: SampleDoc, index: int, *, max_chars: int = SAMPLE_CHARS) -> str:
-    """``doc`` as text for a model, cut to ``max_chars``.
+    """``doc`` as text for a model, kept to ``max_chars`` unless the header and the values alone are longer.
 
-    A header (``SAMPLE 2 (a.pdf, fillable, 2 pages)``; ``fillable`` when any page has form fields, else
-    ``flattened``), then ``PAGE n`` and the page's form map for each page (from 0), then ``FORM FIELD VALUES:``
-    with a ``name = "value"`` line per form field that holds one (a check box as ``true``).
+    In order: a header (``SAMPLE 2 (a.pdf, fillable, 2 pages)``; ``fillable`` when any page has form fields, else
+    ``flattened``); ``FORM FIELD VALUES:`` with a ``name = "value"`` line per form field that holds one (JSON, so a
+    value stays on one line and a check box reads ``true``); then, per page (from 0), ``PAGE n`` and the page's form
+    map, and for a page that is not fillable ``PAGE n TEXT:`` with its text lines as ``[x0,y0,x1,y1] text`` in whole
+    points, because the filled answers of a flattened or scanned page are printed text the form map leaves out.
+
+    The header and the values are never cut. What is left of ``max_chars`` goes to the pages in order: the form maps
+    first, each cut at an item line to its share when they do not all fit, then the text lines from the first page
+    on, so the last page's text goes first; a page whose text is cut ends it with a note saying how many lines went.
     """
-    kind = "fillable" if any(p.kind == "fillable" for p in doc.form_map.pages) else "flattened"
-    count = len(doc.form_map.pages)
-    parts = [f"SAMPLE {index} ({doc.file}, {kind}, {count} page{'' if count == 1 else 's'})"]
-    for page in doc.form_map.pages:
-        parts += [f"PAGE {page.index}", summarize_page(doc.form_map, page.index)]
+    pages = doc.form_map.pages
+    kind = "fillable" if any(p.kind == "fillable" for p in pages) else "flattened"
+    head = [f"SAMPLE {index} ({doc.file}, {kind}, {len(pages)} page{'' if len(pages) == 1 else 's'})"]
     if doc.values:
-        parts.append("FORM FIELD VALUES:")
-        for name, value in doc.values.items():
-            parts.append(f"{name} = {str(value).lower()}" if isinstance(value, bool) else f'{name} = "{value}"')
-    return "\n".join(parts)[:max_chars]
+        head.append("FORM FIELD VALUES:")
+        head += [f"{name} = {json.dumps(value, ensure_ascii=False)}" for name, value in doc.values.items()]
+    space = max_chars - len("\n".join(head)) - 1
+    maps = [f"PAGE {p.index}\n{summarize_page(doc.form_map, p.index)}" for p in pages]
+    titles = [f"PAGE {p.index} TEXT:" if p.kind != "fillable" else "" for p in pages]
+    if sum(len(m) + len(t) + 2 for m, t in zip(maps, titles)) > space:
+        maps = _shared(doc, space - sum(len(t) + 1 for t in titles))
+    space = max(space - sum(len(m) + len(t) + 2 for m, t in zip(maps, titles)), 0)
+    parts = []
+    for form_map, title, lines in zip(maps, titles, _page_texts(doc)):
+        shown, space = _fit(lines, space)
+        parts.append("\n".join([form_map, *([title, *shown] if title else [])]))
+    # The shares are counted with a little to spare, but a budget too small for even the page headings still wins.
+    room = max_chars - len("\n".join(head)) - 1
+    body = "\n".join(parts)
+    if len(body) > room:
+        body = body[: max(room, 0)]
+        body = body[: body.rfind("\n")] if "\n" in body else ""
+    return "\n".join([*head, body]) if body else "\n".join(head)
+
+
+def _fit(lines: list[str], space: int) -> tuple[list[str], int]:
+    """The leading ``lines`` that fit in ``space`` characters (a newline after each) and the space left. When some
+    do not fit, the last line is a note saying how many were dropped (kept only if it fits itself) and no space is
+    left for the pages after."""
+    if sum(len(ln) + 1 for ln in lines) <= space:
+        return lines, space - sum(len(ln) + 1 for ln in lines)
+    note = f"[{len(lines)} more text lines dropped]"  # as long as any note this can need
+    shown: list[str] = []
+    for line in lines:
+        if len(line) + len(note) + 2 > space:
+            break
+        shown.append(line)
+        space -= len(line) + 1
+    note = f"[{len(lines) - len(shown)} more text lines dropped]"
+    if len(note) + 1 <= space:
+        shown.append(note)
+    return shown, 0
+
+
+def _shared(doc: SampleDoc, space: int) -> list[str]:
+    """Each page's ``PAGE n`` and form map, the pages sharing ``space`` characters in order."""
+    maps = []
+    pages = doc.form_map.pages
+    for n, page in enumerate(pages):
+        share = max(space // (len(pages) - n) - len(f"PAGE {page.index}\n") - 1, 0)
+        maps.append(f"PAGE {page.index}\n{summarize_page(doc.form_map, page.index, max_chars=share)}")
+        space -= len(maps[-1]) + 1
+    return maps
+
+
+def _page_texts(doc: SampleDoc) -> list[list[str]]:
+    """The text lines of each page that is not fillable, as ``[x0,y0,x1,y1] text``; ``[]`` for a fillable page."""
+    texts: list[list[str]] = []
+    with DocText(doc.pdf) as pdf:
+        for page in doc.form_map.pages:
+            if page.kind == "fillable":
+                texts.append([])
+                continue
+            if page.text_source == "ocr":  # the PDF has no text of its own here; the form map holds the OCR
+                lines = [(ln.text, ln.rect) for ln in page.lines]
+            else:
+                lines = pdf.lines(page.index)
+            texts.append([f"[{','.join(str(round(v)) for v in rect)}] {text}" for text, rect in lines if text.strip()])
+    return texts
 
 
 def sample_images(doc: SampleDoc, *, max_pages: int = MAX_IMAGE_PAGES) -> list[tuple[int, bytes]]:
