@@ -54,6 +54,11 @@ with AI and a person, and the per-document work is cheap, deterministic code.
 - Learning a layout with no samples, or extracting from wholly free-form documents with no shared layout.
   Free text in a document is handled only as a field's reader ("text after this phrase") or, failing that,
   by the AI fallback.
+- Judgment questions with no field to read ("is this a venture capital fund?" when only the strategy text implies
+  it): they need the model to read each document. Out of scope; re-evaluate later.
+- Computed fields (an answer worked out from other extracted fields, e.g. `venture_capital` from `fund.type`):
+  designed for with the rules across fields, not built.
+- Enhancing normalization beyond the existing map and `enum` check (see *Answers from a fixed set*).
 - Open-ended tables (any number of rows); repeated groups have a fixed maximum (see *Settled after review*).
 - A bulk command line fill; filling starts from the results through the existing flows.
 - A production ingestion service (queues, auth, multi-user review). The workbench stays a local, single-user
@@ -227,6 +232,21 @@ the form).
   the decision), so re-running extraction keeps them.
 - Summary: per field, how many documents found / missing / failed / reviewed; per document, how many problems.
 
+### Answers from a fixed set (normalization)
+
+A field with a fixed set of answers (`enum`, e.g. country `US`, `CA`, `KY`) may say the same thing many ways
+("United States", "USA", "U.S."). This round uses the base layer that exists:
+
+- The field's `clean` step includes a `map` transform (wording -> answer), and the `enum` check.
+- At setup, the model proposes the map from the wordings it sees on the samples; the person checks it on the
+  field panel.
+- At run time code applies it. A wording not in the map fails the "one of the allowed answers" check and goes
+  to review; the raw wording is kept beside the cleaned value, so a map changed later re-runs over the stored
+  results without reading the PDFs.
+
+Not this round (re-evaluate later): the model mapping unknown wordings (once per distinct wording), and review
+answers extending the map automatically.
+
 ### Validation
 
 - On one field, during extraction: type, `required`, `pattern`, `enum`, `format` (date, email), ranges.
@@ -303,4 +323,4 @@ builder's call.
 - Readers are per schema path, ordered strategies, chosen by the model and proved by code on the samples.
 - The AI fallback per document is off by default and its values are always reviewed.
 - Results are stored by the runner (Parquet, or JSON lines) so checks and review never need the PDFs again.
-- Rules across fields: designed for, not built.
+- Rules across fields: designed for, not built. Computed fields are grouped with them.
