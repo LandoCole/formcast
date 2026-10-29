@@ -53,6 +53,7 @@ import pydantic
 
 from demo.server.datasets import Dataset, Datasets
 from demo.server.documents import DETECT_MODES, MAX_DPI, MIN_DPI, PYMUPDF_LOCK, Doc, Documents
+from demo.server.extraction import Batches
 from demo.server.jobs import EXTRACT_KINDS, KINDS, Jobs, JobsBusy
 from demo.server.oneshot import OneShotSpec, map_dataset
 from demo.server.records import MultiRecords, RecordSource, RecordSourceError
@@ -162,7 +163,8 @@ class Api:
         self.datasets = Datasets()
         self.jobs = Jobs(secrets=[settings.llm.api_key] if settings.llm is not None else [])
         # the extraction workbench's managers (demo/server/extraction.py): batches of PDFs, setups, saved extractions, runs
-        self.batches = self.setups = self.extractions = self.runs = None
+        self.batches = Batches(settings.data_dir / "local" / "batches")
+        self.setups = self.extractions = self.runs = None
         self._routes: list[tuple[str, re.Pattern[str], Callable[[Request], Any]]] = []
         self._add_routes()
 
