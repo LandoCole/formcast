@@ -389,6 +389,30 @@ def test_text_right_of_passes_over_the_rest_of_its_own_printed_line():
         assert doc.text_right_of(0, label, 300, stop_at=[printed])[0] == "05/01/1980"
 
 
+def test_text_right_of_stops_at_the_next_label_of_its_own_printed_line():
+    # "Phone:      Fax:" is one printed line; the answers are written into its gap and after it
+    joined = "Phone:" + " " * 60 + "Fax:"
+    with DocText(_rows_pdf((72, 100, joined), (120, 100, "608 555 0142"), (330, 100, "555 0100"))) as doc:
+        printed = _line_rect(doc, "Phone: Fax:")
+        (_, phone), = doc.find_label(["Phone"], 0)
+        (_, fax), = doc.find_label(["Fax"], 0)
+        assert doc.text_right_of(0, phone, 400, stop_at=[printed])[0] == "608 555 0142"
+        assert doc.text_right_of(0, fax, 400, stop_at=[printed])[0] == "555 0100"
+    with DocText(_rows_pdf((72, 100, joined), (330, 100, "555 0100"))) as doc:
+        (_, phone), = doc.find_label(["Phone"], 0)
+        got = doc.right_of(0, phone, 400, stop_at=[_line_rect(doc, "Phone: Fax:")])
+        assert (got.text, got.into_label) == (None, False)  # the blank phone reads nothing, not the fax
+
+
+def test_text_below_takes_an_answer_inside_a_printed_lines_box():
+    # a printed line wide enough that the answer under the label lies inside its box is still not the answer
+    pdf = _rows_pdf((72, 100, "Street address"), (72, 112, "Notes" + " " * 80 + "Country"), (80, 110, "1 Main St"))
+    with DocText(pdf) as doc:
+        (_, label), = doc.find_label(["Street address"], 0)
+        printed = _line_rect(doc, "Notes Country")
+        assert doc.text_below(0, label, 1, stop_at=[printed])[0] == "1 Main St"
+
+
 def test_right_of_says_when_the_answer_runs_into_the_next_label():
     with DocText(_lines_pdf("Name: Dana Keller Date of birth: 05/01/2020")) as doc:
         (_, label), = doc.find_label(["Name"], 0)

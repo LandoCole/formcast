@@ -20,7 +20,9 @@ a reader aimed at a page a shorter document lacks finds nothing rather than fail
 The reads beside a label (:meth:`DocText.right_of`, :meth:`DocText.text_right_of`, :meth:`DocText.text_below`)
 take ``stop_at``: rectangles of the form's own printed lines on this document (the caller knows them from the
 template's layout). A printed word is never part of an answer: an empty answer followed by the next label reads
-nothing, not that label.
+nothing, not that label. The printed words are the words of the document's text lines at those rectangles, not
+every word inside them: a word processor prints "Phone:      Fax:" as one line, and the phone written into its gap
+is an answer.
 """
 
 from __future__ import annotations
@@ -55,6 +57,8 @@ BELOW_GAP_EM = 1.5
 ROW_OVERLAP = 0.5
 #: A gap wider than this many em (the label's height) can separate an answer from the next label on its row.
 LABEL_GAP_EM = 1.0
+#: A ``stop_at`` rectangle within this many points of a page line's rectangle on every side is that line.
+_SAME_LINE = 0.5
 #: Words after a phrase that are looked at when searching for its stop.
 PHRASE_TAIL_WORDS = 200
 #: Share of the smaller of two same-text words that must overlap, inside a form field, for one to be dropped.
@@ -148,6 +152,7 @@ class RightOf:
 class _Line:
     text: str
     rect: Rect
+    words: list[Word]
 
 
 @dataclass
@@ -277,7 +282,7 @@ class DocText:
             for w in ordered:
                 by_line.setdefault(w.line_id, []).append(w)
             lines = sorted(
-                (_Line(" ".join(w.text for w in ws), _union([w.rect for w in ws])) for ws in by_line.values()),
+                (_Line(" ".join(w.text for w in ws), _union([w.rect for w in ws]), ws) for ws in by_line.values()),
                 key=lambda ln: (ln.rect[1], ln.rect[0]),
             )
             text = _Text(ordered, [label_key(w.text) for w in ordered], rows, lines)
@@ -361,10 +366,12 @@ class DocText:
         (``rect``'s height) between words and at ``max_width`` points from ``rect``'s right edge. Only the first
         word is free of the gap rule (labels often sit far from their answers).
 
-        A word whose middle lies in one of the ``stop_at`` rectangles (the form's printed lines) ends the text before
-        it: an empty answer followed by the next label reads nothing. The printed line the label itself is part of is
-        passed over, not stopped at ("Date of birth" in "Date of birth (mm/dd/yyyy):" reads what follows the colon),
-        and ``max_width`` then counts from that line's end.
+        A printed word (one of the words of the form's printed lines at ``stop_at``) ends the text before it: an
+        empty answer followed by the next label reads nothing. The printed words that carry on the label itself, each
+        within one em of the one before and up to the first that ends with ":", are passed over, not stopped at
+        ("Date of birth" in "Date of birth (mm/dd/yyyy):" reads what follows the colon), and ``max_width`` then counts
+        from the last of them. "Phone:      Fax:" printed as one line reads the phone between them, and nothing when
+        the phone is blank.
 
         When a later word on the row ends with ":" (the next label), the answer is the words before the widest gap
         of more than one em that lies between the answer's first word and that colon word; the label cannot be told
@@ -377,8 +384,8 @@ class DocText:
         if text is None:
             return RightOf(None, None)
         em = rect[3] - rect[1]
-        stops = stop_at or []
-        own = [s for s in stops if _in(s, _centre(rect))]  # the printed line the label is part of
+        printed = _printed(text, stop_at or [])
+        label = [w for w in text.words if _in(rect, _centre(w.rect))]
         row = [
             w
             for w in text.words
@@ -386,13 +393,15 @@ class DocText:
         ]
         taken: list[Word] = []
         into_label = False
-        start = rect[2]  # where the answer is measured from: the label's end, or the end of its printed line
+        start = rect[2]  # where the answer is measured from: the label's end, or the end of its printed words
+        carrying = not (label and label[-1].text.endswith(":"))  # the printed words after it are still the label's
         for w in sorted(row, key=lambda w: w.rect[0]):
-            middle = _centre(w.rect)
-            if not taken and any(_in(s, middle) for s in own):
+            if carrying and id(w) in printed and w.rect[0] - start <= LABEL_GAP_EM * em:
                 start = w.rect[2]
-                continue  # the rest of the label's own printed line
-            if any(_in(s, middle) for s in stops):
+                carrying = not w.text.endswith(":")
+                continue  # the rest of the label: "(mm/dd/yyyy):" after "Date of birth"
+            carrying = False
+            if id(w) in printed:
                 break  # the form's printed words: never part of an answer
             if w.rect[2] > start + max_width:
                 break
@@ -422,14 +431,14 @@ class DocText:
         These are the PDF's own text lines whose left edge lies within the x-span of ``rect``. The first of them must
         start within 1.5 em (``rect``'s height) of ``rect``'s bottom, and each following line within 1.5 em of the
         line before it: a blank answer is not read from the line after it. Reading stops at a line ending with ":"
-        (the next label, not included), at a line whose middle lies in one of the ``stop_at`` rectangles (the form's
-        printed lines), and after ``max_lines``. ``None`` when no line qualifies.
+        (the next label, not included), at a line holding a printed word (one of the words of the form's printed
+        lines at ``stop_at``), and after ``max_lines``. ``None`` when no line qualifies.
         """
         text = self._page(page)
         if text is None or max_lines < 1:
             return None
         em = rect[3] - rect[1]
-        stops = stop_at or []
+        printed = _printed(text, stop_at or [])
         taken: list[_Line] = []
         bottom = rect[3]
         for line in text.lines:
@@ -437,7 +446,7 @@ class DocText:
                 continue
             if line.text.endswith(":") or line.rect[1] - bottom > BELOW_GAP_EM * em:
                 break
-            if any(_in(s, _centre(line.rect)) for s in stops):
+            if any(id(w) in printed for w in line.words):
                 break
             taken.append(line)
             bottom = line.rect[3]
@@ -543,6 +552,20 @@ class DocText:
         if not chosen or not value:
             return None
         return value, _union([w.rect for w in chosen])
+
+
+def _printed(text: _Text, stops: list[Rect]) -> set[int]:
+    """The ``id`` of every printed word: the words of each of the page's lines at one of the ``stops`` rectangles.
+
+    A rectangle that is none of the page's lines (within :data:`_SAME_LINE` points on every side) stands for the words
+    whose middle lies in it.
+    """
+    out: set[int] = set()
+    for stop in stops:
+        line = next((ln for ln in text.lines if all(abs(a - b) <= _SAME_LINE for a, b in zip(ln.rect, stop))), None)
+        words = line.words if line else [w for w in text.words if _in(stop, _centre(w.rect))]
+        out.update(id(w) for w in words)
+    return out
 
 
 def _before_label(words: list[Word], em: float) -> int:

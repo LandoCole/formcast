@@ -468,6 +468,43 @@ def test_a_blank_answer_before_a_printed_label_reads_nothing_on_a_matched_layout
     assert (got["fax"].status, got["fax"].value) == ("found", "555 0100")
 
 
+def _joined_contact_form(phone: str, fax: str, *, colon: bool) -> bytes:
+    """A one-page form whose Phone and Fax labels are one printed line, as a word processor writes a row."""
+    doc = pymupdf.open()
+    page = doc.new_page(width=612, height=792)
+    phone_label, fax_label = ("Phone:", "Fax:") if colon else ("Phone", "Fax")
+    page.insert_text((72, 100), phone_label + " " * 60 + fax_label, fontsize=10)
+    page.insert_text((72, 300), "Thank you for your business.", fontsize=10)
+    for x, text in ((120, phone), (330, fax)):
+        if text:
+            page.insert_text((x, 100), text, fontsize=10)
+    return doc.tobytes()
+
+
+@pytest.mark.parametrize("colon", [True, False])
+@pytest.mark.parametrize("paths", [("phone", "fax"), ("phone",)])
+def test_two_labels_printed_as_one_line_each_read_their_own_answer(template, colon, paths):
+    readers = {
+        "phone": Reader(strategies=[AnchorRead(labels=["Phone"], page=0)]),
+        "fax": Reader(strategies=[AnchorRead(labels=["Fax"], page=0)]),
+    }
+    contact = ExtractionTemplate(
+        template_id="contact", name="contact", form=template.form,
+        schema={"type": "object", "properties": {k: {"type": "string"} for k in paths}},
+        layout=learn_layout([], blank=_joined_contact_form("", "", colon=colon)),
+        readers={k: readers[k] for k in paths},
+    )  # fmt: skip
+    assert [ln.text for ln in contact.layout.lines][0] == "phone fax"  # one printed line holds both labels
+    result = extract(contact, _joined_contact_form("608 555 0142", "555 0100", colon=colon))
+    got = fields(result)
+    assert result.matched == "layout"
+    assert (got["phone"].status, got["phone"].value) == ("found", "608 555 0142")  # not the fax number
+    if "fax" in paths:
+        assert (got["fax"].status, got["fax"].value) == ("found", "555 0100")
+    got = fields(extract(contact, _joined_contact_form("", "555 0100", colon=colon)))
+    assert (got["phone"].status, got["phone"].raw) == ("missing", None)  # a blank phone does not read the fax
+
+
 def test_an_anchor_read_that_another_field_also_read_is_unsure_and_so_is_the_other(template):
     # the country read by the legal name's label reads what the legal name's widget reads
     misread = with_reader(template, "investor.country", AnchorRead(labels=["Investor legal name"], page=0))
