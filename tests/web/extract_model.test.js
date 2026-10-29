@@ -4,6 +4,7 @@ import { test } from "node:test";
 
 import {
   batchLine,
+  batchNote,
   checksOf,
   fieldSchema,
   fieldState,
@@ -236,4 +237,22 @@ test("stripCells before the scan is done shows every cell as the layout's, and a
   const scanning = { ...BATCH, count: 4, scan: { phase: "scanning", done: 1, total: 4, error: null, groups: [] } };
   assert.deepEqual(stripCells(scanning, []).map((c) => c.state), ["main", "main", "main", "main"]);
   assert.deepEqual(stripCells({ ...BATCH, count: 0 }, []), []);
+});
+
+test("batchNote says how many fit the layout, how many are set aside, and what a strip cell stands for", () => {
+  assert.equal(
+    batchNote(BATCH, 120),
+    "One layout fits 1,163 of them (776 fillable, 387 flattened); 85 look different and are set aside, for a second template later. " +
+      "Each cell is about 10 documents: ■ in the sample · □ fillable · ▨ flattened · dashed, a different layout.",
+  );
+  const five = { ...BATCH, count: 5, scan: { ...BATCH.scan, groups: [{ group: 0, size: 5, fillable: 3, flattened: 2, closeness: 1 }] } };
+  assert.equal(batchNote(five, 5), "One layout fits 5 of them (3 fillable, 2 flattened). Each cell is a document: ■ in the sample · □ fillable · ▨ flattened.");
+  const oneAside = { ...five, count: 6, scan: { ...five.scan, groups: [...five.scan.groups, { group: 1, size: 1, fillable: 0, flattened: 1 }] } };
+  assert.match(batchNote(oneAside, 6), /; 1 looks different and is set aside, for a second template later\./);
+});
+
+test("batchNote says nothing before the scan is done, and says so when no document could be read", () => {
+  assert.equal(batchNote({ ...BATCH, scan: { phase: "scanning", done: 1, total: 4, error: null, groups: [] } }, 4), "");
+  assert.equal(batchNote({ ...BATCH, count: 0, scan: { ...BATCH.scan, groups: [] } }, 0), "");
+  assert.equal(batchNote({ ...BATCH, count: 2, scan: { ...BATCH.scan, groups: [] } }, 2), "None of them could be read as a form, so there is no layout to learn.");
 });

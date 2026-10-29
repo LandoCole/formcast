@@ -437,7 +437,8 @@ test("addFiles sends three files of 30 MiB in requests under 40 MiB each, to the
     assert.ok(parts(call.body).reduce((n, [, size]) => n + size, 0) < 40 * MiB);
   }
   assert.deepEqual(fetch.calls.map((c) => parts(c.body).map(([name]) => name)), [["a.pdf"], ["b.pdf"], ["c.pdf"]]);
-  assert.equal(out.count, 3); // the batch as the last request left it
+  assert.equal(out.batch.count, 3); // the batch as the last request left it
+  assert.deepEqual(out.tooLarge, []);
   assert.deepEqual(seen.map((p) => [p.done, p.total, p.bytes, p.totalBytes, p.batch.count]), [
     [1, 3, 30 * MiB, 90 * MiB, 1],
     [2, 3, 60 * MiB, 90 * MiB, 2],
@@ -455,6 +456,44 @@ test("addFiles puts small files together in one request and sends a file over th
   await engine.extract.addFiles(BATCH_ID, [...small, big]);
   assert.deepEqual(fetch.calls.map((c) => parts(c.body).map(([name]) => name)), [["a.pdf", "b.pdf", "c.zip"], ["big.zip"]]);
   await assert.rejects(engine.extract.addFiles(BATCH_ID, []), (e) => e instanceof EngineError && e.code === "bad_upload");
+});
+
+const TOO_LARGE = json(413, { error: "too_large", detail: "This request is larger than the 1 KB limit." });
+
+test("addFiles sends a request the server finds too large again file by file, and skips and names a file too large alone", async () => {
+  let count = 0;
+  const { engine, fetch } = await engineWith({
+    "GET /api/capabilities": json(200, EXTRACT_CAPS),
+    [`POST /api/batches/${BATCH_ID}/files`]: ({ body }) => {
+      const names = body.getAll("file").map((f) => f.name);
+      if (names.length > 1 || names.includes("big.zip")) return TOO_LARGE.clone();
+      return json(200, { id: BATCH_ID, count: ++count });
+    },
+  });
+  const files = ["a.pdf", "big.zip", "b.pdf"].map((name) => new File([new Uint8Array(100)], name));
+  const seen = [];
+  const out = await engine.extract.addFiles(BATCH_ID, files, { onProgress: (p) => seen.push(p) });
+  assert.deepEqual(fetch.calls.map((c) => parts(c.body).map(([name]) => name)), [["a.pdf", "big.zip", "b.pdf"], ["a.pdf"], ["big.zip"], ["b.pdf"]]);
+  assert.equal(out.batch.count, 2);
+  assert.deepEqual(out.tooLarge, ["big.zip"]);
+  assert.deepEqual(seen.map((p) => [p.done, p.total, p.bytes, p.tooLarge.length]), [[1, 3, 100, 0], [2, 3, 200, 1], [3, 3, 300, 1]]);
+});
+
+test("addFiles with every file too large resolves the batch as it is, and still rejects at another refusal", async () => {
+  const { engine, fetch } = await engineWith({
+    "GET /api/capabilities": json(200, EXTRACT_CAPS),
+    [`POST /api/batches/${BATCH_ID}/files`]: TOO_LARGE,
+    [`GET /api/batches/${BATCH_ID}`]: json(200, { id: BATCH_ID, count: 0 }),
+  });
+  const out = await engine.extract.addFiles(BATCH_ID, [new File([new Uint8Array(10)], "big.zip")]);
+  assert.deepEqual(out, { batch: { id: BATCH_ID, count: 0 }, tooLarge: ["big.zip"] });
+  assert.deepEqual(fetch.calls.map((c) => c.method), ["POST", "GET"]);
+
+  const refused = await engineWith({
+    "GET /api/capabilities": json(200, EXTRACT_CAPS),
+    [`POST /api/batches/${BATCH_ID}/files`]: json(400, { error: "bad_upload", detail: "That zip can't be opened." }),
+  });
+  await assert.rejects(refused.engine.extract.addFiles(BATCH_ID, [new File([new Uint8Array(10)], "x.zip")]), (e) => e.code === "bad_upload");
 });
 
 test("the batch, setup and saved extraction calls go to their routes with their bodies", async () => {

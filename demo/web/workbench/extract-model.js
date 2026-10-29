@@ -12,8 +12,9 @@
 // `groupFields` folds them back into one row per field of the group (`owners[ ] · up to 4`).
 //
 // A field's schema says how it is checked (`checksOf`) and its reader how it is found (`readFrom`), each as lines of
-// plain words; `fieldSchema` finds a concrete path's schema node. A batch (`batchLine`, `stripCells`) is told by its
-// scan: how many of its PDFs are copies of its largest layout, the rest being set aside for another template.
+// plain words; `fieldSchema` finds a concrete path's schema node. A batch (`batchLine`, `stripCells`, `batchNote`) is
+// told by its scan: how many of its PDFs are copies of its largest layout, the rest being set aside for another
+// template.
 
 /** Items a repeated group has when its schema gives no `maxItems`, as the library gives it (formcast.extract.model). */
 const DEFAULT_ITEMS = 4;
@@ -257,6 +258,26 @@ export function batchLine(batch) {
     parts.push(`${plural(main, "fillable or flattened copy", "fillable or flattened copies")} of one layout${aside > 0 ? `, ${number(aside)} set aside` : ""}`);
   }
   return parts.join(" · ");
+}
+
+/**
+ * What the batch's scan found, under its strip: how many documents its layout fits (fillable and flattened), how
+ * many look different and are set aside, and what a cell of the strip (`cells` of them) stands for. "" before the
+ * scan is done and for an empty batch.
+ * @param {object} batch a Batch
+ * @param {number} cells the strip's cells (`stripCells(batch).length`)
+ * @returns {string}
+ */
+export function batchNote(batch, cells) {
+  if (batch.scan?.phase !== "done" || !batch.count) return "";
+  const main = mainGroup(batch);
+  if (main === null) return "None of them could be read as a form, so there is no layout to learn.";
+  const aside = batch.count - main.size;
+  const asideText = aside > 0 ? `; ${number(aside)} ${aside === 1 ? "looks different and is" : "look different and are"} set aside, for a second template later` : "";
+  const per = Math.round(batch.count / Math.max(cells, 1));
+  const cell = per <= 1 ? "Each cell is a document" : `Each cell is about ${number(per)} documents`;
+  const legend = ["■ in the sample", "□ fillable", "▨ flattened", ...(aside > 0 ? ["dashed, a different layout"] : [])].join(" · ");
+  return `One layout fits ${number(main.size)} of them (${number(main.fillable ?? 0)} fillable, ${number(main.flattened ?? 0)} flattened)${asideText}. ${cell}: ${legend}.`;
 }
 
 /**

@@ -40,7 +40,8 @@
 //
 // Extraction. When the server says `extract`, `engine.extract` holds its calls (the browser engine has none): a
 // batch of PDFs (`createBatch`, `addFiles`, which sends the files in requests of at most UPLOAD_CHUNK_BYTES so no
-// request passes the server's body limit, `batch`, `files`, `pickSample`, `pageUrl`), a setup built from a sample of
+// request passes the server's body limit, and skips and names a file over a lower limit the server has, `batch`,
+// `files`, `pickSample`, `pageUrl`), a setup built from a sample of
 // it (`startSetup` and `startLine` are jobs; `setup`, `reopen` of a saved extraction template, `edit`, `learn`,
 // `marks`, `samplePageUrl`), the saved extraction templates (`save`, `list`, `remove`) and runs (`startRun` is a job;
 // `runs`, `openRun`, `run`, `problems`, `setAside`, `decide`, `runPageUrl`, `exportUrl`, `toData`). They are the
@@ -284,29 +285,54 @@ export async function createServerEngine({
 
       /**
        * Add PDFs and zips of PDFs to a batch, in requests of at most UPLOAD_CHUNK_BYTES (a file larger than that
-       * goes alone). Resolves the Batch as the last request left it; rejects at the first request refused, the
-       * files sent before it staying in the batch. `onProgress({done, total, bytes, totalBytes, batch})` after
-       * each request: `done` of `total` files and `bytes` of `totalBytes` sent so far.
+       * goes alone). A request the server finds too large (413 `too_large`: its limit may be lower than
+       * UPLOAD_CHUNK_BYTES) is sent again a file at a time, and a file too large on its own is skipped. Resolves
+       * `{batch, tooLarge}`: the Batch as the last request left it (as it is, when no file was taken) and the names
+       * of the files skipped as too large. Rejects at any other refusal, the files sent before it staying in the
+       * batch. `onProgress({done, total, bytes, totalBytes, batch, tooLarge})` after each file or request taken or
+       * skipped: `done` of `total` files and `bytes` of `totalBytes` dealt with so far.
        * @param {string} batchId
        * @param {File[]} files
        * @param {{onProgress?: (progress: object) => void}} [opts]
+       * @returns {Promise<{batch: object, tooLarge: string[]}>}
        */
       async addFiles(batchId, files, { onProgress } = {}) {
         const list = [...files];
         if (list.length === 0) throw new EngineError("bad_upload", "Choose at least one PDF or .zip file.");
         const totalBytes = list.reduce((n, f) => n + f.size, 0);
+        const tooLarge = [];
         let done = 0;
         let bytes = 0;
         let batch = null;
-        for (const run of chunks(list, UPLOAD_CHUNK_BYTES)) {
+        const name = (file) => file.name ?? "document.pdf";
+        /** Send `run` in one request; false when the server found it too large (nothing of it was added). */
+        const send = async (run) => {
           const form = new FormData();
-          for (const file of run) form.append("file", file, file.name ?? "document.pdf");
-          batch = await call("POST", `${batchPath(batchId)}/files`, { form, timeout: uploadTimeoutMs });
+          for (const file of run) form.append("file", file, name(file));
+          try {
+            batch = await call("POST", `${batchPath(batchId)}/files`, { form, timeout: uploadTimeoutMs });
+            return true;
+          } catch (e) {
+            if (e instanceof EngineError && e.code === "too_large") return false;
+            throw e;
+          }
+        };
+        const dealt = (run) => {
           done += run.length;
           bytes += run.reduce((n, f) => n + f.size, 0);
-          onProgress?.({ done, total: list.length, bytes, totalBytes, batch });
+          onProgress?.({ done, total: list.length, bytes, totalBytes, batch, tooLarge: [...tooLarge] });
+        };
+        for (const run of chunks(list, UPLOAD_CHUNK_BYTES)) {
+          if (await send(run)) {
+            dealt(run);
+            continue;
+          }
+          for (const file of run) {
+            if (run.length === 1 || !(await send([file]))) tooLarge.push(name(file));
+            dealt([file]);
+          }
         }
-        return batch;
+        return { batch: batch ?? (await call("GET", batchPath(batchId))), tooLarge };
       },
 
       /** The Batch now, its scan's progress included. */

@@ -35,7 +35,7 @@
     <button type="button" class="btn dark" id="fill-open" disabled>Fill →</button>
   </div>
 </div>
-<p class="ai-note" id="ai-note" hidden>AI is off. To turn it on, set <code>FORMCAST_DEMO_BASE_URL</code>, <code>FORMCAST_DEMO_API_KEY</code> and <code>FORMCAST_DEMO_MODEL</code> (and <code>FORMCAST_DEMO_API_FORMAT</code> if your endpoint uses the Responses API) in <code>.env</code>, then restart the server.</p>
+<p class="ai-note" id="ai-note" data-for="fill" hidden>AI is off. To turn it on, set <code>FORMCAST_DEMO_BASE_URL</code>, <code>FORMCAST_DEMO_API_KEY</code> and <code>FORMCAST_DEMO_MODEL</code> (and <code>FORMCAST_DEMO_API_FORMAT</code> if your endpoint uses the Responses API) in <code>.env</code>, then restart the server.</p>
 <div class="notice" id="notice" role="status" aria-live="polite" hidden>
   <span id="notice-text"></span>
   <button type="button" class="ib" id="notice-close" aria-label="Dismiss">×</button>
@@ -115,6 +115,109 @@
       </button>
     </div>
     <p class="msg" id="choose-msg" role="alert" hidden></p>
+  </div>
+</div>
+
+<!-- extract: documents, sample, fields, settings (extract.js) -->
+<div class="overlay" id="extract" role="dialog" aria-modal="true" aria-labelledby="extract-title" hidden>
+  <div class="sheet wide">
+    <h1 id="extract-title">Extract from PDFs</h1>
+    <p class="lede">Upload the batch. A few documents become the sample the template is learned from; then every document is read the same way, with no AI per document.</p>
+
+    <div class="group">
+      <p class="label">1 · Your documents</p>
+      <div class="drop" id="drop">
+        <input type="file" id="drop-files" multiple accept=".pdf,.zip,application/pdf,application/zip" aria-label="Choose PDFs or .zip files">
+        <input type="file" id="drop-folder" webkitdirectory aria-label="Choose a folder of PDFs">
+        <span class="drop-t">Drop PDFs or a .zip here</span>
+        <span class="drop-d">or <label for="drop-files"><u>choose files</u></label> · <label for="drop-folder"><u>choose a folder</u></label></span>
+      </div>
+      <p class="opt" id="drop-note">Zips up to 50 MB; for a bigger batch choose the files or a folder, or type a folder on this machine.</p>
+      <div class="pathrow">
+        <input type="text" class="text" id="folder" placeholder="Or a folder on this machine: /data/clients/2026" aria-label="A folder on this machine" autocomplete="off" spellcheck="false">
+        <button type="button" class="btn quiet" id="scan">Scan</button>
+      </div>
+      <div class="batch" id="batch" hidden>
+        <p class="batch-sum" id="batch-sum" aria-live="polite"></p>
+        <ol class="reading-strip" id="batch-strip" aria-label="Documents by layout"></ol>
+        <p class="opt" id="batch-note"></p>
+      </div>
+    </div>
+
+    <div class="group">
+      <p class="label">2 · The sample</p>
+      <div class="samplerow">
+        <label class="num">Use <input type="number" class="text" id="n-sample" min="3" max="20" value="5" step="1"> documents</label>
+        <select id="sample-how" aria-label="How the sample is picked">
+          <option value="spread">Spread across the batch (recommended)</option>
+          <option value="first">The first ones in the batch</option>
+          <option value="pick">I'll pick them</option>
+        </select>
+      </div>
+      <p class="opt">3 to 20. Spread across the batch mixes fillable and flattened copies, early and late. More samples find more of the ways answers vary; each costs a little AI time while the template is built, not afterwards.</p>
+      <ul class="picklist" id="picklist" aria-label="The batch's documents" hidden></ul>
+      <button type="button" class="btn quiet small below" id="pick-more" hidden>More</button>
+    </div>
+
+    <div class="group">
+      <p class="label">3 · What to extract</p>
+      <span class="seg" role="group" aria-label="Start from">
+        <button type="button" class="btn quiet" data-mode="ai" aria-pressed="true">AI suggests</button>
+        <button type="button" class="btn quiet" data-mode="user" aria-pressed="false">I'll list them</button>
+        <button type="button" class="btn quiet" data-mode="dest" aria-pressed="false">Destination</button>
+      </span>
+      <div id="mode-detail">
+        <div data-detail="ai">
+          <p>The AI reads the sample and proposes the fields it finds, each with a name, a definition and checks. You edit the list next.</p>
+        </div>
+        <div data-detail="user" hidden>
+          <textarea id="lines" rows="6" spellcheck="false" aria-label="What to extract, one per line" placeholder="investor name&#10;tax ID (EIN or SSN)&#10;wire details: bank, ABA, account"></textarea>
+          <p>One thing per line, in your words. Each line becomes one or more defined fields, found on the sample.</p>
+        </div>
+        <div data-detail="dest" hidden>
+          <select id="dest-pick" aria-label="Destination template"><option value="">Loading…</option></select>
+          <p>The fields the destination needs become the checklist. Any this form never asks for are flagged before anything runs.</p>
+        </div>
+      </div>
+    </div>
+
+    <details class="group more" id="extract-settings">
+      <summary class="label">4 · Detection and reading · <span id="settings-sum">automatic, prose skipped</span></summary>
+      <dl class="settings">
+        <dt><label for="detect">Find the blanks on the sample</label></dt>
+        <dd><select id="detect">
+          <option value="auto">Automatically, skipping pages that read as prose (recommended)</option>
+          <option value="all">Automatically, on every page</option>
+          <option value="manual">I'll pick the pages on the samples</option>
+          <option value="off">Don't: form fields and page text only</option>
+        </select></dd>
+        <dt><label for="ocr">Scanned pages</label></dt>
+        <dd><select id="ocr">
+          <option value="auto">OCR them when needed</option>
+          <option value="never">Leave them out</option>
+        </select></dd>
+        <dt>Unsure reads</dt>
+        <dd><label class="check"><input type="checkbox" id="unsure" checked disabled><span>Send a label or phrase read to review when the label is found twice, or the document's layout differs from the samples <span class="opt">Always on in this version</span></span></label></dd>
+        <dt>AI per document</dt>
+        <dd><label class="check"><input type="checkbox" id="ai-fallback"><span>Ask the AI about documents whose required fields fail <span class="opt">Off: they go to review. On: its answers are marked and still reviewed.</span></span></label></dd>
+      </dl>
+    </details>
+
+    <p class="msg" id="extract-msg" role="alert" hidden></p>
+    <div class="row">
+      <button type="button" class="btn quiet" id="extract-back">Back</button>
+      <button type="button" class="btn dark" id="read-sample">Read the sample →</button>
+    </div>
+  </div>
+</div>
+
+<!-- building the template from the sample (extract.js) -->
+<div class="overlay" id="building" role="dialog" aria-modal="true" aria-labelledby="building-title" hidden>
+  <div class="sheet">
+    <h2 id="building-title">Building the template</h2>
+    <ol class="stages" id="build-stages"></ol>
+    <p class="readout" id="build-readout" aria-live="polite"></p>
+    <div class="row"><button type="button" class="btn quiet" id="build-cancel">Cancel</button></div>
   </div>
 </div>
 

@@ -218,7 +218,7 @@ export function mountStart(app) {
   });
   $("start-close").addEventListener("click", () => {
     hideAll();
-    if (app.template === null) app.choice.show(); // nothing open to go back to: the way in
+    if (app.template === null) app.extract.show(); // nothing open to go back to: the way in
   });
 
   /**

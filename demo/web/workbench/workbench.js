@@ -15,9 +15,11 @@
 // in the browser by pdf.js from the very bytes Download saves) with the boxes hidden. Any template
 // change and any new document end it, so the page never shows a fill of an older template.
 //
-// Test hooks (localhost and 127.0.0.1 only): `?poll=<ms>` sets how often AI jobs are polled, and
-// `window.__workbench` exposes the template on screen, whether the edit queue is idle, and the start
-// screen's `showStart({dataset, form})` (as an extraction run's Send to fill calls it).
+// Test hooks (localhost and 127.0.0.1 only): `?poll=<ms>` sets how often AI jobs and a batch's scan
+// are polled, and `window.__workbench` exposes the template on screen, whether the edit queue is idle,
+// the start screen's `showStart({dataset, form})` (as an extraction run's Send to fill calls it), the
+// Extract modal's `openExtract(setupInfo)` (as the setup screen's "Change the setup" calls it) and the
+// bus's `on(type, fn)`.
 
 import { createBus } from "../core/bus.js";
 import { makeView, viewSize } from "../core/geometry.js";
@@ -28,7 +30,7 @@ import { showLinkPanels } from "../core/panels.js";
 import { schemaPathsOf } from "../core/schema.js";
 import { SchemaList, fieldWarnings } from "../core/schemalist.js";
 import { createSession } from "../core/session.js";
-import { createServerEngine } from "../engines/server/client.js";
+import { POLL_MS, createServerEngine } from "../engines/server/client.js";
 import { mountExtract } from "./extract.js";
 import { mountFill } from "./fill.js";
 import { mountJobs } from "./jobs.js";
@@ -91,6 +93,7 @@ const app = {
   view,
   state,
   say,
+  pollMs: pollParam > 0 ? pollParam : POLL_MS, // how often the page polls the server for progress
   schemas: {}, // stored schema name -> JSON Schema (start.js fills it)
   data: null, // your data's mapped records, a one-shot job's result.data (fill.js shows them)
   pendingData: null, // a dataset given on the start screen, mapped when the fill drawer opens
@@ -382,8 +385,8 @@ addEventListener("resize", () => {
 
 // ------------------------------------------------------------------ overlays are modal
 
-// While an overlay (choose, start, match, job, save) is open, everything else on the page is inert: no
-// focus, no clicks, no keys reach the boxes behind it. Focus moves into the overlay, Tab cycles
+// While an overlay (choose, start, match, job, save, extract, building) is open, everything else on
+// the page is inert: no focus, no clicks, no keys reach the boxes behind it. Focus moves into the overlay, Tab cycles
 // inside it, and focus goes back to where it was when the last overlay closes.
 const overlays = [...document.querySelectorAll(".overlay")];
 const FOCUSABLE = "button:not([hidden]):not(:disabled), select:not(:disabled), textarea:not([hidden]), input:not([hidden]), [tabindex='0']";
@@ -469,6 +472,8 @@ if (LOCAL) {
       return pending === 0;
     },
     showStart: (opts) => app.start.showStart(opts),
+    openExtract: (setupInfo) => app.extract.openModal(setupInfo),
+    on: (type, fn) => bus.on(type, fn),
   };
 }
 
@@ -477,7 +482,7 @@ app.jobs = mountJobs(app);
 mountFill(app);
 mountSave(app);
 app.start = mountStart(app);
-app.choice = mountExtract(app);
+app.extract = mountExtract(app);
 app.pages = mountPages(app);
 syncModal();
 render();

@@ -1,5 +1,6 @@
 /* The workbench's extraction mode, on the workbench's tokens and controls (workbench.css): the choice of Fill or
-   Extract the page opens on, and the switch between the two modes. body[data-mode] is "fill" or "extract"; the
+   Extract the page opens on, the switch between the two modes, and the Extract modal (the drop zone, the batch's
+   strip, the sample, what to extract and the settings; the building panel uses workbench.css's stage list). body[data-mode] is "fill" or "extract"; the
    parts of the page that belong to one mode carry data-for="fill" or data-for="extract" and are shown only in it.
    The classes are the extraction mockup's (docs/superpowers/specs/2026-10-28-pdf-extraction-mockup.html). */
 
@@ -19,3 +20,49 @@ body[data-mode="extract"] [data-for="fill"] { display: none !important; }
 
 /* ---------- the start screen's data, given from an extraction run ---------- */
 .given { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; padding: 8px 0 8px 12px; box-shadow: inset 2px 0 0 0 var(--ink); font-family: var(--mono); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
+
+/* ---------- the Extract modal: documents, sample, what to extract, settings ---------- */
+.sheet.wide { width: min(720px, 100%); }
+.seg { display: inline-flex; gap: 0; flex-wrap: wrap; }
+.seg .btn { box-shadow: none; }
+.seg .btn + .btn { margin-left: -1px; }
+.seg .btn[aria-pressed="true"] { background: var(--ink); color: var(--paper); outline-color: var(--ink); position: relative; z-index: 1; }
+.drop { display: grid; place-items: center; gap: 4px; padding: 22px 12px; outline: 1px dashed var(--graphite); outline-offset: -.5px; cursor: pointer; text-align: center; position: relative; }
+.drop:hover, .drop.is-over { outline: 1px solid var(--ink); background: var(--panel); }
+.drop:focus-within { outline: 2px solid var(--ink); outline-offset: -1px; }
+.drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.drop label { cursor: pointer; }
+.drop-t { font: 11px var(--mono); letter-spacing: .14em; text-transform: uppercase; }
+.drop-d { font-style: italic; color: var(--graphite); font-size: 15px; }
+.pathrow { display: flex; gap: 8px; margin-top: 8px; }
+.pathrow .text { flex: 1; min-width: 0; }
+.batch { margin-top: 12px; }
+.batch-sum { margin: 0 0 6px; font: 12px/18px var(--mono); overflow-wrap: anywhere; }
+.batch .reading-strip li[data-state="other"] { outline-style: dashed; outline-color: var(--graphite); }
+.batch .reading-strip li[data-state="sample"] { background: var(--ink); outline-color: var(--ink); }
+.batch .reading-strip li[data-state="flat"] { background: repeating-linear-gradient(135deg, var(--graphite) 0 1px, transparent 1px 3px); }
+.samplerow { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: center; }
+.num { display: flex; align-items: center; gap: 8px; font: 11px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--graphite); white-space: nowrap; }
+.num input { width: 64px; }
+.group > .opt { display: block; margin: 6px 0 0; font-size: 14px; line-height: 20px; color: var(--graphite); }
+.picklist { list-style: none; margin: 8px 0 0; padding: 0; max-height: 160px; overflow: auto; outline: 1px solid var(--rule); outline-offset: -.5px; font: 11px/26px var(--mono); }
+.picklist li { padding: 0 10px; box-shadow: inset 0 -.5px 0 0 var(--rule); }
+.picklist label { display: flex; gap: 8px; align-items: center; cursor: pointer; min-width: 0; }
+.picklist label > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.picklist small { margin-left: auto; color: var(--graphite); white-space: nowrap; }
+#pick-more { margin-top: 8px; }
+#mode-detail { margin-top: 10px; }
+#mode-detail p { margin: 6px 0 0; font-style: italic; color: var(--graphite); font-size: 16px; line-height: 22px; }
+#mode-detail [data-detail="ai"] p { margin-top: 0; }
+#mode-detail textarea, #mode-detail select { width: 100%; box-sizing: border-box; }
+.settings { display: grid; grid-template-columns: 136px minmax(0, 1fr); gap: 10px 12px; margin: 10px 0 0; align-items: center; }
+.settings dt { font: 10px var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--graphite); }
+.settings dd { margin: 0; min-width: 0; }
+.settings dd select { width: 100%; }
+.settings .check { margin: 0; }
+.settings .check input:disabled { opacity: .6; }
+#extract .msg { margin: 0 0 16px; }
+@media (max-width: 560px) {
+  .samplerow, .settings { grid-template-columns: minmax(0, 1fr); }
+  .settings dt { margin-top: 6px; }
+}
