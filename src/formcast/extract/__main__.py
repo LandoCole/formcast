@@ -13,9 +13,10 @@ example files) and the files it could not read. ``run`` reads every PDF under ``
 records only each template's id and name, and the field definitions need the schema. Pass the same templates as the
 run (the export refuses a run whose documents have columns none of them has).
 
-A bad argument, an unreadable or invalid template, or any other :class:`FormcastError` (a missing extra, a column
-clash) prints one line to stderr and exits with 2; success exits with 0. The pool's workers start by spawn on macOS
-and import this module again, so everything runs from ``main`` behind ``if __name__ == "__main__"``.
+A bad argument, an unreadable or invalid template, any other :class:`FormcastError` (a missing extra, a column
+clash) or a file error (``--out`` or ``--to`` is a file, or not writable) prints one line to stderr and exits with 2;
+success exits with 0. The pool's workers start by spawn on macOS and import this module again, so everything runs
+from ``main`` behind ``if __name__ == "__main__"``.
 """
 
 from __future__ import annotations
@@ -44,6 +45,16 @@ class _Parser(argparse.ArgumentParser):
         self.exit(2, f"{self.prog}: error: {message}\n")
 
 
+def _workers(text: str) -> int:
+    try:
+        n = int(text)
+    except ValueError:
+        n = -1
+    if n < 0:
+        raise argparse.ArgumentTypeError(f"{text!r} is not a worker count (0 for one per CPU, or 1 or more)")
+    return n
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = _Parser(prog="python -m formcast.extract", description="Read filled PDFs of one layout, no model call.")
     commands = parser.add_subparsers(dest="command", required=True, parser_class=_Parser)
@@ -56,7 +67,7 @@ def _parser() -> argparse.ArgumentParser:
     p.add_argument("templates", type=Path, nargs="+", metavar="TEMPLATE.json", help="extraction template files")
     p.add_argument("dir", type=Path, help="folder of PDFs (searched recursively)")
     p.add_argument("--out", type=Path, required=True, help="output folder; a run already there is resumed")
-    p.add_argument("--workers", type=int, default=0, help="worker processes (default: one per CPU)")
+    p.add_argument("--workers", type=_workers, default=0, help="worker processes (default: one per CPU)")
 
     p = commands.add_parser("export", help="write a finished run as xlsx, Parquet or CSV")
     p.add_argument("out", type=Path, help="the run's output folder")
@@ -141,6 +152,8 @@ def _run(args: argparse.Namespace) -> None:
 
 def _export(args: argparse.Namespace) -> None:
     templates = [_template(p) for p in args.template]
+    if args.format == "xlsx" and args.to.is_dir():  # saving over a folder fails inside openpyxl, with noise
+        raise FormcastError(f"{args.to} is a folder; xlsx export writes a file")
     for path in export(Results.load(args.out), templates, args.to, format=args.format):
         print(path)
 
@@ -150,7 +163,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     try:
         {"scan": _scan, "run": _run, "export": _export}[args.command](args)
-    except FormcastError as exc:
+    except (FormcastError, OSError) as exc:  # OSError: --out or --to is a file, unwritable, and the like
         print(f"{_parser().prog}: {' '.join(str(exc).split())}", file=sys.stderr)
         return 2
     return 0

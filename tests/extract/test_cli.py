@@ -103,6 +103,25 @@ def test_bad_arguments_exit_2(tmp_path: Path):
     assert no_template.returncode == 2
 
 
+def test_a_negative_worker_count_exits_2(corpus_dir: Path, template_file: Path, tmp_path: Path):
+    done = cli("run", template_file, corpus_dir, "--out", tmp_path / "out", "--workers", "-1", check=False)
+    assert done.returncode == 2 and "--workers" in done.stderr and "Traceback" not in done.stderr
+    assert cli("run", template_file, corpus_dir, "--out", tmp_path / "out", "--workers", "x", check=False).returncode == 2
+
+
+def test_an_out_or_to_path_of_the_wrong_kind_exits_2_in_one_line(
+    corpus_dir: Path, template_file: Path, tmp_path: Path
+):
+    taken = tmp_path / "taken"
+    taken.write_text("a file, not a folder")
+    done = cli("run", template_file, corpus_dir, "--out", taken, check=False)
+    assert done.returncode == 2 and "Traceback" not in done.stderr and len(done.stderr.strip().splitlines()) == 1
+    out = tmp_path / "out"
+    cli("run", template_file, corpus_dir, "--out", out, "--workers", "1")
+    done = cli("export", out, "--template", template_file, "--format", "xlsx", "--to", tmp_path, check=False)
+    assert done.returncode == 2 and "Traceback" not in done.stderr and len(done.stderr.strip().splitlines()) == 1
+
+
 def test_export_of_a_folder_that_is_not_a_run_exits_2(template_file: Path, tmp_path: Path):
     done = cli("export", tmp_path, "--template", template_file, "--format", "csv", "--to", tmp_path / "x", check=False)
     assert done.returncode == 2 and "no run" in done.stderr and len(done.stderr.strip().splitlines()) == 1

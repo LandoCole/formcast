@@ -346,10 +346,11 @@ python -m formcast.extract export out/ --template client.json --format csv --to 
   `pip install -e ".[xlsx]"`, Parquet `pip install 'formcast[parquet]'` (pyarrow). CSV values are written
   unaltered, so a value that starts with `=`, `+` or `-` is not escaped: treat the file as data, not as a
   spreadsheet to open blind.
-- Exit code 0, or 2 with a one-line message for bad arguments, an invalid template or any `FormcastError`.
+- Exit code 0, or 2 with a one-line message for bad arguments, an invalid template, an unwritable `--out` or `--to`, or any `FormcastError`.
 
-Measured on the generated test corpus (client-information forms, fillable and flattened), on this machine
-(one run each, 2026-10-29):
+Measured on the generated test corpus (client-information forms, fillable and flattened) on this machine.
+`extract()` is the median per document; `run_batch` is the best of 3 runs on 110 documents, five copies of the
+22-file corpus (about 10 of them are the other form, set aside); `scan` is warm, in a single process:
 
 | Step | Time |
 |---|---|
