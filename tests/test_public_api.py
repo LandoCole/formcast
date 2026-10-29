@@ -125,3 +125,19 @@ def test_match_exports_are_lazy_and_cover_scoring_many_templates(fillable_form_p
     # lazy: importing formcast does not import formcast.match
     code = "import sys, formcast; assert 'formcast.match' not in sys.modules; formcast.pdf_features; assert 'formcast.match' in sys.modules"
     subprocess.run([sys.executable, "-c", code], check=True, cwd=Path(__file__).resolve().parents[1] / "src")
+
+
+def test_extract_exports_are_lazy_and_leave_the_subpackage_alone():
+    from formcast.extract.batch import run_batch
+    from formcast.extract.model import ExtractionTemplate
+    from formcast.extract.scan import scan
+
+    for name in ("ExtractionTemplate", "scan", "run_batch"):
+        assert name in formcast.__all__ and name in dir(formcast)
+    assert formcast.ExtractionTemplate is ExtractionTemplate and formcast.scan is scan
+    assert formcast.run_batch is run_batch
+    # no top-level ``extract``: it would hide the subpackage formcast.extract, whose extract() reads one document
+    assert "extract" not in formcast.__all__
+    assert importlib.import_module("formcast.extract").extract.__name__ == "extract"
+    code = "import sys, formcast; assert 'formcast.extract' not in sys.modules; formcast.scan; assert 'formcast.extract.scan' in sys.modules"
+    subprocess.run([sys.executable, "-c", code], check=True, cwd=Path(__file__).resolve().parents[1] / "src")

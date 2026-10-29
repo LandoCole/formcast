@@ -291,6 +291,76 @@ kept. On a long package the faster `agent=False` (the workbench's "one pass") is
 Known gaps: detection misses some signature-block lines (name and title under the signature), so
 nothing fills them.
 
+## Extraction: many filled PDFs to rows
+
+The other direction: you have hundreds or thousands of *filled* PDFs of one form (fillable, or flattened with a
+text layer; there is no OCR here) and want a table of checked values. An **extraction template** is made once
+and then reads every document with no model call, in well under a second a document.
+
+```python
+from pathlib import Path
+
+from formcast import ExtractionTemplate, run_batch, scan
+from formcast.extract import extract
+from formcast.extract.batch import Results
+from formcast.extract.export import export
+
+pdfs = sorted(Path("incoming").glob("*.pdf"))
+report = scan(pdfs)                         # groups by layout; report.main is the biggest group
+template = ExtractionTemplate.model_validate_json(Path("client.json").read_text())
+
+doc = extract(template, pdfs[0])            # one document: doc.fields, doc.record()
+summary = run_batch([template], pdfs, "out", workers=4)    # results.jsonl + run.json in out/; run it again to resume
+export(Results.load("out"), [template], "extracted.xlsx", format="xlsx")
+```
+
+```sh
+python -m formcast.extract scan incoming/ [--first-page]
+python -m formcast.extract run client.json incoming/ --out out/ [--workers 4]
+python -m formcast.extract export out/ --template client.json --format csv --to extracted/
+```
+
+- **A template** is plain JSON: the JSON Schema the values must meet (with its checks: `pattern`, `enum`,
+  `required`, ...), the form's learned layout (its fixed printed lines, used to recognise the layout again) and,
+  for each schema path, a reader: ordered strategies (`widget` form field, `box` words inside a rectangle,
+  `anchor` words next to a label, `phrase` words after a phrase in running text, `choice` check marks) and the
+  `clean` transforms of the One-shot mapping above. The first strategy that finds something wins. A repeated
+  group is an array of objects with `maxItems` (4 without one), read item by item (`owners[0].name`). In plan 1
+  you write the template by hand; plan 2 adds building one from sample documents with AI.
+- **Statuses.** Every field of every document ends as `found`, `unsure` (two reads disagree, or a label sits in
+  more than one place; the reason is kept), `failed_check` (the value is kept as read and fails the schema),
+  `missing` (nothing found), `absent` (an unused repeated item) or `not_on_form` (the template says this
+  version lacks it). A value is never dropped or silently changed; raw and cleaned values are both kept.
+- **Routing.** Each document goes to the template whose form it matches (the blind fingerprint, else the layout
+  score). One that fits no template, or cannot be read (encrypted, corrupt, empty, a file that crashes the
+  reader), is set aside with the reason and the run goes on. `scan` shows which layouts a folder holds before
+  any template exists.
+- **Runs resume.** `run` appends one line per document to `out/results.jsonl` as it goes. Run it again after a
+  crash or with more files in the folder and it reads only the new ones; a torn last line is read again.
+  `--workers` defaults to one per CPU; progress goes to stderr every 100 documents, then the summary
+  (total, complete, with problems, no template, unreadable, seconds). `workers=1` reads in-process.
+- **Export** writes `values` (one row per document read), `status` (the same cells holding the status),
+  `fields` (each column's path, title, definition, type and checks) and `set_aside` (the failed documents) as
+  one xlsx workbook, or as Parquet or CSV files in a folder. The export takes the templates again
+  (`--template`) because `run.json` keeps only their ids; it refuses two paths that make one column. xlsx needs
+  `pip install -e ".[xlsx]"`, Parquet `pip install 'formcast[parquet]'` (pyarrow). CSV values are written
+  unaltered, so a value that starts with `=`, `+` or `-` is not escaped: treat the file as data, not as a
+  spreadsheet to open blind.
+- Exit code 0, or 2 with a one-line message for bad arguments, an invalid template or any `FormcastError`.
+
+Measured on the generated test corpus (client-information forms, fillable and flattened), on this machine
+(one run each, 2026-10-29):
+
+| Step | Time |
+|---|---|
+| `extract()`, one 2-page document | 0.07-0.08 s |
+| `extract()`, 6-page IRS W-9 | 0.48 s |
+| `run_batch`, 110 documents, 1 / 2 / 4 workers | 8.8 / 14.9 / 22.8 documents/s |
+| `scan`, per document | 82 ms (30 ms with `first_page_only`) |
+
+About 60% of a batch document's time goes to the fingerprint tried first; routing by layout alone would roughly
+double the speed. The corpus is simpler than real documents: measure yours before planning a large run.
+
 ## The sandbox is not a security boundary
 
 The agent's Python runs in a separate worker process (`formcast.sandbox`) with a

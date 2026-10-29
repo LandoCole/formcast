@@ -14,6 +14,7 @@ __version__ = "0.1.0"
 # worker imports formcast.pagemap.query) does not pull in the whole library.
 _LAZY = {
     "DataMapping": "formcast.data.mapping",
+    "ExtractionTemplate": "formcast.extract.model",
     "FillReport": "formcast.render.report",
     "FormSignature": "formcast.pagemap.model",
     "LLMConfig": "formcast.llm",
@@ -43,6 +44,8 @@ _LAZY = {
     "rebind": "formcast.template.rebind",
     "records_from": "formcast.data.mapping",
     "revise": "formcast.agent.api",
+    "run_batch": "formcast.extract.batch",
+    "scan": "formcast.extract.scan",
     "similarity": "formcast.match",
     "to_smart_pdf": "formcast.render.fill",
 }
@@ -56,6 +59,9 @@ if TYPE_CHECKING:
     from formcast.data.mapping import DataMapping, records_from
     from formcast.data.table import read_table
     from formcast.errors import SessionCancelled
+    from formcast.extract.batch import run_batch
+    from formcast.extract.model import ExtractionTemplate
+    from formcast.extract.scan import scan
     from formcast.llm import LLMConfig
     from formcast.match import PdfFeatures, Similarity, fingerprint, pdf_features, similarity
     from formcast.pagemap.build import build_form_map
@@ -88,10 +94,11 @@ def __dir__() -> list[str]:
 
 
 __all__ = [
-    "DataMapping", "FillReport", "FormSignature", "FormcastError", "LLMConfig", "OpContext", "OpError",
-    "PagePassResult", "PdfFeatures", "SessionBudget", "SessionCancelled", "SessionResult", "Similarity", "StepEvent", "Template",
+    "DataMapping", "ExtractionTemplate", "FillReport", "FormSignature", "FormcastError", "LLMConfig", "OpContext",
+    "OpError", "PagePassResult", "PdfFeatures", "SessionBudget", "SessionCancelled", "SessionResult", "Similarity",
+    "StepEvent", "Template",
     "__version__",
     "apply", "build_form_map", "build_template", "coverage", "derive_schema", "errors", "extract_records", "fill",
     "fingerprint", "flatten_schema", "map_pages", "map_table", "ops", "pdf_features", "preview", "read_table",
-    "rebind", "records_from", "revise", "similarity", "to_smart_pdf",
+    "rebind", "records_from", "revise", "run_batch", "scan", "similarity", "to_smart_pdf",
 ]  # fmt: skip
