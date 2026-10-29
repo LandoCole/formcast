@@ -316,7 +316,7 @@ export(Results.load("out"), [template], "extracted.xlsx", format="xlsx")
 
 ```sh
 python -m formcast.extract scan incoming/ [--first-page]
-python -m formcast.extract run client.json incoming/ --out out/ [--workers 4]
+python -m formcast.extract run client.json incoming/ --out out/ [--workers 4] [--timeout 120]
 python -m formcast.extract export out/ --template client.json --format csv --to extracted/
 ```
 
@@ -324,11 +324,14 @@ python -m formcast.extract export out/ --template client.json --format csv --to 
   `required`, ...), the form's learned layout (its fixed printed lines, used to recognise the layout again) and,
   for each schema path, a reader: ordered strategies (`widget` form field, `box` words inside a rectangle,
   `anchor` words next to a label, `phrase` words after a phrase in running text, `choice` check marks) and the
-  `clean` transforms of the One-shot mapping above. The first strategy that finds something wins. A repeated
+  `clean` transforms of the One-shot mapping above. The first strategy that finds something wins, except that
+  when its value fails a check the next strategies are tried: a later value that passes replaces it, and is
+  `unsure` when it differs from the first (two reads disagree, so it is never `found`). A repeated
   group is an array of objects with `maxItems` (4 without one), read item by item (`owners[0].name`). In plan 1
   you write the template by hand; plan 2 adds building one from sample documents with AI.
-- **Statuses.** Every field of every document ends as `found`, `unsure` (two reads disagree, or a label sits in
-  more than one place; the reason is kept), `failed_check` (the value is kept as read and fails the schema),
+- **Statuses.** Every field of every document ends as `found`, `unsure` (two reads disagree, a label sits in
+  more than one place, the printed lines around a box are not where the layout has them, or one answer was read
+  for two fields; the reason is kept), `failed_check` (the value is kept as read and fails the schema),
   `missing` (nothing found), `absent` (an unused repeated item) or `not_on_form` (the template says this
   version lacks it). A value is never dropped or silently changed; raw and cleaned values are both kept.
 - **Routing.** Each document goes to the template whose form it matches (the blind fingerprint, else the layout
@@ -341,7 +344,10 @@ python -m formcast.extract export out/ --template client.json --format csv --to 
   `--workers` defaults to one per CPU; progress goes to stderr every 100 documents, then the summary
   (total, complete, with problems, no template, unreadable, internal errors, seconds). `internal errors` counts
   documents a fault of the code or of a template stopped ("internal error: ..."), not bad files.
-  `workers=1` reads in-process.
+  `--timeout` (seconds, default 120) sets aside a document that takes longer as "the reader hung", and the run
+  goes on. `--workers 1` (`workers=1`) reads in-process, with no crash isolation and no timeout: a file that
+  crashes the reader ends the run, and every resume meets it again; one that hangs stalls the run. Use two or
+  more workers for a folder you have not seen.
 - **Export** writes `values` (one row per document read), `status` (the same cells holding the status),
   `fields` (each column's path, title, definition, type and checks) and `set_aside` (the failed documents) as
   one xlsx workbook, or as Parquet or CSV files in a folder. The export takes the templates again

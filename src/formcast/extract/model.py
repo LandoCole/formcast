@@ -16,9 +16,10 @@ path a :class:`Reader`: the ordered ways to find the value (``strategies``) and 
 
 A strategy tries one way of reading: a form field (``widget``), the words inside a rectangle (``box``), the
 words next to a label (``anchor``), the words after a phrase in running text (``phrase``) or a set of
-check marks (``choice``). The first strategy that finds something wins. Readers are keyed by concrete
-paths: a repeated group is an array of objects with ``maxItems`` (4 when it has none), and each item has its
-own readers (``owners[0].name`` ... ``owners[3].name``).
+check marks (``choice``). The first strategy that finds something wins, unless its value fails a check: then a
+later one that passes replaces it, ``unsure`` when the two differ (``formcast.extract.read``). Readers are keyed
+by concrete paths: a repeated group is an array of objects with ``maxItems`` (4 when it has none), and each item
+has its own readers (``owners[0].name`` ... ``owners[3].name``).
 
 A :class:`DocumentResult` has one :class:`FieldResult` per schema path; every value ends with a status, and a
 value that fails its check keeps both its raw and its cleaned form and is never dropped or altered.
