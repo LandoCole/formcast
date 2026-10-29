@@ -54,7 +54,7 @@ class WidgetRead(_Model):
 
 
 class BoxRead(_Model):
-    """The words inside ``rect`` on ``page``. Only for a document whose layout matches the template's."""
+    """The words inside ``rect`` on ``page``. Only on a matching layout, and only where it holds around the box."""
 
     kind: Literal["box"] = "box"
     page: int

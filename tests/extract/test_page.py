@@ -349,6 +349,78 @@ def test_text_below_stops_at_a_label_and_at_a_wide_gap():
         assert blank.text_below(0, label, 3) is None
 
 
+def _rows_pdf(*rows: tuple[float, float, str]) -> bytes:
+    """A one-page PDF with each ``(x, baseline y, text)`` written where it says."""
+    doc = pymupdf.open()
+    page = doc.new_page(width=612, height=792)
+    for x, y, text in rows:
+        page.insert_text((x, y), text, fontsize=10, fontname="helv")
+    return doc.tobytes()
+
+
+def _line_rect(doc: DocText, text: str) -> tuple:
+    return next(rect for line, rect in doc.lines(0) if line == text)
+
+
+def test_text_right_of_stops_before_the_forms_printed_words():
+    # "Phone" left blank and the next label has no colon: the printed "Fax" ends the read, so nothing is read
+    with DocText(_rows_pdf((72, 100, "Phone"), (330, 100, "Fax"), (360, 100, "555 0100"))) as doc:
+        (_, label), = doc.find_label(["Phone"], 0)
+        assert doc.text_right_of(0, label, 400)[0] == "Fax 555 0100"  # without knowing the form's printed words
+        assert doc.text_right_of(0, label, 400, stop_at=[_line_rect(doc, "Fax")]) is None
+    # an answer before a printed label is kept, and the label's own internal gap no longer mis-cuts it
+    with DocText(_lines_pdf("Name:  Dana Keller     Date      of birth: 05/01/1980")) as doc:
+        (_, label), = doc.find_label(["Name"], 0)
+        date = _union_of(doc, ("Date", "of", "birth:"))
+        assert doc.text_right_of(0, label, 500)[0] == "Dana Keller Date"  # the widest gap is inside the label
+        assert doc.text_right_of(0, label, 500, stop_at=[date])[0] == "Dana Keller"
+
+
+def _union_of(doc: DocText, texts: tuple[str, ...]) -> tuple:
+    rects = [w.rect for w in doc.words(0) if w.text in texts]
+    return (min(r[0] for r in rects), min(r[1] for r in rects), max(r[2] for r in rects), max(r[3] for r in rects))
+
+
+def test_text_right_of_passes_over_the_rest_of_its_own_printed_line():
+    # the label "Date of birth" is part of the printed "Date of birth (mm/dd/yyyy):"; the answer comes after it
+    with DocText(_rows_pdf((72, 100, "Date of birth (mm/dd/yyyy):"), (240, 100, "05/01/1980"))) as doc:
+        (_, label), = doc.find_label(["Date of birth"], 0)
+        printed = _line_rect(doc, "Date of birth (mm/dd/yyyy):")
+        assert doc.text_right_of(0, label, 300, stop_at=[printed])[0] == "05/01/1980"
+
+
+def test_right_of_says_when_the_answer_runs_into_the_next_label():
+    with DocText(_lines_pdf("Name: Dana Keller Date of birth: 05/01/2020")) as doc:
+        (_, label), = doc.find_label(["Name"], 0)
+        got = doc.right_of(0, label, 500)
+        assert (got.text, got.rect, got.into_label) == (None, None, True)
+        assert doc.text_right_of(0, label, 500) is None
+    with DocText(_lines_pdf("Name: Dana Keller     Date of birth: 05/01/2020")) as doc:
+        (_, label), = doc.find_label(["Name"], 0)
+        got = doc.right_of(0, label, 500)
+        assert (got.text, got.into_label) == ("Dana Keller", False) and got.rect is not None
+    with DocText(_lines_pdf("Name:")) as doc:
+        (_, label), = doc.find_label(["Name"], 0)
+        assert doc.right_of(0, label, 500).into_label is False  # nothing there at all is not "into the label"
+
+
+def test_text_below_reads_only_the_line_directly_under_the_label():
+    # the street is left blank: the next line is the city line, two rows down, and is not read as the street
+    with DocText(_lines_pdf("Address", "", "", "Madison, WI 53703")) as doc:
+        (_, label), = doc.find_label(["Address"], 0)
+        assert doc.text_below(0, label, 1) is None
+        assert doc.text_below(0, label, 3) is None
+    with DocText(FLATTENED) as doc:
+        (_, label), = doc.find_label(["Mailing address"], 0)
+        assert doc.text_below(0, label, 2)[0] == f"{CLIENT.street} {CLIENT.city_state_zip}"  # contiguous lines
+    # the line directly under is a printed label of the form: nothing is read
+    pdf = _rows_pdf((72, 100, "Street address"), (72, 120, "City, state and ZIP"), (72, 135, "Madison, WI 53703"))
+    with DocText(pdf) as doc:
+        (_, label), = doc.find_label(["Street address"], 0)
+        assert doc.text_below(0, label, 1)[0] == "City, state and ZIP"  # without knowing the form's printed words
+        assert doc.text_below(0, label, 1, stop_at=[_line_rect(doc, "City, state and ZIP")]) is None
+
+
 # ------------------------------------------------------------------------- boxes
 
 

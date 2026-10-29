@@ -9,7 +9,7 @@ from collections import Counter
 import pymupdf
 import pytest
 
-from formcast.extract.layout import LAYOUT_MATCH, layout_score
+from formcast.extract.layout import LAYOUT_MATCH, layout_score, learn_layout
 from formcast.extract.model import AnchorRead, BoxRead, ExtractionTemplate, Layout, Reader, concrete_paths
 from formcast.extract.page import DocText
 from formcast.extract.read import extract
@@ -35,14 +35,17 @@ def template() -> ExtractionTemplate:
 
 
 def truth(client: Client) -> dict[str, str]:
-    """What each path should read for ``client``; owner rows the client lacks are not in it."""
-    m, d, y = client.dob.split("/")
+    """What each path should read for ``client``; owner rows the client lacks, and answers left blank, are not in it."""
+    dob = ""
+    if client.dob:
+        m, d, y = client.dob.split("/")
+        dob = dt.date(int(y), int(m), int(d)).isoformat()
     out = {
         "investor.legal_name": client.legal_name,
         "investor.tax_id": client.tax_id,
-        "investor.dob": dt.date(int(y), int(m), int(d)).isoformat(),
+        "investor.dob": dob,
         "investor.type": client.investor_type,
-        "investor.country": COUNTRY_CODES[client.country],
+        "investor.country": COUNTRY_CODES.get(client.country, ""),
         "address.street": client.street,
         "address.city_state_zip": client.city_state_zip,
         "wire.bank": client.bank,
@@ -51,7 +54,7 @@ def truth(client: Client) -> dict[str, str]:
     for i, (name, percent) in enumerate(client.owners):
         out[f"owners[{i}].name"] = name
         out[f"owners[{i}].percent"] = percent
-    return out
+    return {path: value for path, value in out.items() if value}
 
 
 def fields(result):
@@ -379,6 +382,140 @@ def test_the_doc_id_defaults_to_the_blind_fingerprint(template):
     assert extract(template, pdf, doc_id="batch/a.pdf").doc_id == "batch/a.pdf"
 
 
+@pytest.mark.parametrize("kind", ["fillable", "flattened"])
+def test_a_blank_street_does_not_read_the_city_line_under_it(template, kind):
+    client = dataclasses.replace(clients(3)[0], street="")
+    got = fields(extract(template, make_form(client, kind=kind)))
+    assert (got["address.street"].status, got["address.street"].raw) == ("missing", None)
+    assert (got["address.city_state_zip"].status, got["address.city_state_zip"].value) == (
+        "found", client.city_state_zip,
+    )  # fmt: skip
+
+
+def test_an_anchor_read_never_takes_the_forms_printed_words(template):
+    # right of "Investor type:" there are only the printed option labels: on a matched layout nothing is read
+    reads_type_row = with_reader(template, "investor.legal_name", AnchorRead(labels=["Investor type"], page=0))
+    got = fields(extract(reads_type_row, make_form(CLIENT, kind="flattened", checked=())))["investor.legal_name"]
+    assert (got.status, got.raw) == ("missing", None)
+    # on an unmatched layout the form's printed words are not known, and the read is unsure, never found
+    unmatched = reads_type_row.model_copy(update={"layout": Layout(lines=[], page_sizes=[])})
+    got = fields(extract(unmatched, make_form(CLIENT, kind="flattened", checked=())))["investor.legal_name"]
+    assert got.status == "unsure"
+
+
+def _contact_form(phone: str, fax: str, street: str, city: str) -> bytes:
+    """A one-page form with colon-less labels: Phone and Fax on one row, Street address and its city line below."""
+    doc = pymupdf.open()
+    page = doc.new_page(width=612, height=792)
+    for x, y, text in ((72, 100, "Phone"), (330, 100, "Fax"), (72, 140, "Street address"),
+                       (72, 160, "City, state and ZIP"), (72, 300, "Thank you for your business.")):  # fmt: skip
+        page.insert_text((x, y), text, fontsize=10)
+    for x, y, text in ((150, 100, phone), (360, 100, fax), (200, 140, street), (200, 160, city)):
+        if text:
+            page.insert_text((x, y), text, fontsize=10)
+    return doc.tobytes()
+
+
+def test_a_blank_answer_before_a_printed_label_reads_nothing_on_a_matched_layout(template):
+    contact = ExtractionTemplate(
+        template_id="contact", name="contact", form=template.form,
+        schema={"type": "object", "properties": {k: {"type": "string"} for k in ("phone", "fax", "street")}},
+        layout=learn_layout([], blank=_contact_form("", "", "", "")),
+        readers={
+            "phone": Reader(strategies=[AnchorRead(labels=["Phone"], page=0)]),
+            "fax": Reader(strategies=[AnchorRead(labels=["Fax"], page=0)]),
+            "street": Reader(strategies=[AnchorRead(labels=["Street"], page=0, side="below")]),
+        },
+    )  # fmt: skip
+    filled = _contact_form("", "555 0100", "", "Madison, WI 53703")
+    result = extract(contact, filled)
+    got = fields(result)
+    assert result.matched == "layout"
+    assert (got["phone"].status, got["phone"].raw) == ("missing", None)  # not "Fax 555 0100"
+    assert (got["street"].status, got["street"].raw) == ("missing", None)  # not "City, state and ZIP"
+    assert (got["fax"].status, got["fax"].value) == ("found", "555 0100")
+
+
+def test_an_anchor_read_that_another_field_also_read_is_unsure_and_so_is_the_other(template):
+    # the country read by the legal name's label reads what the legal name's widget reads
+    misread = with_reader(template, "investor.country", AnchorRead(labels=["Investor legal name"], page=0))
+    got = fields(extract(misread, make_form(CLIENT, kind="fillable")))
+    country, name = got["investor.country"], got["investor.legal_name"]
+    assert (country.raw, country.strategy) == (CLIENT.legal_name, "anchor")
+    assert country.status in ("unsure", "failed_check") and "also read as investor.legal_name" in country.reasons
+    assert (name.status, name.strategy, name.value) == ("unsure", "widget", CLIENT.legal_name)
+    assert name.reasons == ["also read as investor.country"]
+
+
+def test_an_anchor_read_inside_another_fields_box_is_unsure(template):
+    # part of the legal name, read by its label with a narrow width: not the same text, but inside its box
+    narrow = with_reader(
+        template, "address.street", AnchorRead(labels=["Investor legal name"], page=0, max_width=125)
+    )
+    got = fields(extract(narrow, make_form(CLIENT, kind="flattened")))
+    street, name = got["address.street"], got["investor.legal_name"]
+    assert street.raw and street.raw != CLIENT.legal_name and CLIENT.legal_name.startswith(street.raw)
+    assert (street.status, street.reasons) == ("unsure", ["overlaps investor.legal_name's box"])
+    assert (name.status, name.reasons) == ("found", [])
+
+
+@pytest.mark.parametrize("edition", ["revised", "swapped"])
+def test_a_box_whose_neighbourhood_moved_gives_way_to_the_label_read(template, edition):
+    client = clients(3)[1]
+    pdf = make_form(client, kind="flattened", edition=edition)
+    result = extract(template, pdf)
+    assert result.matched == "layout"
+    got = fields(result)
+    moved = ["investor.legal_name", "investor.tax_id"] if edition == "revised" else [
+        "investor.tax_id", "investor.dob", "investor.country",
+    ]  # fmt: skip
+    want = truth(client)
+    for path in moved:
+        assert (got[path].strategy, got[path].status) == ("anchor", "unsure"), path
+        assert got[path].value == want[path] and "layout differs near this box" in got[path].reasons, path
+    for path in ("address.street", "owners[0].name"):
+        assert (got[path].strategy, got[path].status, got[path].value) == ("box", "found", want[path])
+    # with no label to fall back on, the field is missing and says why
+    box_only = with_reader(template, "investor.tax_id", template.readers["investor.tax_id"].strategies[1])
+    tax_id = fields(extract(box_only, pdf))["investor.tax_id"]
+    assert (tax_id.status, tax_id.raw) == ("missing", None)
+    assert "layout differs near this box" in tax_id.reasons
+    # a fillable copy of the same edition still reads its widgets, all found
+    assert_reads(extract(template, make_form(client, kind="fillable", edition=edition)), client)
+
+
+def test_an_answer_that_runs_into_the_next_label_is_missing_and_says_so(template):
+    doc = pymupdf.open()
+    doc.new_page().insert_text((72, 100), "Name: Dana Keller Date of birth: 05/01/1980", fontsize=10)
+    named = ExtractionTemplate(
+        template_id="t", name="t", schema={"type": "object", "properties": {"name": {"type": "string"}}},
+        form=template.form, layout=Layout(lines=[], page_sizes=[]),
+        readers={"name": Reader(strategies=[AnchorRead(labels=["Name"], page=0)])},
+    )  # fmt: skip
+    got = fields(extract(named, doc.tobytes()))["name"]
+    assert (got.status, got.raw, got.reasons) == ("missing", None, ["answer runs into the next label"])
+
+
+def edge_copies() -> list[tuple[str, bytes, Client]]:
+    """Filled copies the corpus folder lacks, in both kinds: optional answers left blank, and the two other editions."""
+    people = clients(6, seed=11)
+    blanks = [
+        dataclasses.replace(clients(3)[0], street=""),  # the city line is then the first line under the address label
+        dataclasses.replace(people[0], street="", dob="", owners=[]),
+        dataclasses.replace(
+            people[1], legal_name="", country="", city_state_zip="", owners=[("", ""), ("Dana Keller", "")]
+        ),
+    ]
+    copies = []
+    for kind in ("fillable", "flattened"):
+        for n, client in enumerate(blanks):
+            copies.append((f"blank_{n}_{kind}", make_form(client, kind=kind), client))
+        for edition in ("revised", "swapped"):
+            for n, client in enumerate(people[2:4]):
+                copies.append((f"{edition}_{n}_{kind}", make_form(client, kind=kind, edition=edition), client))
+    return copies
+
+
 def test_the_corpus_reads_with_no_wrong_found_value(template, corpus_dir):
     people = clients(20)
     found = Counter()
@@ -388,6 +525,21 @@ def test_the_corpus_reads_with_no_wrong_found_value(template, corpus_dir):
     files = sorted(corpus_dir.glob("*.pdf"))
     results = [extract(template, f, doc_id=f.name, file=f.name) for f in files]
     per_doc = (time.perf_counter() - started) / len(files)
+    # the copies with blank answers and the other editions: no found value differs from the truth, a blank answer
+    # is missing or absent, and nothing else is asked of them (a moved row may well be unsure)
+    edition_scores: dict[str, list[float]] = {"revised": [], "swapped": []}
+    for name, pdf, client in edge_copies():
+        result = extract(template, pdf)
+        assert result.error is None and result.matched == "layout", name
+        want = truth(client)
+        for field in result.fields:
+            if field.status == "found":
+                assert field.value == want.get(field.path), (name, field)
+            if field.path not in want:
+                assert field.status in ("missing", "absent"), (name, field)
+        if name.startswith(tuple(edition_scores)):
+            with DocText(pdf) as doc:
+                edition_scores[name.split("_")[0]].append(layout_score(template.layout, doc))
     for n, (f, result) in enumerate(zip(files, results)):
         assert result.error is None
         with DocText(f) as doc:
@@ -409,6 +561,7 @@ def test_the_corpus_reads_with_no_wrong_found_value(template, corpus_dir):
     share = {path: found[path] / seen[path] for path in seen}
     print(f"\nshare found per path: {share}")
     print(f"layout scores: filled min {min(filled_scores):.3f}, other max {max(other_scores):.3f}")
+    print("edition layout scores: " + ", ".join(f"{k} {min(v):.3f}-{max(v):.3f}" for k, v in edition_scores.items()))
     print(f"seconds per document: {per_doc:.4f}")
     assert all(s == 1.0 for s in share.values()), share
     # LAYOUT_MATCH sits at least 0.03 from both margins

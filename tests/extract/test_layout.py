@@ -10,9 +10,10 @@ from formcast.extract.layout import (
     layout_score,
     learn_layout,
     normalize_line,
+    page_fit,
 )
 from formcast.extract.page import DocText
-from tests.extract.corpus import ROTATE, SHIFT, clients, make_form, other_form
+from tests.extract.corpus import FIELD_RECTS, REVISED_GAP, ROTATE, SHIFT, clients, make_form, other_form
 
 KINDS = ("fillable", "flattened")
 
@@ -145,3 +146,39 @@ def test_the_offset_of_a_shifted_copy_is_its_shift(layout):
     with DocText(make_form(c, kind="flattened", rotate=ROTATE, extra_page=True)) as doc:
         assert layout_offset(layout, doc, 0) == pytest.approx(0.0, abs=1.0)
         assert layout_offset(layout, doc, 2) == 0.0  # a page beyond the layout's has no offset to find
+
+
+def test_a_page_fit_gives_the_offset_and_where_each_static_line_was_found(layout):
+    c = clients(1, seed=7)[0]
+    with DocText(make_form(c, kind="flattened", shift=12)) as doc:
+        fit = page_fit(layout, doc, 0)
+        assert fit.offset == pytest.approx(12.0, abs=1.0) == layout_offset(layout, doc, 0)
+        assert [line.page for line, _ in fit.lines] == [0] * len(fit.lines) and fit.lines
+        assert all(found is not None for _, found in fit.lines)
+        taxpayer = next(found for line, found in fit.lines if line.text == "taxpayer id")
+        assert taxpayer in fit.found_rects() and taxpayer[1] == pytest.approx(
+            next(line.rect[1] for line, _ in fit.lines if line.text == "taxpayer id") + 12.0, abs=1.0
+        )
+    with DocText(make_form(c, kind="flattened")) as doc:
+        assert page_fit(layout, doc, 9).lines == () and page_fit(layout, doc, 9).offset == 0.0
+
+
+@pytest.mark.parametrize("kind", KINDS)
+def test_a_box_agrees_with_the_layout_only_where_its_neighbours_are_at_the_offset(layout, kind):
+    c = clients(1, seed=7)[0]
+    with DocText(make_form(c, kind=kind, shift=SHIFT)) as doc:
+        fit = page_fit(layout, doc, 0)
+        assert all(fit.agrees(rect) for rect in FIELD_RECTS.values())  # a copy that is only pushed down
+    with DocText(make_form(c, kind=kind, edition="revised")) as doc:
+        fit = page_fit(layout, doc, 0)
+        assert fit.offset == pytest.approx(REVISED_GAP, abs=1.0)  # most lines moved with the inserted row
+        assert not fit.agrees(FIELD_RECTS["investor_name"])  # its label stayed where it was
+        assert not fit.agrees(FIELD_RECTS["tax_id"])  # the line above it (the legal name's label) stayed
+        assert fit.agrees(FIELD_RECTS["dob"]) and fit.agrees(FIELD_RECTS["owner_1_name"])
+    with DocText(make_form(c, kind=kind, edition="swapped")) as doc:
+        fit = page_fit(layout, doc, 0)
+        assert not fit.agrees(FIELD_RECTS["tax_id"]) and not fit.agrees(FIELD_RECTS["dob"])
+        assert not fit.agrees(FIELD_RECTS["country"])  # the line above it moved
+        assert fit.agrees(FIELD_RECTS["investor_name"]) and fit.agrees(FIELD_RECTS["address_1"])
+    with DocText(make_form(c, kind=kind)) as doc:
+        assert page_fit(layout, doc, 1).agrees((72.0, 72.0, 540.0, 90.0))  # page 1 is where the layout has it

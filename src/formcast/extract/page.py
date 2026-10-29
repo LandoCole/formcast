@@ -16,6 +16,11 @@ form fields is never thinned, and a value that appears once (appearance only, or
 
 Every lookup takes a page number; a page the document does not have gives an empty answer (``[]`` or ``None``), so
 a reader aimed at a page a shorter document lacks finds nothing rather than failing.
+
+The reads beside a label (:meth:`DocText.right_of`, :meth:`DocText.text_right_of`, :meth:`DocText.text_below`)
+take ``stop_at``: rectangles of the form's own printed lines on this document (the caller knows them from the
+template's layout). A printed word is never part of an answer: an empty answer followed by the next label reads
+nothing, not that label.
 """
 
 from __future__ import annotations
@@ -41,8 +46,11 @@ MARK_DPI = 144
 MARK_INNER = 0.7  # the middle share of the box (per side) that is looked at, so the box's own border is not ink
 INK_LEVEL = 128  # gray below this is ink
 
-#: A gap wider than this many em (the label's height) ends a run of text to the right of a label or below it.
+#: A gap wider than this many em (the label's height) ends a run of text to the right of a label.
 MAX_GAP_EM = 3.0
+#: The first line below a label starts within this many em (the label's height) of the label's bottom, and each
+#: following line within as much of the line before it; a line further down belongs to something else.
+BELOW_GAP_EM = 1.5
 #: Share of a word's height that must overlap the label's row for the word to be on that row.
 ROW_OVERLAP = 0.5
 #: A gap wider than this many em (the label's height) can separate an answer from the next label on its row.
@@ -121,6 +129,19 @@ def _drop_repeats(words: list[Word], field_rects: list[Rect]) -> list[Word]:
 def _overlaps(a: Rect, b: Rect) -> bool:
     inter = intersect(a, b)
     return inter is not None and area(inter) >= DUPLICATE_OVERLAP * min(area(a), area(b))
+
+
+@dataclass(frozen=True)
+class RightOf:
+    """What :meth:`DocText.right_of` found: the text and its rectangle, or ``None`` for both.
+
+    ``into_label`` is true when nothing was read because the answer cannot be told from the next label on its row
+    (no wide gap before that label): the field is not known to be empty.
+    """
+
+    text: str | None
+    rect: Rect | None
+    into_label: bool = False
 
 
 @dataclass
@@ -332,61 +353,91 @@ class DocText:
                 hits.append((p, _union([w.rect for w in text.words[a : b + 1]])))
         return hits
 
-    def text_right_of(self, page: int, rect: Rect, max_width: float) -> tuple[str, Rect] | None:
-        """The text written to the right of ``rect`` on its row, with its rectangle; ``None`` when there is none.
+    def right_of(self, page: int, rect: Rect, max_width: float, *, stop_at: list[Rect] | None = None) -> RightOf:
+        """The text written to the right of ``rect`` on its row, with its rectangle, and why there is none.
 
         Words count when they start after ``rect``'s right edge and share its row (at least half of the word's
         height overlaps ``rect`` vertically). The text runs left to right and stops at a gap wider than three em
         (``rect``'s height) between words and at ``max_width`` points from ``rect``'s right edge. Only the first
         word is free of the gap rule (labels often sit far from their answers).
 
+        A word whose middle lies in one of the ``stop_at`` rectangles (the form's printed lines) ends the text before
+        it: an empty answer followed by the next label reads nothing. The printed line the label itself is part of is
+        passed over, not stopped at ("Date of birth" in "Date of birth (mm/dd/yyyy):" reads what follows the colon),
+        and ``max_width`` then counts from that line's end.
+
         When a later word on the row ends with ":" (the next label), the answer is the words before the widest gap
         of more than one em that lies between the answer's first word and that colon word; the label cannot be told
         from the answer by its words, only by the space before it. Without such a gap (a row set with single
-        spaces) the answer cannot be told from the next label and the result is ``None``: missing, not wrong.
+        spaces) the answer cannot be told from the next label: nothing is read and ``into_label`` is true.
         "Name: Dana Keller          Date of birth: 05/01/2020" reads "Dana Keller" after "Name:"; the same row with
-        single spaces, or an empty answer before the next label, reads ``None``.
+        single spaces, or an empty answer before a next label that is not in ``stop_at``, reads nothing that way.
         """
         text = self._page(page)
         if text is None:
-            return None
+            return RightOf(None, None)
         em = rect[3] - rect[1]
+        stops = stop_at or []
+        own = [s for s in stops if _in(s, _centre(rect))]  # the printed line the label is part of
         row = [
             w
             for w in text.words
             if w.rect[0] >= rect[2] - 1.0 and _vertical_overlap(w.rect, rect) >= ROW_OVERLAP * (w.rect[3] - w.rect[1])
         ]
         taken: list[Word] = []
+        into_label = False
+        start = rect[2]  # where the answer is measured from: the label's end, or the end of its printed line
         for w in sorted(row, key=lambda w: w.rect[0]):
-            if w.rect[2] > rect[2] + max_width:
+            middle = _centre(w.rect)
+            if not taken and any(_in(s, middle) for s in own):
+                start = w.rect[2]
+                continue  # the rest of the label's own printed line
+            if any(_in(s, middle) for s in stops):
+                break  # the form's printed words: never part of an answer
+            if w.rect[2] > start + max_width:
                 break
             if taken and w.rect[0] - taken[-1].rect[2] > MAX_GAP_EM * em:
                 break
             taken.append(w)
             if w.text.endswith(":"):
                 taken = taken[: _before_label(taken, em)]  # the next label ends here: leave it out
+                into_label = not taken
                 break
         if not taken:
-            return None
-        return " ".join(w.text for w in taken), _union([w.rect for w in taken])
+            return RightOf(None, None, into_label)
+        return RightOf(" ".join(w.text for w in taken), _union([w.rect for w in taken]))
 
-    def text_below(self, page: int, rect: Rect, max_lines: int) -> tuple[str, Rect] | None:
-        """The next ``max_lines`` lines of text below ``rect``, joined with a space, with their rectangle.
+    def text_right_of(
+        self, page: int, rect: Rect, max_width: float, *, stop_at: list[Rect] | None = None
+    ) -> tuple[str, Rect] | None:
+        """:meth:`right_of` as ``(text, rect)``, ``None`` when nothing is read (for whatever reason)."""
+        got = self.right_of(page, rect, max_width, stop_at=stop_at)
+        return (got.text, got.rect) if got.text is not None and got.rect is not None else None
 
-        These are the PDF's own text lines whose left edge lies within the x-span of ``rect``. Reading stops at a
-        line ending with ":" (the next label, not included), at a gap of more than three em (``rect``'s height)
-        above a line, and after ``max_lines``. ``None`` when no line qualifies.
+    def text_below(
+        self, page: int, rect: Rect, max_lines: int, *, stop_at: list[Rect] | None = None
+    ) -> tuple[str, Rect] | None:
+        """The lines of text directly below ``rect``, at most ``max_lines``, joined with a space, with their rectangle.
+
+        These are the PDF's own text lines whose left edge lies within the x-span of ``rect``. The first of them must
+        start within 1.5 em (``rect``'s height) of ``rect``'s bottom, and each following line within 1.5 em of the
+        line before it: a blank answer is not read from the line after it. Reading stops at a line ending with ":"
+        (the next label, not included), at a line whose middle lies in one of the ``stop_at`` rectangles (the form's
+        printed lines), and after ``max_lines``. ``None`` when no line qualifies.
         """
         text = self._page(page)
         if text is None or max_lines < 1:
             return None
         em = rect[3] - rect[1]
+        stops = stop_at or []
         taken: list[_Line] = []
         bottom = rect[3]
         for line in text.lines:
             if _centre(line.rect)[1] <= rect[3] or not rect[0] - 1.0 <= line.rect[0] <= rect[2]:
                 continue
-            if line.text.endswith(":") or line.rect[1] - bottom > MAX_GAP_EM * em:
+            if line.text.endswith(":") or line.rect[1] - bottom > BELOW_GAP_EM * em:
+                break
+            if any(_in(s, _centre(line.rect)) for s in stops):
                 break
             taken.append(line)
             bottom = line.rect[3]

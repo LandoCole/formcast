@@ -13,7 +13,20 @@ Then, for every concrete path of the template's schema:
    :func:`~formcast.extract.layout.layout_score` reaches :data:`~formcast.extract.layout.LAYOUT_MATCH` (a flattened,
    shifted or rotated copy); else ``"none"``. Reads still run on ``"none"``, but positions mean nothing there, so
    ``box`` reads and the drawn boxes of a ``choice`` are skipped. On a fingerprint match a box is read where the
-   template has it; on a layout match it is moved down by the page's :func:`~formcast.extract.layout.layout_offset`.
+   template has it; on a layout match it is moved down by the page's offset. Each page's
+   :func:`~formcast.extract.layout.page_fit` (the offset, and where each static line was found) is made once per
+   document and serves every read on that page:
+
+   - A ``box`` read (and a ``choice``'s drawn boxes) is trusted only where the layout agrees locally
+     (:meth:`~formcast.extract.layout.PageFit.agrees`: the static line nearest above the box and every static line
+     on its row found at the page's offset). A score passes a revised edition whose inserted row moved everything
+     below it; the box under that row would read the wrong line. Elsewhere the strategy is skipped and the path
+     records the doubt ``"layout differs near this box"``: a later strategy's value is ``unsure`` with it, and
+     when no later strategy reads anything the field is ``missing`` with it as the reason.
+   - An ``anchor`` read never takes the form's printed words (the document's lines found as static lines) as its
+     answer: it stops before them, so a blank answer followed by the next label reads nothing, not that label
+     (:mod:`~formcast.extract.page`, ``stop_at``). A ``below`` read takes only the line directly under the label.
+     On ``"none"`` the printed words are not known and nothing is stopped at; such reads are unsure anyway.
 2. **Strategies in order.** The first strategy that gives non-empty text is the candidate. When the candidate fails a
    check (or cleans to nothing) the next strategies are tried, and the first of them whose value passes wins;
    when none passes, the first candidate stays, with its reasons. A later value that differs from the failed
@@ -32,13 +45,20 @@ Then, for every concrete path of the template's schema:
    checked as an empty group, so its own required fields are named (no investor answers -> ``investor.tax_id``
    is missing, with the reason). An error located at a group goes to every field in it.
 5. **Statuses**, decided in one place (:func:`_field`): a path in ``template.absent`` is ``not_on_form`` and never
-   read; every field of a repeated item that has nothing at all is ``absent`` and the item is left out of the
+   read; every field of a repeated item that has nothing at all (no text, and no reason such as a skipped box) is
+   ``absent`` and the item is left out of the
    record; a field with no value is ``missing``; a value with a reason is ``failed_check``; a value read by
    ``anchor`` or ``phrase`` is ``unsure`` when its labels or phrases matched more than one place (all wordings
    counted together, so two wordings found once each are two places) or the document's layout is ``"none"``;
-   every other value (``widget``, ``box``, ``choice``, a trusted label read) is ``found``. An ``unsure`` field says
-   why in its reasons ("label found in 2 places", "layout not matched"); a ``failed_check`` field's reasons are
-   its failed checks, followed by any doubts.
+   a value read after a box was skipped is ``unsure`` (``"layout differs near this box"``); a value read by
+   ``anchor`` or ``phrase`` whose raw text is another path's raw text is ``unsure``, and so is that other path
+   (``"also read as <other path>"``: one answer taken twice, as when a blank answer's label reads the next field),
+   and so is one whose rectangle overlaps the box another path is read from where the layout holds around that box
+   (``"overlaps <path>'s box"``); every other value (``widget``, ``box``, ``choice``, a trusted label read) is
+   ``found``. An ``unsure`` field says why in its reasons ("label found in 2 places", "layout not matched"); a
+   ``failed_check`` field's reasons are its failed checks, followed by any doubts. A field no strategy read is
+   ``missing``, with the reason when one is known: ``"layout differs near this box"``, or ``"answer runs into the
+   next label"`` when a label read could not tell the answer from the next label on its row (R10b).
 
 A phrase's places are the most of its occurrences with text after them and its occurrences on one row
 (``find_label``), so an occurrence with nothing readable after it still makes the read unsure. An anchor's value is
@@ -67,7 +87,7 @@ import pymupdf
 
 from formcast.data.mapping import _INDEX, _coerce, _empty, _generic, _run, _set
 from formcast.errors import FormcastError
-from formcast.extract.layout import LAYOUT_MATCH, layout_offset, layout_score
+from formcast.extract.layout import LAYOUT_MATCH, PageFit, layout_score, page_fit
 from formcast.extract.model import (
     AnchorRead,
     BoxRead,
@@ -112,6 +132,23 @@ class _SchemaError(Exception):
 
 
 @dataclass
+class _Skip:
+    """A strategy that did not run on this document, and why (shown when no later strategy reads a value).
+
+    A ``doubt`` also makes a later strategy's value unsure; a plain note only explains a field left missing.
+    """
+
+    reason: str
+    doubt: bool = False
+
+
+#: Why a box (or a choice's drawn box) was not read: the layout does not hold around it on this document.
+LAYOUT_DIFFERS = "layout differs near this box"
+#: Why a label read gave nothing: the answer cannot be told from the next label on its row (R10b).
+INTO_LABEL = "answer runs into the next label"
+
+
+@dataclass
 class _Context:
     """One open document and what every path's read needs to know about it."""
 
@@ -119,16 +156,27 @@ class _Context:
     template: ExtractionTemplate
     matched: str
     schema_paths: list[SchemaPath]
-    offsets: dict[int, float] = field(default_factory=dict)
+    fits: dict[int, PageFit] = field(default_factory=dict)  # each page's fit, made once per document
+
+    def fit(self, page: int) -> PageFit:
+        if page not in self.fits:
+            self.fits[page] = page_fit(self.template.layout, self.doc, page)
+        return self.fits[page]
 
     def moved(self, page: int, rect: Rect) -> Rect:
         """``rect`` where it sits on the document's ``page``: in place on a fingerprint match, moved on a layout one."""
         if self.matched == "layout":
-            if page not in self.offsets:
-                self.offsets[page] = layout_offset(self.template.layout, self.doc, page)
-            dy = self.offsets[page]
+            dy = self.fit(page).offset
             return (rect[0], rect[1] + dy, rect[2], rect[3] + dy)
         return rect
+
+    def agrees(self, page: int, rect: Rect) -> bool:
+        """Whether the layout holds around the template's box ``rect`` on this document (matched layouts only)."""
+        return self.matched != "none" and self.fit(page).agrees(rect)
+
+    def printed(self, page: int) -> list[Rect]:
+        """The document's own printed lines of the form on ``page``; none known when the layout did not match."""
+        return self.fit(page).found_rects() if self.matched != "none" else []
 
 
 def extract(
@@ -212,6 +260,7 @@ def _extract_open(
             errors = _record_errors(schema, reads, ctx.schema_paths)
         for path, messages in errors.items():
             reads[path].reasons += [m for m in messages if m not in reads[path].reasons]
+        _cross_check(reads, ctx)
         absent = _absent_items(reads)
         return DocumentResult(
             doc_id=ident,
@@ -260,21 +309,33 @@ def _field(path: str, read: _Read | None, absent: bool) -> FieldResult:
 def _read_path(path: str, reader: Reader | None, ctx: _Context) -> Iterator[_Read]:
     """The path's reads, one per strategy that finds text, in order, each cleaned and with its own reasons.
 
-    A generator, so a later strategy runs only when the reads before it have failed their checks.
+    A generator, so a later strategy runs only when the reads before it have failed their checks. A strategy that is
+    skipped (:class:`_Skip`) leaves its doubt on every later read; when no strategy reads anything, the path's one
+    read is empty and carries the skips' reasons (missing, and why).
     """
     if reader is None:
         yield _Read(reasons=["the template has no reader for this field"])
         return
     sp = resolve(ctx.schema_paths, _generic(path)[0])
+    skipped: list[_Skip] = []
+    read_any = False
     for strategy in reader.strategies:
         read = _try(strategy, ctx)
+        if isinstance(read, _Skip):
+            if read.reason not in (s.reason for s in skipped):
+                skipped.append(read)
+            continue
         if read is None:
             continue
+        read.doubts += [s.reason for s in skipped if s.doubt and s.reason not in read.doubts]
         value = _run(reader.clean, read.raw)
         read.value = None if _empty(value) else _coerce(value, sp)
         if read.value is None:
             read.reasons.append(f"cleaning left nothing of {read.raw!r}")
+        read_any = True
         yield read
+    if not read_any and skipped:
+        yield _Read(reasons=[s.reason for s in skipped])
 
 
 def _fall_back(
@@ -315,8 +376,9 @@ def _at_or_below(location: str, path: str) -> bool:
     return location == path or location.startswith((path + ".", path + "["))
 
 
-def _try(strategy: Strategy, ctx: _Context) -> _Read | None:
-    """What one strategy reads on the document, or ``None`` when it finds no text."""
+def _try(strategy: Strategy, ctx: _Context) -> _Read | _Skip | None:
+    """What one strategy reads on the document; ``None`` when it finds no text, a :class:`_Skip` when it could not
+    be trusted to read (a box whose neighbourhood moved) or an answer could not be told from a label."""
     doc = ctx.doc
     if isinstance(strategy, WidgetRead):
         for name in strategy.names:
@@ -328,20 +390,26 @@ def _try(strategy: Strategy, ctx: _Context) -> _Read | None:
     if isinstance(strategy, BoxRead):
         if ctx.matched == "none":
             return None
+        if not ctx.agrees(strategy.page, strategy.rect):
+            return _Skip(LAYOUT_DIFFERS, doubt=True)
         rect = ctx.moved(strategy.page, strategy.rect)
         raw = doc.text_in(strategy.page, rect)
         return _Read(raw=raw.strip(), strategy="box", page=strategy.page, rect=rect) if raw and raw.strip() else None
     if isinstance(strategy, AnchorRead):
         places = doc.find_label(strategy.labels, strategy.page)  # every wording counts towards the places
+        into_label = False
         for page, label in places:
+            printed = ctx.printed(page)
             if strategy.side == "below":
-                got = doc.text_below(page, label, strategy.max_lines)
+                got = doc.text_below(page, label, strategy.max_lines, stop_at=printed)
             else:
-                got = doc.text_right_of(page, label, strategy.max_width)
+                beside = doc.right_of(page, label, strategy.max_width, stop_at=printed)
+                into_label = into_label or beside.into_label
+                got = (beside.text, beside.rect) if beside.text is not None and beside.rect is not None else None
             if got and got[0].strip():
                 doubts = _doubts("label", len(places), ctx)
                 return _Read(raw=got[0].strip(), strategy="anchor", page=page, rect=got[1], doubts=doubts)
-        return None
+        return _Skip(INTO_LABEL) if into_label else None
     if isinstance(strategy, PhraseRead):
         hits = doc.after_phrase(strategy.phrases, strategy.page, strategy.stop)
         if not hits:
@@ -353,6 +421,54 @@ def _try(strategy: Strategy, ctx: _Context) -> _Read | None:
     return _choice(strategy, ctx)
 
 
+def _cross_check(reads: dict[str, _Read], ctx: _Context) -> None:
+    """Doubt every label or phrase read that another path's read repeats, or that lies in another path's box.
+
+    The same text read for two paths, one of them by a label or phrase, is one answer taken twice (an empty answer's
+    label read the next field's): both reads are unsure, "also read as <other path>". A label or phrase read inside
+    the box another path is read from, where the layout holds around that box, is unsure, "overlaps <path>'s box".
+    """
+    by_label = {path: r for path, r in reads.items() if r.strategy in ("anchor", "phrase") and r.raw}
+    if not by_label:
+        return
+    by_text: dict[str, list[str]] = defaultdict(list)
+    for path, r in reads.items():
+        if r.raw:
+            by_text[" ".join(r.raw.split())].append(path)
+    for path, r in by_label.items():
+        for other in by_text[" ".join(r.raw.split())]:  # type: ignore[union-attr]
+            if other != path:
+                _doubt(r, f"also read as {other}")
+                _doubt(reads[other], f"also read as {path}")
+    if ctx.matched == "none":
+        return  # boxes are places on a matching layout only
+    boxes = [
+        (other, s.page, s.rect)
+        for other, reader in ctx.template.readers.items()
+        if other in reads
+        for s in reader.strategies
+        if isinstance(s, BoxRead)
+    ]
+    for path, r in by_label.items():
+        for other, page, rect in boxes:
+            if other == path or page != r.page or r.rect is None or not ctx.agrees(page, rect):
+                continue
+            if _overlap(r.rect, ctx.moved(page, rect)):
+                _doubt(r, f"overlaps {other}'s box")
+
+
+def _doubt(read: _Read, why: str) -> None:
+    if why not in read.doubts:
+        read.doubts.append(why)
+
+
+def _overlap(a: Rect, b: Rect) -> bool:
+    """Whether two rectangles share more than an edge: at least half the lower one's height, and a point across."""
+    width = min(a[2], b[2]) - max(a[0], b[0])
+    height = min(a[3], b[3]) - max(a[1], b[1])
+    return width >= 1.0 and height >= 0.5 * min(a[3] - a[1], b[3] - b[1])
+
+
 def _doubts(what: str, places: int, ctx: _Context) -> list[str]:
     """Why a label or phrase read is not certain: more than one place, or a layout that does not match."""
     doubts = [f"{what} found in {places} places"] if places > 1 else []
@@ -361,8 +477,15 @@ def _doubts(what: str, places: int, ctx: _Context) -> list[str]:
     return doubts
 
 
-def _choice(strategy: ChoiceRead, ctx: _Context) -> _Read | None:
-    """The marked option's key; the keys of all marked options, with a reason, when several are."""
+def _choice(strategy: ChoiceRead, ctx: _Context) -> _Read | _Skip | None:
+    """The marked option's key; the keys of all marked options, with a reason, when several are.
+
+    Drawn boxes are places on the page, as a box read is: when the layout does not hold around any of them, the
+    choice is skipped with :data:`LAYOUT_DIFFERS`.
+    """
+    drawn = [m for m in strategy.options.values() if m.widget is None]
+    if ctx.matched != "none" and not all(ctx.agrees(m.page, m.rect) for m in drawn):  # type: ignore[arg-type]
+        return _Skip(LAYOUT_DIFFERS, doubt=True)
     marked: list[tuple[str, int | None, Rect | None]] = []
     for key, mark in strategy.options.items():
         if mark.widget is not None:

@@ -14,6 +14,10 @@ tests that want to know where an answer sits.
 as page text at the widget positions and the check boxes are drawn squares with an "X" inside when on.
 ``shift`` moves page 0 down, ``rotate`` sets ``/Rotate``, ``extra_page`` appends a blank page and ``painted``
 also draws a fillable copy's values as page text under its widgets (as a viewer's appearance stream would).
+``edition`` draws another edition of the form: ``"revised"`` adds a "Phone:" row under the legal name and moves
+everything below it down :data:`REVISED_GAP`; ``"swapped"`` prints the Taxpayer ID and date-of-birth rows in each
+other's place. Both still pass as the layout (most of its lines are where the template has them), which makes them
+the hard case for box reads.
 The files are not byte-identical between runs (PyMuPDF writes a random file id), but their content is.
 """
 
@@ -92,6 +96,16 @@ TYPE_BOXES: dict[str, tuple[str, Rect]] = {
 
 WIRE_RECT: Rect = (72.0, 560.0, 540.0, 620.0)
 ABA = "114000093"
+
+#: The "revised" edition: a "Phone:" row under the legal name, and everything below that row moved down this far.
+REVISED_GAP = 30.0
+REVISED_BELOW = 126.0  # what starts below this y (the legal name row's bottom) moves
+PHONE_LABEL = ("Phone:", (72.0, 150.0))
+PHONE_RECT: Rect = (240.0, 136.0, 400.0, 156.0)
+PHONE = "608 555 0142"
+#: The "swapped" edition: the Taxpayer ID and date-of-birth rows (label and answer) in each other's place.
+_SWAPPED = {"Taxpayer ID:": 30.0, "tax_id": 30.0, "Date of birth or formation:": -30.0, "dob": -30.0}
+EDITIONS = ("original", "revised", "swapped")
 
 SIGNATURE_ORIGIN = (72.0, 740.0)
 SIGNATURE_LINE = ((130.0, 742.0), (340.0, 742.0))
@@ -234,6 +248,16 @@ def _wire_text(client: Client | None) -> str:
     )
 
 
+def _edition_dy(edition: str, y: float, key: str = "") -> float:
+    """How far ``edition`` moves the thing at ``y`` (a label's baseline or a rectangle's top) named ``key``."""
+    if edition == "revised":
+        new_row = key in (PHONE_LABEL[0], "phone")  # the inserted row is where the moved rows were
+        return REVISED_GAP if y > REVISED_BELOW and not new_row else 0.0
+    if edition == "swapped":
+        return _SWAPPED.get(key, 0.0)
+    return 0.0
+
+
 def _draw_page_zero(
     page: pymupdf.Page,
     client: Client | None,
@@ -243,24 +267,35 @@ def _draw_page_zero(
     labels: dict[str, str],
     header: str | None = None,
     checked: tuple[str, ...] | None = None,
+    edition: str = "original",
 ) -> None:
     def word(text: str) -> str:
         return labels.get(text, text)
 
+    def dy(y: float, key: str = "") -> float:
+        return shift + _edition_dy(edition, y, key)
+
     page.insert_text((TITLE_ORIGIN[0], TITLE_ORIGIN[1] + shift), word(TITLE), fontsize=16, fontname="hebo")
     if header:
         page.insert_text((HEADER_ORIGIN[0], HEADER_ORIGIN[1] + shift), header, fontsize=FONT_SIZE, fontname="helv")
-    for text, (x, y) in LABEL_ORIGINS.items():
+    origins = dict(LABEL_ORIGINS)
+    if edition == "revised":
+        origins[PHONE_LABEL[0]] = PHONE_LABEL[1]
+    for text, (x, y) in origins.items():
         bold = text.startswith(("Mailing", "Beneficial"))
-        page.insert_text((x, y + shift), word(text), fontsize=FONT_SIZE, fontname="hebo" if bold else "helv")
+        page.insert_text((x, y + dy(y, text)), word(text), fontsize=FONT_SIZE, fontname="hebo" if bold else "helv")
     # the owners table's column heads
-    page.insert_text((72, 376 + shift), word("Name"), fontsize=8, fontname="helv")
-    page.insert_text((350, 376 + shift), word("Percent"), fontsize=8, fontname="helv")
+    page.insert_text((72, 376 + dy(376)), word("Name"), fontsize=8, fontname="helv")
+    page.insert_text((350, 376 + dy(376)), word("Percent"), fontsize=8, fontname="helv")
 
     values = _answers(client)
+    rects = dict(FIELD_RECTS)
+    if edition == "revised":
+        values["phone"] = PHONE if client is not None else ""
+        rects["phone"] = PHONE_RECT
     # a line under each single-line answer, in both kinds, so a flattened copy still looks like a form
-    for name, rect in FIELD_RECTS.items():
-        r = _shifted(rect, shift)
+    for name, rect in rects.items():
+        r = _shifted(rect, dy(rect[1], name))
         page.draw_line((r.x0, r.y1), (r.x1, r.y1), width=0.5)
         if kind == "flattened" or painted:
             _answer_text(page, r, values[name])
@@ -268,7 +303,7 @@ def _draw_page_zero(
             _text_widget(page, name, r, values[name])
 
     for value, (label, square) in TYPE_BOXES.items():
-        r = _shifted(square, shift)
+        r = _shifted(square, dy(square[1]))
         on = value in checked if checked is not None else client is not None and client.investor_type == value
         page.insert_text((r.x1 + 6, r.y1 - 2), word(label), fontsize=FONT_SIZE, fontname="helv")
         if kind == "fillable":
@@ -280,7 +315,7 @@ def _draw_page_zero(
             if on:
                 page.insert_text((r.x0 + 2.5, r.y1 - 2.5), "X", fontsize=FONT_SIZE, fontname="hebo")
 
-    wire = _shifted(WIRE_RECT, shift)
+    wire = _shifted(WIRE_RECT, dy(WIRE_RECT[1]))
     if page.insert_textbox(wire, _wire_text(client), fontsize=FONT_SIZE, fontname="helv") < 0:
         raise AssertionError("the wire paragraph does not fit its box")
 
@@ -320,18 +355,23 @@ def make_form(
     labels: dict[str, str] | None = None,
     header: str | None = None,
     checked: tuple[str, ...] | None = None,
+    edition: Literal["original", "revised", "swapped"] = "original",
 ) -> bytes:
     """A two-page client-information form as PDF bytes; ``client=None`` is the blank form.
 
     ``labels`` replaces printed wordings (``{"Taxpayer ID:": "TIN:"}``) for a copy that words a label differently.
     ``header`` draws one more line of text under the title (``"Taxpayer ID:"``, so that label is on the page twice).
     ``checked`` names the investor-type boxes that are on (``("individual", "joint")``) in place of the client's type.
+    ``edition`` draws the ``"revised"`` or ``"swapped"`` edition the module describes; a filled revised copy's phone
+    is :data:`PHONE` (in a widget ``phone`` on a fillable copy).
     """
     if kind not in ("fillable", "flattened"):
         raise ValueError(f"kind must be 'fillable' or 'flattened', not {kind!r}")
+    if edition not in EDITIONS:
+        raise ValueError(f"edition must be one of {EDITIONS}, not {edition!r}")
     doc = pymupdf.open()
     first = doc.new_page(width=PAGE_SIZE[0], height=PAGE_SIZE[1])
-    _draw_page_zero(first, client, kind, shift, painted, labels or {}, header, checked)
+    _draw_page_zero(first, client, kind, shift, painted, labels or {}, header, checked, edition)
     _draw_page_one(doc.new_page(width=PAGE_SIZE[0], height=PAGE_SIZE[1]))
     if rotate:
         for page in doc:

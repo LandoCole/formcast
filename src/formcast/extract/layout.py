@@ -18,6 +18,14 @@ with extra pages at the end scores as without them, and a document short of page
 from :class:`~formcast.extract.page.DocText`, in unrotated crop-box points, so a page with ``/Rotate`` scores as
 without it.
 
+A score says the document is this form as a whole; it does not say every part of the page sits where the layout
+has it. A revised edition that inserts one row moves everything under it, and still scores high (below). So
+``page_fit`` gives, for one page, the offset and where on the document each static line was found at that offset
+(``None`` when it was not), made once per page and document. Reading uses it twice: :meth:`PageFit.agrees` tells
+whether a box's neighbourhood is where the layout has it (the static line nearest above the box and every static
+line on its row found at the offset), and :meth:`PageFit.found_rects` gives the document's printed lines, which a
+label read never takes as its answer.
+
 Measured on the generated corpus (``tests/extract/corpus.py``), for Task 5 to calibrate ``LAYOUT_MATCH`` from:
     - layout learned from five clients' copies, scored on those five and three others in both kinds, each plain,
       shifted by 12 and by ``SHIFT``, rotated, with an extra page, painted, and shifted+rotated+extra at once:
@@ -27,12 +35,18 @@ Measured on the generated corpus (``tests/extract/corpus.py``), for Task 5 to ca
       the wire paragraph with its blanks, which no filled copy shares), scored on five
       filled copies of each kind shifted by 12: lowest 0.943
     - highest score of another form (the repo's W-9, 6 pages): 0.0
+    - other editions against the hand template's layout, both kinds: a revised edition with a "Phone:" row inserted
+      under the legal name and everything below moved down 30 points scores 0.959 (only the title and the legal
+      name's label stay put, and the offset is the 30 points); with the column heads of the owners table left
+      unmoved too, 0.918. An edition with the Taxpayer ID and date-of-birth rows swapped scores 0.959. All pass
+      ``LAYOUT_MATCH``: the score cannot tell an edition, which is why box reads check :meth:`PageFit.agrees`.
 """
 
 from __future__ import annotations
 
 import statistics
 from collections import defaultdict
+from dataclasses import dataclass
 
 from formcast.errors import FormcastError
 from formcast.extract.model import Layout, StaticLine
@@ -127,15 +141,59 @@ def learn_layout(samples: list[bytes], *, blank: bytes | None = None) -> Layout:
     return Layout(lines=kept, page_sizes=sizes)
 
 
-def _page_match(layout: Layout, doc: DocText, page: int) -> tuple[float, int, int]:
-    """For one layout page: its offset on the document and how many of its lines the document has there.
+#: Share of a static line's height that must overlap a box vertically for the line to be on the box's row.
+_ROW_OVERLAP = 0.5
+#: Static lines whose bottoms are this close (points) are one row when picking the line nearest above a box.
+_SAME_ROW = 2.0
 
-    Returns ``(offset, found, total)``; the offset is 0.0 when no line of the page has its text in the same
-    column on the document.
+
+@dataclass(frozen=True)
+class PageFit:
+    """How one layout page sits on a document: its offset, and each static line with where the document has it.
+
+    ``lines`` pairs every static line of the page (in the layout's place) with the rectangle of the document's line
+    of the same text found at ``offset`` (within :data:`LINE_TOLERANCE`), or ``None`` when it is not there.
+    """
+
+    offset: float
+    lines: tuple[tuple[StaticLine, Rect | None], ...]
+
+    def found_rects(self) -> list[Rect]:
+        """Where the document has the page's static lines: the form's printed text, not answers."""
+        return [found for _, found in self.lines if found is not None]
+
+    def agrees(self, rect: Rect) -> bool:
+        """Whether the layout holds around ``rect`` (a box in the layout's place, before the offset).
+
+        True when the static line nearest above the box (the lowest one whose middle is above its top; of several
+        on that row, the one nearest it sideways) and every static line on the box's row (at least half the line's
+        height inside the box's height) are found at the offset. A page with no such lines gives no evidence
+        against the box, and agrees.
+        """
+        row, above = [], []
+        for line, found in self.lines:
+            r = line.rect
+            if min(r[3], rect[3]) - max(r[1], rect[1]) >= _ROW_OVERLAP * (r[3] - r[1]):
+                row.append(found)
+            elif (r[1] + r[3]) / 2 < rect[1]:
+                above.append((r, found))
+        near: list[Rect | None] = []
+        if above:
+            lowest = max(r[3] for r, _ in above)
+            same = [(r, found) for r, found in above if r[3] >= lowest - _SAME_ROW]
+            near.append(min(same, key=lambda pair: max(0.0, pair[0][0] - rect[2], rect[0] - pair[0][2]))[1])
+        return all(found is not None for found in row + near)
+
+
+def page_fit(layout: Layout, doc: DocText, page: int) -> PageFit:
+    """How the layout's ``page`` sits on the document: see :class:`PageFit`.
+
+    The offset is the median over the page's static lines of the vertical distance to the nearest document line
+    of the same text in the same column; 0.0 when there is none. A page the layout lacks gives no lines.
     """
     static = [ln for ln in layout.lines if ln.page == page]
     if not static:
-        return 0.0, 0, 0
+        return PageFit(0.0, ())
     have = _by_text(_lines(doc, page))
     # each line's own offset: to the nearest same-text line of the document in the same column
     shifts = []
@@ -144,8 +202,10 @@ def _page_match(layout: Layout, doc: DocText, page: int) -> tuple[float, int, in
         if gaps:
             shifts.append(min(gaps, key=abs))
     offset = statistics.median(shifts) if shifts else 0.0
-    found = sum(any(_same_place(ln.rect, r, offset) for r in have.get(ln.text, ())) for ln in static)
-    return offset, found, len(static)
+    lines = tuple(
+        (ln, next((r for r in have.get(ln.text, ()) if _same_place(ln.rect, r, offset)), None)) for ln in static
+    )
+    return PageFit(offset, lines)
 
 
 def layout_score(layout: Layout, doc: DocText) -> float:
@@ -156,8 +216,8 @@ def layout_score(layout: Layout, doc: DocText) -> float:
     """
     found = total = 0
     for page in sorted({ln.page for ln in layout.lines}):
-        _, f, t = _page_match(layout, doc, page)
-        found, total = found + f, total + t
+        fit = page_fit(layout, doc, page)
+        found, total = found + len(fit.found_rects()), total + len(fit.lines)
     return found / total if total else 0.0
 
 
@@ -167,4 +227,4 @@ def layout_offset(layout: Layout, doc: DocText, page: int) -> float:
     The median vertical distance over the layout's lines found on that page; 0.0 when none is, or the layout has
     no such page.
     """
-    return _page_match(layout, doc, page)[0]
+    return page_fit(layout, doc, page).offset
