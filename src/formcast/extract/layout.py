@@ -158,6 +158,13 @@ class PageFit:
     offset: float
     lines: tuple[tuple[StaticLine, Rect | None], ...]
 
+    def in_layout(self, rect: Rect) -> Rect:
+        """``rect``, a place on the document's page, moved up by the offset: where it is in the layout's place.
+
+        The frame a template stores boxes in (``extract`` moves them back down by a document's offset).
+        """
+        return (rect[0], rect[1] - self.offset, rect[2], rect[3] - self.offset)
+
     def found_rects(self) -> list[Rect]:
         """Where the document has the page's static lines: the form's printed text, not answers."""
         return [found for _, found in self.lines if found is not None]

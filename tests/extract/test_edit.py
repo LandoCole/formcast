@@ -1,5 +1,7 @@
 """Edits to a template: each one changes the schema or one path's readers and gives back a template that still validates."""
 
+import hashlib
+
 import pytest
 from pydantic import TypeAdapter, ValidationError
 
@@ -18,7 +20,7 @@ from formcast.extract.edit import (
     apply_edit,
 )
 from formcast.extract.model import ChoiceRead, SampleRecord, SetupInfo
-from tests.extract.corpus import hand_template
+from tests.extract.corpus import FIELD_RECTS, SHIFT, TYPE_BOXES, clients, hand_template, make_form, truth
 
 
 def _prop(template, *names):
@@ -237,3 +239,47 @@ def test_an_edit_is_read_by_its_op_and_unknown_keys_are_refused():
         parse({"op": "set_field", "path": "wire.bank", "colour": "red"})
     with pytest.raises(ValidationError):
         parse({"op": "explode", "path": "wire.bank"})
+
+
+# ------------------------------------------------------------------ boxes drawn on a sample
+
+
+def _two_samples():
+    """The hand template with two flattened samples: one in place, one pushed down the page by ``SHIFT``."""
+    people = clients(2, seed=21)
+    pdfs = [make_form(people[0], kind="flattened"), make_form(people[1], kind="flattened", shift=SHIFT)]
+    records = [SampleRecord(file=f"s{n}.pdf", sha256=hashlib.sha256(p).hexdigest(), opinion=truth(c))
+               for n, (p, c) in enumerate(zip(pdfs, people))]  # fmt: skip
+    return hand_template().model_copy(update={"samples": records}), pdfs
+
+
+def _down(rect, dy):
+    return (rect[0], rect[1] + dy, rect[2], rect[3] + dy)
+
+
+def test_a_box_drawn_on_a_shifted_sample_is_moved_into_the_layouts_place():
+    t, pdfs = _two_samples()
+    drawn = _down(FIELD_RECTS["dob"], SHIFT)  # where the date of birth is on the shifted sample
+    on_it = apply_edit(t, SetBox(path="investor.dob", page=0, rect=drawn, sample=1), pdfs=pdfs)
+    assert on_it.readers["investor.dob"].strategies[1].rect == pytest.approx(FIELD_RECTS["dob"], abs=0.5)
+    in_place = apply_edit(t, SetBox(path="investor.dob", page=0, rect=FIELD_RECTS["dob"], sample=0), pdfs=pdfs)
+    assert in_place.readers["investor.dob"].strategies[1].rect == pytest.approx(FIELD_RECTS["dob"], abs=0.5)
+    as_given = apply_edit(t, SetBox(path="investor.dob", page=0, rect=drawn))  # no sample: the layout's place
+    assert as_given.readers["investor.dob"].strategies[1].rect == drawn
+    square = _down(TYPE_BOXES["trust"][1], SHIFT)
+    option = apply_edit(t, SetOptionBox(path="investor.type", answer="trust", page=0, rect=square, sample=1), pdfs=pdfs)
+    trust = option.readers["investor.type"].strategies[1].options["trust"]
+    assert trust.rect == pytest.approx(TYPE_BOXES["trust"][1], abs=0.5)
+
+
+def test_a_box_drawn_on_a_sample_needs_the_templates_own_sample_pdfs():
+    t, pdfs = _two_samples()
+    edit = SetBox(path="investor.dob", page=0, rect=FIELD_RECTS["dob"], sample=1)
+    with pytest.raises(FormcastError, match="sample PDFs"):
+        apply_edit(t, edit)
+    with pytest.raises(FormcastError, match="not the template's samples"):
+        apply_edit(t, edit, pdfs=pdfs[::-1])
+    with pytest.raises(FormcastError, match="no sample 2"):
+        apply_edit(t, edit.model_copy(update={"sample": 2}), pdfs=pdfs)
+    with pytest.raises(FormcastError, match="no page 5"):
+        apply_edit(t, edit.model_copy(update={"page": 5}), pdfs=pdfs)

@@ -339,7 +339,11 @@ def learn_maps(template: ExtractionTemplate, proof: Proof) -> ExtractionTemplate
 
 class Mark(_Model):
     """A place on a sample to show beside a path: where its value was ``read``, a ``box`` or ``label`` its readers
-    look at, or an ``option`` of a choice (``answer`` is the option's key)."""
+    look at, or an ``option`` of a choice (``answer`` is the option's key).
+
+    ``rect`` is where the mark is on that sample's page (a box already moved down by the page's offset), not in the
+    layout's place: a box a person moves there is sent back as an edit naming the sample (``SetBox(sample=...)``).
+    """
 
     path: str
     kind: Literal["read", "box", "label", "option"]
@@ -358,7 +362,9 @@ def sample_marks(template: ExtractionTemplate, pdf: bytes) -> list[Mark]:
     Per path: where its value was read (when its read has a place: a widget read has none), each ``box`` strategy's
     rectangle moved down by its page's offset (:func:`~formcast.extract.layout.page_fit`; 0 on a page the layout has
     no lines on), the first place each ``anchor`` strategy's label is found, and each ``choice`` option: its drawn
-    box moved by the offset, or its widget's rectangle. The PDF is opened once for reading. No model is called.
+    box moved by the offset, or its widget's rectangle. Every mark is in the sample page's own frame, so an edit made
+    on these marks names the sample (:class:`~formcast.extract.edit.SetBox`'s ``sample``) and is moved back into the
+    layout's place. The PDF is opened once for reading. No model is called.
 
     Raises:
         FormcastError: when the PDF cannot be opened or read.

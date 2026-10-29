@@ -46,7 +46,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from formcast.data.mapping import Transform, _generic
-from formcast.extract.layout import page_fit
+from formcast.extract.layout import PageFit, page_fit
 from formcast.extract.model import (
     AnchorRead,
     BoxRead,
@@ -121,14 +121,13 @@ class _Samples:
     docs: list[SampleDoc]
     texts: list[DocText]
     layout: Layout
-    offsets: dict[tuple[int, int], float] = field(default_factory=dict)
+    fits: dict[tuple[int, int], PageFit] = field(default_factory=dict)
 
     def _in_layout(self, sample: int, page: int, rect: Rect) -> _Place:
         """``rect`` on the sample's ``page`` moved up by the page's offset: where it is on the layout."""
-        if (sample, page) not in self.offsets:
-            self.offsets[sample, page] = page_fit(self.layout, self.texts[sample], page).offset
-        dy = self.offsets[sample, page]
-        return page, (rect[0], rect[1] - dy, rect[2], rect[3] - dy)
+        if (sample, page) not in self.fits:
+            self.fits[sample, page] = page_fit(self.layout, self.texts[sample], page)
+        return page, self.fits[sample, page].in_layout(rect)
 
     def widget(self, name: str, state: str | None = None) -> _Place | None:
         """The first rectangle of the form field ``name`` (its button ``state``) on the first sample that has it."""

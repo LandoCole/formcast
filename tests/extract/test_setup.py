@@ -11,9 +11,10 @@ import pytest
 import formcast.extract.setup as setup_mod
 from formcast.errors import FormcastError, SessionCancelled
 from formcast.extract.batch import route
-from formcast.extract.model import concrete_paths
+from formcast.extract.edit import SetBox, apply_edit
+from formcast.extract.model import BoxRead, concrete_paths
 from formcast.extract.prompts import READERS_SYSTEM
-from formcast.extract.proof import Proof, learn_maps, prove
+from formcast.extract.proof import Proof, learn_maps, prove, sample_marks
 from formcast.extract.read import extract
 from formcast.extract.samples import SamplePdf
 from formcast.extract.setup import MAX_SAMPLES, STAGES, SetupSpec, StageEvent, add_line, build_setup
@@ -22,7 +23,16 @@ from formcast.match import PdfFeatures
 from formcast.pagemap.build import DetectPolicy
 from formcast.schema import flatten_schema
 from tests.extract.conftest import corpus_clients
-from tests.extract.corpus import SHIFT, Client, assert_no_wrong_found, clients, hand_template, make_form
+from tests.extract.corpus import (
+    FIELD_RECTS,
+    SHIFT,
+    Client,
+    assert_no_wrong_found,
+    clients,
+    hand_template,
+    make_form,
+    truth,
+)
 from tests.extract.fakes import CorpusModel
 
 NO_DETECTORS = dict(detectors={}, policy=DetectPolicy(digital=(), scanned=()))
@@ -295,3 +305,23 @@ def test_the_setup_keeps_how_the_samples_were_read_and_shown(five_samples):
     assert setup.sample_how == "the first five"
     again = type(r.template).model_validate_json(r.template.model_dump_json(by_alias=True))
     assert again.setup == setup  # the page numbers' keys come back as ints from JSON
+
+
+def test_a_box_drawn_where_a_shifted_samples_marks_show_it_reads_an_unshifted_copy(five_samples):
+    r = build_setup(five_samples.pdfs, SetupSpec(name="x"), CorpusModel(five_samples.clients), **NO_DETECTORS)
+    pdfs = [p.pdf for p in five_samples.pdfs]
+    shifted = 4  # sample_5: flattened and pushed down the page by SHIFT
+    marks = sample_marks(r.template, pdfs[shifted])
+    mark = next(m for m in marks if (m.path, m.kind) == ("investor.dob", "box"))
+    x0, y0, x1, y1 = FIELD_RECTS["dob"]
+    assert mark.rect == pytest.approx((x0, y0 + SHIFT, x1, y1 + SHIFT), abs=0.5)  # where it is on that sample
+    # the person moves the box a little on that sample (wider to the right), as the workbench sends it
+    drawn = (mark.rect[0], mark.rect[1], mark.rect[2] + 20, mark.rect[3])
+    edit = SetBox(path="investor.dob", page=mark.page, rect=drawn, sample=shifted)
+    edited = apply_edit(r.template, edit, pdfs=pdfs)
+    box = next(s for s in edited.readers["investor.dob"].strategies if isinstance(s, BoxRead))
+    assert box.rect == pytest.approx((x0, y0, x1 + 20, y1), abs=0.5)  # in the layout's place
+    assert next(f for f in prove(edited, pdfs).fields if f.path == "investor.dob").ready
+    other = clients(1, seed=78)[0]
+    got = next(f for f in extract(edited, make_form(other, kind="flattened")).fields if f.path == "investor.dob")
+    assert (got.status, got.strategy, got.value) == ("found", "box", truth(other)["investor.dob"])

@@ -5,6 +5,7 @@ change to it, discriminated by ``op`` so the workbench can send them as plain JS
 
     {"op": "set_field", "path": "investor.dob", "title": "Born", "type": "date", "required": true}
     {"op": "set_box", "path": "investor.tax_id", "page": 0, "rect": [100, 100, 200, 114]}
+    {"op": "set_box", "path": "investor.tax_id", "page": 0, "rect": [100, 114, 200, 128], "sample": 4}
     {"op": "set_option_box", "path": "investor.type", "answer": "trust", "page": 0, "rect": [60, 200, 72, 212]}
     {"op": "set_labels", "path": "investor.tax_id", "labels": ["TIN"], "side": "below"}
     {"op": "set_clean", "path": "investor.dob", "clean": [{"op": "date", "args": {"formats": ["%m/%d/%Y"]}}]}
@@ -15,6 +16,11 @@ change to it, discriminated by ``op`` so the workbench can send them as plain JS
 editing ``owners[2].percent`` edits ``owners[0].percent`` ... ``owners[3].percent`` alike. The reader edits change
 one strategy of one path and keep the order of the others (a widget read, then boxes, then labels, as the template
 was built), because the first strategy that finds something wins.
+
+A box's ``rect`` is in the layout's place, the frame the template stores boxes in, unless the edit names the
+``sample`` it was drawn on: then it is where the box is on that sample's page (the frame of
+:func:`~formcast.extract.proof.sample_marks`), and :func:`apply_edit`, given the sample PDFs, moves it into the
+layout's place by that page's offset, as ``resolve`` does a box the model took from a sample.
 
 A path marked absent has no reader (``mark_absent`` drops it), and a reader is never read on an absent path, so an
 edit that gives a path a reader takes it out of ``absent``: the person has just said it is on the form.
@@ -41,6 +47,9 @@ from formcast.extract.model import (
     WidgetRead,
     concrete_paths,
 )
+from formcast.extract.layout import page_fit
+from formcast.extract.page import DocText
+from formcast.extract.proof import _check_samples
 from formcast.geometry import Rect
 from formcast.schema import ARRAY_ITEM, flatten_schema, parse_path
 
@@ -88,22 +97,33 @@ class SetField(_Edit):
 
 
 class SetBox(_Edit):
-    """Read the words inside ``rect`` on ``page``: replaces the path's box, or adds one right after its widget read."""
+    """Read the words inside ``rect`` on ``page``: replaces the path's box, or adds one right after its widget read.
+
+    Without ``sample``, ``rect`` is in the layout's place (the frame the template stores boxes in). With ``sample``
+    (a position in the template's samples) it is where the box is on that sample's page, as
+    :func:`~formcast.extract.proof.sample_marks` gives the marks a person draws on; :func:`apply_edit` moves it into
+    the layout's place.
+    """
 
     op: Literal["set_box"] = "set_box"
     path: str
     page: int = Field(ge=0)
     rect: Rect
+    sample: int | None = Field(default=None, ge=0)
 
 
 class SetOptionBox(_Edit):
-    """Set where one answer's check mark is drawn, in the path's page-rect choice read (added when missing)."""
+    """Set where one answer's check mark is drawn, in the path's page-rect choice read (added when missing).
+
+    ``rect`` is in the layout's place, or on the page of ``sample`` when it is given, as for :class:`SetBox`.
+    """
 
     op: Literal["set_option_box"] = "set_option_box"
     path: str
     answer: str
     page: int = Field(ge=0)
     rect: Rect
+    sample: int | None = Field(default=None, ge=0)
 
 
 class SetLabels(_Edit):
@@ -160,19 +180,42 @@ Edit = Annotated[
 ]
 
 
-def apply_edit(template: ExtractionTemplate, edit: Edit) -> ExtractionTemplate:
+def apply_edit(template: ExtractionTemplate, edit: Edit, *, pdfs: list[bytes] | None = None) -> ExtractionTemplate:
     """The template with ``edit`` made, validated; ``template`` itself is not changed.
+
+    A box drawn on a sample (``set_box`` or ``set_option_box`` with ``sample``) needs ``pdfs``, the template's sample
+    PDFs in its order (as :func:`~formcast.extract.proof.prove` takes them): the box is moved up by that sample
+    page's offset (:meth:`~formcast.extract.layout.PageFit.in_layout`, as ``resolve`` moves a box taken from a
+    sample), so a box drawn on a copy pushed down the page is stored where it is on the layout. No model is called.
 
     Raises:
         FormcastError: ``edit.path`` is not a field of the schema, a ``set_option_box`` answer is not one of the
-            field's answers, or the field's schema is built with ``$ref``/``anyOf`` and cannot be edited in place.
+            field's answers, or the field's schema is built with ``$ref``/``anyOf`` and cannot be edited in place;
+            for a box drawn on a sample, no ``pdfs``, ``pdfs`` that are not the template's samples, or a sample or
+            page the template's samples do not have.
         pydantic.ValidationError: the edited template is not valid.
     """
     if edit.path not in concrete_paths(template.schema_):
         raise FormcastError(f"no field {edit.path}")
+    if isinstance(edit, (SetBox, SetOptionBox)) and edit.sample is not None:
+        rect = _in_layout(template, edit.sample, edit.page, edit.rect, pdfs)
+        edit = edit.model_copy(update={"rect": rect, "sample": None})
     edited = template.model_copy(deep=True)
     _HANDLERS[type(edit)](edited, edit)
     return ExtractionTemplate.model_validate(edited.model_dump(by_alias=True))
+
+
+def _in_layout(template: ExtractionTemplate, sample: int, page: int, rect: Rect, pdfs: list[bytes] | None) -> Rect:
+    """``rect`` on the page of the template's ``sample`` moved into the layout's place (see :func:`apply_edit`)."""
+    if pdfs is None:
+        raise FormcastError(f"a box drawn on sample {sample} needs the template's sample PDFs")
+    _check_samples(template, pdfs)
+    if sample >= len(pdfs):
+        raise FormcastError(f"the template has no sample {sample}")
+    with DocText(pdfs[sample]) as doc:
+        if page >= doc.page_count:
+            raise FormcastError(f"sample {sample} has no page {page}")
+        return page_fit(template.layout, doc, page).in_layout(rect)
 
 
 # ------------------------------------------------------------------- the schema
