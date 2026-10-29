@@ -28,7 +28,7 @@
   .addfield input { flex: 1; min-width: 0; }
   .legend { margin: 12px 0 0; font-style: italic; font-size: 14px; line-height: 20px; color: var(--graphite); }
   /* the page is a light sheet in both themes, so boxes on it keep the light-theme ink, as .fc-pv-page does */
-  .pg { --ink: #100F0F; --graphite: #6F6E69; --paper: #FFFCF0; --tint: rgba(16, 15, 15, .05); --tint-strong: rgba(16, 15, 15, .1); position: relative; width: 100%; aspect-ratio: 612 / 792; background: var(--page-paper); outline: 1px solid var(--rule); color: #100F0F; font-family: "Times New Roman", Times, serif; container-type: inline-size; }
+  .pg { --ink: #100F0F; --graphite: #6F6E69; --paper: #FFFCF0; --tint: rgba(16, 15, 15, .05); --tint-strong: rgba(16, 15, 15, .1); position: relative; width: 100%; margin: 0 auto; flex: none; aspect-ratio: 612 / 792; background: var(--page-paper); outline: 1px solid var(--rule); color: #100F0F; font-family: "Times New Roman", Times, serif; container-type: inline-size; }
   .pg .t { position: absolute; font-size: 1.95cqw; line-height: 1.2; white-space: nowrap; }
   .pg .h { font-size: 2.9cqw; font-weight: 700; }
   .pg .rl { position: absolute; border-top: .5px solid #100F0F; }
@@ -75,6 +75,9 @@
     .pane { overflow: visible; }
     .pane > .pane-scroll { max-height: 50vh; }
   }
+  .zoom { flex-wrap: wrap; justify-content: flex-end; }
+  .zoom .seg .btn { height: 32px; }
+  .page-of { margin-right: 4px; }
   .sheet.wide { width: min(720px, 100%); }
   .choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
   .choice { display: grid; gap: 8px; align-content: start; text-align: left; padding: 16px; background: var(--paper); color: var(--ink); border: 0; outline: 1px solid var(--rule); outline-offset: -.5px; cursor: pointer; font: inherit; }
@@ -160,7 +163,16 @@
           <button type="button" class="ib" id="next-s" aria-label="Next sample">›</button>
           <span class="page-state" id="sample-kind"></span>
         </div>
-        <div class="zoom"><span>Page 1 / 2</span></div>
+        <div class="zoom" data-zoom>
+          <span class="page-of">Page 1 / 2</span>
+          <span class="seg" role="group" aria-label="Fit the page">
+            <button type="button" class="btn quiet small" data-fit="width" aria-pressed="true" title="The page as wide as the column">Fit width</button>
+            <button type="button" class="btn quiet small" data-fit="page" aria-pressed="false" title="The whole page in view">Fit page</button>
+          </span>
+          <button type="button" class="ib" data-step="-1" aria-label="Zoom out">−</button>
+          <button type="button" class="zoom-level" data-level title="Back to fit width">100%</button>
+          <button type="button" class="ib" data-step="1" aria-label="Zoom in">+</button>
+        </div>
       </div>
       <div class="stage"><div class="pg" id="page"></div></div>
       <p class="cap" id="cap"></p>
@@ -201,7 +213,16 @@
     <section class="col col-page" aria-label="Document page">
       <div class="pagebar">
         <div class="pager"><span id="doc-name">client_00412.pdf</span><span class="page-state" id="doc-kind"></span></div>
-        <div class="zoom"><span>Page 1 / 2</span></div>
+        <div class="zoom" data-zoom>
+          <span class="page-of">Page 1 / 2</span>
+          <span class="seg" role="group" aria-label="Fit the page">
+            <button type="button" class="btn quiet small" data-fit="width" aria-pressed="true" title="The page as wide as the column">Fit width</button>
+            <button type="button" class="btn quiet small" data-fit="page" aria-pressed="false" title="The whole page in view">Fit page</button>
+          </span>
+          <button type="button" class="ib" data-step="-1" aria-label="Zoom out">−</button>
+          <button type="button" class="zoom-level" data-level title="Back to fit width">100%</button>
+          <button type="button" class="ib" data-step="1" aria-label="Zoom in">+</button>
+        </div>
       </div>
       <div class="stage"><div class="pg" id="rpage"></div></div>
       <p class="cap" id="rcap"></p>
@@ -434,7 +455,8 @@ for (let i = 0; DOCS.length < 38; i++) {
 
 // ------------------------------------------------------------------ state
 
-const state = { view: "setup", mode: "ai", sample: 0, field: "tin", doc: 0, decided: {}, modal: "choose", batch: null, nSample: 5, how: "spread", detect: "auto" };
+const state = { view: "setup", mode: "ai", sample: 0, field: "tin", doc: 0, decided: {}, modal: "choose", batch: null, nSample: 5, how: "spread", detect: "auto",
+  zoom: "width" }; // zoom: "width" or "page" (a fit), or a fixed scale (1 = 100%)
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const fields = () => (state.mode === "dest" ? FIELDS.concat(DEST_ONLY) : FIELDS);
@@ -729,6 +751,7 @@ function renderSetup() {
   $("sample-no").textContent = `Sample ${state.sample + 1} / ${SAMPLES.length}`;
   $("sample-kind").textContent = `${s.file} · ${s.kind}${s.shift ? " · shifted" : ""}`;
   const f = fieldOf(state.field);
+  applyZoom(); // sized first: boxes inside the paragraph are placed on the words as drawn
   drawPage($("page"), state.sample, { selected: f.absent ? null : f.id });
   const ready = fields().filter((x) => summary(x).state === "ready").length;
   $("cap").textContent = `Layout matches the samples · ${ready} of ${fields().length} fields ready · click a box or a field to see how it is read`;
@@ -750,6 +773,7 @@ function renderReview() {
   const s = SAMPLES[d.sample];
   $("doc-name").textContent = d.file;
   $("doc-kind").textContent = `${s.kind}${s.shift ? " · shifted" : ""} · template client_info_form`;
+  applyZoom();
   drawPage($("rpage"), d.sample, { highlight: d.problems.map((p) => p[0]) });
   $("rcap").textContent = `The boxes are where each problem field was read, or looked for`;
   $("problems").innerHTML = d.problems.map((p) => {
@@ -773,6 +797,69 @@ function renderReview() {
     render();
   }));
 }
+
+// ------------------------------------------------------------------ zoom
+
+// The page's size in CSS pixels at 100%: one pixel per point, as a PDF viewer's "actual size".
+const PAGE_W = 612, PAGE_H = 792;
+const ZOOMS = [0.5, 0.67, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];
+
+/** The two fits for the column holding `el`: as wide as the column, and the whole page in view. */
+function fits(el) {
+  const col = el.closest(".col-page");
+  const cs = getComputedStyle(col);
+  const w = col.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const used = col.querySelector(".pagebar").offsetHeight + (col.querySelector(".cap")?.offsetHeight ?? 0) + 12;
+  const h = col.clientHeight - parseFloat(cs.paddingTop) - parseFloat(cs.paddingBottom) - used;
+  const width = Math.max(0.1, w / PAGE_W);
+  return { width, page: Math.max(0.1, Math.min(width, h / PAGE_H)) };
+}
+
+/** The scale the zoom setting gives for the page `el`: a fit, or a fixed level. */
+function scaleOf(el) {
+  return typeof state.zoom === "number" ? state.zoom : fits(el)[state.zoom];
+}
+
+/** Size the visible page for the zoom, and show the level and which fit is on. */
+function applyZoom() {
+  for (const id of ["page", "rpage"]) {
+    const el = $(id);
+    if (!el.offsetParent) continue; // its view is hidden
+    const scale = scaleOf(el);
+    el.style.width = `${Math.round(PAGE_W * scale)}px`;
+    const bar = el.closest(".col-page").querySelector("[data-zoom]");
+    bar.querySelector("[data-level]").textContent = `${Math.round(scale * 100)}%`;
+    bar.querySelectorAll("[data-fit]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.fit === state.zoom)));
+    bar.querySelector('[data-step="-1"]').disabled = scale <= ZOOMS[0] + 0.001;
+    bar.querySelector('[data-step="1"]').disabled = scale >= ZOOMS[ZOOMS.length - 1] - 0.001;
+  }
+}
+
+/** One zoom step from the page's current scale (a fit included), to the next level up or down. */
+function stepZoom(el, dir) {
+  const now = scaleOf(el);
+  const next = dir > 0 ? ZOOMS.find((z) => z > now + 0.001) : [...ZOOMS].reverse().find((z) => z < now - 0.001);
+  if (next !== undefined) {
+    state.zoom = next;
+    render();
+  }
+}
+
+document.querySelectorAll("[data-zoom]").forEach((bar) => {
+  const page = () => bar.closest(".col-page").querySelector(".pg");
+  bar.querySelectorAll("[data-fit]").forEach((b) => b.addEventListener("click", () => { state.zoom = b.dataset.fit; render(); }));
+  bar.querySelectorAll("[data-step]").forEach((b) => b.addEventListener("click", () => stepZoom(page(), Number(b.dataset.step))));
+  bar.querySelector("[data-level]").addEventListener("click", () => { state.zoom = "width"; render(); });
+});
+// Ctrl (or ⌘) and the wheel over the page zoom it, as in a PDF viewer
+document.querySelectorAll(".col-page").forEach((col) => col.addEventListener("wheel", (e) => {
+  if (!e.ctrlKey && !e.metaKey) return;
+  e.preventDefault();
+  stepZoom(col.querySelector(".pg"), e.deltaY < 0 ? 1 : -1);
+}, { passive: false }));
+// a fit follows the column when the window or the panes change size
+const refit = new ResizeObserver(() => { if (typeof state.zoom === "string") render(); });
+document.querySelectorAll(".col-page").forEach((col) => refit.observe(col));
 
 // ------------------------------------------------------------------ wiring
 
