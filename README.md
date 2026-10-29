@@ -267,6 +267,9 @@ pages, a questionnaire, annexes). Three things keep that affordable:
   pages with the most blanks, up to 12; full page-map text for pages with blanks and a short excerpt of
   every other page.
 - After the page pass, the agent works from the 12 pages it left most unlinked (see *Cost* above).
+- Or pick the pages yourself: `build_form_map(pdf, detect=False)` searches no page (text, widgets and OCR
+  only), and `detect_on_page(page, page_map)` searches one page later; it also takes a page skipped as
+  prose. `build_form_map(..., on_progress=fn)` reports each page's steps as it reads them.
 
 Measured on a public 90-page fund subscription package (flat, no form fields; 30 pages of agreement
 skipped as prose), Haiku 5.5, 2026-10-28:
@@ -274,6 +277,8 @@ skipped as prose), Haiku 5.5, 2026-10-28:
 | Step | Time | Tokens (in / out) |
 |---|---|---|
 | Page map, 60 pages detected | 198 s | none |
+| Page map, detection off (`detect=False`) | 9 s | none |
+| `detect_on_page`, one page | about 2 s | none |
 | `derive_schema` (90-130 fields across runs) | 35-75 s | 57k / 8-17k |
 | Page pass, 37 pages | about 50 s | 330-450k / 26-37k |
 | Agent check | 2-3 min | 1.2-1.5M / 15-20k |
@@ -443,8 +448,16 @@ The flow:
    picks its own stored schema; your own PDF defaults to *the AI designs it from the form*. You also pick
    how the boxes are linked: by the AI with the agent checking its page pass (the default), by the page
    pass alone (faster), or by hand. The server starts reading the PDF (its form map: text, widgets and
-   detected boxes) in the background as soon as it opens. While a reading runs, other PDF work on the
-   server (page images, filling) waits for it; matching does not.
+   detected boxes) in the background as soon as it opens, and the start screen shows the reading as it
+   goes: the page and step under way (reading text, OCR, finding the blanks with which detector), a cell
+   per page (boxes found, searched and empty, skipped as prose, fillable), the counts and a rough time
+   left. While a reading runs, other PDF work on the server (page images, filling) waits for it;
+   matching does not.
+   *I'll pick the form pages myself* reads the PDF with no detection, which takes seconds even for a
+   90-page agreement. Turn to each page with a form and press *Find the blanks on this page*: the
+   server searches that page alone (about 2 s) and its boxes join the template as one undo step. *Build
+   with AI* then designs the schema from the pages you searched and links their boxes. The same button
+   shows on any page an automatic reading skipped as prose.
 2. **Match.** The PDF is scored against every stored template (`formcast.similarity`). The scores come
    from the PDF's fingerprint, text and layout, which the server reads first, before the form map, so
    the match prompt appears at once even while detection runs. The server
@@ -488,7 +501,9 @@ answer a zip with one PDF per record and `reports.json`. `X-Formcast-Records` an
 carry the counts. The server's routes for the one-shot flow are `POST /api/data` (a file or `{"text"}`,
 answering the data's columns, types and samples), the `oneshot` job kind of `POST /api/jobs`,
 `POST /api/documents {"template": name}` (open a saved template's PDF), and `PUT /api/templates/{name}`
-with `doc` and `mapping`.
+with `doc` and `mapping`. Reading a PDF: `GET /api/documents/{id}/progress` (never waits),
+`POST /api/documents?detect=manual` (no detection) and `POST /api/documents/{id}/pages/{n}/detect`
+(search page n, 0-based; answers the new fields for its boxes).
 
 AI work runs as a background job with a step-by-step panel and a Cancel button; cancel takes effect
 between steps. A build's panel starts with "Page pass" once the whole pass is done (on a dense form that

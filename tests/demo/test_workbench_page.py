@@ -15,7 +15,7 @@ from pathlib import Path
 import pymupdf
 import pytest
 from playwright.sync_api import expect
-from test_server_documents import get_json
+from test_server_documents import boxes, get_json  # noqa: F401 (boxes is a fixture)
 from test_server_jobs import ADD_NAME, ADD_NOTE, Factory, Gate, code, finish
 from test_server_routes import FW9_EDITED
 
@@ -236,12 +236,13 @@ def test_picking_fw9_offers_reuse_of_the_stored_template_and_reuse_loads_it(demo
     assert b.template()["template_id"] == stored["template_id"]
 
 
-def test_while_the_seed_waits_for_the_form_reading_the_page_says_so(demo_server, bench, page):
+def test_while_the_seed_waits_the_page_says_so(demo_server, bench, page):
+    """The reading itself shows as progress first (see the reading tests), so the seed's wait is only the opening."""
     page.add_init_script(GATE_SEED)
     b = bench(demo_server)
     b.upload(widget_pdf())  # nothing stored fits: straight to the seed
     page.wait_for_function("window.__seedGates.length === 1")
-    expect(page.locator("#start-msg")).to_have_text("Reading the form (the first time can take a minute while the detector downloads)…")
+    expect(page.locator("#start-msg")).to_have_text("Opening…")
     page.evaluate("window.__releaseSeed()")
     expect(page.locator("#start")).to_be_hidden()
     page.wait_for_function("window.__workbench.template !== null")
@@ -251,7 +252,7 @@ def test_while_the_seed_waits_for_the_form_reading_the_page_says_so(demo_server,
     expect(page.locator("#match")).to_be_visible()
     page.click("#build-new")
     page.wait_for_function("window.__seedGates.length === 1")
-    expect(page.locator("#match-hint")).to_contain_text("Reading the form (the first time can take a minute")
+    expect(page.locator("#match-hint")).to_have_text("Opening…")
     page.evaluate("window.__releaseSeed()")
     expect(page.locator("#match")).to_be_hidden()
     page.wait_for_function("window.__workbench.template?.fields.length > 20")
@@ -1020,3 +1021,76 @@ def test_a_pdf_alone_with_ai_on_runs_the_one_shot_schema_design(start_demo_serve
     b.page.wait_for_function("window.__workbench.template?.schema?.title === 'Tiny form'")
     assert b.template()["schema"] == DERIVED
     assert model.calls == {"derive": 1, "page": 1}
+
+
+# ------------------------------------------------------------------ reading the form, and picking its pages by hand
+
+
+def test_the_start_screen_shows_the_reading_page_by_page_until_the_form_opens(demo_server, bench, monkeypatch):
+    import threading
+
+    from formcast.pagemap.build import PageProgress
+
+    gate = threading.Event()
+    real = documents_mod.build_form_map
+
+    def builder(pdf, detectors=None, on_progress=None, **kw):
+        on_progress(PageProgress(0, 1, "text"))
+        on_progress(PageProgress(0, 1, "detect", detectors=("FFDNet-L",)))
+        assert gate.wait(timeout=20)
+        return real(pdf, detectors={}, policy=DetectPolicy(digital=(), scanned=()), ocr="never")
+
+    monkeypatch.setattr(documents_mod, "build_form_map", builder)
+    b = bench(demo_server)
+    b.upload(widget_pdf(), schema_text=None)
+    reading = b.page.locator("#start-reading")
+    expect(reading.locator(".reading-now")).to_have_text("Page 1 of 1: finding the blanks (FFDNet-L)")
+    expect(reading.locator(".reading-strip li[data-state='working']")).to_have_count(1)
+    expect(reading.locator(".reading-sum")).to_contain_text("0 boxes on 0 pages")
+    gate.set()
+    b.build_new()
+    expect(reading).to_be_hidden()
+    expect(b.boxes()).to_have_count(1)
+    assert b.errors == []
+
+
+def test_picking_the_pages_by_hand_opens_with_no_boxes_then_finds_them_a_page_at_a_time(demo_server, bench, boxes):
+    from test_server_documents import prose_and_form_pdf
+
+    b = bench(demo_server)
+    b.page.set_input_files("#file", files=[{"name": "agreement.pdf", "mimeType": "application/pdf", "buffer": prose_and_form_pdf()}])
+    b.page.check("#manual-pages")
+    b.page.click("#open")
+    b.build_new()
+    expect(b.page.locator("#notice")).to_contain_text("Find the blanks on this page")
+    expect(b.boxes()).to_have_count(0)
+    assert boxes.calls == 0
+    expect(b.page.locator("#page-state")).to_have_text("not searched · 0 pages searched")
+    b.page.click("#next-page")
+    b.page.click("#detect-page")
+    expect(b.boxes()).to_have_count(1)
+    expect(b.page.locator("#page-state")).to_have_text("1 blank found · 1 page searched")
+    expect(b.page.locator("#detect-page")).to_be_hidden()
+    assert [f["id"] for f in b.template()["fields"]] == ["c1_0"] and boxes.calls == 1
+    b.page.click("#undo")
+    expect(b.boxes()).to_have_count(0)  # one undo step takes the page's boxes away
+    assert b.errors == []
+
+
+def test_a_page_skipped_as_prose_offers_to_be_searched_anyway(demo_server, bench, boxes):
+    from test_server_documents import prose_and_form_pdf
+
+    b = bench(demo_server)
+    b.page.set_input_files("#file", files=[{"name": "agreement.pdf", "mimeType": "application/pdf", "buffer": prose_and_form_pdf()}])
+    b.page.click("#open")
+    b.build_new()
+    expect(b.page.locator("#page-state")).to_have_text("skipped as prose")
+    expect(b.page.locator("#detect-page")).to_be_visible()
+    b.page.click("#next-page")
+    expect(b.page.locator("#page-state")).to_have_text("1 blank found")
+    expect(b.page.locator("#detect-page")).to_be_hidden()
+    b.page.click("#prev-page")
+    b.page.click("#detect-page")
+    expect(b.page.locator("#page-state")).to_have_text("1 blank found")
+    assert sorted(f["id"] for f in b.template()["fields"]) == ["c0_0", "c1_0"]
+    assert b.errors == []

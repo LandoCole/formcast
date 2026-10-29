@@ -508,3 +508,44 @@ def test_skip_prose_runs_no_detection_on_prose_pages_and_says_so():
     det = FakeDetector("FFDNet-L", [])
     build_form_map(pdf, detectors={"FFDNet-L": det}, ocr="never")
     assert det.calls == 2  # off by default: every digital page is searched
+
+
+# --- progress, detection off, one page at a time -----------------------------
+
+
+def test_on_progress_hears_each_page_step_then_done_with_the_page():
+    events = []
+    det = FakeDetector("FFDNet-L", [("text", NAME_BOX, 0.9)])
+    fm = build_form_map(_prose_and_form_pdf(), detectors={"FFDNet-L": det}, ocr="never", skip_prose=True, on_progress=events.append)
+    assert [(e.index, e.step) for e in events] == [(0, "text"), (0, "done"), (1, "text"), (1, "detect"), (1, "done")]
+    assert {e.total for e in events} == {2}
+    assert events[3].detectors == ("FFDNet-L",)
+    assert events[4].page == fm.pages[1] and events[1].page == fm.pages[0]
+
+
+def test_detection_off_searches_no_page_and_detect_on_page_searches_one_later():
+    pdf = _prose_and_form_pdf()
+    fm = build_form_map(pdf, detectors={"FFDNet-L": ExplodingDetector()}, ocr="never", detect=False)
+    assert all(p.candidates == [] and build.NOTE_NOT_DETECTED in p.notes for p in fm.pages)
+    assert all(build.needs_detection(p) for p in fm.pages)
+    det = FakeDetector("FFDNet-L", [("text", (160, 90, 500, 104), 0.9)])
+    with pymupdf.open(stream=pdf, filetype="pdf") as doc:
+        page = build.detect_on_page(doc[1], fm.pages[1], {"FFDNet-L": det})
+    assert det.calls == 1
+    (cand,) = page.candidates
+    assert cand.id == "c1_0" and _line_text(page, cand.label_line_id) == "Name:"
+    assert build.NOTE_NOT_DETECTED not in page.notes and not build.needs_detection(page)
+    assert fm.pages[1].candidates == []  # the map given is left as it was
+
+
+def test_a_page_skipped_as_prose_can_be_searched_later_and_a_fillable_page_never_is(fillable_form_pdf):
+    pdf = _prose_and_form_pdf()
+    fm = build_form_map(pdf, detectors={"FFDNet-L": FakeDetector("FFDNet-L", [])}, ocr="never", skip_prose=True)
+    assert build.needs_detection(fm.pages[0]) and not build.needs_detection(fm.pages[1])
+    with pymupdf.open(stream=pdf, filetype="pdf") as doc:
+        page = build.detect_on_page(doc[0], fm.pages[0], {"FFDNet-L": FakeDetector("FFDNet-L", [])})
+    assert build.NOTE_PROSE not in page.notes
+    fillable = build_form_map(fillable_form_pdf, detectors={}, detect=False)
+    assert not build.needs_detection(fillable.pages[0]) and build.NOTE_NOT_DETECTED not in fillable.pages[0].notes
+    with pymupdf.open(fillable_form_pdf) as doc:
+        assert build.detect_on_page(doc[0], fillable.pages[0], {"FFDNet-L": ExplodingDetector()}) is fillable.pages[0]

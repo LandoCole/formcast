@@ -35,12 +35,23 @@ with a warm-up, never the weight download). While it runs, every other MuPDF ste
 it: page images, fills, smart PDFs and rebinds, for any document, and opening another PDF (its summary and
 features). Matching a document whose features are computed does not wait, nor do requests that only read
 memory (capabilities, templates, records, job status).
+
+Progress. ``Doc.progress()`` says how the build is going, for the page to show while it waits: the phase
+(``features``, ``detectors`` while the weights load, ``pages``, ``finishing``, then ``done`` or ``error``), the
+page being read and its step (``text``, ``ocr``, ``detect`` with the detectors that run), and per page its
+state and what it found (boxes, widgets, whether detection was skipped as prose or left to the person).
+
+Detection by hand. A document opened with ``detect="manual"`` builds its form map with no detection at all
+(text, widgets and OCR only), which is quick even for a long agreement. ``Doc.detect_page(n)`` then runs
+detection on page ``n`` alone and puts its boxes in the form map, so the jobs that read it later see them. It
+also takes a page a ``"auto"`` build skipped as prose.
 """
 
 from __future__ import annotations
 
 import logging
 import threading
+import time
 import uuid
 from collections import OrderedDict
 from concurrent.futures import Future
@@ -48,11 +59,12 @@ from concurrent.futures import Future
 import pymupdf
 
 from demo.server.detectors import DetectorWarmup
+from formcast.errors import FormcastError
 from formcast.match import PdfFeatures, pdf_features
-from formcast.pagemap.build import build_form_map
+from formcast.pagemap.build import NOTE_PROSE, PageProgress, build_form_map, detect_on_page, needs_detection
 from formcast.pagemap.detect import Detector
 from formcast.pagemap.extract import PDF_LOCK, is_image_dominated, open_pdf, page_size
-from formcast.pagemap.model import FormMap
+from formcast.pagemap.model import FormMap, PageMap
 
 log = logging.getLogger("demo.server")
 
@@ -65,6 +77,8 @@ MIN_DPI, MAX_DPI = 36, 200
 _IMAGES_PER_DOC = 24  # rendered pages kept per document (least recently used dropped)
 # Every part of PdfFeatures that similarity may read; Doc.match_features computes them all.
 _FEATURE_PARTS = ("fingerprint", "fingerprint_blind", "page_sizes", "signature", "phrases")
+DETECT_MODES = ("auto", "manual")
+_BUILD_ERROR = "The form could not be read. The server log has the details."
 
 
 def clamp_dpi(dpi: int) -> int:
@@ -74,7 +88,9 @@ def clamp_dpi(dpi: int) -> int:
 class Doc:
     """One open PDF. Build with ``Documents.add``."""
 
-    def __init__(self, name: str, pdf_bytes: bytes, *, detectors: DetectorWarmup | None = None) -> None:
+    def __init__(self, name: str, pdf_bytes: bytes, *, detectors: DetectorWarmup | None = None, detect: str = "auto") -> None:
+        if detect not in DETECT_MODES:
+            raise ValueError(f"detect must be one of {DETECT_MODES}, not {detect!r}")
         # open_pdf rejects encrypted, corrupt and empty PDFs with FormcastError.
         with PYMUPDF_LOCK:
             pdf = open_pdf(pdf_bytes)
@@ -91,7 +107,11 @@ class Doc:
         self.id: str = uuid.uuid4().hex
         self.name = name
         self.bytes = pdf_bytes
+        self.detect = detect
         self._detectors = detectors
+        self._progress_lock = threading.Lock()
+        self._progress: dict = self._fresh_progress()
+        self._detect_lock = threading.Lock()  # one page detection at a time per document
         self._map: Future[FormMap] | None = None  # the build in progress or done; None before one starts
         self._map_lock = threading.Lock()
         self._features: PdfFeatures | None = None
@@ -108,7 +128,75 @@ class Doc:
             "page_sizes": [list(s) for s in self.page_sizes],
             "rotations": self.rotations,
             "kinds": self.kinds,
+            "detect": self.detect,
         }
+
+    # ---- progress
+
+    def _fresh_progress(self) -> dict:
+        return {
+            "phase": "queued",
+            "detect": self.detect,
+            "page_count": self.page_count,
+            "pages_done": 0,
+            "current": None,
+            "pages": [{"state": "pending", "kind": kind, "boxes": 0, "widgets": 0, "skipped": None, "ocr": False, "seconds": None}
+                      for kind in self.kinds],
+            "started": time.time(),
+            "ended": None,
+            "error": None,
+        }  # fmt: skip
+
+    def progress(self) -> dict:
+        """How the form-map build is going (see the module docstring); a copy, safe to send."""
+        with self._progress_lock:
+            out = dict(self._progress)
+            out["pages"] = [dict(p) for p in out["pages"]]
+            out["current"] = dict(out["current"]) if out["current"] else None
+            out["elapsed"] = round((out["ended"] or time.time()) - out["started"], 1)
+        out["boxes"] = sum(p["boxes"] for p in out["pages"])
+        return out
+
+    def _phase(self, phase: str, error: str | None = None) -> None:
+        with self._progress_lock:
+            self._progress["phase"] = phase
+            if phase in ("done", "error"):
+                self._progress["ended"] = time.time()
+                self._progress["current"] = None
+                self._progress["error"] = error
+
+    def _on_page(self, event: PageProgress) -> None:
+        """The library's word on a page (``build_form_map(on_progress=...)``), kept for ``progress()``."""
+        with self._progress_lock:
+            entry = self._progress["pages"][event.index]
+            if event.step == "done":
+                self._record_page(entry, event.page)
+                entry["seconds"] = round(time.time() - entry.pop("_since", time.time()), 2)
+                self._progress["pages_done"] = event.index + 1
+                self._progress["current"] = None
+                return
+            if entry["state"] == "pending":
+                entry["state"], entry["_since"] = "working", time.time()
+            entry["ocr"] = entry["ocr"] or event.step == "ocr"
+            self._progress["current"] = {"page": event.index, "step": event.step, "detectors": list(event.detectors)}
+
+    @staticmethod
+    def _record_page(entry: dict, page: PageMap | None) -> None:
+        entry["state"] = "done"
+        if page is None:
+            return
+        entry["kind"] = page.kind
+        entry["boxes"] = len(page.candidates)
+        entry["widgets"] = len(page.widgets)
+        entry["skipped"] = ("prose" if NOTE_PROSE in page.notes else "manual") if needs_detection(page) else None
+
+    def _finish_progress(self, form_map: FormMap) -> None:
+        """Fill in every page from the finished map (a builder that reported nothing, as in the tests, included)."""
+        with self._progress_lock:
+            for entry, page in zip(self._progress["pages"], getattr(form_map, "pages", None) or [None] * self.page_count):
+                entry.pop("_since", None)
+                self._record_page(entry, page)
+            self._progress["pages_done"] = self.page_count
 
     def start_form_map(self) -> None:
         """Start building the form map on a background thread, unless a build is running or done."""
@@ -143,15 +231,25 @@ class Doc:
             return self._map, True
 
     def _build(self, future: Future[FormMap], builder) -> None:
+        with self._progress_lock:
+            self._progress = self._fresh_progress()  # a build after a failed one starts over
         try:
+            self._phase("features")
             self._prime_features()
+            self._phase("detectors")
             detectors = self._detectors_for_build()  # may wait for the weights, holding no lock
+            self._phase("pages")
             with PYMUPDF_LOCK:
                 # the prose of a long agreement is not searched for blanks (formcast.pagemap.build)
-                result = builder(self.bytes, detectors=detectors, skip_prose=True)
+                result = builder(
+                    self.bytes, detectors=detectors, skip_prose=True, detect=self.detect == "auto", on_progress=self._on_page
+                )
+            self._finish_progress(result)
         except BaseException as exc:  # handed to whoever waits; a background thread has nobody else to tell
+            self._phase("error", str(exc) if isinstance(exc, FormcastError) else _BUILD_ERROR)
             future.set_exception(exc)
         else:
+            self._phase("done")
             future.set_result(result)
 
     def _prime_features(self) -> None:
@@ -165,9 +263,46 @@ class Doc:
         """The detectors this document's build passes to the library: ``None`` lets the library load its own."""
         if self._detectors is None:
             return None
-        if all(kind == "fillable" for kind in self.kinds):
+        if self.detect == "manual" or all(kind == "fillable" for kind in self.kinds):
             return self._detectors.detectors  # nothing to detect, so no need to wait for the weights
         return self._detectors.ready()
+
+    def detect_page(self, n: int) -> tuple[PageMap, bool]:
+        """Run detection on page ``n`` (0-based) alone, once, and keep its boxes in the form map.
+
+        Returns the page's map and whether detection ran now: False for a page already searched (by the
+        build, or an earlier call) and for a fillable page.
+
+        Raises:
+            IndexError: ``n`` is not a page of this document.
+        """
+        if not 0 <= n < self.page_count:
+            raise IndexError(n)
+        form_map = self.form_map()  # waits for the build; takes PYMUPDF_LOCK itself
+        with self._detect_lock:
+            page = form_map.pages[n]
+            if not needs_detection(page):
+                return page, False
+            with self._progress_lock:
+                self._progress["current"] = {"page": n, "step": "detect", "detectors": []}
+            detectors = self._detectors.ready() if self._detectors is not None else None
+            started = time.time()
+            try:
+                with PYMUPDF_LOCK:
+                    pdf = open_pdf(self.bytes)
+                    try:
+                        page = detect_on_page(pdf[n], page, detectors)
+                    finally:
+                        pdf.close()
+            finally:
+                with self._progress_lock:
+                    self._progress["current"] = None
+            form_map.pages[n] = page  # the jobs that read the form map from now on see these boxes
+            with self._progress_lock:
+                entry = self._progress["pages"][n]
+                self._record_page(entry, page)
+                entry["seconds"] = round(time.time() - started, 2)
+            return page, True
 
     def features(self) -> PdfFeatures:
         """What ``formcast.similarity`` reads from this PDF, kept: each part is computed on first use and then reused.
@@ -240,9 +375,10 @@ class Documents:
         self._docs: OrderedDict[str, Doc] = OrderedDict()
         self._lock = threading.Lock()
 
-    def add(self, pdf_bytes: bytes, name: str) -> Doc:
-        """Open ``pdf_bytes``, keep it and start building its form map. Raises ``FormcastError`` for a PDF that cannot be used."""
-        doc = Doc(name, pdf_bytes, detectors=self.detectors)  # validated outside the lock: opening can take a moment
+    def add(self, pdf_bytes: bytes, name: str, *, detect: str = "auto") -> Doc:
+        """Open ``pdf_bytes``, keep it and start building its form map. Raises ``FormcastError`` for a PDF that
+        cannot be used. ``detect="manual"`` runs no detection in the build (see ``Doc.detect_page``)."""
+        doc = Doc(name, pdf_bytes, detectors=self.detectors, detect=detect)  # validated outside the lock: opening can take a moment
         with self._lock:
             self._docs[doc.id] = doc
             while len(self._docs) > self.limit:

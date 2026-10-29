@@ -31,6 +31,13 @@
 // `open({template: name})` opens the PDF a saved template keeps; `templates.put(name, template, {doc,
 // mapping})` saves that PDF and the data mapping with it; `templates.schemaUrl(name)` is its schema file.
 //
+// Reading the form. The server reads a PDF (its form map) on its own as soon as it is opened. `readProgress(doc)`
+// says how that is going without waiting (phase, the page and step under way, each page's state and boxes), so
+// the page can show it and ask for the seed only once it is done; `waitForReading(doc, onUpdate)` polls it until
+// then. `open(pdf, {detect: "manual"})` reads it with no detection, and `detectPage(doc, n)` then searches page n
+// alone (or one skipped as prose) and resolves the new fields for its boxes. Both exist only when the server
+// says so (its `progress` and `detectPage` capabilities).
+//
 // Jobs (`build`, `revise`, `oneshot`) return a JobHandle {id, kind, poll(), cancel(), done, onUpdate}. `done`
 // polls `GET /api/jobs/{id}` (first at once, then every `pollMs`, 1000 by default) and resolves with
 // the job when its status is done, cancelled or error. It rejects only if the server cannot be
@@ -170,7 +177,10 @@ export async function createServerEngine({
       imageUrl: (dpi) => imageUrl(index, dpi),
       render: async (_canvas, scale) => imageUrl(index, Math.min(MAX_DPI, Math.max(MIN_DPI, scale * 72))),
     }));
-    return { id, name: summary.name, pageCount: summary.page_count, kinds: summary.kinds ?? [], pages, destroy: async () => {} };
+    return {
+      id, name: summary.name, pageCount: summary.page_count, kinds: summary.kinds ?? [], pages,
+      detect: summary.detect ?? "auto", destroy: async () => {},
+    };  // prettier-ignore
   }
 
   /** Start a job; returns its handle. */
@@ -232,18 +242,60 @@ export async function createServerEngine({
     /**
      * Open a PDF on the server: a demo form by name (see `forms`), or the bytes of one.
      * @param {string | Blob | Uint8Array | ArrayBuffer} source
-     * @param {{name?: string}} [opts] the file name shown for uploaded bytes
+     * @param {{name?: string, detect?: "auto" | "manual"}} [opts] `name`: the file name shown for uploaded
+     *   bytes; `detect: "manual"` reads the PDF with no detection (see `detectPage`)
      */
-    async open(source, { name } = {}) {
-      if (typeof source === "string") return makeDoc(await call("POST", "/api/documents", { json: { form: source } }));
+    async open(source, { name, detect = "auto" } = {}) {
+      const url = detect === "manual" ? "/api/documents?detect=manual" : "/api/documents";
+      if (typeof source === "string") return makeDoc(await call("POST", url, { json: { form: source } }));
       if (isObject(source) && typeof source.template === "string") {
-        return makeDoc(await call("POST", "/api/documents", { json: { template: source.template }, timeout: uploadTimeoutMs }));
+        return makeDoc(await call("POST", url, { json: { template: source.template }, timeout: uploadTimeoutMs }));
       }
       const blob = source instanceof Blob ? source : new Blob([source], { type: "application/pdf" });
       const form = new FormData();
       form.append("file", blob, name ?? source.name ?? "document.pdf");
-      return makeDoc(await call("POST", "/api/documents", { form, timeout: uploadTimeoutMs }));
+      return makeDoc(await call("POST", url, { form, timeout: uploadTimeoutMs }));
     },
+
+    /**
+     * How the server's reading of `doc` is going, without waiting: `{phase, detect, page_count, pages_done,
+     * current: {page, step, detectors} | null, pages: [{state, kind, boxes, widgets, skipped, ocr, seconds}],
+     * boxes, elapsed, error}`. `phase` ends "done" or "error".
+     */
+    readProgress: flag("progress") ? (doc) => call("GET", `/api/documents/${doc.id}/progress`) : undefined,
+
+    /**
+     * Poll `readProgress` until the reading is done; `onUpdate(progress)` after every poll. Resolves the last
+     * progress; rejects with the server's message when the reading failed.
+     */
+    waitForReading: flag("progress")
+      ? async (doc, onUpdate = () => {}, { everyMs = 600 } = {}) => {
+          let failures = 0;
+          for (;;) {
+            let progress;
+            try {
+              progress = await call("GET", `/api/documents/${doc.id}/progress`);
+              failures = 0;
+            } catch (e) {
+              if (++failures >= POLL_FAILURES) throw e;
+            }
+            if (progress !== undefined) {
+              onUpdate(progress);
+              if (progress.phase === "done") return progress;
+              if (progress.phase === "error") throw new EngineError("bad_pdf", progress.error ?? MESSAGES.server);
+            }
+            await new Promise((resolve) => setTimeout(resolve, everyMs));
+          }
+        }
+      : undefined,
+
+    /**
+     * Search page `index` of `doc` for blanks: `{page, detected, fields, boxes}`, `fields` the new unmapped
+     * fields for the boxes found (empty when the page was searched already, or is fillable).
+     */
+    detectPage: flag("detectPage")
+      ? (doc, index) => call("POST", `/api/documents/${doc.id}/pages/${index}/detect`, { json: {}, timeout: formMapTimeoutMs })
+      : undefined,
 
     /** The demo forms the server has: `[{name, size, schema}]`. */
     async forms() {

@@ -15,9 +15,16 @@
 //     step, back to the seed.
 // With AI off, or linking by hand, a PDF opens on the seed with the schema picked, and data waits in the
 // fill drawer.
+//
+// Reading the form. While the server reads a PDF (its form map: text, widgets, OCR, detected boxes) the
+// start screen shows what it is doing, page by page (reading.js), and asks for the seed once it is done.
+// "I'll pick the form pages myself" reads it with no detection at all, which is quick even for a long
+// agreement; the PDF opens on its own widgets, and the person finds the blanks one page at a time as they
+// turn the pages (pages.js). With AI on, Build with AI then works from those pages.
 
 import { checkTemplateFits } from "../core/store.js";
 import { describeData, sendData } from "./data.js";
+import { hideReading, showReading } from "./reading.js";
 
 const PASTE = "__paste__";
 const DERIVE = "__derive__";
@@ -37,6 +44,8 @@ export function mountStart(app) {
   const fileInput = $("file");
   const dataInput = $("data-file");
   const ai = engine.capabilities.ai && typeof engine.oneshot === "function";
+  const canPick = typeof engine.detectPage === "function"; // the person may pick the pages to search
+  const reading = $("start-reading");
   let forms = [];
   let saved = []; // stored templates that keep their PDF
   let pick = null; // what the match prompt is about: {doc, schema, schemaName, fits, dataset, check}
@@ -44,6 +53,7 @@ export function mountStart(app) {
   function showStart(text = "") {
     match.hidden = true;
     start.hidden = false;
+    hideReading(reading);
     load(); // a template saved since the page opened is offered too
     $("start-close").hidden = app.template === null;
     say(msg, text);
@@ -109,6 +119,8 @@ export function mountStart(app) {
 
   /** The AI links the boxes (one-shot job), rather than opening them unlinked. */
   const mapping = () => ai && $("ai-mode").value !== "off";
+  /** The person picks the pages to search for blanks: the PDF is read with no detection. */
+  const manual = () => canPick && $("manual-pages").checked && savedPick() === null;
 
   /** Show what fits the choices: the schema part only for a PDF, and the button's word for what happens. */
   function sync() {
@@ -116,12 +128,13 @@ export function mountStart(app) {
     $("schema-text").hidden = value !== PASTE;
     const fromSaved = savedPick() !== null;
     $("schema-group").hidden = fromSaved;
+    $("manual-row").hidden = fromSaved || !canPick; // a saved template keeps its boxes
     $("ai-mode").hidden = !ai;
     const how = !ai ? "" : { check: "", fast: " · one pass", off: " · link by hand" }[$("ai-mode").value];
     const what = { [DERIVE]: "the AI designs it from the form", [NONE]: "none yet", [PASTE]: "pasted" }[value];
     $("schema-sum").textContent = (what ?? (value ? `stored · ${value}` : "")) + how;
     if (fromSaved) $("open").textContent = hasData() ? "Open and fill" : "Open";
-    else $("open").textContent = mapping() ? "Map with AI" : "Open";
+    else $("open").textContent = mapping() && !manual() ? "Map with AI" : "Open";
   }
 
   $("form-pick").addEventListener("change", () => {
@@ -142,6 +155,7 @@ export function mountStart(app) {
     sync();
   });
   $("ai-mode").addEventListener("change", sync);
+  $("manual-pages").addEventListener("change", sync);
   dataInput.addEventListener("change", () => {
     const file = dataInput.files?.[0];
     $("data-label").textContent = file ? file.name : "Choose a CSV, Excel or JSON file";
@@ -208,28 +222,45 @@ export function mountStart(app) {
       return;
     }
     let doc;
+    const detect = manual() ? "manual" : "auto";
     try {
-      doc = file ? await engine.open(file, { name: file.name }) : await engine.open(value.slice(5));
+      doc = file ? await engine.open(file, { name: file.name, detect }) : await engine.open(value.slice(5), { detect });
+      await readForm(doc);
     } catch (e) {
       showStart(e.message);
       return;
     }
     let fits = [];
     if (engine.capabilities.matches) {
-      say(msg, `Reading the form and comparing it with the stored templates (${FIRST_TIME})…`);
+      say(msg, doc.reading ? "Comparing it with the stored templates…" : `Reading the form and comparing it with the stored templates (${FIRST_TIME})…`);
       try {
         fits = (await engine.matches(doc)).filter((m) => m.action === "reuse" || m.action === "adapt");
       } catch {
         fits = []; // matching is a convenience: without it the form still opens
       }
     }
-    pick = { doc, ...chosen, fits, dataset, check: $("ai-mode").value === "check", ai: mapping() };
+    // picking the pages by hand, the AI waits for Build with AI: there are no boxes for it yet
+    pick = { doc, ...chosen, fits, dataset, check: $("ai-mode").value === "check", ai: mapping() && detect === "auto" };
     if (fits.length === 0) {
       await buildNew(pick);
       return;
     }
     showMatch(fits[0]);
   });
+
+  /**
+   * Wait for the server to read `doc`, showing what it does page by page; keeps the last report on the
+   * document (`doc.reading`) for the page bar. Without progress from the engine, the seed's own wait stands in.
+   */
+  async function readForm(doc) {
+    if (typeof engine.waitForReading !== "function") return;
+    say(msg, "");
+    try {
+      doc.reading = await engine.waitForReading(doc, (progress) => showReading(reading, progress));
+    } finally {
+      hideReading(reading);
+    }
+  }
 
   /** Open a saved template on its own PDF; with data, map just the data. */
   async function openSaved(name, dataset) {
@@ -349,8 +380,9 @@ export function mountStart(app) {
    * job. Resolves false (with a message) when the seed fails.
    */
   async function buildNew({ doc, schema, schemaName, dataset = null, check = true, ai: runAi = ai }) {
-    if (match.hidden) say(msg, READING);
-    else $("match-hint").textContent = READING; // asked from the match prompt, which stays up while it waits
+    const waitText = doc.reading ? "Opening…" : READING; // read already, or the seed waits for the reading
+    if (match.hidden) say(msg, waitText);
+    else $("match-hint").textContent = waitText; // asked from the match prompt, which stays up while it waits
     let template;
     try {
       template = await engine.seed(doc, schemaName ?? schema ?? EMPTY_SCHEMA);
@@ -366,7 +398,13 @@ export function mountStart(app) {
     }
     if (dataset !== null) app.pendingData = dataset;
     const waiting = dataset !== null ? ` Your data (${describeData(dataset)}) waits in Fill.` : "";
-    if (schema == null && !schemaName) {
+    if (doc.detect === "manual") {
+      app.notice(
+        `Turn to each page with a form and press Find the blanks on this page. ${
+          ai ? "Then Build with AI designs the schema from those pages and links their boxes." : "Then link the boxes by hand."
+        }${waiting}`,
+      );
+    } else if (schema == null && !schemaName) {
       app.notice(
         ai
           ? `The form's boxes are detected but not named yet. Build with AI designs the schema and links them.${waiting}`

@@ -29,6 +29,7 @@ import { createSession } from "../core/session.js";
 import { createServerEngine } from "../engines/server/client.js";
 import { mountFill } from "./fill.js";
 import { mountJobs } from "./jobs.js";
+import { mountPages } from "./pages.js";
 import { mountSave } from "./save.js";
 import { mountStart } from "./start.js";
 
@@ -299,6 +300,7 @@ function renderPanels() {
   $("prev-page").disabled = !open || state.page === 0;
   $("next-page").disabled = !open || state.page >= doc.pageCount - 1;
   $("page-no").textContent = open ? `Page ${state.page + 1} / ${doc.pageCount}` : "No form open";
+  app.pages?.render(); // finding the blanks on this page (pages.js)
   for (const id of ["add-box", "save", "fill-open", "build-ai"]) $(id).disabled = !open;
   $("undo").disabled = !session.canUndo;
   $("redo").disabled = !session.canRedo;
@@ -470,5 +472,6 @@ app.jobs = mountJobs(app);
 mountFill(app);
 mountSave(app);
 mountStart(app);
+app.pages = mountPages(app);
 syncModal();
 render();

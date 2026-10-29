@@ -7,7 +7,7 @@ export const CAPABILITIES = Object.freeze(["detectLive", "ai", "matches", "store
 /** Methods every engine has. */
 export const REQUIRED_METHODS = Object.freeze(["open", "seed", "apply", "fill", "smartPdf"]);
 /** Methods an engine may have; the UI offers them only when present. */
-export const OPTIONAL_METHODS = Object.freeze(["detect", "build", "revise", "matches", "oneshot"]);
+export const OPTIONAL_METHODS = Object.freeze(["detect", "build", "revise", "matches", "oneshot", "readProgress", "waitForReading", "detectPage"]);
 
 /**
  * Check that `engine` has the interface's methods and a `capabilities` object holding a boolean

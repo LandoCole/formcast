@@ -89,6 +89,29 @@ textarea:focus-visible, .text:focus-visible { outline: 2px solid var(--ink); out
 .row { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
 .group { margin-bottom: 20px; min-width: 0; }
 .lede { font-size: 17px; line-height: 25px; color: var(--graphite); }
+.check { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 0 10px; align-items: baseline; margin: 12px 0 0; font-size: 16px; line-height: 22px; cursor: pointer; }
+.check input { margin: 0; accent-color: var(--ink); transform: translateY(2px); }
+.check .opt { display: block; color: var(--graphite); }
+
+/* reading a PDF: what the server is doing, a cell per page */
+.reading { margin: 0 0 16px; font-family: var(--mono); font-size: 11px; line-height: 18px; }
+.reading-now { margin: 0 0 6px; color: var(--ink); font-size: 12px; }
+.reading-bar { height: 2px; background: var(--rule); margin: 0 0 8px; }
+.reading-bar span { display: block; height: 100%; width: 0; background: var(--ink); transition: width .3s ease; }
+.reading-strip { display: flex; flex-wrap: wrap; gap: 3px; margin: 0 0 8px; padding: 0; list-style: none; }
+.reading-strip li { width: 9px; height: 12px; box-sizing: border-box; outline: 1px solid var(--rule); outline-offset: -1px; }
+.reading-strip li[data-state="working"] { outline-color: var(--ink); animation: reading-pulse 1s ease-in-out infinite alternate; }
+.reading-strip li[data-state="boxes"] { background: var(--ink); outline-color: var(--ink); }
+.reading-strip li[data-state="empty"] { outline-color: var(--graphite); }
+.reading-strip li[data-state="fillable"] { outline-color: var(--ink); box-shadow: inset 0 0 0 2.5px var(--paper), inset 0 0 0 12px var(--ink); }
+.reading-strip li[data-state="prose"] { background: repeating-linear-gradient(135deg, var(--graphite) 0 1px, transparent 1px 3px); outline-color: var(--rule); }
+.reading-strip li[data-state="manual"] { outline-style: dashed; outline-color: var(--graphite); }
+@keyframes reading-pulse { from { background: transparent; } to { background: var(--graphite); } }
+@media (prefers-reduced-motion: reduce) { .reading-strip li[data-state="working"] { animation: none; background: var(--graphite); } }
+.reading-sum { margin: 0; color: var(--graphite); }
+.page-state { white-space: nowrap; }
+.pagebar, .pager { flex-wrap: wrap; }
+
 .opt { text-transform: none; letter-spacing: .04em; font-style: italic; font-family: var(--serif); font-size: 13px; }
 .file.below, select.below { margin-top: 8px; }
 details.more > summary { cursor: pointer; list-style: none; }

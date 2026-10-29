@@ -21,6 +21,13 @@ stray box, so a digital page that :func:`looks_like_prose` skips detection (and 
 A page is prose when most of its lines run across the page and it has almost no labels ending in a
 colon and few rules. On the eval corpus no page with fields reads as prose. Off by default.
 
+Detection off (``detect=False``): no page is run through detection, for a person who picks the form pages
+themselves. Each page that would have been says so in its notes; :func:`detect_on_page` runs detection on
+one page later (it also takes a page skipped as prose).
+
+Progress (``on_progress``): called as each page starts a step (``text``, ``ocr``, ``detect``) and when the
+page is done, with a :class:`PageProgress`. Raising from it stops the build.
+
 After text is settled, lines are split where two words are more than
 ``LINE_SPLIT_GAP`` em apart, so "Name ____ DOB ____ Phone #" drawn as one text
 line becomes three label lines.
@@ -28,6 +35,8 @@ line becomes three label lines.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
@@ -40,7 +49,16 @@ from formcast.pagemap.model import FormMap, PageMap, TextLine, Word
 from formcast.pagemap.ocr import ocr_available, ocr_page
 from formcast.pagemap.query import find_label
 
-__all__ = ["DetectPolicy", "build_form_map", "link_labels", "looks_like_prose", "split_wide_lines"]
+__all__ = [
+    "DetectPolicy",
+    "PageProgress",
+    "build_form_map",
+    "detect_on_page",
+    "link_labels",
+    "looks_like_prose",
+    "needs_detection",
+    "split_wide_lines",
+]
 
 OcrMode = Literal["auto", "never", "always"]
 
@@ -55,6 +73,18 @@ NOTE_OCR_OFF = (
     "needs OCR (little extractable text) but OCR is off; "
     "text below is the PDF text layer and may be incomplete"
 )
+NOTE_NOT_DETECTED = "detection not run: the pages to search for blanks are picked one at a time"
+
+
+@dataclass(frozen=True)
+class PageProgress:
+    """What ``build_form_map`` tells ``on_progress``: page ``index`` (of ``total``) starts ``step``, or is ``done``."""
+
+    index: int
+    total: int
+    step: Literal["text", "ocr", "detect", "done"]
+    detectors: tuple[str, ...] = ()  # step "detect": the detectors that run
+    page: PageMap | None = None  # step "done": the finished page
 
 
 def build_form_map(
@@ -64,12 +94,15 @@ def build_form_map(
     policy: DetectPolicy = DetectPolicy(),
     ocr: OcrMode = "auto",
     skip_prose: bool = False,
+    detect: bool = True,
+    on_progress: Callable[[PageProgress], None] | None = None,
 ) -> FormMap:
     """Page map of every page of ``pdf`` (a path or the PDF's bytes).
 
     ``detectors`` maps names (as used by ``policy``) to detectors; ``None``
     loads the stock CommonForms models when a page needs detection.
-    ``skip_prose`` runs no detection on digital pages that read as running text
+    ``skip_prose`` runs no detection on digital pages that read as running text,
+    ``detect=False`` none on any page, and ``on_progress`` hears of each page's steps
     (see the module docstring).
 
     Raises:
@@ -82,7 +115,13 @@ def build_form_map(
         raise ValueError(f"ocr must be 'auto', 'never' or 'always', not {ocr!r}")
     doc = open_pdf(pdf)
     try:
-        pages = [_build_page(page, detectors, policy, ocr, skip_prose) for page in doc]
+        total = doc.page_count
+
+        def report(index: int, step: str, **more) -> None:
+            if on_progress is not None:
+                on_progress(PageProgress(index, total, step, **more))  # type: ignore[arg-type]
+
+        pages = [_build_page(page, detectors, policy, ocr, skip_prose, detect, report) for page in doc]
         fp = fingerprint_document(doc)
         signature = compute_signature(doc)
     finally:
@@ -97,7 +136,10 @@ def _build_page(
     policy: DetectPolicy,
     ocr: OcrMode,
     skip_prose: bool = False,
+    detect: bool = True,
+    report: Callable[..., None] = lambda index, step, **more: None,
 ) -> PageMap:
+    report(page.number, "text")
     pm = extract_page(page)
     if pm.widgets:
         kind = "fillable"
@@ -109,6 +151,7 @@ def _build_page(
 
     words, lines, text_source, notes = pm.words, pm.lines, "pdf", []
     if ocr == "always" or (ocr == "auto" and wants_ocr and ocr_available()):
+        report(page.number, "ocr")
         words, lines = ocr_page(page)
         text_source = "ocr"
     elif wants_ocr:
@@ -116,11 +159,16 @@ def _build_page(
     words, lines = split_wide_lines(words, lines)
 
     candidates = []
-    if kind == "digital" and skip_prose and looks_like_prose(pm):
+    if kind == "fillable":
+        pass
+    elif not detect:
+        notes.append(NOTE_NOT_DETECTED)
+    elif kind == "digital" and skip_prose and looks_like_prose(pm):
         notes.append(NOTE_PROSE)
-    elif kind != "fillable":
+    else:
         if detectors is None:
             detectors = load_default_detectors()
+        report(page.number, "detect", detectors=policy.scanned if kind == "scanned" else policy.digital)
         candidates = detect_page(page, kind, detectors, policy)
 
     pm = pm.model_copy(
@@ -133,6 +181,33 @@ def _build_page(
             "notes": notes,
         }
     )
+    link_labels(pm)
+    report(page.number, "done", page=pm)
+    return pm
+
+
+def needs_detection(page: PageMap) -> bool:
+    """Whether ``page`` was not searched for blanks (detection off, or skipped as prose); fillable pages never are."""
+    return page.kind != "fillable" and any(n in (NOTE_PROSE, NOTE_NOT_DETECTED) for n in page.notes)
+
+
+def detect_on_page(
+    page: pymupdf.Page,
+    page_map: PageMap,
+    detectors: dict[str, Detector] | None = None,
+    policy: DetectPolicy = DetectPolicy(),
+) -> PageMap:
+    """``page_map`` (of ``page``) with detection run: its candidates found afresh and their labels linked, and
+    the note that detection was skipped dropped. A fillable page comes back unchanged. ``detectors`` as for
+    :func:`build_form_map`.
+    """
+    if page_map.kind == "fillable":
+        return page_map
+    if detectors is None:
+        detectors = load_default_detectors()
+    candidates = detect_page(page, page_map.kind, detectors, policy)
+    notes = [n for n in page_map.notes if n not in (NOTE_PROSE, NOTE_NOT_DETECTED)]
+    pm = page_map.model_copy(update={"candidates": candidates, "notes": notes})
     link_labels(pm)
     return pm
 

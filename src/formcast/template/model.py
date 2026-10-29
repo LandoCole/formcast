@@ -13,7 +13,7 @@ import pydantic
 from pydantic import BaseModel, ConfigDict
 
 from formcast.geometry import Rect
-from formcast.pagemap.model import FormMap, FormSignature
+from formcast.pagemap.model import FormMap, FormSignature, PageMap
 from formcast.transforms import Transform
 
 
@@ -240,20 +240,26 @@ def new_template(schema: dict, form_map: FormMap, *, candidates: bool = False) -
                     origin="widget",
                 )
             )
-        if not candidates:
-            continue
-        lines = {ln.id: ln.text for ln in page.lines}
-        for c in page.candidates:
-            label = lines.get(c.label_line_id, "") if c.label_line_id is not None else ""
-            fields.append(
-                Field(
-                    id=c.id,
-                    type=_CANDIDATE_FIELD_TYPE[c.kind],
-                    label=" ".join(label.split())[:MAX_SEED_LABEL],
-                    page=page.index,
-                    rect=c.rect,
-                    confidence=c.conf,
-                    origin="detector",
-                )
-            )
+        if candidates:
+            fields.extend(candidate_fields(page))
     return Template(template_id=uuid.uuid4().hex, schema=schema, form=form_info_for(form_map), fields=fields)
+
+
+def candidate_fields(page: PageMap) -> list[Field]:
+    """An unmapped field per detector candidate of ``page``, as ``new_template(..., candidates=True)`` makes them."""
+    lines = {ln.id: ln.text for ln in page.lines}
+    fields = []
+    for c in page.candidates:
+        label = lines.get(c.label_line_id, "") if c.label_line_id is not None else ""
+        fields.append(
+            Field(
+                id=c.id,
+                type=_CANDIDATE_FIELD_TYPE[c.kind],
+                label=" ".join(label.split())[:MAX_SEED_LABEL],
+                page=page.index,
+                rect=c.rect,
+                confidence=c.conf,
+                origin="detector",
+            )
+        )
+    return fields

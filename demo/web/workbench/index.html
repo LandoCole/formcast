@@ -54,6 +54,8 @@
         <button type="button" class="ib" id="prev-page" aria-label="Previous page" disabled>‹</button>
         <span id="page-no">No form open</span>
         <button type="button" class="ib" id="next-page" aria-label="Next page" disabled>›</button>
+        <button type="button" class="btn small quiet" id="detect-page" hidden>Find the blanks on this page</button>
+        <span class="page-state" id="page-state"></span>
       </div>
       <div class="zoom">
         <button type="button" class="ib" id="zoom-out" aria-label="Zoom out">−</button>
@@ -97,6 +99,7 @@
       <p class="label"><label for="form-pick" id="form-pick-label">1 · The form</label></p>
       <select id="form-pick"><option value="">Loading…</option></select>
       <label class="btn quiet file below"><span id="file-label">Or choose a PDF</span><input type="file" id="file" accept=".pdf,application/pdf"></label>
+      <label class="check" id="manual-row"><input type="checkbox" id="manual-pages"><span>I'll pick the form pages myself <span class="opt">No automatic detection. For a long agreement: it opens at once, and you find the blanks page by page as you go.</span></span></label>
     </div>
     <div class="group">
       <p class="label">2 · Your data <span class="opt">optional</span></p>
@@ -114,6 +117,7 @@
       </select>
     </details>
     <p class="msg" id="start-msg" role="alert" hidden></p>
+    <div class="reading" id="start-reading" aria-live="polite" hidden></div>
     <div class="row">
       <button type="button" class="btn quiet" id="start-close" hidden>Back</button>
       <button type="button" class="btn dark" id="open">Open</button>

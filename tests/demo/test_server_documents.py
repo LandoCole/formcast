@@ -130,7 +130,7 @@ def test_capabilities_say_ai_is_off_without_a_model_and_on_with_a_provider_facto
     assert status == 200
     assert caps == {
         "ai": False, "matches": True, "store": True, "records": True, "scanned": True, "detectLive": False,
-        "oneshot": True, "xlsx": caps["xlsx"],
+        "oneshot": True, "xlsx": caps["xlsx"], "progress": True, "detectPage": True,
     }  # fmt: skip
     with_ai = start_demo_server(provider_factory=FakeProvider)
     assert get_json(with_ai, "/api/capabilities")[1]["ai"] is True
@@ -1178,3 +1178,158 @@ def test_python_dash_m_demo_server_runs_without_formcast_installed():
     )  # fmt: skip
     assert result.returncode == 0, result.stderr
     assert "usage: python -m demo.server" in result.stdout
+
+
+# ------------------------------------------------------------------ reading progress and detection by hand
+
+
+class BoxDetector:
+    """A fake FFDNet-L: one text box near the top left of every page it is shown, counting its calls."""
+
+    name = "FFDNet-L"
+
+    def __init__(self):
+        self.calls = 0
+
+    def detect(self, image):
+        self.calls += 1
+        return [("text", (0.1, 0.1, 0.6, 0.15), 0.9)]
+
+
+@pytest.fixture
+def boxes(monkeypatch):
+    """Builds and page detections find one box per searched page (``BoxDetector``), with no OCR."""
+    from formcast.pagemap import build as build_mod
+
+    detector = BoxDetector()
+    real = build_mod.build_form_map
+    monkeypatch.setattr(
+        documents_mod, "build_form_map",
+        lambda pdf, detectors=None, **kw: real(pdf, detectors={"FFDNet-L": detector}, ocr="never", **kw),
+    )  # fmt: skip
+    monkeypatch.setattr(build_mod, "load_default_detectors", lambda: {"FFDNet-L": detector})
+    return detector
+
+
+def prose_and_form_pdf() -> bytes:
+    """Page 1 a page of running text, page 2 a short form."""
+    doc = pymupdf.open()
+    sentence = "The Subscriber acknowledges that the Interests have not been registered and agrees to hold them. "
+    doc.new_page(width=612, height=792).insert_textbox(pymupdf.Rect(72, 72, 540, 720), sentence * 40, fontsize=10)
+    form = doc.new_page(width=612, height=792)
+    form.insert_text((72, 100), "Name:", fontsize=11)
+    out = doc.tobytes()
+    doc.close()
+    return out
+
+
+def test_progress_reports_each_page_as_it_is_read(boxes):
+    doc = Documents().add(prose_and_form_pdf(), "agreement.pdf")
+    doc.form_map()
+    progress = doc.progress()
+    assert progress["phase"] == "done" and progress["detect"] == "auto"
+    assert progress["page_count"] == progress["pages_done"] == 2 and progress["current"] is None
+    prose, form = progress["pages"]
+    assert prose["skipped"] == "prose" and prose["boxes"] == 0 and prose["state"] == "done"
+    assert form == {**form, "skipped": None, "boxes": 1, "kind": "digital", "state": "done"}
+    assert isinstance(form["seconds"], float) and progress["boxes"] == 1 and progress["error"] is None
+    assert boxes.calls == 1
+
+
+def test_progress_shows_the_page_under_way_while_the_build_runs(monkeypatch):
+    seen = []
+
+    def builder(pdf, detectors=None, on_progress=None, **kw):
+        from formcast.pagemap.build import PageProgress
+
+        on_progress(PageProgress(0, 3, "text"))
+        on_progress(PageProgress(0, 3, "detect", detectors=("FFDNet-L",)))
+        seen.append(doc.progress())
+        raise FormcastError("cannot open PDF")
+
+    monkeypatch.setattr(documents_mod, "build_form_map", builder)
+    doc = Documents().add(small_pdf(pages=3), "x.pdf")
+    with pytest.raises(FormcastError):
+        doc.form_map()
+    (during,) = seen
+    assert during["phase"] == "pages" and during["current"] == {"page": 0, "step": "detect", "detectors": ["FFDNet-L"]}
+    assert [p["state"] for p in during["pages"]] == ["working", "pending", "pending"]
+    after = doc.progress()
+    assert after["phase"] == "error" and after["error"] == "cannot open PDF" and after["current"] is None
+
+
+def test_an_unexpected_build_error_is_not_shown_as_is(monkeypatch):
+    def builder(pdf, **kw):
+        raise RuntimeError("/private/path/to/weights is missing")
+
+    monkeypatch.setattr(documents_mod, "build_form_map", builder)
+    doc = Documents().add(small_pdf(), "x.pdf")
+    with pytest.raises(RuntimeError):
+        doc.form_map()
+    assert doc.progress()["error"] == documents_mod._BUILD_ERROR
+
+
+def test_manual_documents_are_read_without_detection_then_searched_a_page_at_a_time(boxes):
+    doc = Documents().add(prose_and_form_pdf(), "agreement.pdf", detect="manual")
+    assert doc.summary()["detect"] == "manual"
+    fm = doc.form_map()
+    assert boxes.calls == 0 and all(p.candidates == [] for p in fm.pages)
+    assert [p["skipped"] for p in doc.progress()["pages"]] == ["manual", "manual"]
+    page, ran = doc.detect_page(1)
+    assert ran and [c.id for c in page.candidates] == ["c1_0"] and boxes.calls == 1
+    assert doc.form_map().pages[1] is page  # kept: the jobs that read the form map see it
+    assert doc.progress()["pages"][1] == {**doc.progress()["pages"][1], "skipped": None, "boxes": 1}
+    again, ran = doc.detect_page(1)
+    assert not ran and again is page and boxes.calls == 1  # searched once
+    with pytest.raises(IndexError):
+        doc.detect_page(2)
+
+
+def test_a_page_skipped_as_prose_can_be_searched_on_request(boxes):
+    doc = Documents().add(prose_and_form_pdf(), "agreement.pdf")
+    page, ran = doc.detect_page(0)
+    assert ran and len(page.candidates) == 1 and doc.progress()["pages"][0]["skipped"] is None
+    assert doc.detect_page(1)[1] is False  # searched by the build already
+
+
+def test_a_manual_document_does_not_wait_for_the_detector_warmup(monkeypatch):
+    detector = GatedDetector("A")
+    warmup = DetectorWarmup(load=lambda: {"A": detector})
+    builder = GatedBuilder()
+    builder.gate.set()
+    monkeypatch.setattr(documents_mod, "build_form_map", builder)
+    warmup.start()
+    assert detector.started.wait(timeout=5)
+    try:
+        doc = Documents(detectors=warmup).add(small_pdf(pages=2), "x.pdf", detect="manual")
+        assert doc.form_map() == "map"  # built while the warm-up is still loading
+    finally:
+        detector.gate.set()
+
+
+def test_routes_open_a_pdf_for_detection_by_hand_report_progress_and_search_a_page(demo_server, boxes):
+    body, headers = multipart("agreement.pdf", prose_and_form_pdf())
+    status, _, out = http_request(demo_server, "POST", "/api/documents?detect=manual", body, headers)
+    assert status == 200
+    doc = json.loads(out)
+    assert doc["detect"] == "manual"
+    deadline = time.time() + 10
+    while (progress := get_json(demo_server, f"/api/documents/{doc['id']}/progress")[1])["phase"] != "done":
+        assert time.time() < deadline
+        time.sleep(0.05)
+    assert progress["pages_done"] == 2 and progress["boxes"] == 0
+    status, found = get_json(demo_server, f"/api/documents/{doc['id']}/pages/1/detect", "POST", {})
+    assert status == 200 and found["detected"] is True and found["boxes"] == 1
+    (field,) = found["fields"]
+    assert field["id"] == "c1_0" and field["page"] == 1 and field["origin"] == "detector" and field["label"] == "Name:"
+    assert get_json(demo_server, f"/api/documents/{doc['id']}/pages/1/detect", "POST", {})[1]["fields"] == []
+    assert get_json(demo_server, f"/api/documents/{doc['id']}/pages/9/detect", "POST", {})[0] == 404
+    seeded = get_json(demo_server, "/api/seed", "POST", {"doc": doc["id"], "schema": {"type": "object", "properties": {}}})[1]
+    assert [f["id"] for f in seeded["template"]["fields"]] == ["c1_0"]  # the seed sees the page searched
+
+
+def test_an_unknown_detect_mode_is_a_400(demo_server):
+    body, headers = multipart("x.pdf", small_pdf())
+    status, _, out = http_request(demo_server, "POST", "/api/documents?detect=sometimes", body, headers)
+    assert status == 400 and json.loads(out)["error"] == "bad_detect"
+    assert get_json(demo_server, f"/api/documents/{'0' * 32}/progress")[0] == 404

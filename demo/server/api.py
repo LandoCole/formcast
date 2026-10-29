@@ -49,7 +49,7 @@ from urllib.parse import unquote
 import pydantic
 
 from demo.server.datasets import Dataset, Datasets
-from demo.server.documents import MAX_DPI, MIN_DPI, PYMUPDF_LOCK, Doc, Documents
+from demo.server.documents import DETECT_MODES, MAX_DPI, MIN_DPI, PYMUPDF_LOCK, Doc, Documents
 from demo.server.jobs import KINDS, Jobs, JobsBusy
 from demo.server.oneshot import OneShotSpec, map_dataset
 from demo.server.records import MultiRecords, RecordSource, RecordSourceError
@@ -62,7 +62,7 @@ from formcast import (
 )
 from formcast.data import DataMapping
 from formcast.llm import Provider
-from formcast.template.model import new_template
+from formcast.template.model import candidate_fields, new_template
 
 log = logging.getLogger("demo.server")
 
@@ -220,6 +220,8 @@ class Api:
         self._add("POST", r"/api/documents", self.create_document)
         self._add("GET", r"/api/documents/(?P<doc>[0-9a-f]{32})/pages/(?P<n>\d{1,6})\.png", self.page_image)
         self._add("GET", r"/api/documents/(?P<doc>[0-9a-f]{32})/matches", self.matches)
+        self._add("GET", r"/api/documents/(?P<doc>[0-9a-f]{32})/progress", self.document_progress)
+        self._add("POST", r"/api/documents/(?P<doc>[0-9a-f]{32})/pages/(?P<n>\d{1,6})/detect", self.detect_page)
         self._add("POST", r"/api/seed", self.seed)
         self._add("POST", r"/api/apply", self.apply_op)
         self._add("POST", r"/api/rebind", self.rebind_template)
@@ -254,6 +256,8 @@ class Api:
             "detectLive": False,
             "oneshot": True,
             "xlsx": _has_openpyxl(),
+            "progress": True,
+            "detectPage": True,
         }
 
     def _forms_dir(self):
@@ -285,7 +289,11 @@ class Api:
 
     def create_document(self, req: Request) -> dict:
         """Open an uploaded PDF (multipart ``file``), a demo form (JSON ``{"form": name}``) or the PDF a saved
-        template keeps (JSON ``{"template": name}``)."""
+        template keeps (JSON ``{"template": name}``). ``?detect=manual`` reads it with no detection: the person
+        picks the pages to search (``POST .../pages/{n}/detect``)."""
+        detect = req.query.get("detect", "auto")
+        if detect not in DETECT_MODES:
+            raise ApiError(400, "bad_detect", f"detect must be one of {', '.join(DETECT_MODES)}")
         if req.content_type.lower().startswith("multipart/"):
             name, data = _upload(req)
         elif isinstance(payload := req.json(), dict) and payload.get("template") is not None:
@@ -304,7 +312,7 @@ class Api:
                 raise ApiError(404, "not_found", f"no such demo form: {form}")
             name, data = f"{form}.pdf", path.read_bytes()
         try:
-            doc = self.documents.add(data, name)
+            doc = self.documents.add(data, name, detect=detect)
         except FormcastError as exc:
             raise ApiError(400, "bad_pdf", f"This file can't be used: {exc}.") from None
         return doc.summary()
@@ -323,6 +331,28 @@ class Api:
         except IndexError:
             raise ApiError(404, "not_found", f"this document has {doc.page_count} pages") from None
         return Response(200, {"Content-Type": "image/png", "Cache-Control": "private, max-age=3600"}, png)
+
+    def document_progress(self, req: Request) -> dict:
+        """``GET /api/documents/{id}/progress``: how reading the form is going (``Doc.progress``). Never waits."""
+        with missing("document"):
+            doc = self.documents.get(req.match["doc"])
+        return doc.progress()
+
+    def detect_page(self, req: Request) -> dict:
+        """``POST /api/documents/{id}/pages/{n}/detect`` -> ``{page, detected, fields, boxes}``: detection on page n alone.
+
+        ``fields`` are the new unmapped fields for the boxes found (as the seed makes them), for the page to
+        add to its template; empty when the page was searched already (``detected`` false) or is fillable.
+        """
+        with missing("document"):
+            doc = self.documents.get(req.match["doc"])
+        n = int(req.match["n"])
+        try:
+            page, ran = doc.detect_page(n)
+        except IndexError:
+            raise ApiError(404, "not_found", f"this document has {doc.page_count} pages") from None
+        fields = [f.model_dump(by_alias=True, mode="json") for f in candidate_fields(page)] if ran else []
+        return {"page": n, "detected": ran, "fields": fields, "boxes": len(page.candidates)}
 
     # ---- templates: seed, edit, rebind, match
 
