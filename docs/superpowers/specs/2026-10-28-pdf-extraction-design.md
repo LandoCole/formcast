@@ -265,6 +265,27 @@ A field with a fixed set of answers (`enum`, e.g. country `US`, `CA`, `KY`) may 
 Not this round (re-evaluate later): the model mapping unknown wordings (once per distinct wording), and review
 answers extending the map automatically.
 
+### Failed documents and problem documents
+
+- A **problem document** matched a template and was read; one or more of its fields are `missing`,
+  `failed_check` or `unsure`. Its other values are in the results; review settles the rest.
+- A **failed document** was not read: **no template fits** (`matched="none"`) or **unreadable** (encrypted,
+  corrupt, empty). Nothing of it goes in the values; it is counted in the summary, listed in Review, and exported
+  on its own sheet or file (`set_aside`: file, reason, the closest template and its score), never as a row of blanks.
+- **What the person does with the no-template documents, this round:** run *Extract from PDFs* again with just
+  those documents as the batch (their own sample, template, results and export). A run is not re-entered with a
+  second template, so a resumed run may keep skipping documents it already set aside.
+
+### A sample document that does not line up
+
+One odd sample is tolerated: a static line needs all samples but one (see *Scanning*), and the proof shows that
+sample's fields disagreeing, so the setup screen points at it and the person drops or replaces it. A template is
+**not** widened to cover a second layout by mixing samples: exact boxes cannot serve both, more reads fall back to
+labels and come out `unsure`, the layout check loosens so a wrong form can pass, and the static lines shrink to
+what both share. The exception is a set of documents that is the same form shifted or reflowed (the same labels):
+adding one or two of them to the sample is right and makes the label readers more robust. The scan's closeness of
+a group to the main one says which case it is.
+
 ### Validation
 
 - On one field, during extraction: type, `required`, `pattern`, `enum`, `format` (date, email), ranges.

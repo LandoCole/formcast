@@ -384,9 +384,11 @@ def test_a_spread_sample_mixes_fillable_and_flattened(corpus_dir): ...
 **Interfaces:**
 - Consumes: `extract` (Task 5), `layout_score`/`LAYOUT_MATCH` (Task 4), `DocText`, models (Task 1).
 - Produces:
-  - `route(templates: list[ExtractionTemplate], pdf: bytes) -> ExtractionTemplate | None`: the template whose
-    `form.fingerprint` equals the PDF's blind fingerprint, else the best `layout_score` at or above
-    `LAYOUT_MATCH`, else `None`.
+  - `route(templates: list[ExtractionTemplate], pdf: bytes) -> tuple[ExtractionTemplate | None, ExtractionTemplate | None, float]`:
+    (the template to use, the closest template, its best score). The template to use is the one whose
+    `form.fingerprint` equals the PDF's blind fingerprint (score 1.0), else the best `layout_score` at or above
+    `LAYOUT_MATCH`, else `None`. A no-template result records the closest template and score in
+    `DocumentResult.error` as `"no template fits (closest: NAME, 0.62)"`, which export reads for `set_aside`.
   - `run_batch(templates: list[ExtractionTemplate], paths: Iterable[str | Path], out_dir: str | Path, *, root: str | Path | None = None, workers: int = 0, on_progress: Callable[[int, int], None] | None = None) -> RunSummary`.
     Writes `out_dir/run.json` (templates' ids and names, started, root) and appends one `DocumentResult` per line
     to `out_dir/results.jsonl`, flushing each line. `doc_id` is the file's path relative to `root` (default:
@@ -420,6 +422,7 @@ def test_an_unreadable_file_is_recorded_and_the_run_goes_on(tmp_path): ...  # Re
 def test_review_decisions_apply_and_survive_a_rerun(corpus_dir, tmp_path):
     # decide value for a failed tax_id; effective() shows it found with strategy "review"; rerun_batch; still applied
 def test_rows_flatten_repeated_items_and_keep_dotted_paths(): ...  # "owners_1_name", "investor.tax_id"
+def test_failed_documents_are_not_rows_and_carry_their_closest_template(): ...  # the 2 other forms: no rows; error names the closest
 def test_problems_filter_by_path_and_status(): ...
 ```
 
@@ -442,6 +445,10 @@ def test_problems_filter_by_path_and_status(): ...
 - Produces: `export(results: Results, templates: list[ExtractionTemplate], out: str | Path, *, format: Literal["xlsx", "parquet", "csv"]) -> list[Path]`.
   - `xlsx`: one workbook `out` with sheets `values`, `status`, `fields`.
   - `parquet` and `csv`: a folder `out` with `values.*`, `status.*`, `fields.*`.
+  - Every format also has `set_aside` (a sheet, or `set_aside.*`): one row per failed document with `file`,
+    `reason` (`no template fits` or the unreadable error), `closest_template` and `closest_score` (the best
+    `layout_score` routing saw; `route` returns it alongside its answer for this). Failed documents are never
+    rows of `values` or `status`.
   - `fields` rows: `column, path, title, definition (description), type, checks` (`required`, `pattern`, `enum`
     values, `format`, ranges, as text).
   - A missing extra raises `FormcastError("Parquet export needs the parquet extra: pip install 'formcast[parquet]'")`
