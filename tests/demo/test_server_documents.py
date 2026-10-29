@@ -1238,17 +1238,20 @@ def test_progress_reports_each_page_as_it_is_read(boxes):
 
 def test_progress_shows_the_page_under_way_while_the_build_runs(monkeypatch):
     seen = []
+    added = threading.Event()  # the build may start on its own thread before add() returns
 
     def builder(pdf, detectors=None, on_progress=None, **kw):
         from formcast.pagemap.build import PageProgress
 
         on_progress(PageProgress(0, 3, "text"))
         on_progress(PageProgress(0, 3, "detect", detectors=("FFDNet-L",)))
+        assert added.wait(5)
         seen.append(doc.progress())
         raise FormcastError("cannot open PDF")
 
     monkeypatch.setattr(documents_mod, "build_form_map", builder)
     doc = Documents().add(small_pdf(pages=3), "x.pdf")
+    added.set()
     with pytest.raises(FormcastError):
         doc.form_map()
     (during,) = seen
