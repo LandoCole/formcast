@@ -45,7 +45,7 @@ INK_LEVEL = 128  # gray below this is ink
 MAX_GAP_EM = 3.0
 #: Share of a word's height that must overlap the label's row for the word to be on that row.
 ROW_OVERLAP = 0.5
-#: A gap wider than this many em (the label's height) before a word ends a label that is written close to its answer.
+#: A gap wider than this many em (the label's height) can separate an answer from the next label on its row.
 LABEL_GAP_EM = 1.0
 #: Words after a phrase that are looked at when searching for its stop.
 PHRASE_TAIL_WORDS = 200
@@ -324,13 +324,15 @@ class DocText:
 
         Words count when they start after ``rect``'s right edge and share its row (at least half of the word's
         height overlaps ``rect`` vertically). The text runs left to right and stops at a gap wider than three em
-        (``rect``'s height) between words, at ``max_width`` points from ``rect``'s right edge, and before the next
-        label: a word ending with ":" together with the words before it that belong to that label. Only the first
-        word is free of the gap rule (labels often sit far from their answers). Which words belong to the label is
-        judged by a wider gap (over one em) before it, else by writing: lowercase words ("of", "legal") and the
-        capitalised word before them; a label of capitalised words only ("Date Of Birth:") takes every capitalised
-        word before it, so it may cut the answer short but never leaks into it. The row "Name: Dana Keller Date of
-        birth: 05/01/2020" reads "Dana Keller" after "Name:", and an empty answer before another label gives ``None``.
+        (``rect``'s height) between words and at ``max_width`` points from ``rect``'s right edge. Only the first
+        word is free of the gap rule (labels often sit far from their answers).
+
+        When a later word on the row ends with ":" (the next label), the answer is the words before the widest gap
+        of more than one em that lies between the answer's first word and that colon word; the label cannot be told
+        from the answer by its words, only by the space before it. Without such a gap (a row set with single
+        spaces) the answer cannot be told from the next label and the result is ``None``: missing, not wrong.
+        "Name: Dana Keller          Date of birth: 05/01/2020" reads "Dana Keller" after "Name:"; the same row with
+        single spaces, or an empty answer before the next label, reads ``None``.
         """
         text = self._page(page)
         if text is None:
@@ -349,7 +351,7 @@ class DocText:
                 break
             taken.append(w)
             if w.text.endswith(":"):
-                taken = taken[: _label_start(taken, em)]  # the next label ends here: leave it out
+                taken = taken[: _before_label(taken, em)]  # the next label ends here: leave it out
                 break
         if not taken:
             return None
@@ -479,29 +481,17 @@ class DocText:
         return value, _union([w.rect for w in chosen])
 
 
-def _label_start(words: list[Word], em: float) -> int:
-    """Index in ``words`` where the label that ends with the last word (it ends with ":") begins.
+def _before_label(words: list[Word], em: float) -> int:
+    """How many of ``words`` are the answer, when the last one ends with ":" (the next label).
 
-    The label reaches back over words with no wide gap between them: the lowercase words just before the colon
-    word and the capitalised word before those; when the label has no lowercase word, every capitalised word.
+    The answer ends at the widest gap of more than ``LABEL_GAP_EM`` em between two of the words; 0 when there is none.
     """
-
-    def close(i: int) -> bool:  # word i follows word i - 1 without a wide gap
-        return words[i].rect[0] - words[i - 1].rect[2] <= LABEL_GAP_EM * em
-
-    def lower(i: int) -> bool:
-        return words[i].text[:1].islower()
-
-    start = len(words) - 1
-    had_lower = False
-    while start > 0 and close(start) and lower(start - 1):
-        start -= 1
-        had_lower = True
-    if start > 0 and close(start):
-        start -= 1  # the capitalised word that opens the label
-        while not had_lower and start > 0 and close(start) and not lower(start - 1):
-            start -= 1
-    return start
+    best, count = LABEL_GAP_EM * em, 0
+    for i in range(1, len(words)):
+        gap = words[i].rect[0] - words[i - 1].rect[2]
+        if gap > best:
+            best, count = gap, i
+    return count
 
 
 def _vertical_overlap(a: Rect, b: Rect) -> float:

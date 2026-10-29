@@ -278,20 +278,31 @@ def test_text_right_of_stops_at_a_colon_a_wide_gap_and_the_width():
         assert text.text_right_of(0, label, 400)[0] == "Dana"
 
 
-def test_text_right_of_does_not_take_the_next_label_with_it():
-    with DocText(_lines_pdf("Name: Dana Keller Date of birth: 05/01/2020")) as doc:
+NEXT_LABELS = ("Date of birth:", "Date of Birth (mm/dd/yyyy):", "Social Security number (SSN):", "Tax ID of spouse:")
+
+
+@pytest.mark.parametrize("next_label", NEXT_LABELS)
+def test_text_right_of_does_not_take_the_next_label_with_it(next_label):
+    wide = " " * 10  # about 2.4 em
+    with DocText(_lines_pdf(f"Name: Dana Keller{wide}{next_label} 5")) as doc:
         (_, label), = doc.find_label(["Name"], 0)
-        assert doc.text_right_of(0, label, 400)[0] == "Dana Keller"
-    # an empty answer: only the next label follows, so there is nothing to read
+        assert doc.text_right_of(0, label, 500)[0] == "Dana Keller"
+    # single spaces: the answer cannot be told from the next label, so nothing is read
+    with DocText(_lines_pdf(f"Name: Dana Keller {next_label} 5")) as doc:
+        (_, label), = doc.find_label(["Name"], 0)
+        assert doc.text_right_of(0, label, 500) is None
+
+
+def test_text_right_of_with_an_empty_answer_before_the_next_label_reads_nothing():
     with DocText(_lines_pdf("Taxpayer ID:      Date of birth: 05/01/2020")) as doc:
         (_, label), = doc.find_label(["Taxpayer ID"], 0)
         assert doc.text_right_of(0, label, 400) is None
-    with DocText(_lines_pdf("Name: Dana Keller Taxpayer ID: 12-3456789")) as doc:
+
+
+def test_text_right_of_without_a_later_label_keeps_its_ordinary_stops():
+    with DocText(_lines_pdf("Name: Dana Keller Jr 05/01/2020")) as doc:
         (_, label), = doc.find_label(["Name"], 0)
-        assert doc.text_right_of(0, label, 400) is None  # capitalised words only: not told apart, so not read
-    with DocText(_lines_pdf("Name: Dana Keller      Taxpayer ID: 12-3456789")) as doc:
-        (_, label), = doc.find_label(["Name"], 0)
-        assert doc.text_right_of(0, label, 400)[0] == "Dana Keller"  # a wide gap tells them apart
+        assert doc.text_right_of(0, label, 500)[0] == "Dana Keller Jr 05/01/2020"
 
 
 def test_text_right_of_ignores_other_rows_and_words_to_the_left():
