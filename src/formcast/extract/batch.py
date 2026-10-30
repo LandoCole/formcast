@@ -85,17 +85,27 @@ field as read, never ``found`` with no value. ``rows()`` and
 ``no_template``, ``internal_errors`` (an error starting "internal error:", a fault of the code or a template, not of
 the file) and ``unreadable`` (every other error), which add up to ``total``.
 
-**For a screen over a run.** ``field_counts()`` gives, for each concrete path (``owners[0].name`` is its own path),
-how many documents read ended ``found``, ``missing``, ``failed_check``, ``unsure``, ``absent`` and ``not_on_form``
-after the AI's answers and the decisions are applied (so it is what ``rows`` would show), and ``reviewed``, how many
-of them have a decision on that path; a failed document has no fields and is counted nowhere. ``page(offset, limit,
-path=..., status=...)`` is the documents that still have a problem (the fields ``problems`` gives, filtered the same
-way), in ``doc_id`` order, as ``(how many such documents, the ones from offset on up to limit)``, each with its
-effective result and the problem fields that matched; it reads the whole file for the total, one document at a time.
+**For a screen over a run** (meant for ~100k documents). The pass of ``load`` that indexes the lines also counts
+them, so nothing below reads the whole file again. ``summary()`` is those counts. ``field_counts()`` gives, for each
+concrete path (``owners[0].name`` is its own path), how many documents read ended ``found``, ``missing``,
+``failed_check``, ``unsure``, ``absent`` and ``not_on_form`` after the AI's answers and the decisions are applied (so
+it is what ``rows`` would show), and ``reviewed``, how many of them have a decision on that path; a failed document
+has no fields and is counted nowhere. The pass keeps, for each document that still has a problem, its problem paths
+and statuses (a few bytes each); ``page(offset, limit, path=..., status=...)`` is the documents that still have a
+problem (the fields ``problems`` gives, filtered the same way), in ``doc_id`` order, as ``(how many such documents,
+the ones from offset on up to limit)``, each with its effective result and the problem fields that matched. The
+sorted list of documents for each ``(path, status)`` filter is made from those the first time it is asked for and
+kept, so a page parses only its own documents. ``set_aside_page`` pages the failed documents the same way, and
+``document(doc_id)`` parses one document by its line. A decision (``decide``), and every line ``refresh()`` reads,
+takes the documents it touches out of the counts and lists and puts them back as they now are. ``refresh()``
+catches up with the files: it reads only the lines appended since (a run, the AI pass or another process writing),
+and reads everything again only when a file was rewritten (it shrank, or changed with nothing added); with no file
+changed it reads nothing. A Results is not safe for threads; a server sharing one holds a lock around each use.
 """
 
 from __future__ import annotations
 
+import bisect
 import hashlib
 import json
 import math
@@ -144,6 +154,10 @@ _STATUSES: tuple[str, ...] = get_args(Status)
 _AHEAD = 4
 _ITEM = re.compile(r"\[(\d+)\](\.)?")
 _DOC_COLUMNS = ("doc_id", "file", "template", "matched", "extracted_at")
+#: The files of a run's ``out_dir`` that :meth:`Results.refresh` watches.
+_FILES = (RUN, RESULTS, REVIEWS, AI)
+#: How a document can end, as :class:`RunSummary` counts them.
+_KINDS = ("complete", "with_problems", "no_template", "unreadable", "internal_errors")
 
 
 class RunSummary(BaseModel):
@@ -525,8 +539,9 @@ def _write_json(path: Path, data: dict) -> None:
     os.replace(part, path)
 
 
-def _whole_lines(path: Path, keep: Callable[[int, int, dict], None]) -> int:
-    """Call ``keep(offset, length, record)`` for each whole line of a JSON-lines file; where the whole lines end.
+def _whole_lines(path: Path, keep: Callable[[int, int, dict], None], start: int = 0) -> int:
+    """Call ``keep(offset, length, record)`` for each whole line of a JSON-lines file from byte ``start`` (where a
+    line starts); where the whole lines end.
 
     The last line is torn when it has no newline or does not parse as a record: it is left out, and the returned
     offset is where it starts. A missing file has no lines.
@@ -536,12 +551,14 @@ def _whole_lines(path: Path, keep: Callable[[int, int, dict], None]) -> int:
     """
     if not path.is_file():
         return 0
-    offset = end = 0
+    offset = end = start
     bad: int | None = None  # the number of a line that is not a record, allowed only as the last one
     with path.open("rb") as f:
+        f.seek(start)
         for number, line in enumerate(f, start=1):
             if bad is not None:
-                raise FormcastError(f"{path}: line {bad} is not a JSON record")
+                where = f"line {bad}" if start == 0 else f"line {bad} after byte {start}"
+                raise FormcastError(f"{path}: {where} is not a JSON record")
             start, offset = offset, offset + len(line)
             if not line.endswith(b"\n"):
                 break  # cut off mid-write: the last line
@@ -594,16 +611,17 @@ def _from_ai(field: FieldResult, answer: AiAnswer) -> FieldResult:
 
 
 class Results:
-    """A run's results and review decisions, read from its ``out_dir`` (see the module). Make one with :meth:`load`."""
+    """A run's results and review decisions, read from its ``out_dir`` (see the module). Make one with :meth:`load`.
 
-    def __init__(self, out_dir: Path, run: dict, index: dict[str, tuple[int, int]]) -> None:
+    Not safe for threads: a caller that shares one between threads holds its own lock around each use.
+    """
+
+    def __init__(self, out_dir: Path) -> None:
         self.out_dir = out_dir
-        self.run = run  # run.json: templates, started, root, seconds
-        self._index = index  # doc_id -> (offset, length) of its line in results.jsonl
-        self._decisions: dict[str, dict[str, ReviewDecision]] = {}  # doc_id -> path -> the latest decision
-        self._ai: dict[str, dict[str, AiAnswer]] = {}  # doc_id -> path -> the latest AI answer
-        _whole_lines(out_dir / REVIEWS, lambda offset, length, rec: self._remember(ReviewDecision.model_validate(rec)))
-        _whole_lines(out_dir / AI, lambda offset, length, rec: self._remember_ai(AiAnswer.model_validate(rec)))
+        #: Goes up each time what the results show changes (a read of the files, a decision); a cache keyed by it
+        #: is stale once it moves.
+        self.version = 0
+        self._read_all()
 
     @classmethod
     def load(cls, out_dir: str | Path) -> Results:
@@ -615,14 +633,136 @@ class Results:
         out = Path(out_dir)
         if not (out / RUN).is_file():
             raise FormcastError(f"no run in {out}: it has no {RUN}")
-        run = json.loads((out / RUN).read_text(encoding="utf-8"))
-        index: dict[str, tuple[int, int]] = {}
+        return cls(out)
 
-        def keep(offset: int, length: int, record: dict) -> None:
-            index[record["doc_id"]] = (offset, length)
+    # ------------------------------------------------------------ reading the files
 
-        _whole_lines(out / RESULTS, keep)
-        return cls(out, run, index)
+    def _read_all(self) -> None:
+        """Read the run's files from the start: one pass over ``results.jsonl`` indexes and counts every document."""
+        self._stats = {name: _stat(self.out_dir / name) for name in _FILES}  # before reading: a later line is seen later
+        self.run = json.loads((self.out_dir / RUN).read_text(encoding="utf-8"))  # templates, started, root, seconds
+        self._index: dict[str, tuple[int, int]] = {}  # doc_id -> (offset, length) of its line in results.jsonl
+        self._decisions: dict[str, dict[str, ReviewDecision]] = {}  # doc_id -> path -> the latest decision
+        self._ai: dict[str, dict[str, AiAnswer]] = {}  # doc_id -> path -> the latest AI answer
+        self._ends = {RESULTS: 0, REVIEWS: 0, AI: 0}  # where the whole lines read so far end, per file
+        self._kinds = dict.fromkeys(_KINDS, 0)  # how many documents ended each way, as RunSummary counts them
+        self._counts: dict[str, dict[str, int]] = {}  # path -> status (and "reviewed") -> documents
+        self._problems: dict[str, tuple[tuple[str, str], ...]] = {}  # doc_id -> its (path, status) still problems
+        self._aside: list[str] = []  # the failed documents' doc_ids, sorted
+        self._lists: dict[tuple[str | None, str | None], list[str]] = {}  # (path, status) -> sorted doc_ids, made lazily
+        for name in (REVIEWS, AI, RESULTS):  # the decisions and answers first: a document is counted as they leave it
+            self._follow(name)
+        self.version += 1
+
+    def _follow(self, name: str) -> None:
+        """Read the whole lines of ``name`` after the last one read, and count what they change."""
+        if name == RESULTS:
+            keep = self._keep_result
+        elif name == REVIEWS:
+            def keep(offset: int, length: int, record: dict) -> None:
+                decision = ReviewDecision.model_validate(record)
+                self._changing(decision.doc_id, lambda: self._remember(decision))
+        else:
+            def keep(offset: int, length: int, record: dict) -> None:
+                answer = AiAnswer.model_validate(record)
+                self._changing(answer.doc_id, lambda: self._remember_ai(answer))
+        self._ends[name] = _whole_lines(self.out_dir / name, keep, start=self._ends[name])
+
+    def refresh(self) -> bool:
+        """Catch up with what was written to the run's files since they were read; whether anything changed.
+
+        Nothing is read when no file's size or time changed. Lines appended to ``results.jsonl``, ``reviews.jsonl``
+        or ``ai.jsonl`` (a run, the AI pass or another process writing) are read from where the last read ended, so
+        a run being written is followed without reading it again. A file that shrank, or changed with nothing added
+        after what was read, was rewritten: then every file is read again from the start.
+
+        Raises:
+            FormcastError: as :meth:`load`.
+        """
+        stats = {name: _stat(self.out_dir / name) for name in _FILES}
+        if stats == self._stats:
+            return False
+        if stats[RUN] is None:
+            raise FormcastError(f"no run in {self.out_dir}: it has no {RUN}")
+        for name in (RESULTS, REVIEWS, AI):
+            now, had, end = stats[name], self._stats[name], self._ends[name]
+            size, had_size = (now[0] if now else 0), (had[0] if had else 0)
+            if now != had and (size < end or (end > 0 and size == end == had_size)):
+                self._read_all()
+                return True
+        if stats[RUN] != self._stats[RUN]:
+            self.run = json.loads((self.out_dir / RUN).read_text(encoding="utf-8"))
+        self._stats = stats
+        for name in (RESULTS, REVIEWS, AI):
+            self._follow(name)
+        self.version += 1
+        return True
+
+    def _keep_result(self, offset: int, length: int, record: dict) -> None:
+        doc_id = record["doc_id"]
+        if doc_id in self._index:  # the last line for a doc_id wins
+            self._tally(doc_id, -1)
+        self._index[doc_id] = (offset, length)
+        self._tally(doc_id, 1, record)
+
+    def _changing(self, doc_id: str, change: Callable[[], None]) -> None:
+        """Make ``change`` (a decision or an AI answer remembered) and count ``doc_id`` again as it leaves it."""
+        known = doc_id in self._index
+        if known:
+            self._tally(doc_id, -1)
+        change()
+        if known:
+            self._tally(doc_id, 1)
+
+    def _tally(self, doc_id: str, sign: int, record: dict | None = None) -> None:
+        """Add (``sign`` 1) or take back (-1) what ``doc_id`` counts for, as it is now (``record``: its line, parsed).
+
+        Adding also sets its problems and whether it is set aside; taking back leaves those to the add that follows.
+        """
+        if record is None:
+            record = json.loads(self._line(doc_id))
+        if doc_id in self._decisions or doc_id in self._ai:
+            doc = self.effective(DocumentResult.model_validate(record))
+            error, fields = doc.error, [(f.path, f.status) for f in doc.fields]
+        else:  # as it was read: nothing changes it, so its line's statuses are its own
+            error, fields = record.get("error"), [(f["path"], f["status"]) for f in record.get("fields") or ()]
+        problems = tuple((path, status) for path, status in fields if status in PROBLEMS)
+        self._kinds[_kind(error, bool(problems))] += sign
+        decided = self._decisions.get(doc_id, {})
+        for path, status in fields:
+            row = self._counts.get(path)
+            if row is None:
+                row = self._counts[path] = dict.fromkeys((*_STATUSES, "reviewed"), 0)
+            row[status] += sign
+            if path in decided:
+                row["reviewed"] += sign
+        if sign > 0:
+            self._set_problems(doc_id, problems)
+            _place(self._aside, doc_id, error is not None)
+
+    def _set_problems(self, doc_id: str, problems: tuple[tuple[str, str], ...]) -> None:
+        old = self._problems.get(doc_id, ())
+        if old == problems:
+            return
+        if problems:
+            self._problems[doc_id] = problems
+        else:
+            self._problems.pop(doc_id, None)
+        for (path, status), ids in self._lists.items():
+            if _matches(old, path, status) != _matches(problems, path, status):
+                _place(ids, doc_id, _matches(problems, path, status))
+
+    def _with_problems(self, path: str | None, status: str | None) -> list[str]:
+        """The doc_ids, sorted, of the documents with a problem field matching ``path`` and ``status``; kept and
+        updated in place once asked for."""
+        ids = self._lists.get((path, status))
+        if ids is None:
+            ids = self._lists[(path, status)] = sorted(
+                doc_id for doc_id, problems in self._problems.items() if _matches(problems, path, status)
+            )
+        return ids
+
+    # ------------------------------------------------------------ reading the results
 
     def check_templates(self, templates: list[ExtractionTemplate]) -> None:
         """Refuse templates other than the ones the run read with (by id and by the sha256 ``run.json`` keeps).
@@ -652,11 +792,23 @@ class Results:
         """The AI pass's latest answer for each path it was asked about in ``doc_id`` (``None`` values included)."""
         return dict(self._ai.get(doc_id, {}))
 
-    def _document(self, doc_id: str) -> DocumentResult:
+    def doc_ids(self) -> list[str]:
+        """The doc_id of every document of the run, sorted."""
+        return sorted(self._index)
+
+    def _line(self, doc_id: str) -> bytes:
         offset, length = self._index[doc_id]
         with (self.out_dir / RESULTS).open("rb") as f:
             f.seek(offset)
-            return DocumentResult.model_validate_json(f.read(length))
+            return f.read(length)
+
+    def document(self, doc_id: str) -> DocumentResult:
+        """The document ``doc_id`` as it was read (decisions not applied); only its own line is parsed.
+
+        Raises:
+            KeyError: the run has no such document.
+        """
+        return DocumentResult.model_validate_json(self._line(doc_id))
 
     def documents(self) -> Iterator[DocumentResult]:
         """Every document of the run as it was read (decisions not applied), in ``doc_id`` order."""
@@ -695,14 +847,14 @@ class Results:
         return doc.model_copy(update={"fields": fields})
 
     def _problem_documents(
-        self, path: str | None, status: Status | None
+        self, path: str | None, status: Status | None, ids: Iterable[str] | None = None
     ) -> Iterator[tuple[DocumentResult, list[FieldResult]]]:
-        """Each document with its fields still ``missing``, ``failed_check`` or ``unsure`` that match the filters;
-        a document with none is left out. The document is :meth:`effective`."""
+        """Each document (of ``ids``, else of all) with its fields still ``missing``, ``failed_check`` or ``unsure``
+        that match the filters; a document with none is left out. The document is :meth:`effective`."""
         if status is not None and status not in PROBLEMS:
             raise FormcastError(f"{status!r} is not a problem status (one of {', '.join(PROBLEMS)})")
-        for doc in self.documents():
-            doc = self.effective(doc)
+        for doc_id in list(self._with_problems(path, status)) if ids is None else ids:
+            doc = self.effective(self.document(doc_id))
             fields = [
                 f
                 for f in doc.fields
@@ -727,7 +879,8 @@ class Results:
         self, offset: int, limit: int, *, path: str | None = None, status: Status | None = None
     ) -> tuple[int, list[tuple[DocumentResult, list[FieldResult]]]]:
         """The documents with problems (filtered as :meth:`problems`) in ``doc_id`` order: how many there are, and
-        ``limit`` of them from the ``offset``-th on, each with the problem fields that matched.
+        ``limit`` of them from the ``offset``-th on, each with the problem fields that matched. Only the page's
+        documents are parsed: which documents have problems is kept from the load (see the module).
 
         Raises:
             FormcastError: ``status`` is not a problem status, or ``offset`` or ``limit`` is negative.
@@ -736,26 +889,16 @@ class Results:
             raise FormcastError(f"the offset must not be negative, not {offset!r}")
         if limit < 0:
             raise FormcastError(f"the limit must not be negative, not {limit!r}")
-        total = 0
-        page: list[tuple[DocumentResult, list[FieldResult]]] = []
-        for doc, fields in self._problem_documents(path, status):
-            if offset <= total < offset + limit:
-                page.append((doc, fields))
-            total += 1
-        return total, page
+        if status is not None and status not in PROBLEMS:
+            raise FormcastError(f"{status!r} is not a problem status (one of {', '.join(PROBLEMS)})")
+        ids = self._with_problems(path, status)
+        return len(ids), list(self._problem_documents(path, status, ids[offset : offset + limit]))
 
     def field_counts(self) -> dict[str, dict[str, int]]:
         """For each path, how many documents read ended in each status (``found``, ``missing``, ``failed_check``,
         ``unsure``, ``absent``, ``not_on_form``) with the AI's answers and the decisions applied, and ``reviewed``,
         how many have a decision on that path. A failed document has no fields and is not counted."""
-        counts: dict[str, dict[str, int]] = {}
-        for doc in self.documents():
-            decided = self._decisions.get(doc.doc_id, {})
-            for f in self.effective(doc).fields:
-                row = counts.setdefault(f.path, dict.fromkeys((*_STATUSES, "reviewed"), 0))
-                row[f.status] += 1
-                row["reviewed"] += f.path in decided
-        return counts
+        return {path: dict(row) for path, row in self._counts.items() if any(row.values())}
 
     def decide(self, decision: ReviewDecision) -> None:
         """Record ``decision`` in ``reviews.jsonl``; it applies at once and in every later load.
@@ -766,9 +909,10 @@ class Results:
                 ``value`` decision carrying that value. As in :meth:`effective`, no AI answer is put on a path that
                 already has a decision, so an ``accept`` over one never takes an AI value the person was not shown.
         """
+        self.refresh()
         if decision.doc_id not in self._index:
             raise FormcastError(f"no document {decision.doc_id!r} in this run")
-        read = self._with_ai(self._document(decision.doc_id), self._decisions.get(decision.doc_id) or ())
+        read = self._with_ai(self.document(decision.doc_id), self._decisions.get(decision.doc_id) or ())
         field = next((f for f in read.fields if f.path == decision.path), None)
         if field is None:
             raise FormcastError(f"{decision.doc_id}: no field {decision.path!r}")
@@ -780,28 +924,19 @@ class Results:
                 doc_id=decision.doc_id, path=decision.path, decision="value", value=field.value, at=decision.at
             )
         reviews = self.out_dir / REVIEWS
-        _cut(reviews, _whole_lines(reviews, lambda offset, length, record: None))
-        with reviews.open("a", encoding="utf-8") as sink:
-            sink.write(decision.model_dump_json() + "\n")
+        _cut(reviews, self._ends[REVIEWS])  # a torn last line goes before the decision
+        line = (decision.model_dump_json() + "\n").encode("utf-8")
+        with reviews.open("ab") as sink:
+            sink.write(line)
             sink.flush()
-        self._remember(decision)
+        self._ends[REVIEWS] += len(line)
+        self._stats[REVIEWS] = _stat(reviews)  # this write is read already: a refresh does not read it again
+        self._changing(decision.doc_id, lambda: self._remember(decision))
+        self.version += 1
 
     def summary(self) -> RunSummary:
         """The counts of the run, with decisions applied; ``seconds`` is the time its runs have spent so far."""
-        counts = {"complete": 0, "with_problems": 0, "no_template": 0, "unreadable": 0, "internal_errors": 0}
-        for doc in self.documents():
-            if doc.error is not None:
-                if doc.error.startswith(NO_TEMPLATE):
-                    counts["no_template"] += 1
-                elif doc.error.startswith(INTERNAL_ERROR):
-                    counts["internal_errors"] += 1
-                else:
-                    counts["unreadable"] += 1
-            elif any(f.status in PROBLEMS for f in self.effective(doc).fields):
-                counts["with_problems"] += 1
-            else:
-                counts["complete"] += 1
-        return RunSummary(total=sum(counts.values()), seconds=self.run.get("seconds", 0.0), **counts)
+        return RunSummary(total=sum(self._kinds.values()), seconds=self.run.get("seconds", 0.0), **self._kinds)
 
     def _rows(self, cell: Callable[[FieldResult], Any]) -> Iterator[dict]:
         for doc in self.documents():
@@ -827,11 +962,59 @@ class Results:
         """One row per failed document: ``doc_id``, ``file``, ``reason`` (``"no template fits"`` or the error),
         ``closest_template`` and ``closest_score`` (``None`` for an unreadable document)."""
         for doc in self.documents():
-            if doc.error is None:
-                continue
-            closest = parse_no_template(doc.error)
-            reason = NO_TEMPLATE if doc.error.startswith(NO_TEMPLATE) else doc.error
-            yield {
-                "doc_id": doc.doc_id, "file": doc.file, "reason": reason,
-                "closest_template": closest[0] if closest else None, "closest_score": closest[1] if closest else None,
-            }  # fmt: skip
+            if doc.error is not None:
+                yield _aside_row(doc)
+
+    def set_aside_page(self, offset: int, limit: int) -> tuple[int, list[dict]]:
+        """How many documents are set aside, and the :meth:`set_aside` rows of ``limit`` of them from the
+        ``offset``-th on, in ``doc_id`` order; only those documents are parsed.
+
+        Raises:
+            FormcastError: ``offset`` or ``limit`` is negative.
+        """
+        if offset < 0 or limit < 0:
+            raise FormcastError(f"the offset and the limit must not be negative, not {offset!r} and {limit!r}")
+        return len(self._aside), [_aside_row(self.document(doc_id)) for doc_id in self._aside[offset : offset + limit]]
+
+
+def _aside_row(doc: DocumentResult) -> dict:
+    """A failed document's :meth:`Results.set_aside` row."""
+    closest = parse_no_template(doc.error)
+    reason = NO_TEMPLATE if (doc.error or "").startswith(NO_TEMPLATE) else doc.error
+    return {
+        "doc_id": doc.doc_id, "file": doc.file, "reason": reason,
+        "closest_template": closest[0] if closest else None, "closest_score": closest[1] if closest else None,
+    }  # fmt: skip
+
+
+def _kind(error: str | None, problems: bool) -> str:
+    """How a document ended, as :class:`RunSummary` counts it."""
+    if error is None:
+        return "with_problems" if problems else "complete"
+    if error.startswith(NO_TEMPLATE):
+        return "no_template"
+    return "internal_errors" if error.startswith(INTERNAL_ERROR) else "unreadable"
+
+
+def _matches(problems: tuple[tuple[str, str], ...], path: str | None, status: str | None) -> bool:
+    """Whether one of ``problems`` (``(path, status)`` pairs) is of ``path`` and ``status`` (``None``: any)."""
+    return any((path is None or p == path) and (status is None or s == status) for p, s in problems)
+
+
+def _place(ids: list[str], doc_id: str, member: bool) -> None:
+    """Put ``doc_id`` into the sorted list ``ids`` (``member``) or take it out, whichever it is not already."""
+    i = bisect.bisect_left(ids, doc_id)
+    there = i < len(ids) and ids[i] == doc_id
+    if member and not there:
+        ids.insert(i, doc_id)
+    elif there and not member:
+        del ids[i]
+
+
+def _stat(path: Path) -> tuple[int, int] | None:
+    """A file's size and modification time in nanoseconds; ``None`` when there is no file."""
+    try:
+        st = path.stat()
+    except OSError:
+        return None
+    return st.st_size, st.st_mtime_ns

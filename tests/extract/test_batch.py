@@ -604,3 +604,126 @@ def test_failed_documents_are_not_rows_and_carry_their_closest_template(corpus_r
     ]
     summary = results.summary()
     assert isinstance(summary, RunSummary) and (summary.total, summary.no_template) == (22, 2)
+
+
+# ------------------------------------------------------------- review at scale
+
+
+def synthetic_run(out: Path, n: int, *, fields: int = 6, start: int = 0) -> None:
+    """A run of ``n`` made-up documents (``000000.pdf`` ...) appended to ``results.jsonl``: every third has
+    ``field_1`` missing, every tenth is set aside. Thousands of them cost no reading of PDFs."""
+    out.mkdir(parents=True, exist_ok=True)
+    if not (out / "run.json").is_file():
+        (out / "run.json").write_text(json.dumps({"templates": [], "started": "", "root": "/x", "seconds": 0.0}))
+    with (out / "results.jsonl").open("a") as sink:
+        for i in range(start, start + n):
+            failed = i % 10 == 9
+            row = [
+                {"path": f"field_{j}", "status": "missing" if (j == 1 and i % 3 == 0) else "found",
+                 "raw": None if (j == 1 and i % 3 == 0) else "value", "value": None if (j == 1 and i % 3 == 0) else "value"}
+                for j in range(fields)
+            ]  # fmt: skip
+            sink.write(json.dumps({
+                "doc_id": f"{i:06d}.pdf", "file": f"/x/{i:06d}.pdf", "template_id": None if failed else "t",
+                "matched": "none" if failed else "layout", "fields": [] if failed else row,
+                "error": "no template fits (closest: T, 0.40)" if failed else None,
+                "extracted_at": "2026-10-29T00:00:00+00:00",
+            }) + "\n")  # fmt: skip
+
+
+@pytest.fixture
+def parses(monkeypatch):
+    """Counts of what a Results reads: ``lines``, one document's line read back, and ``loads``, every file read from
+    the start."""
+    counts = {"lines": 0, "loads": 0}
+    line, read_all = Results._line, Results._read_all
+
+    def counted_line(self, doc_id):
+        counts["lines"] += 1
+        return line(self, doc_id)
+
+    def counted_read_all(self):
+        counts["loads"] += 1
+        return read_all(self)
+
+    monkeypatch.setattr(Results, "_line", counted_line)
+    monkeypatch.setattr(Results, "_read_all", counted_read_all)
+    return counts
+
+
+def test_a_page_of_problems_at_a_few_thousand_documents_parses_only_the_pages_documents(tmp_path, parses):
+    synthetic_run(tmp_path, 3000)
+    results = Results.load(tmp_path)
+    assert parses == {"lines": 0, "loads": 1}  # one pass counts everything
+    with_problems = [i for i in range(3000) if i % 3 == 0 and i % 10 != 9]
+    summary = results.summary()
+    assert (summary.total, summary.with_problems, summary.no_template) == (3000, len(with_problems), 300)
+    assert results.field_counts()["field_1"]["missing"] == len(with_problems)
+
+    total, page = results.page(100, 50)
+    assert total == len(with_problems)
+    assert [d.doc_id for d, _ in page] == [f"{i:06d}.pdf" for i in with_problems[100:150]]
+    assert parses["lines"] == 50
+    total, page = results.page(0, 50, path="field_1", status="missing")
+    assert total == len(with_problems) and parses["lines"] == 100
+    assert results.page(0, 50, path="field_2") == (0, []) and parses["lines"] == 100
+
+    first = with_problems[0]
+    results.decide(ReviewDecision(doc_id=f"{first:06d}.pdf", path="field_1", decision="value", value="typed"))
+    assert parses["loads"] == 1 and parses["lines"] <= 103  # the document checked, taken back and counted again
+    assert results.summary().with_problems == len(with_problems) - 1
+    assert results.field_counts()["field_1"] == {
+        "found": 2700 - len(with_problems) + 1, "missing": len(with_problems) - 1, "failed_check": 0, "unsure": 0,
+        "absent": 0, "not_on_form": 0, "reviewed": 1,
+    }  # fmt: skip
+    total, page = results.page(0, 1, status="missing")
+    assert total == len(with_problems) - 1 and page[0][0].doc_id == f"{with_problems[1]:06d}.pdf"
+    assert results.page(0, 1)[1][0][0].doc_id == f"{with_problems[1]:06d}.pdf"  # every list kept is updated
+
+    total, aside = results.set_aside_page(10, 5)
+    assert total == 300 and [r["doc_id"] for r in aside] == [f"{i:06d}.pdf" for i in range(109, 159, 10)]
+    assert aside[0]["reason"] == "no template fits" and aside[0]["closest_template"] == "T"
+    assert results.doc_ids()[:2] == ["000000.pdf", "000001.pdf"] and len(results.doc_ids()) == 3000
+    assert results.document("000005.pdf").doc_id == "000005.pdf"
+    with pytest.raises(KeyError):
+        results.document("nope.pdf")
+    assert parses["loads"] == 1
+
+
+def test_refresh_follows_lines_appended_since_the_load_and_reads_again_only_a_rewritten_file(tmp_path, parses):
+    synthetic_run(tmp_path, 30)
+    results = Results.load(tmp_path)
+    assert results.refresh() is False and parses["loads"] == 1  # nothing changed: nothing read
+    version = results.version
+
+    synthetic_run(tmp_path, 5, start=30)  # a run writing on
+    with (tmp_path / "results.jsonl").open("a") as sink:
+        sink.write('{"doc_id": "torn')  # half a line: still being written
+    assert results.refresh() is True and results.version > version
+    assert results.summary().total == 35 and parses["loads"] == 1
+    assert results.page(0, 99)[0] == len([i for i in range(35) if i % 3 == 0 and i % 10 != 9])
+
+    whole = (tmp_path / "results.jsonl").read_bytes().rsplit(b"\n", 1)[0] + b"\n"
+    (tmp_path / "results.jsonl").write_bytes(whole)  # the torn line cut, as a resume does
+    synthetic_run(tmp_path, 1, start=35)  # and the document written whole
+    results.refresh()
+    assert results.summary().total == 36 and "000035.pdf" in results.doc_ids() and parses["loads"] == 1
+
+    # another process decides, and the AI pass answers: both are followed too
+    with (tmp_path / "reviews.jsonl").open("a") as sink:
+        decision = ReviewDecision(doc_id="000000.pdf", path="field_1", decision="not_in_document")
+        sink.write(decision.model_dump_json() + "\n")
+    with (tmp_path / "ai.jsonl").open("a") as sink:
+        sink.write(AiAnswer(doc_id="000003.pdf", path="field_1", value="from the AI").model_dump_json() + "\n")
+    results.refresh()
+    counts = results.field_counts()["field_1"]
+    assert (counts["absent"], counts["unsure"], counts["reviewed"]) == (1, 1, 1) and parses["loads"] == 1
+    assert results.page(0, 1, status="unsure")[1][0][0].doc_id == "000003.pdf"
+    fresh = Results.load(tmp_path)
+    assert (results.summary(), results.field_counts()) == (fresh.summary(), fresh.field_counts())
+
+    parses["loads"] = 0
+    kept = (tmp_path / "results.jsonl").read_text().splitlines(keepends=True)[:10]
+    (tmp_path / "results.jsonl").write_text("".join(kept))  # rewritten shorter: read again from the start
+    results.refresh()
+    assert results.summary().total == 10 and parses["loads"] == 1

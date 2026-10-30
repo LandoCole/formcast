@@ -1290,6 +1290,52 @@ def test_a_decision_settles_its_problem_and_the_document_when_it_was_its_only_on
     assert get_json(r.base, f"/api/runs/{run_id}")[1]["summary"] == after["summary"]
 
 
+def test_a_runs_results_are_read_once_and_a_decision_a_page_image_and_a_problems_page_after_it_read_nothing_again(reviewed, monkeypatch):
+    from formcast.extract.batch import Results
+
+    r, run_id = reviewed
+    reads = {"loads": 0, "lines": 0}  # every file read from the start; one document's line read back
+    read_all, line = Results._read_all, Results._line
+
+    def counted_read_all(self):
+        reads["loads"] += 1
+        read_all(self)
+
+    def counted_line(self, doc_id):
+        reads["lines"] += 1
+        return line(self, doc_id)
+
+    monkeypatch.setattr(Results, "_read_all", counted_read_all)
+    monkeypatch.setattr(Results, "_line", counted_line)
+    r.api.runs._runs.clear()  # as a restarted server: the run is read from its folder when first asked for
+    page = problems_of(r, run_id)[1]
+    assert reads["loads"] == 1 and page["total"] == 3
+    get_json(r.base, f"/api/runs/{run_id}")
+    get_json(r.base, "/api/runs")
+    assert reads["loads"] == 1  # the listing and the run use the kept counts
+
+    [doc] = problems_of(r, run_id, "?status=missing")[1]["documents"]
+    reads["lines"] = 0
+    decision = {"doc_id": doc["doc_id"], "path": "investor.tax_id", "decision": "value", "value": "12-3456789"}
+    status, after = get_json(r.base, f"/api/runs/{run_id}/decisions", "POST", decision)
+    assert status == 200 and after["summary"]["with_problems"] == 2
+    status, _, _ = http_request(r.base, "GET", f"/api/runs/{run_id}/pages.png?doc={doc['doc_id']}&page=0&dpi=40")
+    assert status == 200
+    page = problems_of(r, run_id, "?limit=1")[1]
+    assert page["total"] == 2 and len(page["documents"]) == 1
+    assert get_json(r.base, f"/api/runs/{run_id}/set-aside?limit=1")[1]["total"] == 2
+    assert reads["loads"] == 1  # nothing was read again from the start
+    assert reads["lines"] <= 6  # the decided document (checked, taken back, counted), the page image's, the pages'
+
+    other = problems_of(r, run_id)[1]["documents"][0]
+    with (runs_dir(r) / run_id / "reviews.jsonl").open("a") as sink:  # another process settles that document
+        for problem in other["problems"]:
+            sink.write(json.dumps({"doc_id": other["doc_id"], "path": problem["path"], "decision": "not_in_document"}) + "\n")
+    assert get_json(r.base, f"/api/runs/{run_id}")[1]["summary"]["with_problems"] == 1
+    assert problems_of(r, run_id)[1]["total"] == 1
+    assert reads["loads"] == 1  # the appended lines are read on their own
+
+
 def test_a_decision_the_library_refuses_is_a_bad_decision_with_its_message(reviewed):
     r, run_id = reviewed
     [doc] = problems_of(r, run_id, "?status=missing")[1]["documents"]

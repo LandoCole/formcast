@@ -124,7 +124,9 @@ the lock to detect; without a warm-up the library loads its own. A run with one 
 process the same way (through ``DocText`` and ``PdfFeatures``), one MuPDF call at a time under the lock; with more,
 in worker processes of their own, which share no lock with the server. A run's page images (``page_png``) and the
 AI pass's readings of its documents take the lock the same way; its problems, decisions and export read only the
-run's files.
+run's files. A run's results are kept in memory once loaded (``Run``, ``demo/server/extraction.py``), so a page of
+problems, a page image and a decision parse only the documents they touch, and ``GET /api/runs`` reuses each run's
+counts until its files change.
 
 The handlers are functions over the ``Api`` they are registered on, so the managers (``demo/server/extraction.py``)
 stay where the ``Api`` keeps them. This module imports ``api`` for ``ApiError``, ``Request`` and the upload helpers,
@@ -156,7 +158,7 @@ from demo.server.settings import Settings
 from demo.server.store import check_name
 from formcast import FormcastError, SessionCancelled
 from formcast.extract.aipass import ai_pass
-from formcast.extract.batch import INTERNAL_ERROR, Results, ReviewDecision, run_batch
+from formcast.extract.batch import INTERNAL_ERROR, ReviewDecision, run_batch
 from formcast.extract.edit import Edit
 from formcast.extract.model import concrete_paths
 from formcast.extract.proof import prove
@@ -706,14 +708,6 @@ def _run(api: Api, req: Request) -> Run:
         return api.runs.get(req.match["run"])
 
 
-def _results(run: Run) -> Results:
-    """The run's results, loaded now; 409 ``not_started`` for a run whose job has not begun reading."""
-    try:
-        return run.results()
-    except RunNotStarted as exc:
-        raise ApiError(409, "not_started", str(exc)) from None
-
-
 def _page_query(req: Request) -> tuple[int, int]:
     return _whole(req.query, "offset", 0, 0, None), _whole(req.query, "limit", PAGE_DEFAULT, 1, PAGE_LIMIT)
 
@@ -744,9 +738,10 @@ def run_problems(api: Api, req: Request) -> dict:
     """A page of the documents that still have problems, each with them: ``?path=&status=&offset=&limit=``."""
     run = _run(api, req)
     offset, limit = _page_query(req)
-    results = _results(run)
     try:
-        total, page = results.page(offset, limit, path=req.query.get("path") or None, status=req.query.get("status") or None)
+        total, page = run.problems(offset, limit, req.query.get("path") or None, req.query.get("status") or None)
+    except RunNotStarted as exc:
+        raise ApiError(409, "not_started", str(exc)) from None
     except FormcastError as exc:
         raise ApiError(400, "bad_request", str(exc)) from None
     titles = run.titles()
@@ -771,14 +766,17 @@ def run_set_aside(api: Api, req: Request) -> dict:
     """A page of the documents set aside (no template fits, or unreadable): ``?offset=&limit=``."""
     run = _run(api, req)
     offset, limit = _page_query(req)
-    total, documents = 0, []
-    for row in _results(run).set_aside():
-        if offset <= total < offset + limit:
-            documents.append({
-                "doc_id": row["doc_id"], "name": run.name_of(row["doc_id"]), "reason": _reason(row["reason"]),
-                "closest_template": row["closest_template"], "closest_score": row["closest_score"],
-            })  # fmt: skip
-        total += 1
+    try:
+        total, rows = run.set_aside(offset, limit)
+    except RunNotStarted as exc:
+        raise ApiError(409, "not_started", str(exc)) from None
+    documents = [
+        {
+            "doc_id": row["doc_id"], "name": run.name_of(row["doc_id"]), "reason": _reason(row["reason"]),
+            "closest_template": row["closest_template"], "closest_score": row["closest_score"],
+        }  # fmt: skip
+        for row in rows
+    ]
     return {"total": total, "documents": documents}
 
 

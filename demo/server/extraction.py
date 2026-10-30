@@ -77,10 +77,17 @@ template its ``run.json`` names must be a saved extraction with the same ``templ
 memory under a new id and read where it is; nothing is copied. Its documents are named by their ``doc_id`` (their
 path in that folder).
 
-``Run.results()`` loads the results afresh on each call, so what a job or a decision wrote since is always seen.
+A run's results (``formcast.extract.batch.Results``) are loaded once, by the first request that needs them, and kept
+in memory: one pass over ``results.jsonl`` counts every document and notes which still have problems, so a page of
+problems (``Run.problems``) or of documents set aside (``Run.set_aside``) parses only its own documents, a page image
+finds its document by its line (``Run.document``), and a decision (``Run.decide``) updates the counts and lists in
+place, reading nothing again. Before each use the kept results catch up with the run's files (``Results.refresh``):
+with nothing changed that is four ``stat`` calls; while a job is writing it reads only the lines appended since.
 ``Run.summary()`` (the run as the API shows it: the ``RunSummary``, each field's counts with its title from the
-schema, the seconds spent) keeps its last answer until one of the run's files changes size or time. A run takes one
-job at a time (``Run.claim``, ``RunBusy``) and one decision at a time. ``Run.export`` names each document (the
+schema, the seconds spent) is made from those counts and kept until they change, so ``Runs.list`` costs a ``stat``
+per file of each run once its results are loaded. An export and the dataset sent to fill are passes over every
+document and load the results anew, holding no lock. A run takes one job at a time (``Run.claim``, ``RunBusy``) and
+one decision at a time. ``Run.export`` names each document (the
 export's ``name`` column) and gives an uploaded one's shown name as its ``file``, never the server's copy of it.
 ``Run.table`` (sent to fill) holds only ``found`` values: whatever review has not settled is a gap.
 
@@ -91,7 +98,7 @@ each for their table or folder. A ``Setup``'s lock is taken before ``PYMUPDF_LOC
 proves holding the setup's lock, and the library takes ``PYMUPDF_LOCK`` (its own ``PDF_LOCK``) for each MuPDF call
 it makes (a document opened, a page read or rendered), so a page image asked for meanwhile waits for one call, not
 the whole proof. ``Runs`` has one lock for its table (held while a run's folder is made or read); each ``Run`` has
-one for its job flag, its cached summary and its decisions. A run's job reads documents with no lock of the
+one for its job flag, its kept results and summary, and its decisions: every use of the kept results takes it. A run's job reads documents with no lock of the
 server's: the library takes ``PYMUPDF_LOCK`` for each MuPDF call it makes in this process.
 """
 
@@ -120,12 +127,10 @@ from demo.server.documents import PYMUPDF_LOCK
 from demo.server.store import NAME_RE, StoredTemplateError, _write, check_name
 from formcast.data.table import MAX_ROWS, Table
 from formcast.errors import FormcastError
-from formcast.extract.batch import (
-    AI, PROBLEMS, RESULTS, REVIEWS, RUN, Results, ReviewDecision, RunSummary, template_sha256,
-)
+from formcast.extract.batch import PROBLEMS, RUN, Results, ReviewDecision, RunSummary, template_sha256
 from formcast.extract.edit import Edit, apply_edit
 from formcast.extract.export import ExportFormat, _template_columns, _title, export  # _title: as the ``fields`` part
-from formcast.extract.model import DocumentResult, ExtractionTemplate, concrete_paths
+from formcast.extract.model import DocumentResult, ExtractionTemplate, FieldResult, concrete_paths
 from formcast.extract.proof import Mark, Proof, learn_maps, prove, sample_marks
 from formcast.extract.samples import SampleDoc, SamplePdf
 from formcast.extract.scan import ScanReport, sample, scan
@@ -796,8 +801,9 @@ class Run:
     """A run of saved extraction templates over a batch, in ``out_dir`` (see the module docstring).
 
     ``batch`` is the id of the batch a workbench run reads (``None`` for a command line run), and ``folder`` is true
-    for a command line run opened by its folder. Read it with ``results`` (loaded afresh on each call), ``summary``,
-    ``document``, ``name_of`` and ``table``; ``decide`` records a review decision.
+    for a command line run opened by its folder. Read it with ``summary``, ``problems``, ``set_aside``, ``document``,
+    ``name_of``, ``table`` and ``export``; ``decide`` records a review decision. The first of them to need the
+    results loads them, and the run keeps them (see the module docstring).
     """
 
     id: str
@@ -810,16 +816,32 @@ class Run:
     folder: bool = False
     _names: dict[str, str] | None = field(default=None, repr=False)  # doc_id -> shown name, read from RUN_NAMES once
     _titles: dict[str, str] | None = field(default=None, repr=False)  # concrete path -> title
-    _cached: tuple[tuple, dict] | None = field(default=None, repr=False)  # (the files' sizes and times, the summary)
+    _results: Results | None = field(default=None, repr=False)  # loaded once, then kept up with (Results.refresh)
+    _cached: tuple[int, dict] | None = field(default=None, repr=False)  # (the results' version, the summary)
     _busy: bool = field(default=False, repr=False)  # a job is running on the run
     _lock: threading.Lock = field(default_factory=threading.Lock, repr=False)
 
-    def results(self) -> Results:
-        """The run's results as its files hold them now, with the decisions and the AI's answers.
+    def _loaded(self) -> Results:
+        """The run's results as its files hold them now, with the decisions and the AI's answers: loaded the first
+        time, then caught up with what was written since (``Results.refresh``). The caller holds the run's lock.
 
         Raises:
             RunNotStarted: the run has not begun reading (it has no ``run.json`` yet).
             FormcastError: a line of its files before the last is not a record.
+        """
+        if self._results is None:
+            if not (self.out_dir / RUN).is_file():
+                raise RunNotStarted("This run has not read any document yet.")
+            self._results = Results.load(self.out_dir)
+        else:
+            self._results.refresh()
+        return self._results
+
+    def _fresh(self) -> Results:
+        """The run's results loaded anew, for a pass over all of them (an export, a dataset) that holds no lock.
+
+        Raises:
+            RunNotStarted, FormcastError: as ``_loaded``.
         """
         if not (self.out_dir / RUN).is_file():
             raise RunNotStarted("This run has not read any document yet.")
@@ -846,18 +868,18 @@ class Run:
 
     def summary(self) -> dict:
         """The run as the API shows it: ``{id, name, extraction, summary, fields: [{path, title, found, missing,
-        failed_check, unsure, reviewed, not_on_form}], seconds}``. It is worked out again only when the run's files
-        have changed since."""
-        key = tuple(_stat(self.out_dir / name) for name in (RUN, RESULTS, REVIEWS, AI))
+        failed_check, unsure, reviewed, not_on_form}], seconds}``. It is made from the kept results' counts, again
+        only when they have changed since."""
         with self._lock:
-            if self._cached is not None and self._cached[0] == key:
-                return self._cached[1]
-        try:
-            results = self.results()
-        except RunNotStarted:
-            summary, counts = NOT_STARTED, {}
-        else:
-            summary, counts = results.summary(), results.field_counts()
+            try:
+                results = self._loaded()
+            except RunNotStarted:
+                key, summary, counts = -1, NOT_STARTED, {}
+            else:
+                key = results.version
+                if self._cached is not None and self._cached[0] == key:
+                    return self._cached[1]
+                summary, counts = results.summary(), results.field_counts()
         titles = self.titles()
         out = {
             "id": self.id,
@@ -874,19 +896,39 @@ class Run:
             self._cached = (key, out)
         return out
 
+    def problems(
+        self, offset: int, limit: int, path: str | None, status: str | None
+    ) -> tuple[int, list[tuple[DocumentResult, list[FieldResult]]]]:
+        """``Results.page``: how many documents still have problems (matching ``path`` and ``status``), and ``limit``
+        of them from ``offset`` with their problem fields. Only the page's documents are parsed.
+
+        Raises:
+            RunNotStarted: the run has not begun reading.
+            FormcastError: as ``Results.page`` (a status that is not a problem's).
+        """
+        with self._lock:
+            return self._loaded().page(offset, limit, path=path, status=status)
+
+    def set_aside(self, offset: int, limit: int) -> tuple[int, list[dict]]:
+        """``Results.set_aside_page``: how many documents are set aside, and the rows of ``limit`` of them from ``offset``.
+
+        Raises:
+            RunNotStarted: the run has not begun reading.
+        """
+        with self._lock:
+            return self._loaded().set_aside_page(offset, limit)
+
     def document(self, doc_id: str) -> DocumentResult:
-        """The document ``doc_id`` of the run, as it was read.
+        """The document ``doc_id`` of the run, as it was read (only its own line is parsed).
 
         Raises:
             KeyError: the run has no such document (or has not begun reading).
         """
-        try:
-            results = self.results()
-        except RunNotStarted:
-            raise KeyError(doc_id) from None
-        if doc_id not in results._index:  # Results indexes each document's line by doc_id; it has no public lookup
-            raise KeyError(doc_id)
-        return results._document(doc_id)
+        with self._lock:
+            try:
+                return self._loaded().document(doc_id)
+            except RunNotStarted:
+                raise KeyError(doc_id) from None
 
     def name_of(self, doc_id: str) -> str:
         """The name shown for a document: its file's name in the batch, or (a command line run's) its ``doc_id``."""
@@ -907,14 +949,15 @@ class Run:
         self._names = dict(names)
 
     def decide(self, decision: ReviewDecision) -> None:
-        """Record ``decision`` (``Results.decide``); the run takes one decision at a time.
+        """Record ``decision`` (``Results.decide``) on the kept results, which count it at once (nothing is read
+        again); the run takes one decision at a time.
 
         Raises:
             RunNotStarted: the run has not begun reading.
             FormcastError: the library refused it (no such document or field, nothing to accept).
         """
         with self._lock:
-            self.results().decide(decision)
+            self._loaded().decide(decision)
 
     def table(self) -> tuple[Table, int]:
         """The documents read, as a table for the fill flow, and how many of its rows still have a problem.
@@ -929,7 +972,7 @@ class Run:
             RunNotStarted: the run has not begun reading.
         """
         paths = self.paths()
-        results = self.results()
+        results = self._fresh()
         rows: list[dict] = []
         with_problems = 0
         truncated = False
@@ -953,17 +996,18 @@ class Run:
             RunNotStarted: the run has not begun reading.
             FormcastError: as ``export`` (a missing extra, a column clash), or a template is not the run's.
         """
-        results = self.results()
+        results = self._fresh()
         results.check_templates(self.templates)
         shown = _ShownFiles(results, self, stored.resolve())
         return export(shown, self.templates, out, format=format, names=self.names())
 
     def read_count(self, doc_ids: Iterable[str]) -> int:
         """How many of ``doc_ids`` the run has read already (0 before it begins)."""
-        try:
-            done = self.results()._index  # Results indexes each document's line by doc_id; it has no public lookup
-        except RunNotStarted:
-            return 0
+        with self._lock:
+            try:
+                done = set(self._loaded().doc_ids())
+            except RunNotStarted:
+                return 0
         return sum(doc_id in done for doc_id in doc_ids)
 
     def claim(self) -> None:
@@ -1004,14 +1048,6 @@ class _ShownFiles:
             if Path(row["file"]).is_relative_to(self._stored):
                 row = {**row, "file": self._run.name_of(row["doc_id"])}
             yield row
-
-
-def _stat(path: Path) -> tuple[int, int] | None:
-    try:
-        st = path.stat()
-    except OSError:
-        return None
-    return st.st_size, st.st_mtime_ns
 
 
 class Runs:
