@@ -5,6 +5,7 @@ from __future__ import annotations
 import re
 
 import pytest
+from playwright.sync_api import expect
 
 APPLICANT = {"description": "", "enum": None, "item_type": None, "in_table": None}
 
@@ -202,6 +203,34 @@ def test_label_and_type_emit_ops(panels):
         {"op": "set_label", "id": "name", "label": "Applicant name"},
         {"op": "set_type", "id": "name", "type": "signature"},
     ]
+
+
+def test_a_required_box_shows_the_checkbox_checked_with_its_reason(panels):
+    by_id(panels.template, "name").update(required=True, required_reason="The form marks it with an asterisk.", required_by="agent")
+    panels.setup()
+    ins = panels.page.locator("#inspector")
+    box = ins.get_by_role("checkbox", name="Required", exact=True)
+    expect(box).to_be_checked()
+    assert "The form marks it with an asterisk." in ins.locator(".fc-ins-why").inner_text()
+    panels.setup(field_id="email")  # an optional box with no reason: unchecked, nothing under it
+    expect(ins.get_by_role("checkbox", name="Required", exact=True)).not_to_be_checked()
+    assert ins.locator(".fc-ins-why").count() == 0
+
+
+def test_the_required_checkbox_emits_set_required_with_the_reason_set_by_you(panels):
+    ins = panels.page.locator("#inspector")
+    ins.locator('[data-ctl="required"]').check()
+    by_id(panels.template, "name").update(required=True, required_reason="Set by you", required_by="human")
+    panels.setup()  # the host applied it and shows the box again
+    assert "Set by you" in ins.locator(".fc-ins-why").inner_text()
+    ins.locator('[data-ctl="required"]').uncheck()
+    assert panels.ops() == [{"op": "set_required", "id": "name", "required": False, "reason": "Set by you"}]
+
+
+def test_a_required_box_is_offered_for_every_box_type_including_a_table(panels):
+    for fid in ("s1", "items"):
+        panels.setup(field_id=fid)
+        assert panels.page.locator('#inspector [data-ctl="required"]').count() == 1, fid
 
 
 def test_changing_the_data_field_emits_one_set_source(panels):

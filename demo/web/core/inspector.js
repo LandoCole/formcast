@@ -1,7 +1,7 @@
 // The inspector: the selected box's label, type, data fields, transform chain and style, plus its
 // warnings. Every edit is emitted as an op on the bus (`set_label`, `set_type`, `set_source`,
-// `set_style`); the inspector never edits the template. The host applies the op and calls `show`
-// again with the new field.
+// `set_style`, `set_required`); the inspector never edits the template. The host applies the op and
+// calls `show` again with the new field.
 //
 // The transform chain editor is built from `listTransforms()`: each step's argument inputs come
 // from the transform's JSON Schema, so there is no per-transform code here. A chain that does not
@@ -30,6 +30,8 @@ const DEFAULT_FIXED_SIZE = 10;
 // Boxes that print text, so several data fields can be joined into one value.
 const JOINABLE = ["text", "signature"];
 const DEFAULT_JOIN = " ";
+// The reason a person's own Required choice carries (the server and the browser engine mark it human).
+const REQUIRED_BY_YOU = "Set by you";
 
 const pathOf = (p) => (typeof p === "string" ? p : p.path);
 
@@ -227,6 +229,8 @@ export class Inspector {
     row("Data field", ...this.#dataField(f, orphans));
     if (used.length > 1 && JOINABLE.includes(f.type)) row("Joined with", ...this.#joiner(f));
 
+    row("Required", ...this.#required(f));
+
     if (f.type === "table") row("Table", this.#segments(f));
     if (!NO_STYLE.includes(f.type) && f.type !== "table") this.#style(f, row);
 
@@ -306,6 +310,22 @@ export class Inspector {
     const nodes = [input];
     const hint = joinHint(join);
     if (hint) nodes.push(el("p", "fc-ins-hint", hint));
+    return nodes;
+  }
+
+  /** The Required checkbox, and under it the reason the box is (or is not) required. */
+  #required(f) {
+    const box = el("input");
+    box.type = "checkbox";
+    box.dataset.ctl = "required";
+    box.checked = Boolean(f.required);
+    box.addEventListener("change", () => {
+      this.#emit({ op: "set_required", id: f.id, required: box.checked, reason: REQUIRED_BY_YOU });
+    });
+    const label = el("label", "fc-ins-check");
+    label.append(box, " Required");
+    const nodes = [label];
+    if (f.required_reason) nodes.push(el("p", "fc-ins-hint fc-ins-why", f.required_reason));
     return nodes;
   }
 

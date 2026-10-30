@@ -721,6 +721,34 @@ def test_fill_from_a_stored_record_shows_the_filled_pdf_and_download_saves_it(de
     assert smart.startswith(b"%PDF")
 
 
+def test_marking_a_box_required_puts_it_first_among_the_empty_boxes_after_a_fill(demo_server, bench):
+    b = bench(demo_server)
+    b.open_form("fw9")
+    b.page.click("#reuse")
+    b.page.wait_for_function("window.__workbench.template !== null")
+    # w0_13 has no data field in the stored template, so a fill leaves it empty
+    assert b.template()["fields"][next(i for i, f in enumerate(b.template()["fields"]) if f["id"] == "w0_13")]["source"] is None
+    box(b.page, "w0_13").click()
+    required = b.page.locator('#inspector [data-ctl="required"]')
+    expect(required).not_to_be_checked()
+    required.check()
+    b.page.wait_for_function("window.__workbench.template.fields.find((f) => f.id === 'w0_13').required === true")
+    b.idle()
+    marked = next(f for f in b.template()["fields"] if f["id"] == "w0_13")
+    assert (marked["required"], marked["required_reason"], marked["required_by"]) == (True, "Set by you", "human")
+    expect(b.page.locator("#inspector .fc-ins-why")).to_have_text("Set by you")
+
+    b.page.click("#fill-open")
+    b.page.select_option("#fill-record", "fw9-01")
+    b.page.click("#fill-go")
+    b.filled(b.page.eval_on_selector("#fill-record", "s => s.selectedOptions[0].textContent"))
+    notes = b.page.locator("#report .fc-rp-note")
+    assert notes.nth(0).inner_text().startswith("Required boxes left empty: ") and "w0_13" in notes.nth(0).inner_text()
+    assert notes.nth(1).inner_text().startswith("Other empty boxes: ")
+    assert "w0_13" not in notes.nth(1).inner_text()
+    expect(b.page.locator("#report .fc-rp-counts")).to_contain_text("required left empty")
+
+
 def test_an_edit_or_closing_the_drawer_ends_the_filled_preview(demo_server, bench):
     b = bench(demo_server)
     b.open_form("fw9")
