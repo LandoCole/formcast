@@ -61,6 +61,8 @@ const ZOOMS = [0.5, 0.67, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];
 /** The page images' resolution bounds (the server's). */
 const MIN_DPI = 36;
 const MAX_DPI = 200;
+/** The field's own name in a path: the last name, before any item numbers (`tax_id`, `name` of `owners[2].name`). */
+const LAST_NAME = /[^.[\]]+(?=(?:\[\d*\])*$)/;
 /** Where the fields started, as the strip names it. */
 const START_NAMES = { ai: "AI suggests", lines: "I'll list them", destination: "Destination" };
 /** The types a person can give a field (the edit's names) and how the inspector says them. */
@@ -500,7 +502,15 @@ export function mountSetup(app) {
 
     const dl = make("dl", { className: "fc-ins-dl" });
     const item = (label, control) => dl.append(make("dt", { textContent: label }), make("dd", {}, control));
-    item("Name", make("span", { className: "ins-name", textContent: row?.items ? row.generic : path }));
+    const shownPath = row?.items ? row.generic : path;
+    const fieldName = shownPath.match(LAST_NAME)[0];
+    const name = make("input", { type: "text", className: "fc-in", id: "ins-name", value: fieldName, ariaLabel: "Name" });
+    commitOnChange(name, () => {
+      const renamed = name.value.trim();
+      return renamed !== fieldName && edit({ op: "rename_field", path, name: renamed }, { control: name.id, select: path.replace(LAST_NAME, () => renamed) });
+    });
+    const group = shownPath.slice(0, shownPath.lastIndexOf(fieldName));
+    item("Name", group ? make("div", {}, make("span", { className: "ins-group", textContent: group }), name) : name);
     const title = make("input", { type: "text", className: "fc-in", id: "ins-title", value: prop.title ?? "", ariaLabel: "Title" });
     commitOnChange(title, () => title.value.trim() !== (prop.title ?? "") && edit({ op: "set_field", path, title: title.value.trim() }, { control: title.id }));
     item("Title", title);

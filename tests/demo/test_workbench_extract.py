@@ -39,6 +39,7 @@ from test_workbench_page import Bench, bench, no_model_loads, widget_pdf  # noqa
 
 from demo.server import extract_api, extraction
 from demo.server.api import Api
+from formcast.extract.edit import SetField
 from formcast.extract.setup import STAGES
 from tests.extract.corpus import FIELD_RECTS, SHIFT, clients, make_form
 
@@ -719,7 +720,8 @@ def test_selecting_a_field_heavy_draws_its_box_with_its_path_and_the_inspector_s
     expect(picked(b).locator(".fc-tag")).to_be_visible()
     expect(b.page.locator("#setup-pv .fc-box.is-picked")).to_have_count(2)  # its box and its label, on a fillable copy
     ins = b.page.locator("#ins")
-    expect(ins).to_contain_text("investor.tax_id")
+    expect(ins.locator(".ins-group")).to_have_text("investor.")
+    expect(b.page.locator("#ins-name")).to_have_value("tax_id")
     expect(b.page.locator("#ins-title")).to_have_value("Taxpayer ID")
     expect(b.page.locator("#ins-type")).to_have_value("text")
     expect(ins.locator(".ro")).to_contain_text(["Form field tax_id", "A box on page 1", "Next to the label Taxpayer ID"])
@@ -1035,6 +1037,59 @@ def test_an_edit_made_while_a_line_job_runs_waits_for_it_and_is_then_made(start_
     assert schema["properties"]["investor"]["properties"]["tax_id"]["description"] == "The EIN or SSN, with its dashes."
     assert "wire" in schema["properties"]
     expect(b.page.locator("#notice")).to_be_hidden()
+
+
+def test_a_field_is_renamed_from_the_inspector_and_stays_selected(start_demo_server, bench):
+    base = extract_server(start_demo_server)
+    setup = setup_on(base)
+    b = bench(base, fill=False)
+    show_setup(b, setup)
+    row(b, "investor.tax_id").click()
+    expect(b.page.locator("#ins-name")).to_have_value("tax_id")
+    b.page.fill("#ins-name", "tin")
+    b.page.press("#ins-name", "Enter")
+    expect(row(b, "investor.tin")).to_have_class(re.compile("is-picked"))
+    expect(row(b, "investor.tax_id")).to_have_count(0)
+    expect(b.page.locator("#ins-name")).to_have_value("tin")
+    expect(b.page.locator("#ins-title")).to_have_value("Taxpayer ID")
+
+
+def test_a_refused_rename_says_why_and_puts_the_name_back(start_demo_server, bench):
+    base = extract_server(start_demo_server)
+    setup = setup_on(base)
+    b = bench(base, fill=False)
+    show_setup(b, setup)
+    row(b, "investor.tax_id").click()
+    b.page.fill("#ins-name", "tax id")
+    b.page.press("#ins-name", "Enter")
+    expect(b.page.locator("#notice")).to_contain_text("letters, numbers")
+    expect(b.page.locator("#ins-name")).to_have_value("tax_id")
+
+
+def test_the_field_the_save_refuses_can_be_renamed_and_then_saved(start_demo_server, bench):
+    from test_server_extract import with_a_field_named_name
+
+    base = extract_server(start_demo_server)
+    setup = setup_on(base)
+    kept = start_demo_server.servers[-1].api.setups.get(setup["id"])
+    kept.template = with_a_field_named_name(kept.template)
+    kept.edit(SetField(op="set_field", path="name", title="Name"))  # proven again, so the field is on the list
+    b = bench(base, fill=False)
+    show_setup(b, get_json(base, f"/api/setups/{setup['id']}")[1])
+    b.page.click("#setup-save")
+    b.page.fill("#setup-save-name", "Clash")
+    b.page.click("#setup-save-go")
+    expect(b.page.locator("#setup-save-msg")).to_contain_text("rename the field")
+    b.page.click("#setup-save-cancel")
+    row(b, "name").click()
+    b.page.fill("#ins-name", "legal_name")
+    b.page.press("#ins-name", "Enter")
+    expect(row(b, "legal_name")).to_be_visible()
+    b.page.click("#setup-save")
+    b.page.fill("#setup-save-name", "Clash")
+    b.page.click("#setup-save-go")
+    expect(b.page.locator("#setup-save-box")).to_be_hidden()
+    assert [e["name"] for e in get_json(base, "/api/extractions")[1]["extractions"]] == ["Clash"]
 
 
 def test_a_refused_edit_puts_back_its_own_box_and_keeps_what_is_typed_in_another(start_demo_server, bench):

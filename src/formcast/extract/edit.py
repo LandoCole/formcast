@@ -9,10 +9,11 @@ change to it, discriminated by ``op`` so the workbench can send them as plain JS
     {"op": "set_option_box", "path": "investor.type", "answer": "trust", "page": 0, "rect": [60, 200, 72, 212]}
     {"op": "set_labels", "path": "investor.tax_id", "labels": ["TIN"], "side": "below"}
     {"op": "set_clean", "path": "investor.dob", "clean": [{"op": "date", "args": {"formats": ["%m/%d/%Y"]}}]}
+    {"op": "rename_field", "path": "investor.tax_id", "name": "tin"}
     {"op": "mark_absent", "path": "wire.bank"}     (and "restore", "remove_field")
 
 :func:`apply_edit` gives back a validated copy and leaves the template it was given alone. The schema edits
-(``set_field``, ``remove_field``) go to the one property schema every item path of a repeated group shares, so
+(``set_field``, ``rename_field``, ``remove_field``) go to the one property schema every item path of a repeated group shares, so
 editing ``owners[2].percent`` edits ``owners[0].percent`` ... ``owners[3].percent`` alike. The reader edits change
 one strategy of one path and keep the order of the others (a widget read, then boxes, then labels, as the template
 was built), because the first strategy that finds something wins.
@@ -55,6 +56,9 @@ from formcast.schema import ARRAY_ITEM, REASON_KEY, flatten_schema, parse_path
 
 #: The reason recorded on a field whose level a person changed, when the edit gives none.
 SET_BY_YOU = "Set by you"
+
+#: A name a field can have: one segment of a path, with nothing a path reads as its own syntax.
+_FIELD_NAME = re.compile(r"[^\s.\[\]\"\\]+")
 
 #: The JSON Schema each type a person can pick stands for. A date is a string with a ``format``.
 _TYPES: dict[str, dict[str, str]] = {
@@ -179,8 +183,20 @@ class RemoveField(_Edit):
     path: str
 
 
+class RenameField(_Edit):
+    """Give the field a new ``name``, the last part of its path: ``investor.tax_id`` named ``tin`` is ``investor.tin``.
+
+    The field keeps its place, level, readers and the samples' readings. On a repeated group this renames it in every
+    item. A field's export column is made from its path, so this is what clears a clash with a document column.
+    """
+
+    op: Literal["rename_field"] = "rename_field"
+    path: str
+    name: str
+
+
 Edit = Annotated[
-    SetField | SetBox | SetOptionBox | SetLabels | SetClean | MarkAbsent | Restore | RemoveField,
+    SetField | SetBox | SetOptionBox | SetLabels | SetClean | MarkAbsent | Restore | RemoveField | RenameField,
     Field(discriminator="op"),
 ]
 
@@ -195,7 +211,8 @@ def apply_edit(template: ExtractionTemplate, edit: Edit, *, pdfs: list[bytes] | 
 
     Raises:
         FormcastError: ``edit.path`` is not a field of the schema, a ``set_option_box`` answer is not one of the
-            field's answers, or the field's schema is built with ``$ref``/``anyOf`` and cannot be edited in place;
+            field's answers, a ``rename_field`` name a path cannot hold or another field beside it has, or the
+            field's schema is built with ``$ref``/``anyOf`` and cannot be edited in place;
             for a box drawn on a sample, no ``pdfs``, ``pdfs`` that are not the template's samples, or a sample or
             page the template's samples do not have.
         pydantic.ValidationError: the edited template is not valid.
@@ -303,6 +320,32 @@ def _remove_field(t: ExtractionTemplate, edit: RemoveField) -> None:
         t.setup = t.setup.model_copy(update={"line_paths": lines})
 
 
+def _rename_field(t: ExtractionTemplate, edit: RenameField) -> None:
+    if not _FIELD_NAME.fullmatch(edit.name):
+        raise FormcastError("a field's name is letters, numbers and underscores, with no spaces, dots or brackets")
+    _, steps = _locate(t.schema_, edit.path)
+    parent, old = steps[-1]
+    if edit.name == old:
+        return
+    if edit.name in parent["properties"]:
+        raise FormcastError(f"there is already a field named {edit.name!r} here")
+    concrete = concrete_paths(t.schema_)
+    generic = [sp.path for sp in flatten_schema(t.schema_)]
+    parent["properties"] = {edit.name if k == old else k: v for k, v in parent["properties"].items()}
+    if old in parent.get("required", []):
+        parent["required"] = [edit.name if n == old else n for n in parent["required"]]
+    # the field kept its place, so the paths come out in the same order
+    moved = dict(zip(concrete, concrete_paths(t.schema_), strict=True))
+    t.readers = {moved[p]: r for p, r in t.readers.items()}
+    t.absent = [moved[p] for p in t.absent]
+    for sample in t.samples:
+        sample.opinion = {moved.get(p, p): v for p, v in sample.opinion.items()}
+    if t.setup is not None:
+        renamed = dict(zip(generic, (sp.path for sp in flatten_schema(t.schema_)), strict=True))
+        lines = {line: [renamed.get(p, p) for p in paths] for line, paths in t.setup.line_paths.items()}
+        t.setup = t.setup.model_copy(update={"line_paths": lines})
+
+
 # ------------------------------------------------------------------- the readers
 
 
@@ -399,4 +442,5 @@ _HANDLERS = {
     MarkAbsent: _mark_absent,
     Restore: _restore,
     RemoveField: _remove_field,
+    RenameField: _rename_field,
 }

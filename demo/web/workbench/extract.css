@@ -108,7 +108,7 @@ body[data-mode="extract"] [data-for="fill"] { display: none !important; }
 #setup-pv .fc-box[data-kind="read"].is-picked { outline: 2px dotted var(--ink); }
 #setup-pv .fc-box[data-kind="label"] { outline: 0; background: none; box-shadow: inset 0 -1.5px 0 0 var(--graphite); }
 #setup-pv .fc-box[data-kind="label"].is-picked { box-shadow: inset 0 -2px 0 0 var(--ink); }
-.fc-ins-dl .ins-name { display: block; line-height: 28px; overflow-wrap: anywhere; }
+.fc-ins-dl .ins-group { display: block; line-height: 28px; overflow-wrap: anywhere; }
 #ins textarea.fc-in { height: auto; margin: 0; padding: 6px 8px; font: 14px/20px var(--serif); resize: vertical; }
 #ins .fc-ins-warn { margin-top: 10px; }
 .ins-format { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: center; margin-top: 4px; font: 14px var(--serif); }

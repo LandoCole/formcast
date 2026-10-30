@@ -48,6 +48,7 @@ _LAZY = {
     "Reader": "formcast.extract.model",
     "ReaderProposal": "formcast.extract.readers",
     "RemoveField": "formcast.extract.edit",
+    "RenameField": "formcast.extract.edit",
     "Restore": "formcast.extract.edit",
     "SampleDoc": "formcast.extract.samples",
     "SamplePdf": "formcast.extract.samples",
@@ -93,7 +94,7 @@ if TYPE_CHECKING:
     from formcast.extract.aipass import AiPassSummary, ai_pass
     from formcast.extract.ask import FieldsAnswer, fields_from_lines, fields_on_form, propose_readers, read_values
     from formcast.extract.edit import (
-        Edit, MarkAbsent, RemoveField, Restore, SetBox, SetClean, SetField, SetLabels, SetOptionBox, apply_edit,
+        Edit, MarkAbsent, RemoveField, RenameField, Restore, SetBox, SetClean, SetField, SetLabels, SetOptionBox, apply_edit,
     )  # fmt: skip
     from formcast.extract.levels import required_paths
     from formcast.extract.model import (

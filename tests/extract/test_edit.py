@@ -11,6 +11,7 @@ from formcast.extract.edit import (
     Edit,
     MarkAbsent,
     RemoveField,
+    RenameField,
     Restore,
     SetBox,
     SetClean,
@@ -222,6 +223,54 @@ def test_remove_field_drops_the_name_from_required_the_absent_list_and_the_lines
     assert t.absent == []
     t = apply_edit(t, RemoveField(op="remove_field", path="owners[3].name"))
     assert t.setup.line_paths["owners"] == []
+
+
+def test_rename_field_moves_the_field_with_its_place_level_reader_and_readings():
+    base = hand_template().model_copy(update={
+        "absent": ["investor.country"],
+        "samples": [SampleRecord(file="a", sha256="0" * 64, opinion={"investor.tax_id": "1", "investor.dob": "2"})],
+        "setup": SetupInfo(start="lines", lines=["tax"], line_paths={"tax": ["investor.tax_id", "investor.dob"]}),
+    })
+    t = apply_edit(base, RenameField(op="rename_field", path="investor.tax_id", name="tin"))
+    names = list(_prop(t, "investor")["properties"])
+    assert names == [n.replace("tax_id", "tin") for n in _prop(base, "investor")["properties"]]
+    assert _prop(t, "investor", "tin") == _prop(base, "investor", "tax_id")
+    assert _prop(t, "investor")["required"] == ["tin"] and "tax_id" not in _prop(t, "investor")["properties"]
+    assert t.readers["investor.tin"] == base.readers["investor.tax_id"] and "investor.tax_id" not in t.readers
+    assert t.samples[0].opinion == {"investor.tin": "1", "investor.dob": "2"}
+    assert t.setup.line_paths == {"tax": ["investor.tin", "investor.dob"]}
+    assert base.readers["investor.tax_id"] and "tax_id" in _prop(base, "investor")["properties"]  # the original stays
+
+    t = apply_edit(base, RenameField(op="rename_field", path="investor.country", name="nation"))
+    assert t.absent == ["investor.nation"]
+
+
+def test_rename_field_on_an_item_renames_it_in_every_item():
+    base = hand_template().model_copy(update={
+        "samples": [SampleRecord(file="a", sha256="0" * 64, opinion={"owners[0].name": "Ana", "owners[3].name": "Bo"})],
+        "setup": SetupInfo(start="lines", lines=["owners"], line_paths={"owners": ["owners[].name"]}),
+    })
+    t = apply_edit(base, RenameField(op="rename_field", path="owners[2].name", name="owner"))
+    assert not any(p.endswith(".name") for p in t.readers)
+    assert [p for p in t.readers if p.endswith(".owner")] == [p.replace(".name", ".owner") for p in base.readers if p.endswith(".name")]
+    assert t.samples[0].opinion == {"owners[0].owner": "Ana", "owners[3].owner": "Bo"}
+    assert t.setup.line_paths == {"owners": ["owners[].owner"]}
+
+
+def test_rename_field_to_its_own_name_changes_nothing():
+    base = hand_template()
+    assert apply_edit(base, RenameField(op="rename_field", path="investor.tax_id", name="tax_id")) == base
+
+
+@pytest.mark.parametrize("name", ["", " ", "tax id", "tax.id", "tax[0]", "[]", 'tax"id', "tax\\id"])
+def test_rename_field_refuses_a_name_a_path_cannot_hold(name):
+    with pytest.raises(FormcastError, match="letters, numbers"):
+        apply_edit(hand_template(), RenameField(op="rename_field", path="investor.tax_id", name=name))
+
+
+def test_rename_field_refuses_the_name_of_another_field_beside_it():
+    with pytest.raises(FormcastError, match="already a field named 'dob'"):
+        apply_edit(hand_template(), RenameField(op="rename_field", path="investor.tax_id", name="dob"))
 
 
 def test_removing_the_last_field_of_a_group_removes_the_group():

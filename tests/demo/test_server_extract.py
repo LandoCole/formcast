@@ -1308,6 +1308,25 @@ def test_a_run_is_refused_before_it_starts_for_an_unknown_extraction_or_batch_or
     assert get_json(runner.base, "/api/runs")[1] == {"runs": []}
 
 
+def test_a_field_that_would_share_the_exports_name_column_can_be_renamed_and_the_setup_saved(bench):
+    setup = built(bench)
+    kept = bench.api.setups.get(setup["id"])
+    kept.template = with_a_field_named_name(kept.template)
+    status, after = edit(bench, setup["id"], {"op": "rename_field", "path": "name", "name": "legal_name"})
+    assert status == 200, after
+    assert "legal_name" in after["template"]["schema"]["properties"]
+    assert "legal_name" in [f["path"] for f in after["proof"]["fields"]]
+    status, out = get_json(bench.base, "/api/extractions/Clash", "PUT", {"setup": setup["id"]})
+    assert status == 200, out
+
+
+def test_a_rename_a_field_cannot_take_is_refused_with_the_librarys_message(bench):
+    setup = built(bench)
+    status, out = edit(bench, setup["id"], {"op": "rename_field", "path": "investor.tax_id", "name": "tax id"})
+    assert (status, out["error"]) == (400, "bad_edit")
+    assert "letters, numbers" in out["detail"]
+
+
 def test_a_run_of_an_extraction_whose_field_would_share_the_exports_name_column_is_refused_before_it_starts(runner, corpus_files):
     template = ExtractionTemplate.model_validate(runner.template)
     samples = runner.api.extractions.samples("Client info")
