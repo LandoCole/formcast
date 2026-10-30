@@ -690,6 +690,31 @@ def test_a_page_of_problems_at_a_few_thousand_documents_parses_only_the_pages_do
     assert parses["loads"] == 1
 
 
+def test_a_path_with_empty_brackets_filters_the_problems_of_every_item_of_a_repeated_group(tmp_path):
+    tmp_path.mkdir(exist_ok=True)
+    (tmp_path / "run.json").write_text(json.dumps({"templates": [], "started": "", "root": "/x", "seconds": 0.0}))
+
+    def doc(doc_id: str, missing: list[str]) -> str:
+        paths = ["owners[0].name", "owners[1].name", "owners[0].percent", "investor.name"]
+        fields = [{"path": p, "status": "missing" if p in missing else "found", "raw": None, "value": None} for p in paths]
+        return json.dumps({"doc_id": doc_id, "file": f"/x/{doc_id}", "template_id": "t", "matched": "layout",
+                           "fields": fields, "extracted_at": "2026-10-29T00:00:00+00:00"})  # fmt: skip
+
+    lines = [doc("a.pdf", ["owners[0].name"]), doc("b.pdf", ["owners[1].name"]), doc("c.pdf", ["owners[0].percent"]),
+             doc("d.pdf", ["investor.name"])]  # fmt: skip
+    (tmp_path / "results.jsonl").write_text("\n".join(lines) + "\n")
+    results = Results.load(tmp_path)
+    total, page = results.page(0, 10, path="owners[].name")
+    assert total == 2 and [(d.doc_id, [f.path for f in fields]) for d, fields in page] == [
+        ("a.pdf", ["owners[0].name"]), ("b.pdf", ["owners[1].name"]),
+    ]  # fmt: skip
+    assert [d.doc_id for d, _ in results.problems(path="owners[].name")] == ["a.pdf", "b.pdf"]
+    assert results.page(0, 10, path="owners[0].name")[0] == 1  # a concrete path is that item only
+    assert results.page(0, 10, path="owners[].percent", status="missing")[0] == 1
+    results.decide(ReviewDecision(doc_id="b.pdf", path="owners[1].name", decision="not_in_document"))
+    assert results.page(0, 10, path="owners[].name")[0] == 1
+
+
 def test_refresh_follows_lines_appended_since_the_load_and_reads_again_only_a_rewritten_file(tmp_path, parses):
     synthetic_run(tmp_path, 30)
     results = Results.load(tmp_path)

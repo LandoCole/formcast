@@ -94,7 +94,8 @@ needs no model. A run takes one job at a time: another ``extract-run`` of it mea
 run could not be exported (as its save checks) is 400 ``bad_template`` before anything starts.
 
 ``problems`` and ``set-aside`` are paged as the batch files are (``limit`` 1 to 200, default 50); ``status`` is one
-of ``missing``, ``failed_check`` and ``unsure``. A document's ``name`` is its file's name in the batch (a command
+of ``missing``, ``failed_check`` and ``unsure``, and ``path`` a concrete path or, with ``[]`` (``owners[].name``),
+every item of a repeated group's field, as the review's field table folds them. A document's ``name`` is its file's name in the batch (a command
 line run's: its path in its folder), a problem's ``title`` its field's title in the schema. A decision is a
 ``ReviewDecision``; one the library refuses is 400 ``bad_decision`` with its message. A page image is of a document
 of the run only, read from its file (404 for any other ``doc``). The export is ``formcast.extract.export``'s

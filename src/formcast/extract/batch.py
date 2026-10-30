@@ -92,9 +92,9 @@ concrete path (``owners[0].name`` is its own path), how many documents read ende
 it is what ``rows`` would show), and ``reviewed``, how many of them have a decision on that path; a failed document
 has no fields and is counted nowhere. The pass keeps, for each document that still has a problem, its problem paths
 and statuses (a few bytes each); ``page(offset, limit, path=..., status=...)`` is the documents that still have a
-problem (the fields ``problems`` gives, filtered the same way), in ``doc_id`` order, as ``(how many such documents,
-the ones from offset on up to limit)``, each with its effective result and the problem fields that matched. The
-sorted list of documents for each ``(path, status)`` filter is made from those the first time it is asked for and
+problem (the fields ``problems`` gives, filtered the same way: ``path`` may be ``owners[].name``, every item), in
+``doc_id`` order, as ``(how many such documents, the ones from offset on up to limit)``, each with its effective
+result and the problem fields that matched. The sorted list of documents for each ``(path, status)`` filter is made from those the first time it is asked for and
 kept, so a page parses only its own documents. ``set_aside_page`` pages the failed documents the same way, and
 ``document(doc_id)`` parses one document by its line. A decision (``decide``), and every line ``refresh()`` reads,
 takes the documents it touches out of the counts and lists and puts them back as they now are. ``refresh()``
@@ -153,6 +153,7 @@ _STATUSES: tuple[str, ...] = get_args(Status)
 #: Documents handed to each worker ahead of the one it is reading.
 _AHEAD = 4
 _ITEM = re.compile(r"\[(\d+)\](\.)?")
+_ITEM_NUMBER = re.compile(r"\[\d+\]")
 _DOC_COLUMNS = ("doc_id", "file", "template", "matched", "extracted_at")
 #: The files of a run's ``out_dir`` that :meth:`Results.refresh` watches.
 _FILES = (RUN, RESULTS, REVIEWS, AI)
@@ -858,7 +859,7 @@ class Results:
             fields = [
                 f
                 for f in doc.fields
-                if f.status in PROBLEMS and (path is None or f.path == path) and (status is None or f.status == status)
+                if f.status in PROBLEMS and _path_is(f.path, path) and (status is None or f.status == status)
             ]
             if fields:
                 yield doc, fields
@@ -867,6 +868,8 @@ class Results:
         self, *, path: str | None = None, status: Status | None = None
     ) -> Iterator[tuple[DocumentResult, FieldResult]]:
         """Each field still ``missing``, ``failed_check`` or ``unsure`` (no decision on it), with its document.
+        ``path`` is a concrete path (``owners[0].name``), or a path with ``[]`` for every item of a repeated group
+        (``owners[].name``); ``status`` one of the three.
 
         Raises:
             FormcastError: ``status`` is not one of those three.
@@ -998,7 +1001,13 @@ def _kind(error: str | None, problems: bool) -> str:
 
 def _matches(problems: tuple[tuple[str, str], ...], path: str | None, status: str | None) -> bool:
     """Whether one of ``problems`` (``(path, status)`` pairs) is of ``path`` and ``status`` (``None``: any)."""
-    return any((path is None or p == path) and (status is None or s == status) for p, s in problems)
+    return any(_path_is(p, path) and (status is None or s == status) for p, s in problems)
+
+
+def _path_is(concrete: str, path: str | None) -> bool:
+    """Whether the concrete path is ``path`` (``None``: any): the same path, or, for a path with ``[]``
+    (``owners[].name``), the path of any item of it."""
+    return path is None or concrete == path or ("[]" in path and _ITEM_NUMBER.sub("[]", concrete) == path)
 
 
 def _place(ids: list[str], doc_id: str, member: bool) -> None:
