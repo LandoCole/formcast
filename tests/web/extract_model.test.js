@@ -13,6 +13,7 @@ import {
   fieldState,
   fieldTable,
   groupFields,
+  levelSwitch,
   outcomeLine,
   pagesText,
   parsePages,
@@ -313,16 +314,26 @@ test("batchNote says nothing before the scan is done, and says so when no docume
 
 // ------------------------------------------------------------------ a run's review
 
-const SUMMARY = { total: 1248, complete: 1163, with_problems: 38, no_template: 40, unreadable: 6, internal_errors: 1, seconds: 123.4 };
+const SUMMARY = { total: 1248, complete: 1163, with_problems: 38, optional_only: 410, with_optional: 431, no_template: 40, unreadable: 6, internal_errors: 1, seconds: 123.4 };
 
-test("runStats gives the review's five numbers, the set aside counting every document not read, and the run time", () => {
+test("runStats gives the review's six numbers, the set aside counting every document not read, and the run time", () => {
   assert.deepEqual(runStats(SUMMARY), [
     { key: "total", value: "1,248", label: "Documents" },
     { key: "complete", value: "1,163", label: "Complete" },
-    { key: "with_problems", value: "38", label: "With problems" },
+    { key: "with_problems", value: "38", label: "Required problems" },
+    { key: "optional_only", value: "410", label: "Optional only" },
     { key: "set_aside", value: "47", label: "Set aside" },
     { key: "time", value: "2:03", label: "Run time" },
   ]);
+});
+
+test("levelSwitch names the review's two sections with how many documents each lists, Required first", () => {
+  assert.deepEqual(levelSwitch(SUMMARY), [
+    { level: "required", text: "Required · 38" },
+    { level: "optional", text: "Optional · 431" },
+  ]);
+  // a run made before the levels were kept has no optional problems
+  assert.deepEqual(levelSwitch({ total: 3, complete: 1, with_problems: 2 }).map((s) => s.text), ["Required · 2", "Optional · 0"]);
 });
 
 test("runTime is minutes and seconds, with hours past the hour", () => {
@@ -380,18 +391,42 @@ test("sendNotice warns of documents still with problems and of a dataset cut sho
 test("fieldTable gives the review's By field rows, a repeated group's items folded into one row and summed", () => {
   const counts = (found, missing, failed_check = 0, unsure = 0, reviewed = 0) => ({ found, missing, failed_check, unsure, reviewed, not_on_form: 0 });
   const fields = [
-    { path: "investor.tax_id", title: "Taxpayer ID", ...counts(20, 2, 1, 0, 1) },
-    { path: "owners[0].name", title: "Owner name", ...counts(9, 1) },
-    { path: "owners[1].name", title: "Owner name", ...counts(4, 3, 0, 2, 2) },
-    { path: "owners[0].percent", title: "owners[0].percent", ...counts(10, 0) },
-    { path: "owners[1].percent", title: "owners[1].percent", ...counts(5, 1) },
+    { path: "investor.tax_id", title: "Taxpayer ID", required: true, required_reason: "the form says so", ...counts(20, 2, 1, 0, 1) },
+    { path: "owners[0].name", title: "Owner name", required: true, required_reason: "", ...counts(9, 1) },
+    { path: "owners[1].name", title: "Owner name", required: true, required_reason: "", ...counts(4, 3, 0, 2, 2) },
+    { path: "owners[0].percent", title: "owners[0].percent", required: true, required_reason: "", ...counts(10, 0) },
+    { path: "owners[1].percent", title: "owners[1].percent", required: true, required_reason: "", ...counts(5, 1) },
   ];
   assert.deepEqual(fieldTable(fields), [
-    { path: "investor.tax_id", title: "Taxpayer ID", items: null, found: 20, missing: 2, failed_check: 1, unsure: 0, reviewed: 1 },
-    { path: "owners[].name", title: "Owner name", items: 2, found: 13, missing: 4, failed_check: 0, unsure: 2, reviewed: 2 },
-    { path: "owners[].percent", title: "owners[].percent", items: 2, found: 15, missing: 1, failed_check: 0, unsure: 0, reviewed: 0 },
+    { path: "investor.tax_id", title: "Taxpayer ID", items: null, required: true, reason: "the form says so", found: 20, missing: 2, failed_check: 1, unsure: 0, reviewed: 1 },
+    { path: "owners[].name", title: "Owner name", items: 2, required: true, reason: "", found: 13, missing: 4, failed_check: 0, unsure: 2, reviewed: 2 },
+    { path: "owners[].percent", title: "owners[].percent", items: 2, required: true, reason: "", found: 15, missing: 1, failed_check: 0, unsure: 0, reviewed: 0 },
   ]); // a title that is only the path is the folded path
   assert.deepEqual(fieldTable([]), []);
+});
+
+test("fieldTable lists the required fields first, each level in the run's order, a folded row required when any item is", () => {
+  const field = (path, required, required_reason = "") => ({ path, title: path, required, required_reason, found: 1, missing: 0, failed_check: 0, unsure: 0, reviewed: 0 });
+  const rows = fieldTable([
+    field("investor.country", false, "a copy may leave it empty"),
+    field("investor.tax_id", true, "the form says so"),
+    field("owners[0].name", false),
+    field("owners[1].name", true, "the first owner is needed"),
+    field("wire.bank", false),
+    field("investor.legal_name", true),
+  ]);
+  assert.deepEqual(
+    rows.map((r) => [r.path, r.required, r.reason]),
+    [
+      ["investor.tax_id", true, "the form says so"],
+      ["owners[].name", true, "the first owner is needed"],
+      ["investor.legal_name", true, ""],
+      ["investor.country", false, "a copy may leave it empty"],
+      ["wire.bank", false, ""],
+    ],
+  );
+  // a run made before the levels were kept says nothing of them: every field counts as required, as it did
+  assert.equal(fieldTable([{ path: "a", title: "A", found: 1 }])[0].required, true);
 });
 
 test("unusedName offers the name itself when it is free, else the first numbered one no template has", () => {

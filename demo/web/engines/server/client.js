@@ -417,11 +417,14 @@ export async function createServerEngine({
       /** The Run `{id, name, extraction, summary, fields, seconds}`. */
       run: (id) => call("GET", runPath(id)),
       /**
-       * A page of the documents that still have problems: `{total, documents: [{doc_id, name, problems}]}`.
+       * A page of the documents that still have problems: `{total, documents: [{doc_id, name, problems}]}`; with
+       * `level`, only the documents with a problem of that level, and only that level's problems (none: both).
        * @param {string} id
-       * @param {{path?: string, status?: "missing" | "failed_check" | "unsure", offset?: number, limit?: number}} [opts]
+       * @param {{path?: string, status?: "missing" | "failed_check" | "unsure", level?: "required" | "optional",
+       *   offset?: number, limit?: number}} [opts]
        */
-      problems: (id, { path, status, offset = 0, limit = 50 } = {}) => call("GET", `${runPath(id)}/problems${query({ path, status, offset, limit })}`),
+      problems: (id, { path, status, level, offset = 0, limit = 50 } = {}) =>
+        call("GET", `${runPath(id)}/problems${query({ path, status, level, offset, limit })}`),
       /**
        * A page of the documents set aside: `{total, documents: [{doc_id, name, reason, closest_template, closest_score}]}`.
        * @param {string} id

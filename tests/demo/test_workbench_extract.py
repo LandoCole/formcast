@@ -31,7 +31,7 @@ import pytest
 from playwright.sync_api import expect
 from test_server_documents import get_json, small_pdf
 from test_server_extract import (  # noqa: F401 (corpus_files and problem_files are fixtures)
-    PROBLEM_FILES, SHIFTED, GatedModel, add_files, assert_proven, corpus_files, job_ended, new_batch, problem_files,
+    SHIFTED, GatedModel, add_files, assert_proven, corpus_files, job_ended, new_batch, problem_files,
     sample_set, start_job, zip_of,
 )
 from test_server_jobs import wait_for
@@ -621,6 +621,21 @@ def setup_on(base: str, files: list[tuple[str, bytes]] = FILES, samples: list[in
     return job["result"]["setup"]
 
 
+#: The edits that give the corpus template's tax ID (required) and country (optional) a reason, as the agent's
+#: classification leaves them.
+REASONS = [
+    {"op": "set_field", "path": "investor.tax_id", "required": True, "required_reason": "the form marks it required"},
+    {"op": "set_field", "path": "investor.country", "required": False, "required_reason": "a copy may leave it empty"},
+]
+
+
+def edit_setup(base: str, setup: dict, edit: dict) -> dict:
+    """The setup with ``edit`` made on it through the API."""
+    status, out = get_json(base, f"/api/setups/{setup['id']}/edit", "POST", {"edit": edit})
+    assert status == 200, out
+    return out
+
+
 def show_setup(b: Bench, setup: dict) -> None:
     """Open ``setup`` on the setup screen, as the Extract modal does once it is built."""
     b.page.evaluate("s => window.__workbench.openSetup(s)", setup)
@@ -1103,6 +1118,40 @@ def test_a_wording_seen_on_the_samples_is_added_to_the_answers_map_when_asked(st
     assert reader["clean"][0]["args"]["values"]["Estados Unidos"] == "US"
 
 
+def test_the_setup_inspector_shows_the_required_reason_and_a_change_is_set_by_you(start_demo_server, bench):
+    base = extract_server(start_demo_server)
+    setup = setup_on(base)
+    for edit in REASONS:
+        setup = edit_setup(base, setup, edit)
+    b = bench(base, fill=False)
+    show_setup(b, setup)
+    expect(row(b, "investor.tax_id").locator(".fc-sl-req")).to_have_text("*")  # the list marks the required fields
+    expect(row(b, "investor.country").locator(".fc-sl-req")).to_have_count(0)
+    row(b, "investor.tax_id").click()
+    expect(b.page.locator("#ins-required")).to_be_checked()
+    expect(b.page.locator("#ins-required-why")).to_have_text("the form marks it required")
+    row(b, "investor.country").click()
+    expect(b.page.locator("#ins-required")).not_to_be_checked()
+    expect(b.page.locator("#ins-required-why")).to_have_text("a copy may leave it empty")
+
+    sent = edits_sent(b)
+    b.page.fill("#ins-title", "Country code")
+    b.page.locator("#ins-title").press("Enter")  # another change of the field leaves its level and reason alone
+    setup_idle(b)
+    expect(b.page.locator("#ins-required-why")).to_have_text("a copy may leave it empty")
+    b.page.check("#ins-required")  # the person's choice: sent with no reason, so the server says it is theirs
+    setup_idle(b)
+    assert sent == [
+        {"op": "set_field", "path": "investor.country", "title": "Country code"},
+        {"op": "set_field", "path": "investor.country", "required": True},
+    ]
+    expect(b.page.locator("#ins-required")).to_be_checked()
+    expect(b.page.locator("#ins-required-why")).to_have_text("Set by you")
+    expect(row(b, "investor.country").locator(".fc-sl-req")).to_have_text("*")
+    investor = get_json(base, f"/api/setups/{setup['id']}")[1]["template"]["schema"]["properties"]["investor"]
+    assert "country" in investor["required"] and investor["properties"]["country"]["x-required-reason"] == "Set by you"
+
+
 # ------------------------------------------------------------------ running on the batch, the review, export, fill
 
 #: A run's documents: the five samples, the corpus folder's 22 PDFs (20 client forms and 2 copies of the W-9, which
@@ -1115,10 +1164,12 @@ def run_files(corpus_files, problem_files) -> list[tuple[str, bytes]]:
     return FILES + corpus_files + problem_files
 
 
-def saved_run(base: str, files: list[tuple[str, bytes]], **spec) -> tuple[dict, str]:
-    """(the setup, its run's id): a setup of the batch ``files`` (its first five the sample) saved as "Client info"
-    and run on the whole batch through the API."""
+def saved_run(base: str, files: list[tuple[str, bytes]], edits: list[dict] = (), **spec) -> tuple[dict, str]:
+    """(the setup, its run's id): a setup of the batch ``files`` (its first five the sample), with ``edits`` made on
+    it, saved as "Client info" and run on the whole batch through the API."""
     setup = setup_on(base, files, samples=list(range(5)), **spec)
+    for edit in edits:
+        setup = edit_setup(base, setup, edit)
     status, out = get_json(base, "/api/extractions/Client%20info", "PUT", {"setup": setup["id"]})
     assert status == 200, out
     status, out = start_job(base, {"kind": "extract-run", "extraction": "Client info", "batch": setup["batch"]})
@@ -1136,8 +1187,13 @@ def show_review(b: Bench, run_id: str) -> None:
 
 
 def stat(b: Bench, key: str):
-    """The number of the review's stat ``key`` (total, complete, with_problems, set_aside, time)."""
+    """The number of the review's stat ``key`` (total, complete, with_problems, optional_only, set_aside, time)."""
     return b.page.locator(f'#stats .stat[data-stat="{key}"] b')
+
+
+def section(b: Bench, level: str):
+    """The review's switch button of the section ``level`` (required or optional)."""
+    return b.page.locator(f'#level-pick [data-level="{level}"]')
 
 
 def listed(b: Bench, name: str):
@@ -1275,10 +1331,10 @@ def test_the_review_lists_the_documents_with_problems_and_filters_them_by_field_
     b = bench(base, fill=False)
     show_review(b, run_id)
     names = b.page.locator("#docs li .doc-name")
-    expect(b.page.locator("#docs-label")).to_have_text("Documents with problems · 3")
-    expect(names).to_have_text(list(PROBLEM_FILES))
+    expect(b.page.locator("#docs-label")).to_have_text("Documents with problems · 2")  # mars's country is optional
+    expect(names).to_have_text(["bad_tin.pdf", "no_tin.pdf"])
     expect(listed(b, "no_tin.pdf").locator("small")).to_have_text("1 problem: investor.tax_id")
-    expect(b.page.locator("#docs-legend")).to_have_text("3 of 3 still have problems")
+    expect(b.page.locator("#docs-legend")).to_have_text("2 of 2 still have problems")
     expect(b.page.locator("#filter-path option").first).to_have_text("Every field")
     expect(b.page.locator("#filter-path option[value='investor.tax_id']")).to_have_count(1)
 
@@ -1314,13 +1370,17 @@ def test_the_by_field_table_counts_each_field_folds_a_repeated_groups_items_and_
             row[k] += f[k]
     rows = b.page.locator("#field-table tbody tr")
     expect(b.page.locator("#by-field")).to_be_visible()
-    expect(b.page.locator("#field-table thead th")).to_have_text(["Field", "Found", "Missing", "Fails a check", "Unsure", "Reviewed"])
+    expect(b.page.locator("#field-table thead th")).to_have_text(["Field", "Required", "Found", "Missing", "Fails a check", "Unsure", "Reviewed"])
     expect(rows).to_have_count(len(folded))
     expect(b.page.locator("#by-field-sum")).to_have_text(f"{len(folded)} fields")
     tax = b.page.locator('#field-table tr[data-path="investor.tax_id"]')
     counts = folded["investor.tax_id"]
-    expect(tax.locator("td")).to_have_text([str(counts[k]) for k in ("found", "missing", "failed_check", "unsure", "reviewed")])
+    expect(tax.locator("td")).to_have_text(["✓", *(str(counts[k]) for k in ("found", "missing", "failed_check", "unsure", "reviewed"))])
     expect(tax.locator("th")).to_contain_text("Taxpayer ID")
+    required = [re.sub(r"\[\d+\]", "[]", f["path"]) for f in fields if f["required"]]
+    assert required == ["investor.tax_id"]  # the corpus template requires its tax ID only: listed first
+    expect(rows.first).to_have_attribute("data-path", "investor.tax_id")
+    expect(b.page.locator('#field-table tr[data-path="investor.country"] td').first).to_have_text("")
     repeated = next(path for path in folded if "[]" in path)  # the owners: a row for all their items
     items = sum(1 for f in fields if re.sub(r"\[\d+\]", "[]", f["path"]) == repeated)
     assert items > 1
@@ -1335,16 +1395,19 @@ def test_the_by_field_table_counts_each_field_folds_a_repeated_groups_items_and_
     expect(b.page.locator("#filter-status")).to_have_value("")
     expect(b.page.locator("#filter-path")).to_have_value(repeated)
     expect(b.page.locator("#filter-path")).to_be_enabled()
-    expect(b.page.locator("#docs-label")).to_have_text("Documents with problems · 0")
+    expect(section(b, "optional")).to_have_attribute("aria-pressed", "true")  # the owners are optional: their section
+    expect(b.page.locator("#docs-label")).to_have_text("Documents with optional problems · 0")
 
     listed_after = b.page.locator("#docs li .doc-name")
     b.page.select_option("#filter-path", "")
-    expect(listed_after).to_have_text(list(PROBLEM_FILES))
+    expect(listed_after).to_have_text(["mars.pdf"])
+    section(b, "required").click()
+    expect(listed_after).to_have_text(["bad_tin.pdf", "no_tin.pdf"])
     listed(b, "no_tin.pdf").click()
     card(b, "investor.tax_id").locator("input").fill("12-3456789")
     card(b, "investor.tax_id").locator('[data-act="value"]').click()  # a decision: the table follows
-    expect(tax.locator("td").nth(4)).to_have_text(str(counts["reviewed"] + 1))
-    expect(tax.locator("td").nth(1)).to_have_text(str(counts["missing"] - 1))
+    expect(tax.locator("td").nth(5)).to_have_text(str(counts["reviewed"] + 1))
+    expect(tax.locator("td").nth(2)).to_have_text(str(counts["missing"] - 1))
 
 
 def test_a_page_image_that_fails_past_the_first_page_stops_the_pages_only_when_it_is_not_there(start_demo_server, bench, run_files):
@@ -1394,9 +1457,9 @@ def test_choosing_a_document_shows_its_page_with_the_problems_place_outlined_and
     b = bench(base, fill=False)
     show_review(b, run_id)
     expect(listed(b, "bad_tin.pdf")).to_have_class(re.compile(r"\bon\b"))  # the first is shown
-    listed(b, "mars.pdf").click()
-    expect(listed(b, "mars.pdf")).to_have_class(re.compile(r"\bon\b"))
-    expect(b.page.locator("#rdoc-name")).to_have_text("mars.pdf")
+    listed(b, "no_tin.pdf").click()
+    expect(listed(b, "no_tin.pdf")).to_have_class(re.compile(r"\bon\b"))
+    expect(b.page.locator("#rdoc-name")).to_have_text("no_tin.pdf")
     listed(b, "bad_tin.pdf").click()
     doc = problem_doc(base, run_id, "bad_tin.pdf")
     [problem] = doc["problems"]
@@ -1445,50 +1508,110 @@ def test_each_decision_settles_its_card_and_updates_the_stats_and_the_list(start
     expect(stat(b, "with_problems")).to_have_text("1")  # bad_tin; mars's country is optional
     expect(stat(b, "complete")).to_have_text(str(complete + 1))
     expect(listed(b, "no_tin.pdf").locator("small")).to_have_text("all settled")
-    expect(b.page.locator("#docs-legend")).to_have_text("2 of 3 still have problems")
-    assert get_json(base, f"/api/runs/{run_id}/problems")[1]["total"] == 2
+    expect(b.page.locator("#docs-legend")).to_have_text("1 of 2 still have problems")
+    assert get_json(base, f"/api/runs/{run_id}/problems")[1]["total"] == 2  # bad_tin, and mars of either level
 
     listed(b, "bad_tin.pdf").click()
     card(b, "investor.tax_id").locator('[data-act="accept"]').click()
     expect(card(b, "investor.tax_id").locator(".state")).to_have_text("Accepted as read: 8422-19037")
+    expect(stat(b, "with_problems")).to_have_text("0")
+    expect(b.page.locator("#docs-legend")).to_have_text("0 of 2 still have problems")
+    section(b, "optional").click()
     listed(b, "mars.pdf").click()
     card(b, "investor.country").locator('[data-act="not_in_document"]').click()
     expect(card(b, "investor.country").locator(".state")).to_have_text("Marked not in this document")
-    expect(stat(b, "with_problems")).to_have_text("0")
-    expect(b.page.locator("#docs-legend")).to_have_text("0 of 3 still have problems")
+    expect(stat(b, "optional_only")).to_have_text("0")
+    expect(b.page.locator("#docs-legend")).to_have_text("0 of 1 still have optional problems")
     run = get_json(base, f"/api/runs/{run_id}")[1]
-    assert run["summary"]["with_problems"] == 0
+    assert run["summary"]["with_problems"] == 0 and run["summary"]["with_optional"] == 0
     assert next(f for f in run["fields"] if f["path"] == "investor.tax_id")["reviewed"] == 2
 
     b.page.select_option("#filter-status", "missing")  # the list asked again: nothing is left to settle
     expect(b.page.locator("#docs li")).to_have_text(["No document has a problem of this kind."])
 
 
+def test_review_shows_required_problems_first_and_optional_ones_in_their_own_section(start_demo_server, bench, run_files):
+    base = extract_server(start_demo_server)
+    _, run_id = saved_run(base, run_files, edits=REASONS)
+    b = bench(base, fill=False)
+    show_review(b, run_id)
+    names = b.page.locator("#docs li .doc-name")
+    note = b.page.locator("#optional-note")
+    expect(b.page.locator("#level-pick [data-level]")).to_have_text(["Required · 2", "Optional · 1"])
+    expect(section(b, "required")).to_have_attribute("aria-pressed", "true")  # the Required section first
+    expect(names).to_have_text(["bad_tin.pdf", "no_tin.pdf"])  # mars misses only an optional field: not here
+    expect(note).to_be_hidden()
+    expect(stat(b, "with_problems")).to_have_text("2")
+    expect(stat(b, "optional_only")).to_have_text("1")
+    expect(b.page.locator("#stats .stat span")).to_have_text(["Documents", "Complete", "Required problems", "Optional only", "Set aside", "Run time"])
+
+    section(b, "optional").click()
+    expect(section(b, "optional")).to_have_attribute("aria-pressed", "true")
+    expect(names).to_have_text(["mars.pdf"])
+    expect(b.page.locator("#docs-label")).to_have_text("Documents with optional problems · 1")
+    expect(b.page.locator("#docs-legend")).to_have_text("1 of 1 still have optional problems")
+    expect(note).to_have_text(
+        "Optional fields: blanks and doubtful answers on fields a copy may leave empty. They never stop a document from being complete."
+    )
+    expect(b.page.locator("#rdoc-name")).to_have_text("mars.pdf")
+    expect(b.page.locator("#problems .problem")).to_have_count(1)  # only this section's cards
+    expect(card(b, "investor.country").locator(".why")).to_have_text("Optional: a copy may leave it empty")
+
+    b.page.select_option("#filter-status", "missing")  # the filters apply inside the section
+    expect(b.page.locator("#docs li")).to_have_text(["No document has a problem of this kind."])
+    b.page.select_option("#filter-status", "failed_check")
+    expect(names).to_have_text(["mars.pdf"])
+    b.page.select_option("#filter-status", "")
+    b.page.select_option("#filter-path", "investor.country")
+    expect(names).to_have_text(["mars.pdf"])
+    section(b, "required").click()
+    expect(b.page.locator("#docs li")).to_have_text(["No document has a problem of this kind."])
+    expect(note).to_be_hidden()
+    section(b, "optional").click()
+    b.page.select_option("#filter-path", "investor.tax_id")  # a field picked shows the section it is in
+    expect(section(b, "required")).to_have_attribute("aria-pressed", "true")
+    expect(names).to_have_text(["bad_tin.pdf", "no_tin.pdf"])
+    b.page.select_option("#filter-path", "")
+    b.page.select_option("#filter-status", "missing")
+    expect(names).to_have_text(["no_tin.pdf"])
+    expect(card(b, "investor.tax_id").locator(".why")).to_have_count(0)  # a required card gives no reason
+    b.page.select_option("#filter-status", "")
+
+    listed(b, "no_tin.pdf").click()  # a required card decided: both counts follow
+    card(b, "investor.tax_id").locator("input").fill("12-3456789")
+    card(b, "investor.tax_id").locator('[data-act="value"]').click()
+    expect(b.page.locator("#level-pick [data-level]")).to_have_text(["Required · 1", "Optional · 1"])
+    expect(stat(b, "with_problems")).to_have_text("1")
+    section(b, "optional").click()
+    card(b, "investor.country").locator('[data-act="not_in_document"]').click()  # and an optional one
+    expect(b.page.locator("#level-pick [data-level]")).to_have_text(["Required · 1", "Optional · 0"])
+    expect(stat(b, "optional_only")).to_have_text("0")
+
+
 def test_more_after_a_document_is_settled_lists_every_remaining_problem_document_once(start_demo_server, bench, run_files):
     base = extract_server(start_demo_server)
     _, run_id = saved_run(base, run_files)
     b = bench(base, fill=False)
-    b.page.evaluate("window.__workbench.reviewPageSize = 2")
+    b.page.evaluate("window.__workbench.reviewPageSize = 1")  # the Required section lists two
     show_review(b, run_id)
     names = b.page.locator("#docs li .doc-name")
-    expect(names).to_have_text(["bad_tin.pdf", "no_tin.pdf"])
+    expect(names).to_have_text(["bad_tin.pdf"])
     expect(b.page.locator("#docs-more")).to_be_visible()
-    listed(b, "no_tin.pdf").click()
-    card(b, "investor.tax_id").locator("input").fill("12-3456789")
-    card(b, "investor.tax_id").locator('[data-act="value"]').click()
-    expect(listed(b, "no_tin.pdf").locator("small")).to_have_text("all settled")
-    expect(b.page.locator("#docs-legend")).to_have_text("2 of 3 still have problems")
-    b.page.click("#docs-more")  # the server's list no longer holds no_tin: the next page starts one earlier
-    expect(names).to_have_text(["bad_tin.pdf", "no_tin.pdf", "mars.pdf"])
+    card(b, "investor.tax_id").locator('[data-act="accept"]').click()
+    expect(listed(b, "bad_tin.pdf").locator("small")).to_have_text("all settled")
+    expect(b.page.locator("#docs-legend")).to_have_text("1 of 2 still have problems")
+    b.page.click("#docs-more")  # the server's list no longer holds bad_tin: the next page starts one earlier
+    expect(names).to_have_text(["bad_tin.pdf", "no_tin.pdf"])
     expect(b.page.locator("#docs-more")).to_be_hidden()
-    expect(b.page.locator("#docs-label")).to_have_text("Documents with problems · 3")
-    expect(b.page.locator("#docs-legend")).to_have_text("2 of 3 still have problems")
+    expect(b.page.locator("#docs-label")).to_have_text("Documents with problems · 2")
+    expect(b.page.locator("#docs-legend")).to_have_text("1 of 2 still have problems")
 
 
 def test_a_decision_draws_only_its_own_card_again_and_a_card_stays_disabled_while_its_decision_is_on_its_way(start_demo_server, bench):
     both = dataclasses.replace(clients(1, seed=5)[0], tax_id="8422-19037", country="Mars")  # two problems in one
     base = extract_server(start_demo_server)
-    _, run_id = saved_run(base, [*FILES, ("both.pdf", make_form(both, kind="flattened"))])
+    country_required = {"op": "set_field", "path": "investor.country", "required": True}  # both cards in one section
+    _, run_id = saved_run(base, [*FILES, ("both.pdf", make_form(both, kind="flattened"))], edits=[country_required])
     b = bench(base, fill=False)
     show_review(b, run_id)
     expect(b.page.locator("#rdoc-name")).to_have_text("both.pdf")
@@ -1607,7 +1730,7 @@ def test_the_choice_lists_the_saved_runs_and_extractions_and_opens_them_or_a_run
     expect(b.page.locator('.view[data-only="review"]')).to_be_visible()
     assert b.page.evaluate("document.body.dataset.mode") == "extract"
     expect(stat(b, "total")).to_have_text(str(RUN_TOTAL))
-    expect(b.page.locator("#docs li .doc-name")).to_have_text(list(PROBLEM_FILES))
+    expect(b.page.locator("#docs li .doc-name")).to_have_text(["bad_tin.pdf", "no_tin.pdf"])  # the Required section
     expect(b.page.locator("#view-pick [data-view='setup']")).to_be_disabled()  # no setup of it is open
 
     b.page.click("#doc-pick")
@@ -1668,7 +1791,7 @@ def test_a_saved_extraction_reopened_from_the_choice_runs_on_a_new_batch_and_its
     assert batch_id != setup["batch"] and (entry["extraction"], entry["summary"]["total"]) == ("Client info", 25)
     expect(stat(b, "total")).to_have_text("25")
     expect(stat(b, "with_problems")).to_have_text("2")  # mars's country is optional
-    expect(b.page.locator("#docs li .doc-name")).to_have_text(list(PROBLEM_FILES))
+    expect(b.page.locator("#docs li .doc-name")).to_have_text(["bad_tin.pdf", "no_tin.pdf"])  # the Required section
     views = b.page.locator("#view-pick [data-view]")
     expect(views.nth(0)).to_be_enabled()  # the setup it was run from is on screen
     views.nth(0).click()

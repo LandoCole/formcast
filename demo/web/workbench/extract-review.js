@@ -14,14 +14,20 @@
 // the notice. A run done opens its review, with Set up and Review (#view-pick) switching between the two views while
 // the setup on screen is the one it was run from (`app.extract.linked`).
 //
-// The review, as the mockup lays it out. Its numbers (#stats: the documents, the complete ones, the ones with
-// problems, the ones set aside and the run time, `runStats`) are the Run's summary, updated by every decision. Under
-// them the By field table (#field-table, `fieldTable`): a row per field, a repeated group's items folded into one,
-// with how many documents found it, have it missing, failing a check or unsure, and how many were reviewed; a row
-// clicked sets the field filter to that field (a folded row's `owners[].name` filters every item). On the
-// left the documents that still have problems (#docs, `engine.extract.problems`, 50 at a time, More for the next 50),
-// filtered by field and by problem; the problem filter's "Set aside" lists the documents not read instead
-// (`engine.extract.setAside`), each with why and the closest template. The middle column is the chosen document's
+// The review, as the mockup lays it out. Its numbers (#stats: the documents, the complete ones, the ones with a
+// required problem, the complete ones with an optional problem only, the ones set aside and the run time, `runStats`)
+// are the Run's summary, updated by every decision. Under them the By field table (#field-table, `fieldTable`): a row
+// per field, the required ones first and marked, a repeated group's items folded into one, with how many documents
+// found it, have it missing, failing a check or unsure, and how many were reviewed; a row clicked sets the field
+// filter to that field (a folded row's `owners[].name` filters every item). On the left the documents that still
+// have problems (#docs, `engine.extract.problems`, 50 at a time, More for the next 50) in two sections, switched above
+// the list (#level-pick, `levelSwitch`, with how many documents each lists): Required, first, lists the documents with
+// a required problem and shows only their required problems; Optional the documents with an optional problem
+// (complete or not), only those, each card with why the field is optional, under a note (#optional-note) that they
+// never stop a document from being complete. The field and problem filters apply inside the section; a field picked
+// (in the filter or the By field table) shows the section it is in. The problem filter's "Set aside" lists the
+// documents not read instead (`engine.extract.setAside`), each with why and the closest template, and the sections
+// wait meanwhile. The middle column is the chosen document's
 // page (`runPageUrl`, ‹ › through its pages, the setup screen's zoom: `mountZoom`) with the place each problem field was
 // read, or looked for, outlined (`rect`, in points from the page's top left), the picked one heavy. A page image that
 // fails is asked for again through the engine (`runPage`) to learn why: a 404 past page 1 is past the document's last
@@ -46,7 +52,7 @@
 // back once they can), and opens a command line run's folder on the server's machine by its path (#run-folder).
 
 import { downloadBytes } from "../core/store.js";
-import { FIELD_COUNTS, asideLine, decisionText, docLine, fieldTable, problemLabel, runLine, runStats, sendNotice } from "./extract-model.js";
+import { FIELD_COUNTS, asideLine, decisionText, docLine, fieldTable, levelSwitch, problemLabel, runLine, runStats, sendNotice } from "./extract-model.js";
 import { mountZoom } from "./extract-setup.js";
 import { showStages } from "./jobs.js";
 
@@ -96,6 +102,7 @@ export function mountReview(app) {
   const state = {
     run: null, // the Run on show, as the server last gave it
     setupId: null, // the setup it was run from (Run on all), or null
+    level: "required", // the section listed: "required" or "optional"
     path: "", // the field filter ("" for every field)
     status: "", // the problem filter: "" for every problem, a status, or "set_aside"
     docs: [], // the documents listed so far
@@ -125,6 +132,7 @@ export function mountReview(app) {
     for (const o of document.querySelectorAll(".overlay")) o.hidden = true;
   };
   const isAside = () => state.status === "set_aside";
+  const isOptional = () => !isAside() && state.level === "optional";
   const docOf = (docId) => state.docs.find((d) => d.doc_id === docId) ?? null;
   const settledOf = (d) => new Set((d.problems ?? []).filter((p) => decided.has(keyOf(d.doc_id, p.path))).map((p) => p.path));
   /** The listed documents whose every problem has been settled here since they were listed. */
@@ -238,7 +246,7 @@ export function mountReview(app) {
   function show(run, setupId) {
     hideOverlays();
     app.extract.setMode("extract");
-    Object.assign(state, { run, setupId, path: "", status: "", docs: [], total: 0, listed: false, doc: null, problem: null, page: 0 });
+    Object.assign(state, { run, setupId, level: "required", path: "", status: "", docs: [], total: 0, listed: false, doc: null, problem: null, page: 0 });
     decided.clear();
     const fieldPick = $("filter-path");
     fieldPick.replaceChildren(
@@ -269,7 +277,34 @@ export function mountReview(app) {
         return el;
       }),
     );
+    renderLevels();
     renderFieldTable();
+  }
+
+  /** The section switch, with how many documents each section lists, and the Optional section's note. */
+  function renderLevels() {
+    const texts = new Map(levelSwitch(state.run.summary).map((s) => [s.level, s.text]));
+    for (const btn of $("level-pick").querySelectorAll("[data-level]")) {
+      btn.textContent = texts.get(btn.dataset.level);
+      btn.setAttribute("aria-pressed", String(btn.dataset.level === state.level));
+      btn.disabled = isAside(); // the documents set aside have no problems of either level
+    }
+    $("optional-note").hidden = !isOptional();
+  }
+
+  /** List the section `level` ("required" or "optional"), the filters as they are. */
+  function showLevel(level) {
+    if (state.level === level) return;
+    state.level = level;
+    renderLevels();
+    list();
+  }
+
+  /** The section the field `path` (as the field filter has it) is in; the one shown for every field (""). */
+  function levelOf(path) {
+    const row = fieldTable(state.run.fields).find((r) => r.path === path);
+    if (row === undefined) return state.level;
+    return row.required ? "required" : "optional";
   }
 
   /** The By field table: a row per field (folded as the field filter is), its counts; a click filters by it. */
@@ -277,13 +312,14 @@ export function mountReview(app) {
     const rows = fieldTable(state.run.fields);
     $("by-field").hidden = rows.length === 0;
     $("by-field-sum").textContent = plural(rows.length, "field");
-    const heads = ["Field", ...FIELD_COUNTS.map((k) => COUNT_HEADS[k])];
+    const heads = ["Field", "Required", ...FIELD_COUNTS.map((k) => COUNT_HEADS[k])];
     const head = make("tr", {}, ...heads.map((text) => make("th", { scope: "col", textContent: text })));
     const body = rows.map((row) => {
       const where = row.items === null ? row.path : `${row.path} · ${plural(row.items, "item")}`;
       const name = make("th", { scope: "row", textContent: row.title }, make("small", { textContent: where }));
       const tr = make("tr", { tabIndex: 0, className: row.path === state.path ? "on" : "", title: "Show the documents with a problem in this field" }, name);
-      tr.append(...FIELD_COUNTS.map((k) => make("td", { textContent: number(row[k]) })));
+      const mark = make("td", { textContent: row.required ? "✓" : "", title: row.reason });
+      tr.append(mark, ...FIELD_COUNTS.map((k) => make("td", { textContent: number(row[k]) })));
       tr.dataset.path = row.path;
       tr.addEventListener("click", () => filterBy(row.path));
       tr.addEventListener("keydown", (e) => {
@@ -296,7 +332,7 @@ export function mountReview(app) {
     $("field-table").replaceChildren(make("thead", {}, head), make("tbody", {}, ...body));
   }
 
-  /** Set the field filter to `path` (a row of the By field table), every problem of it, and list again. */
+  /** Set the field filter to `path` (a row of the By field table), every problem of it in its section, and list again. */
   function filterBy(path) {
     if (state.status === "set_aside") {
       state.status = "";
@@ -304,7 +340,9 @@ export function mountReview(app) {
       $("filter-path").disabled = false;
     }
     state.path = path;
+    state.level = levelOf(path);
     $("filter-path").value = path;
+    renderLevels();
     renderFieldTable();
     list();
   }
@@ -332,7 +370,7 @@ export function mountReview(app) {
     try {
       page = isAside()
         ? await calls.setAside(run.id, { offset, limit })
-        : await calls.problems(run.id, { path: state.path, status: state.status, offset, limit });
+        : await calls.problems(run.id, { path: state.path, status: state.status, level: state.level, offset, limit });
     } catch (e) {
       if (token === listing) app.notice(`The documents couldn't be listed: ${e.message}`);
       return;
@@ -349,7 +387,8 @@ export function mountReview(app) {
 
   function renderDocs() {
     const aside = isAside();
-    $("docs-label").textContent = `${aside ? "Documents set aside" : "Documents with problems"} · ${number(state.total)}`;
+    const problems = isOptional() ? "optional problems" : "problems";
+    $("docs-label").textContent = `${aside ? "Documents set aside" : `Documents with ${problems}`} · ${number(state.total)}`;
     const items = state.docs.map((d) => {
       const li = make(
         "li",
@@ -368,13 +407,13 @@ export function mountReview(app) {
       return li;
     });
     if (items.length === 0 && state.listed) {
-      let text = state.path || state.status ? "No document has a problem of this kind." : "No document has a problem left.";
+      let text = state.path || state.status ? "No document has a problem of this kind." : `No document has ${isOptional() ? "an optional" : "a"} problem left.`;
       if (aside) text = "No document was set aside.";
       items.push(make("li", { className: "empty", textContent: text }));
     }
     $("docs").replaceChildren(...items);
     $("docs-more").hidden = state.docs.length >= state.total;
-    $("docs-legend").textContent = aside ? ASIDE_LEGEND : `${number(state.total - settledListed())} of ${number(state.total)} still have problems`;
+    $("docs-legend").textContent = aside ? ASIDE_LEGEND : `${number(state.total - settledListed())} of ${number(state.total)} still have ${problems}`;
   }
 
   /** Show the document `docId` (null for none), on the page of its first problem with a place. */
@@ -399,14 +438,20 @@ export function mountReview(app) {
 
   $("filter-path").addEventListener("change", () => {
     state.path = $("filter-path").value;
+    state.level = levelOf(state.path);
+    renderLevels();
     renderFieldTable();
     list();
   });
   $("filter-status").addEventListener("change", () => {
     state.status = $("filter-status").value;
     $("filter-path").disabled = isAside(); // a document set aside has no fields read
+    renderLevels();
     list();
   });
+  for (const btn of $("level-pick").querySelectorAll("[data-level]")) {
+    btn.addEventListener("click", () => showLevel(btn.dataset.level));
+  }
   $("docs-more").addEventListener("click", () => list(true));
 
   // ------------------------------------------------------------------ the page
@@ -553,7 +598,10 @@ export function mountReview(app) {
     );
   }
 
-  /** A problem's card: the field, the problem, what was read and why, and the decisions (or the one made). */
+  /**
+   * A problem's card: the field, the problem, what was read and why, why the field is optional (on an optional
+   * field's card), and the decisions (or the one made).
+   */
   function problemCard(d, p) {
     const reasons = p.reasons.length ? ` · ${p.reasons.join("; ")}` : "";
     const el = make(
@@ -563,6 +611,9 @@ export function mountReview(app) {
       make("p", { className: "fc-ins-hint", textContent: p.path }),
       make("p", { className: "fc-ins-hint" }, "Read: ", make("code", { textContent: p.raw || "nothing" }), reasons),
     );
+    if (p.required === false) {
+      el.append(make("p", { className: "fc-ins-hint why", textContent: p.required_reason ? `Optional: ${p.required_reason}` : "Optional" }));
+    }
     el.dataset.path = p.path;
     el.addEventListener("click", (e) => {
       if (!e.target.closest("button, input")) pick(p.path);

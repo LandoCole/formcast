@@ -8,16 +8,18 @@
 // sample and the detection, with "Change the setup" (#change), which opens the Extract modal again with the
 // template's choices (its SetupInfo). The field list (#fields) has a row per field (a repeated group's items folded
 // into one, `groupFields`), with its state across the samples (`fieldState` of `rowProof`): ● every sample, ◐ some,
-// ? unsure, ○ not on this form; under it, "Add a field" (#add) runs an `extract-line` job and selects the first field
-// it adds. The middle column is a page of one sample (‹ › through the samples and their pages, fit width / fit page
+// ? unsure, ○ not on this form, and * after the name of a required field; under it, "Add a field" (#add) runs an
+// `extract-line` job and selects the first field it adds. The middle column is a page of one sample (‹ › through the samples and their pages, fit width / fit page
 // and zoom steps) with the readers' marks on it (`engine.extract.marks`, in that sample page's frame): each `box` and
 // each checkbox `option` drawn as the editor draws a linked box, which moves and resizes as there; where a value was
 // `read`, dotted, and a `label` a reader looks beside, underlined (these two only show, they do not move). The
 // selected field's marks are heavy, its first one with its path. On the right, the field (#ins): its name, title,
 // type and definition, how it is read (`readFrom`), its answers and the box of each, the wordings the samples have
 // that its answers' map lacks (accepted with "Add to the answers' map", `engine.extract.learn`), its labels as a comma
-// list, its checks (Required, a format), "Not on this form" or "Bring back", and "Remove field"; under it, one line
-// per sample (`outcomeLine`), which shows that sample when clicked.
+// list, its checks (Required, with why it is required or optional under it, and a format), "Not on this form" or
+// "Bring back", and "Remove field"; under it, one line per sample (`outcomeLine`), which shows that sample when
+// clicked. Only a change of the Required checkbox sends `required`: the server then records the person's choice as
+// the reason ("Set by you").
 //
 // Every change is one call to the server (`edit`, `learn`, or the line job), made one after another (a change made
 // while a line job runs waits for it, since the server takes none meanwhile); the Setup it
@@ -46,7 +48,7 @@ import { createBus } from "../core/bus.js";
 import { makeView, viewSize } from "../core/geometry.js";
 import { PageView } from "../core/pageview.js";
 import { DETECT_SUM } from "./extract.js";
-import { checksOf, fieldSchema, fieldState, groupFields, outcomeLine, readFrom, rowProof, unusedName } from "./extract-model.js";
+import { REASON_KEY, checksOf, fieldSchema, fieldState, groupFields, outcomeLine, readFrom, rowProof, unusedName } from "./extract-model.js";
 
 /** What the screen says when the server no longer has the setup. */
 export const GONE = "This setup is no longer on the server; start again.";
@@ -410,8 +412,9 @@ export function mountSetup(app) {
           { className: "fc-sl-leaf", tabIndex: 0, title: r.title },
           make("span", { className: "fc-sl-st", textContent: st.glyph }),
           make("span", { className: "fc-sl-name", textContent: name }),
-          make("span", { className: "fc-sl-ty", textContent: st.text }),
         );
+        if (fieldSchema(schema(), r.path).required) li.append(make("span", { className: "fc-sl-req", textContent: "*", title: "Required" }));
+        li.append(make("span", { className: "fc-sl-ty", textContent: st.text }));
         li.dataset.path = r.path;
         li.dataset.state = st.state;
         li.style.setProperty("--depth", group ? "1" : "0");
@@ -549,6 +552,7 @@ export function mountSetup(app) {
     const req = make("input", { type: "checkbox", id: "ins-required", checked: required });
     req.addEventListener("change", () => edit({ op: "set_field", path, required: req.checked }));
     out.push(make("label", { className: "fc-ins-check" }, req, "Required"));
+    if (prop[REASON_KEY]) out.push(make("p", { className: "fc-ins-hint", id: "ins-required-why", textContent: prop[REASON_KEY] }));
     const pattern = make("input", { type: "text", className: "fc-in", id: "ins-pattern", value: prop.pattern ?? "", spellcheck: false });
     pattern.placeholder = "a regular expression, such as ^\\d{5}$";
     commitOnChange(pattern, () => pattern.value !== (prop.pattern ?? "") && edit({ op: "set_field", path, pattern: pattern.value }, { control: pattern.id }));

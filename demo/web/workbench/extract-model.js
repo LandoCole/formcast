@@ -15,15 +15,17 @@
 // A field's schema says how it is checked (`checksOf`) and its reader how it is found (`readFrom`), each as lines of
 // plain words; `fieldSchema` finds a concrete path's schema node. A batch (`batchLine`, `stripCells`, `batchNote`) is
 // told by its scan: how many of its PDFs are copies of its largest layout, the rest being set aside for another
-// template. A run's review says its numbers (`runStats`, `runTime`), each document's open problems (`docLine`) or why
-// it was set aside (`asideLine`), a decision made (`decisionText`), a saved run in a line (`runLine`), its By field
-// table (`fieldTable`, a repeated group's items folded and summed) and what Send to fill warns of first
-// (`sendNotice`). `unusedName` is the name the setup screen's save offers: one no saved extraction template has.
+// template. A run's review says its numbers (`runStats`, `runTime`), its two sections (`levelSwitch`: Required and
+// Optional), each document's open problems (`docLine`) or why it was set aside (`asideLine`), a decision made
+// (`decisionText`), a saved run in a line (`runLine`), its By field table (`fieldTable`, a repeated group's items folded
+// and summed, the required fields first) and what Send to fill warns of first (`sendNotice`). `unusedName` is the name the setup screen's save offers: one no saved extraction template has.
 
 /** Items a repeated group has when its schema gives no `maxItems`, as the library gives it (formcast.extract.model). */
 const DEFAULT_ITEMS = 4;
 /** Outcomes that prove a reader: it read the model's answer (a failed check fails the answer, not the reader). */
 const PROVEN = new Set(["agree", "failed_check"]);
+/** Where a field's schema says why it is required or optional (formcast.schema.REASON_KEY). */
+export const REASON_KEY = "x-required-reason";
 /** Each problem status in words, as the review lists them. */
 const PROBLEM_LABELS = { missing: "Missing", failed_check: "Fails a check", unsure: "Unsure" };
 
@@ -279,29 +281,36 @@ export function unusedName(name, taken) {
 export const FIELD_COUNTS = ["found", "missing", "failed_check", "unsure", "reviewed"];
 
 /**
- * The review's By field rows from a Run's `fields` ({path, title, found, missing, failed_check, unsure, reviewed}):
- * one per field, a repeated group's items (`owners[0].name`, `owners[1].name` ...) folded into one row as the
- * setup's field list folds them, its counts the items' summed. A row is `{path, title, items, ...counts}`: `path`
- * the field's path, with `[]` for a folded row (`owners[].name`, which the review's field filter takes for every
- * item), `items` how many were folded (null for a plain field), `title` the field's (its path when it has none).
- * @param {{path: string, title: string}[]} fields
- * @returns {{path: string, title: string, items: number | null, found: number, missing: number, failed_check: number,
- *   unsure: number, reviewed: number}[]}
+ * The review's By field rows from a Run's `fields` ({path, title, required, required_reason, found, missing,
+ * failed_check, unsure, reviewed}): one per field, a repeated group's items (`owners[0].name`, `owners[1].name` ...)
+ * folded into one row as the setup's field list folds them, its counts the items' summed; the required fields first,
+ * then the optional ones, each in the run's order. A row is `{path, title, items, required, reason, ...counts}`:
+ * `path` the field's path, with `[]` for a folded row (`owners[].name`, which the review's field filter takes for
+ * every item), `items` how many were folded (null for a plain field), `title` the field's (its path when it has
+ * none), `required` whether it is (a folded row is when any of its items is; a field that does not say, from a run
+ * made before the levels were kept, is) and `reason` why, as the template says it ("" when it does not).
+ * @param {{path: string, title: string, required?: boolean, required_reason?: string}[]} fields
+ * @returns {{path: string, title: string, items: number | null, required: boolean, reason: string, found: number,
+ *   missing: number, failed_check: number, unsure: number, reviewed: number}[]}
  */
 export function fieldTable(fields) {
   const rows = new Map();
   for (const f of fields) {
     const path = genericOf(f.path);
+    const required = f.required !== false;
     let row = rows.get(path);
     if (row === undefined) {
       const title = f.title && f.title !== f.path ? f.title : path;
-      row = { path, title, items: path === f.path ? null : 0, ...Object.fromEntries(FIELD_COUNTS.map((k) => [k, 0])) };
+      row = { path, title, items: path === f.path ? null : 0, required, reason: f.required_reason ?? "", ...Object.fromEntries(FIELD_COUNTS.map((k) => [k, 0])) };
       rows.set(path, row);
+    } else if (required && !row.required) {
+      Object.assign(row, { required, reason: f.required_reason ?? "" });
     }
     if (row.items !== null) row.items += 1;
     for (const k of FIELD_COUNTS) row[k] += Number(f[k] ?? 0);
   }
-  return [...rows.values()];
+  const all = [...rows.values()];
+  return [...all.filter((r) => r.required), ...all.filter((r) => !r.required)];
 }
 
 /**
@@ -322,10 +331,11 @@ export function runTime(seconds) {
 }
 
 /**
- * The review's numbers from a run's summary: its documents, the complete ones, the ones with problems, the ones set
- * aside (no template fits, unreadable, or an internal error: not read) and the run time.
- * @param {{total: number, complete: number, with_problems: number, no_template: number, unreadable: number,
- *   internal_errors: number, seconds: number}} summary a RunSummary
+ * The review's numbers from a run's summary: its documents, the complete ones (no required problem), the ones with a
+ * required problem, the complete ones that still have an optional problem, the ones set aside (no template fits,
+ * unreadable, or an internal error: not read) and the run time.
+ * @param {{total: number, complete: number, with_problems: number, optional_only?: number, no_template: number,
+ *   unreadable: number, internal_errors: number, seconds: number}} summary a RunSummary
  * @returns {{key: string, value: string, label: string}[]}
  */
 export function runStats(summary) {
@@ -333,9 +343,23 @@ export function runStats(summary) {
   return [
     { key: "total", value: number(summary.total), label: "Documents" },
     { key: "complete", value: number(summary.complete), label: "Complete" },
-    { key: "with_problems", value: number(summary.with_problems), label: "With problems" },
+    { key: "with_problems", value: number(summary.with_problems), label: "Required problems" },
+    { key: "optional_only", value: number(summary.optional_only), label: "Optional only" },
     { key: "set_aside", value: number(aside), label: "Set aside" },
     { key: "time", value: runTime(summary.seconds), label: "Run time" },
+  ];
+}
+
+/**
+ * The review's two sections, as its switch names them: Required (the documents with a required problem, listed
+ * first) and Optional (the documents with an optional problem, complete or not), each with how many it lists.
+ * @param {{with_problems: number, with_optional?: number}} summary a RunSummary
+ * @returns {{level: "required" | "optional", text: string}[]}
+ */
+export function levelSwitch(summary) {
+  return [
+    { level: "required", text: `Required · ${number(summary.with_problems)}` },
+    { level: "optional", text: `Optional · ${number(summary.with_optional)}` },
   ];
 }
 

@@ -567,6 +567,7 @@ test("the run calls: list, open a folder, problems and set-aside paged, decision
     [`GET /api/runs/${RUN_ID}`]: json(200, run),
     [`GET /api/runs/${RUN_ID}/problems?path=investor.tax_id&status=missing&offset=0&limit=50`]: json(200, { total: 1, documents: [] }),
     [`GET /api/runs/${RUN_ID}/problems?offset=50&limit=50`]: json(200, { total: 60, documents: [] }),
+    [`GET /api/runs/${RUN_ID}/problems?status=unsure&level=optional&offset=0&limit=50`]: json(200, { total: 4, documents: [] }),
     [`GET /api/runs/${RUN_ID}/set-aside?offset=0&limit=20`]: json(200, { total: 2, documents: [] }),
     [`POST /api/runs/${RUN_ID}/decisions`]: json(200, run),
     [`POST /api/runs/${RUN_ID}/to-data`]: json(200, { dataset: { id: "d", name: "r results" }, truncated: false, with_problems: 3 }),
@@ -577,6 +578,7 @@ test("the run calls: list, open a folder, problems and set-aside paged, decision
   assert.equal((await engine.extract.run(RUN_ID)).id, RUN_ID);
   assert.equal((await engine.extract.problems(RUN_ID, { path: "investor.tax_id", status: "missing" })).total, 1);
   assert.equal((await engine.extract.problems(RUN_ID, { offset: 50 })).total, 60);
+  assert.equal((await engine.extract.problems(RUN_ID, { status: "unsure", level: "optional" })).total, 4);
   assert.equal((await engine.extract.setAside(RUN_ID, { limit: 20 })).total, 2);
   const decision = { doc_id: "d1", path: "investor.tax_id", decision: "value", value: "84-2219037" };
   await engine.extract.decide(RUN_ID, decision);
