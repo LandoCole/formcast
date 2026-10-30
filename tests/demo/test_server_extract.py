@@ -1265,7 +1265,7 @@ def test_a_run_reads_every_document_of_the_batch_with_no_model_call_lists_it_and
     assert run["seconds"] == run["summary"]["seconds"] > 0
     assert [f["path"] for f in run["fields"]] == read_fields(runner.template)
     tax_id = next(f for f in run["fields"] if f["path"] == "investor.tax_id")
-    assert set(tax_id) == {"path", "title", "found", "missing", "failed_check", "unsure", "reviewed", "not_on_form"}
+    assert set(tax_id) == {"path", "title", "required", "required_reason", "found", "missing", "failed_check", "unsure", "reviewed", "not_on_form"}
     assert tax_id["title"] == runner.template["schema"]["properties"]["investor"]["properties"]["tax_id"]["title"]
     assert tax_id["found"] == 20 and tax_id["missing"] == tax_id["failed_check"] == tax_id["unsure"] == tax_id["reviewed"] == 0
     folder = runs_dir(runner) / run_id
@@ -1327,7 +1327,7 @@ def test_the_problems_are_paged_by_document_each_with_its_problems_titled_and_na
     for doc in page["documents"]:
         assert set(doc) == {"doc_id", "name", "problems"} and doc["name"] in PROBLEM_FILES and doc["problems"]
         for problem in doc["problems"]:
-            assert set(problem) == {"path", "title", "status", "raw", "value", "reasons", "page", "rect"}
+            assert set(problem) == {"path", "title", "required", "required_reason", "status", "raw", "value", "reasons", "page", "rect"}
             assert problem["status"] in ("missing", "failed_check", "unsure") and problem["title"] == titles[problem["path"]]
     rest = problems_of(r, run_id, "?offset=2&limit=2")[1]
     assert rest["total"] == 3 and len(rest["documents"]) == 1
@@ -1340,6 +1340,98 @@ def test_the_problems_are_paged_by_document_each_with_its_problems_titled_and_na
     for query in ("?limit=0", "?limit=201", "?offset=-1", "?status=found"):
         status, out = problems_of(r, run_id, query)
         assert (status, out["error"]) == (400, "bad_request"), query
+
+
+def _reasoned(r: Runner) -> None:
+    """The saved extraction with a reason under its tax ID (required) and its country (optional), as the agent's
+    classification leaves them; a run made after this reads them."""
+    template = r.api.extractions.get("Client info")
+    investor = template.schema_["properties"]["investor"]["properties"]
+    investor["tax_id"]["x-required-reason"] = "the form marks it required"
+    investor["country"]["x-required-reason"] = "a copy may leave it empty"
+    r.api.extractions.put("Client info", template, r.api.extractions.samples("Client info"))
+
+
+@pytest.fixture
+def leveled(runner, corpus_files, problem_files) -> tuple[Runner, str]:
+    """Like ``reviewed``, with the extraction's reasons set: (the runner, a finished run's id)."""
+    _reasoned(runner)
+    job = run_on(runner, batch_of(runner, corpus_files + problem_files))
+    assert job["status"] == "done", job
+    return runner, job["result"]["run"]
+
+
+def test_problems_by_level_list_only_that_levels_fields(leveled):
+    r, run_id = leveled
+    both = problems_of(r, run_id)[1]
+    assert both["total"] == 3
+    for doc in both["documents"]:
+        for problem in doc["problems"]:
+            assert problem["required"] == (problem["path"] == "investor.tax_id")
+    required = problems_of(r, run_id, "?level=required")[1]
+    assert required["total"] == 2 and {d["name"] for d in required["documents"]} == {"bad_tin.pdf", "no_tin.pdf"}
+    assert {(p["path"], p["required"]) for d in required["documents"] for p in d["problems"]} == {("investor.tax_id", True)}
+    optional = problems_of(r, run_id, "?level=optional")[1]
+    [doc] = optional["documents"]
+    assert optional["total"] == 1 and doc["name"] == "mars.pdf"
+    assert [(p["path"], p["required"], p["status"]) for p in doc["problems"]] == [("investor.country", False, "failed_check")]
+    assert problems_of(r, run_id, "?level=optional&path=investor.tax_id")[1] == {"total": 0, "documents": []}
+    assert problems_of(r, run_id, "?level=required&status=missing")[1]["total"] == 1
+
+
+def test_a_bad_level_is_a_bad_request(leveled):
+    r, run_id = leveled
+    for query in ("?level=maybe", "?level=Required", "?level=both"):
+        status, out = problems_of(r, run_id, query)
+        assert (status, out["error"]) == (400, "bad_request"), query
+
+
+def test_the_runs_fields_say_required_and_why(leveled):
+    r, run_id = leveled
+    fields = {f["path"]: f for f in get_json(r.base, f"/api/runs/{run_id}")[1]["fields"]}
+    assert (fields["investor.tax_id"]["required"], fields["investor.tax_id"]["required_reason"]) == (True, "the form marks it required")
+    assert (fields["investor.country"]["required"], fields["investor.country"]["required_reason"]) == (False, "a copy may leave it empty")
+    assert fields["investor.legal_name"]["required_reason"] == ""  # a field the agent gave no reason for says none
+    [mars] = [d for d in problems_of(r, run_id, "?level=optional")[1]["documents"]]
+    assert mars["problems"][0]["required_reason"] == "a copy may leave it empty"
+    [tax_id] = [p for d in problems_of(r, run_id, "?status=missing")[1]["documents"] for p in d["problems"]]
+    assert tax_id["required_reason"] == "the form marks it required"
+
+
+def test_the_summary_counts_optional_only_documents(leveled):
+    r, run_id = leveled
+    summary = get_json(r.base, f"/api/runs/{run_id}")[1]["summary"]
+    assert summary["with_problems"] == 2  # bad_tin and no_tin; mars is complete
+    assert (summary["optional_only"], summary["with_optional"]) == (1, 1)  # mars's country
+    [entry] = [e for e in get_json(r.base, "/api/runs")[1]["runs"] if e["id"] == run_id]
+    assert entry["summary"]["optional_only"] == 1
+    [doc] = problems_of(r, run_id, "?level=optional")[1]["documents"]
+    decision = {"doc_id": doc["doc_id"], "path": "investor.country", "decision": "not_in_document"}
+    after = get_json(r.base, f"/api/runs/{run_id}/decisions", "POST", decision)[1]["summary"]
+    assert (after["optional_only"], after["with_optional"], after["with_problems"]) == (0, 0, 2)
+
+
+def test_to_data_counts_only_required_problems(leveled):
+    r, run_id = leveled
+    out = get_json(r.base, f"/api/runs/{run_id}/to-data", "POST", {})[1]
+    assert out["with_problems"] == 2  # mars's country is optional: its row is complete
+    [doc] = problems_of(r, run_id, "?level=required&status=missing")[1]["documents"]
+    decision = {"doc_id": doc["doc_id"], "path": "investor.tax_id", "decision": "value", "value": "12-3456789"}
+    assert get_json(r.base, f"/api/runs/{run_id}/decisions", "POST", decision)[0] == 200
+    assert get_json(r.base, f"/api/runs/{run_id}/to-data", "POST", {})[1]["with_problems"] == 1
+
+
+def test_a_run_made_before_the_levels_were_kept_counts_every_field_as_required(leveled):
+    r, run_id = leveled
+    run_json = runs_dir(r) / run_id / "run.json"
+    kept = json.loads(run_json.read_text())
+    del kept["required"]
+    run_json.write_text(json.dumps(kept))
+    r.api.runs._runs.pop(run_id)  # as after a restart: the run is read from its folder again
+    out = get_json(r.base, f"/api/runs/{run_id}")[1]
+    assert out["summary"]["with_problems"] == 3 and out["summary"]["optional_only"] == 0
+    assert {f["required"] for f in out["fields"]} == {True}
+    assert problems_of(r, run_id, "?level=optional")[1]["total"] == 0
 
 
 def test_the_set_aside_documents_are_the_corpus_folders_w9_copies_with_the_closest_template(reviewed):
@@ -1498,7 +1590,7 @@ def test_a_run_sent_to_fill_is_a_dataset_of_the_found_values_of_the_read_documen
     assert (dataset["name"], dataset["kind"], dataset["format"]) == ("Client forms results", "table", "json")
     assert [c["name"] for c in dataset["columns"]] == read_fields(r.template)
     assert dataset["rows"] == 23  # every document read; the two set aside are not rows
-    assert out["with_problems"] == 3  # bad_tin, no_tin and mars still have a problem each
+    assert out["with_problems"] == 2  # bad_tin and no_tin; mars's country is optional, so its row is complete
     rows = r.api.datasets.get(dataset["id"]).table.rows
     tax_ids = [row["investor.tax_id"] for row in rows]
     assert "8422-19037" not in tax_ids and tax_ids.count(None) == 2  # a value that failed its check is a gap, not a cell
@@ -1508,7 +1600,7 @@ def test_a_run_sent_to_fill_is_a_dataset_of_the_found_values_of_the_read_documen
     decision = {"doc_id": doc["doc_id"], "path": "investor.tax_id", "decision": "value", "value": "12-3456789"}
     assert get_json(r.base, f"/api/runs/{run_id}/decisions", "POST", decision)[0] == 200
     out = get_json(r.base, f"/api/runs/{run_id}/to-data", "POST", {})[1]
-    assert out["with_problems"] == 2
+    assert out["with_problems"] == 1
     tax_ids = [row["investor.tax_id"] for row in r.api.datasets.get(out["dataset"]["id"]).table.rows]
     assert "12-3456789" in tax_ids and tax_ids.count(None) == 1  # the typed value is found
 

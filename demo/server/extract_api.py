@@ -72,16 +72,16 @@ Runs (``api.runs``):
     GET  /api/runs                                                  -> {runs: [{id, name, extraction, started, summary}]}
     POST /api/runs                   {folder}                       -> Run     (a command line run opened)
     GET  /api/runs/{r}                                              -> Run
-    GET  /api/runs/{r}/problems?path=&status=&offset=&limit=        -> {total, documents: [{doc_id, name, problems: [Problem]}]}
+    GET  /api/runs/{r}/problems?path=&status=&level=&offset=&limit= -> {total, documents: [{doc_id, name, problems: [Problem]}]}
     GET  /api/runs/{r}/set-aside?offset=&limit=                     -> {total, documents: [{doc_id, name, reason, closest_template, closest_score}]}
     POST /api/runs/{r}/decisions     {doc_id, path, decision, value?} -> Run
     GET  /api/runs/{r}/pages.png?doc=&page=&dpi=                    -> image/png (a page of a document of the run)
     GET  /api/runs/{r}/export?format=xlsx|parquet|csv               -> the .xlsx, or a .zip of the Parquet or CSV files
     POST /api/runs/{r}/to-data                                      -> {dataset: Dataset.summary(), truncated, with_problems}
 
-    Run     = {id, name, extraction, summary: RunSummary, fields: [{path, title, found, missing, failed_check, unsure,
-               reviewed, not_on_form}], seconds}
-    Problem = {path, title, status, raw, value, reasons, page, rect}
+    Run     = {id, name, extraction, summary: RunSummary, fields: [{path, title, required, required_reason, found,
+               missing, failed_check, unsure, reviewed, not_on_form}], seconds}
+    Problem = {path, title, required, required_reason, status, raw, value, reasons, page, rect}
 
 An ``extract-run`` job reads every file of the batch with the saved template (``run_batch``, with
 ``settings.extract_workers`` processes: 0 is one per CPU, never more than there are), in the run of that batch and
@@ -94,7 +94,8 @@ needs no model. A run takes one job at a time: another ``extract-run`` of it mea
 run could not be exported (as its save checks) is 400 ``bad_template`` before anything starts.
 
 ``problems`` and ``set-aside`` are paged as the batch files are (``limit`` 1 to 200, default 50); ``status`` is one
-of ``missing``, ``failed_check`` and ``unsure``, and ``path`` a concrete path or, with ``[]`` (``owners[].name``),
+of ``missing``, ``failed_check`` and ``unsure``, ``level`` ``required`` or ``optional`` (absent: both; another value
+400 ``bad_request``): the documents with a problem of that level, each with that level's problems only, and ``path`` a concrete path or, with ``[]`` (``owners[].name``),
 every item of a repeated group's field, as the review's field table folds them. A document's ``name`` is its file's name in the batch (a command
 line run's: its path in its folder), a problem's ``title`` its field's title in the schema. A decision is a
 ``ReviewDecision``; one the library refuses is 400 ``bad_decision`` with its message. A page image is of a document
@@ -108,7 +109,7 @@ read documents a dataset (``api.datasets``): a column per schema path the templa
 first ``MAX_ROWS`` when there are more (``truncated``). A cell holds only a ``found`` value (AI answers and
 decisions applied: a value typed or accepted in review is found), so a field still ``missing``, ``failed_check``
 or ``unsure`` is a gap the fill reports, never a value nobody trusted; ``with_problems`` counts the rows that still
-have such a field. Columns named by schema path let the fill flow map it to a destination of those paths directly.
+have such a field that is required (a row with only optional blanks is complete). Columns named by schema path let the fill flow map it to a destination of those paths directly.
 
 ``POST /api/runs {folder}`` opens a ``python -m formcast.extract run`` output folder (403 ``not_allowed`` when
 ``settings.folder_scan`` is off): each template its ``run.json`` names must be saved here, unchanged, else 400
@@ -763,11 +764,13 @@ def open_run_folder(api: Api, req: Request) -> dict:
 
 
 def run_problems(api: Api, req: Request) -> dict:
-    """A page of the documents that still have problems, each with them: ``?path=&status=&offset=&limit=``."""
+    """A page of the documents that still have problems, each with them: ``?path=&status=&level=&offset=&limit=``."""
     run = _run(api, req)
     offset, limit = _page_query(req)
     try:
-        total, page = run.problems(offset, limit, req.query.get("path") or None, req.query.get("status") or None)
+        total, page = run.problems(
+            offset, limit, req.query.get("path") or None, req.query.get("status") or None, req.query.get("level") or None
+        )
     except RunNotStarted as exc:
         raise ApiError(409, "not_started", str(exc)) from None
     except FormcastError as exc:
@@ -779,10 +782,11 @@ def run_problems(api: Api, req: Request) -> dict:
             "name": run.name_of(doc.doc_id),
             "problems": [
                 {
-                    "path": f.path, "title": titles.get(f.path, f.path), "status": f.status, "raw": f.raw,
-                    "value": f.value, "reasons": list(f.reasons), "page": f.page, "rect": list(f.rect) if f.rect else None,
+                    "path": f.path, "title": titles.get(f.path, f.path), "required": required, "required_reason": reason,
+                    "status": f.status, "raw": f.raw, "value": f.value, "reasons": list(f.reasons), "page": f.page,
+                    "rect": list(f.rect) if f.rect else None,
                 }  # fmt: skip
-                for f in fields
+                for f, required, reason in fields
             ],
         }
         for doc, fields in page

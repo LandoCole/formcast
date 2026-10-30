@@ -1560,8 +1560,9 @@ def test_send_to_fill_opens_the_start_screen_with_the_runs_results_as_your_data_
     expect(b.page.locator("#data-given")).to_contain_text("Client forms results")
     note = b.page.locator("#data-given-note")  # on the start sheet itself, not under its overlay
     expect(note).to_be_visible()
+    # bad_tin and no_tin; mars's country is optional, so its row is complete
     expect(note).to_have_text(
-        "3 documents still have problems; their unsettled fields are left blank, and fill will report them as gaps."
+        "2 documents still have problems; their unsettled fields are left blank, and fill will report them as gaps."
     )
     expect(b.page.locator("#notice")).to_be_hidden()
     expect(b.page.locator("#form-pick")).to_have_value("")  # an AI-suggested template names no destination

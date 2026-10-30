@@ -131,12 +131,14 @@ from formcast.data.table import MAX_ROWS, Table
 from formcast.errors import FormcastError
 from formcast.extract.batch import PROBLEMS, RUN, Results, ReviewDecision, RunSummary, template_sha256
 from formcast.extract.edit import Edit, apply_edit
-from formcast.extract.export import ExportFormat, _template_columns, _title, export  # _title: as the ``fields`` part
+from formcast.extract.export import ExportFormat, _node, _template_columns, _title, export  # _title: as the ``fields`` part
+from formcast.extract.levels import REASON_KEY, Level, required_paths
 from formcast.extract.model import DocumentResult, ExtractionTemplate, FieldResult, concrete_paths
 from formcast.extract.proof import Mark, Proof, learn_maps, prove, sample_marks
 from formcast.extract.samples import SampleDoc, SamplePdf
 from formcast.extract.scan import ScanReport, sample, scan
 from formcast.extract.setup import MAX_SAMPLES, SetupResult
+from formcast.schema import parse_path
 
 log = logging.getLogger("demo.server")
 
@@ -836,6 +838,7 @@ class Run:
     folder: bool = False
     _names: dict[str, str] | None = field(default=None, repr=False)  # doc_id -> shown name, read from RUN_NAMES once
     _titles: dict[str, str] | None = field(default=None, repr=False)  # concrete path -> title
+    _reasons: dict[str, dict[str, str]] | None = field(default=None, repr=False)  # template_id -> path -> reason
     _results: Results | None = field(default=None, repr=False)  # loaded once, then kept up with (Results.refresh)
     _cached: tuple[int, dict] | None = field(default=None, repr=False)  # (the results' version, the summary)
     _busy: bool = field(default=False, repr=False)  # a job is running on the run
@@ -886,10 +889,39 @@ class Run:
             self._titles = titles
         return self._titles
 
+    def reasons(self) -> dict[str, dict[str, str]]:
+        """Each template's reason for the level of each concrete path (``template_id`` -> path -> the line under
+        ``REASON_KEY`` on the field's property in its schema); a path with none is left out."""
+        if self._reasons is None:
+            self._reasons = {
+                template.template_id: {
+                    path: reason
+                    for _, path, schema_path in _template_columns(template)
+                    if isinstance(reason := _node(template.schema_, parse_path(schema_path.path)).get(REASON_KEY), str)
+                    and reason
+                }
+                for template in self.templates
+            }
+        return self._reasons
+
+    def levels(self) -> dict[str, tuple[bool, str]]:
+        """Each concrete path's level and why, from the run's templates: ``(required, reason)``. A path in several
+        templates takes the first that requires it (else the first that has it); the reason is that template's."""
+        out: dict[str, tuple[bool, str]] = {}
+        reasons = self.reasons()
+        for template in self.templates:
+            required = required_paths(template.schema_)
+            for path in concrete_paths(template.schema_):
+                if path not in out or (path in required and not out[path][0]):
+                    out[path] = (path in required, reasons[template.template_id].get(path, ""))
+        return out
+
     def summary(self) -> dict:
-        """The run as the API shows it: ``{id, name, extraction, summary, fields: [{path, title, found, missing,
-        failed_check, unsure, reviewed, not_on_form}], seconds}``. It is made from the kept results' counts, again
-        only when they have changed since."""
+        """The run as the API shows it: ``{id, name, extraction, summary, fields: [{path, title, required,
+        required_reason, found, missing, failed_check, unsure, reviewed, not_on_form}], seconds}``. It is made from
+        the kept results' counts, again only when they have changed since. A field is ``required`` as the results
+        count it (every field of a run made before the levels were kept), or, before the run has read anything, as
+        its templates say."""
         with self._lock:
             try:
                 results = self._loaded()
@@ -900,14 +932,20 @@ class Run:
                 if self._cached is not None and self._cached[0] == key:
                     return self._cached[1]
                 summary, counts = results.summary(), results.field_counts()
-        titles = self.titles()
+        titles, levels = self.titles(), self.levels()
         out = {
             "id": self.id,
             "name": self.name,
             "extraction": self.extraction,
             "summary": summary.model_dump(),
             "fields": [
-                {"path": p, "title": titles.get(p, p), **{k: counts.get(p, {}).get(k, 0) for k in FIELD_COUNTS}}
+                {
+                    "path": p,
+                    "title": titles.get(p, p),
+                    "required": bool(counts[p]["required"]) if p in counts else levels[p][0],
+                    "required_reason": levels[p][1],
+                    **{k: counts.get(p, {}).get(k, 0) for k in FIELD_COUNTS},
+                }
                 for p in self.paths()
             ],
             "seconds": summary.seconds,
@@ -917,17 +955,35 @@ class Run:
         return out
 
     def problems(
-        self, offset: int, limit: int, path: str | None, status: str | None
-    ) -> tuple[int, list[tuple[DocumentResult, list[FieldResult]]]]:
-        """``Results.page``: how many documents still have problems (matching ``path`` and ``status``), and ``limit``
-        of them from ``offset`` with their problem fields. Only the page's documents are parsed.
+        self, offset: int, limit: int, path: str | None, status: str | None, level: Level | None = None
+    ) -> tuple[int, list[tuple[DocumentResult, list[tuple[FieldResult, bool, str]]]]]:
+        """``Results.page``: how many documents still have problems (matching ``path``, ``status`` and ``level``),
+        and ``limit`` of them from ``offset`` with their problem fields, each with whether it is required in its
+        document's template and that template's reason for it (``""`` when it gives none). Only the page's
+        documents are parsed.
 
         Raises:
             RunNotStarted: the run has not begun reading.
-            FormcastError: as ``Results.page`` (a status that is not a problem's).
+            FormcastError: as ``Results.page`` (a status that is not a problem's, a level that is not a level).
         """
+        reasons = self.reasons()
         with self._lock:
-            return self._loaded().page(offset, limit, path=path, status=status)
+            results = self._loaded()
+            total, page = results.page(offset, limit, path=path, status=status, level=level)
+            return total, [
+                (
+                    doc,
+                    [
+                        (
+                            f,
+                            results.is_required(doc.template_id, f.path),
+                            reasons.get(doc.template_id or "", {}).get(f.path, ""),
+                        )
+                        for f in fields
+                    ],
+                )
+                for doc, fields in page
+            ]
 
     def set_aside(self, offset: int, limit: int) -> tuple[int, list[dict]]:
         """``Results.set_aside_page``: how many documents are set aside, and the rows of ``limit`` of them from ``offset``.
@@ -986,7 +1042,8 @@ class Run:
         more). A cell holds the field's value only when it is ``found``, with the AI's answers and the decisions
         applied (a value typed or accepted in review is found; an AI answer not yet accepted is ``unsure``): a field
         ``missing``, ``failed_check`` or ``unsure`` is left empty, so the fill reports it as a gap instead of filling
-        in a value nobody trusted.
+        in a value nobody trusted. A row counts as having a problem only for a required field's (an optional blank
+        leaves the document complete).
 
         Raises:
             RunNotStarted: the run has not begun reading.
@@ -1004,7 +1061,9 @@ class Run:
                 break
             fields = {f.path: f for f in results.effective(doc).fields}
             rows.append({p: fields[p].value if p in fields and fields[p].status == "found" else None for p in paths})
-            with_problems += any(f.status in PROBLEMS for f in fields.values())
+            with_problems += any(
+                f.status in PROBLEMS and results.is_required(doc.template_id, f.path) for f in fields.values()
+            )
         table = Table(columns=paths, rows=rows, kind="json", name=f"{self.name} results", truncated=truncated)
         return table, with_problems
 
