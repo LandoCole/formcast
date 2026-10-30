@@ -133,8 +133,11 @@ class FillReport(BaseModel):
     tables: list[TableReport] = []
     paths: dict[str, PathReport] = {}
     gaps: list[str] = []
+    #: The ``gaps`` whose field is required, in the same order.
+    required_gaps: list[str] = []
     warnings: list[FillWarning] = []
-    #: ``fields_written``, ``fields_empty``, ``cells_written`` and one entry per warning code present.
+    #: ``fields_written``, ``fields_empty``, ``cells_written``, ``required_left_empty`` (only when some
+    #: required box is empty) and one entry per warning code present.
     counts: dict[str, int] = {}
 
     def to_json(self) -> str:

@@ -84,6 +84,8 @@ for (const c of fixture.cases) {
     const cells = report.tables.flatMap((t) => t.cells.map(({ row, key, value }) => ({ table: t.id, row, key, value })));
     assert.deepEqual(cells, c.output.cells);
     assert.deepEqual(codes(report), c.output.codes);
+    assert.deepEqual(report.gaps, c.output.gaps);
+    assert.deepEqual(report.required_gaps, c.output.required_gaps);
 
     // the output really holds what the report says
     const doc = await PDFDocument.load(pdfBytes);
@@ -115,11 +117,50 @@ test("the fixture covers the browser codes, a table, every binding and the non-L
   for (const s of ["Sí", "José", "Zürich", "北京"]) assert.ok(text.includes(s), s);
 });
 
+/** A required and an optional box over the same data; `unmapped` has no source. */
+function reportTemplate(required) {
+  const t = templateFor("hand");
+  const byId = Object.fromEntries(t.fields.map((f) => [f.id, f]));
+  byId.name.required = required.includes("name");
+  byId.code.required = required.includes("code");
+  byId.agree.required = required.includes("agree");
+  byId.zurich.required = required.includes("zurich");
+  return t;
+}
+
+test("the required gaps are the empty required boxes, in gap order", async () => {
+  const c = fixture.cases.find((x) => x.id === "rotated90/probe");
+  const data = { name: "Ann Lee" }; // code, the check box and the mark come out empty
+  const { report } = await fill(reportTemplate(["name", "code", "agree"]), pdfFor(c.input.pdf), data);
+  assert.deepEqual(report.gaps, ["code", "agree", "zurich"]);
+  assert.deepEqual(report.required_gaps, ["code", "agree"]);
+  assert.equal(report.counts.required_left_empty, 2);
+});
+
+test("an unmapped required box is a required gap", async () => {
+  const c = fixture.cases.find((x) => x.id === "rotated90/probe");
+  const t = reportTemplate([]);
+  t.fields.find((f) => f.id === "zurich").source = null;
+  t.fields.find((f) => f.id === "zurich").required = true;
+  const { report } = await fill(t, pdfFor(c.input.pdf), { name: "Ann Lee", code: "1234", answer: "Sí", city: "Zürich" });
+  assert.deepEqual(report.gaps, ["zurich"]);
+  assert.deepEqual(report.required_gaps, ["zurich"]);
+});
+
+test("a template with no required boxes reports as before", async () => {
+  const c = fixture.cases.find((x) => x.id === "rotated90/probe");
+  const { report } = await fill(reportTemplate([]), pdfFor(c.input.pdf), { name: "Ann Lee" });
+  assert.deepEqual(report.gaps, ["code", "agree", "zurich"]);
+  assert.deepEqual(report.required_gaps, []);
+  assert.ok(!("required_left_empty" in report.counts));
+});
+
 test("the report has the library's shape plus the writer", async () => {
   const c = fixture.cases.find((x) => x.id === "cropbox-table/non-latin");
   const { report } = await fill(templateFor(c.input.template), pdfFor(c.input.pdf), c.input.data);
   assert.deepEqual(Object.keys(report), [
-    "template_id", "fingerprint_ok", "strict", "fields", "tables", "paths", "gaps", "warnings", "counts", "writer",
+    "template_id", "fingerprint_ok", "strict", "fields", "tables", "paths", "gaps", "required_gaps", "warnings",
+    "counts", "writer",
   ]);
   assert.equal(report.template_id, "table_crop");
   assert.equal(report.strict, false);
@@ -134,6 +175,8 @@ test("the report has the library's shape plus the writer", async () => {
   assert.equal(table.cells[0].widget, "items_r0_desc");
   assert.deepEqual(report.paths["items[].desc"].rendered, { "items[0]": "José's 北京 order", "items[1]": "Zürich" });
   assert.deepEqual(report.gaps, ["unmapped"]);
+  assert.deepEqual(report.required_gaps, ["unmapped"]);
+  assert.equal(report.counts.required_left_empty, 1);
   assert.equal(report.counts.fields_written, 1);
   assert.equal(report.counts.fields_empty, 2);
   assert.equal(report.counts.cells_written, 3);

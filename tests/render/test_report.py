@@ -1,5 +1,7 @@
 from typing import get_args
 
+from formcast.match import fingerprint
+from formcast.render.fill import fill
 from formcast.render.report import (
     SEVERITY,
     CellReport,
@@ -10,6 +12,7 @@ from formcast.render.report import (
     TableReport,
     WarningCode,
 )
+from formcast.template.model import Field, FormInfo, Source, Template
 
 
 def test_make_fills_severity():
@@ -48,3 +51,49 @@ def test_report_json_roundtrip():
     assert again == r
     assert again.paths["name"].rendered["f2"] is False
     assert again.fields[1].value is True
+
+
+# ------------------------------------------------------------- required gaps
+
+_REQ_SCHEMA = {"type": "object", "properties": {"name": {"type": "string"}, "code": {"type": "string"},
+                                                "note": {"type": "string"}}}
+_REQ_TEXT = [{"at": (72, 60), "text": "Intake form"}]
+
+
+def _req_template(pdf: bytes, *fields: Field) -> Template:
+    return Template(template_id="t", schema=_REQ_SCHEMA,
+                    form=FormInfo(fingerprint=fingerprint(pdf), page_count=1, page_sizes=[(612.0, 792.0)],
+                                  kinds=["digital"]),
+                    fields=list(fields))  # fmt: skip
+
+
+def _req_field(fid: str, path: str | None, y: float, *, required: bool = False) -> Field:
+    return Field(id=fid, type="text", page=0, rect=(100, y, 300, y + 16), required=required,
+                 source=Source(paths=[path]) if path else None)  # fmt: skip
+
+
+def test_required_gaps_are_the_empty_required_boxes(make_pdf):
+    pdf = make_pdf(text=_REQ_TEXT)
+    tpl = _req_template(pdf, _req_field("f_name", "name", 100, required=True),
+                        _req_field("f_code", "code", 140, required=True), _req_field("f_note", "note", 180))
+    _, rep = fill(tpl, pdf, {"name": "Ada"})
+    assert rep.gaps == ["f_code", "f_note"]
+    assert rep.required_gaps == ["f_code"]
+    assert rep.counts["required_left_empty"] == 1
+    assert FillReport.from_json(rep.to_json()) == rep
+
+
+def test_an_unmapped_required_box_is_a_required_gap(make_pdf):
+    pdf = make_pdf(text=_REQ_TEXT)
+    tpl = _req_template(pdf, _req_field("f_name", "name", 100), _req_field("f_stray", None, 140, required=True))
+    _, rep = fill(tpl, pdf, {"name": "Ada"})
+    assert rep.gaps == ["f_stray"] and rep.required_gaps == ["f_stray"]
+    assert rep.counts["required_left_empty"] == 1
+
+
+def test_a_template_with_no_required_boxes_reports_as_before(make_pdf):
+    pdf = make_pdf(text=_REQ_TEXT)
+    tpl = _req_template(pdf, _req_field("f_name", "name", 100), _req_field("f_code", "code", 140))
+    _, rep = fill(tpl, pdf, {"name": "Ada"})
+    assert rep.gaps == ["f_code"] and rep.required_gaps == []
+    assert "required_left_empty" not in rep.counts

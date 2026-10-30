@@ -335,8 +335,8 @@ def export_fill() -> dict:
     """Fixture for ``fill/index.js``: ``fill(..., check_fingerprint=False)`` on dev and generated PDFs.
 
     Recorded per case: each field's ``{id, binding, widget, value}``, each table cell's ``{table, row,
-    key, value}``, and the top-level warning codes with their counts, without the codes the browser
-    never produces (``BROWSER_SKIPS``). Records must be schema-valid, as for the values group.
+    key, value}``, the top-level warning codes with their counts, without the codes the browser
+    never produces (``BROWSER_SKIPS``), and the ``gaps`` and ``required_gaps`` lists. Records must be schema-valid, as for the values group.
     """
     _check_unique_ids(cases.FILL_CASES)
     templates, stored = _fill_templates()
@@ -359,6 +359,8 @@ def export_fill() -> dict:
                 "cells": [{"table": t.id, "row": c.row, "key": c.key, "value": c.value}
                           for t in report.tables for c in t.cells],
                 "codes": dict(sorted(codes.items())),
+                "gaps": report.gaps,
+                "required_gaps": report.required_gaps,
             }
 
         records.append(_record(case, input_, run, ()))

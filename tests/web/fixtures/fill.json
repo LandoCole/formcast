@@ -133,7 +133,7 @@
       "segments": [],
       "confidence": null,
       "origin": "human",
-      "required": false,
+      "required": true,
       "required_reason": "",
       "required_by": null
      },
@@ -340,7 +340,7 @@
       "segments": [],
       "confidence": null,
       "origin": "human",
-      "required": false,
+      "required": true,
       "required_reason": "",
       "required_by": null
      },
@@ -513,7 +513,7 @@
       "segments": [],
       "confidence": null,
       "origin": "human",
-      "required": false,
+      "required": true,
       "required_reason": "",
       "required_by": null
      },
@@ -579,7 +579,7 @@
       "segments": [],
       "confidence": null,
       "origin": "human",
-      "required": false,
+      "required": true,
       "required_reason": "",
       "required_by": null
      },
@@ -1210,7 +1210,14 @@
     "codes": {
      "missing": 1,
      "unmapped_data": 2
-    }
+    },
+    "gaps": [
+     "w0_10",
+     "w0_13",
+     "w0_16",
+     "w0_17"
+    ],
+    "required_gaps": []
    }
   },
   {
@@ -1380,7 +1387,23 @@
     "codes": {
      "missing": 7,
      "overflow": 1
-    }
+    },
+    "gaps": [
+     "w0_1",
+     "w0_8",
+     "w0_12",
+     "w0_13",
+     "w0_16",
+     "w0_15",
+     "w0_17",
+     "w0_18",
+     "w0_19",
+     "w0_20",
+     "w0_21",
+     "w0_22",
+     "f1"
+    ],
+    "required_gaps": []
    }
   },
   {
@@ -1551,7 +1574,23 @@
     "codes": {
      "missing": 7,
      "unencodable": 1
-    }
+    },
+    "gaps": [
+     "w0_8",
+     "w0_12",
+     "w0_10",
+     "w0_13",
+     "w0_11",
+     "w0_16",
+     "w0_17",
+     "w0_18",
+     "w0_19",
+     "w0_20",
+     "w0_21",
+     "w0_22",
+     "f1"
+    ],
+    "required_gaps": []
    }
   },
   {
@@ -1763,7 +1802,22 @@
     "codes": {
      "missing": 2,
      "unmapped_data": 2
-    }
+    },
+    "gaps": [
+     "c0_7",
+     "c0_10",
+     "c0_12",
+     "c0_13",
+     "c0_14",
+     "c0_15",
+     "c0_17",
+     "c0_18",
+     "c0_19",
+     "c0_20",
+     "c0_21",
+     "c0_25"
+    ],
+    "required_gaps": []
    }
   },
   {
@@ -1954,7 +2008,34 @@
     "codes": {
      "missing": 14,
      "unencodable": 1
-    }
+    },
+    "gaps": [
+     "c0_2",
+     "c0_3",
+     "c0_4",
+     "c0_5",
+     "c0_7",
+     "c0_8",
+     "c0_9",
+     "c0_10",
+     "c0_11",
+     "c0_12",
+     "c0_13",
+     "c0_14",
+     "c0_15",
+     "c0_16",
+     "c0_17",
+     "c0_18",
+     "c0_19",
+     "c0_20",
+     "c0_21",
+     "c0_22",
+     "c0_23",
+     "c0_24",
+     "c0_25",
+     "c0_26"
+    ],
+    "required_gaps": []
    }
   },
   {
@@ -2028,7 +2109,12 @@
      "truncated": 1,
      "type_mismatch": 1,
      "widget_not_found": 1
-    }
+    },
+    "gaps": [
+     "wrong_kind",
+     "no_widget"
+    ],
+    "required_gaps": []
    }
   },
   {
@@ -2075,7 +2161,9 @@
     "codes": {
      "overflow": 1,
      "shrunk": 1
-    }
+    },
+    "gaps": [],
+    "required_gaps": []
    }
   },
   {
@@ -2122,7 +2210,9 @@
     "codes": {
      "overflow": 1,
      "shrunk": 1
-    }
+    },
+    "gaps": [],
+    "required_gaps": []
    }
   },
   {
@@ -2171,7 +2261,62 @@
      "shrunk": 2,
      "truncated": 1,
      "unencodable": 2
+    },
+    "gaps": [],
+    "required_gaps": []
+   }
+  },
+  {
+   "id": "rotated90/no-code",
+   "kind": "fill",
+   "input": {
+    "template": "hand",
+    "pdf": "tests/web/fixtures/pdfs/rotated90.pdf",
+    "data": {
+     "name": "Ann Lee",
+     "answer": "No"
     }
+   },
+   "output": {
+    "fields": [
+     {
+      "id": "name",
+      "binding": "created",
+      "widget": "name",
+      "value": "Ann Lee"
+     },
+     {
+      "id": "code",
+      "binding": "created",
+      "widget": "code",
+      "value": null
+     },
+     {
+      "id": "agree",
+      "binding": "created",
+      "widget": "agree",
+      "value": false
+     },
+     {
+      "id": "zurich",
+      "binding": "created",
+      "widget": "zurich",
+      "value": false
+     }
+    ],
+    "cells": [],
+    "codes": {
+     "missing": 2,
+     "not_shown": 1,
+     "overflow": 1
+    },
+    "gaps": [
+     "code",
+     "zurich"
+    ],
+    "required_gaps": [
+     "code"
+    ]
    }
   },
   {
@@ -2215,7 +2360,9 @@
      }
     ],
     "cells": [],
-    "codes": {}
+    "codes": {},
+    "gaps": [],
+    "required_gaps": []
    }
   },
   {
@@ -2259,7 +2406,9 @@
      }
     ],
     "cells": [],
-    "codes": {}
+    "codes": {},
+    "gaps": [],
+    "required_gaps": []
    }
   },
   {
@@ -2307,7 +2456,61 @@
      "not_shown": 2,
      "truncated": 1,
      "unencodable": 2
+    },
+    "gaps": [],
+    "required_gaps": []
+   }
+  },
+  {
+   "id": "cropbox/no-code",
+   "kind": "fill",
+   "input": {
+    "template": "hand_crop",
+    "pdf": "tests/web/fixtures/pdfs/cropbox.pdf",
+    "data": {
+     "name": "Ann Lee",
+     "answer": "No"
     }
+   },
+   "output": {
+    "fields": [
+     {
+      "id": "name",
+      "binding": "created",
+      "widget": "name",
+      "value": "Ann Lee"
+     },
+     {
+      "id": "code",
+      "binding": "created",
+      "widget": "code",
+      "value": null
+     },
+     {
+      "id": "agree",
+      "binding": "created",
+      "widget": "agree",
+      "value": false
+     },
+     {
+      "id": "zurich",
+      "binding": "created",
+      "widget": "zurich",
+      "value": false
+     }
+    ],
+    "cells": [],
+    "codes": {
+     "missing": 2,
+     "not_shown": 1
+    },
+    "gaps": [
+     "code",
+     "zurich"
+    ],
+    "required_gaps": [
+     "code"
+    ]
    }
   },
   {
@@ -2378,7 +2581,13 @@
       "value": "120"
      }
     ],
-    "codes": {}
+    "codes": {},
+    "gaps": [
+     "unmapped"
+    ],
+    "required_gaps": [
+     "unmapped"
+    ]
    }
   },
   {
@@ -2457,7 +2666,90 @@
      "rows_dropped": 1,
      "shrunk": 1,
      "unencodable": 2
+    },
+    "gaps": [
+     "unmapped"
+    ],
+    "required_gaps": [
+     "unmapped"
+    ]
+   }
+  },
+  {
+   "id": "cropbox-table/no-note",
+   "kind": "fill",
+   "input": {
+    "template": "table_crop",
+    "pdf": "tests/web/fixtures/pdfs/cropbox.pdf",
+    "data": {
+     "answer": "No",
+     "items": [
+      {
+       "desc": "Bolts",
+       "qty": 40
+      }
+     ]
     }
+   },
+   "output": {
+    "fields": [
+     {
+      "id": "note",
+      "binding": "created",
+      "widget": "note",
+      "value": null
+     },
+     {
+      "id": "yes",
+      "binding": "created",
+      "widget": "yes",
+      "value": false
+     },
+     {
+      "id": "unmapped",
+      "binding": "created",
+      "widget": "unmapped",
+      "value": null
+     }
+    ],
+    "cells": [
+     {
+      "table": "items",
+      "row": 0,
+      "key": "desc",
+      "value": "Bolts"
+     },
+     {
+      "table": "items",
+      "row": 0,
+      "key": "qty",
+      "value": "40"
+     },
+     {
+      "table": "items",
+      "row": 1,
+      "key": "desc",
+      "value": null
+     },
+     {
+      "table": "items",
+      "row": 1,
+      "key": "qty",
+      "value": null
+     }
+    ],
+    "codes": {
+     "missing": 1,
+     "not_shown": 1
+    },
+    "gaps": [
+     "note",
+     "unmapped"
+    ],
+    "required_gaps": [
+     "note",
+     "unmapped"
+    ]
    }
   }
  ]

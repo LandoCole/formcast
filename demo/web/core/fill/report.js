@@ -235,11 +235,15 @@ export function buildReport(template, data, { record, slots, fields, tables, cel
   const fieldReports = [];
   const tableReports = [];
   const gaps = [];
+  const requiredGaps = [];
   for (const f of template.fields) {
     const fs = slotsByField.get(f.id) ?? [];
     if (f.type === "table") tableReports.push(tableReport(f, fs, tables[f.id] ?? null, cells));
     else fieldReports.push(fieldReport(f, fs[0], fields[f.id] ?? null));
-    if (isGap(f, fs, fields[f.id] ?? null)) gaps.push(f.id);
+    if (isGap(f, fs, fields[f.id] ?? null)) {
+      gaps.push(f.id);
+      if (f.required) requiredGaps.push(f.id);
+    }
   }
 
   let every = [...record, ...fieldReports.flatMap((fr) => fr.warnings), ...tableReports.flatMap((tr) => tr.warnings)];
@@ -254,6 +258,7 @@ export function buildReport(template, data, { record, slots, fields, tables, cel
   counts.fields_written = written;
   counts.fields_empty = fieldReports.length - written;
   counts.cells_written = tableReports.reduce((n, tr) => n + tr.cells.filter((c) => c.value).length, 0);
+  if (requiredGaps.length) counts.required_left_empty = requiredGaps.length;
   return {
     template_id: template.template_id ?? "",
     fingerprint_ok: true,
@@ -262,6 +267,7 @@ export function buildReport(template, data, { record, slots, fields, tables, cel
     tables: tableReports,
     paths: pathReports(template, data, slotsByField, cells, every),
     gaps,
+    required_gaps: requiredGaps,
     warnings: top,
     counts,
     writer: "browser",

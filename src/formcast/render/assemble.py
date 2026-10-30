@@ -218,6 +218,7 @@ def build_report(
     field_reports: list[FieldReport] = []
     table_reports: list[TableReport] = []
     gaps: list[str] = []
+    required_gaps: list[str] = []
     for f in template.fields:
         fs = slots_by_field[f.id]
         if f.type == "table":
@@ -226,6 +227,8 @@ def build_report(
             field_reports.append(_field_report(f, fs[0], fields.get(f.id)))
         if _is_gap(f, fs, fields.get(f.id)):
             gaps.append(f.id)
+            if f.required:
+                required_gaps.append(f.id)
 
     every = head + record + [w for fr in field_reports for w in fr.warnings]
     every += [w for tr in table_reports for w in tr.warnings]
@@ -241,11 +244,13 @@ def build_report(
         "fields_empty": len(field_reports) - written,
         "cells_written": sum(1 for tr in table_reports for c in tr.cells if c.value),
     })  # fmt: skip
+    if required_gaps:
+        counts["required_left_empty"] = len(required_gaps)
     return FillReport(
         template_id=template.template_id, fingerprint_ok=fingerprint_ok, strict=strict,
         fields=field_reports, tables=table_reports,
         paths=_paths(template, data, slots_by_field, cells, every),
-        gaps=gaps, warnings=top, counts=dict(counts),
+        gaps=gaps, required_gaps=required_gaps, warnings=top, counts=dict(counts),
     )  # fmt: skip
 
 

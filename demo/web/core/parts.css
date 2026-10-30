@@ -373,3 +373,4 @@
 .fc-rp-code { font: 10px var(--mono); letter-spacing: .06em; margin-right: 4px; }
 .fc-rp-tbl { margin-top: 12px; font: 11px/1.4 var(--mono); }
 .fc-rp-note { margin: 12px 0 0; font: italic 14px/20px var(--serif); color: var(--graphite); }
+.fc-rp-note.fc-rp-required { padding-left: 10px; box-shadow: inset 2px 0 0 0 var(--ink); color: var(--ink); }

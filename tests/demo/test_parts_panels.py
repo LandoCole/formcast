@@ -504,6 +504,26 @@ def test_report_renders_counts_fields_tables_and_the_browser_note(panels):
     assert "Filled in this browser" in rp.locator(".fc-rp-writer").inner_text()
 
 
+def test_report_lists_required_empty_boxes_before_the_others(panels):
+    report = {**REPORT, "gaps": ["name", "email", "phone"], "required_gaps": ["name", "phone"],
+              "counts": {**REPORT["counts"], "required_left_empty": 2}}
+    panels.setup(report=report)
+    rp = panels.page.locator("#report")
+    notes = rp.locator(".fc-rp-note:not(.fc-rp-writer)")
+    assert notes.all_inner_texts() == ["Required boxes left empty: name, phone", "Other empty boxes: email"]
+    assert notes.nth(0).get_attribute("class").split() == ["fc-rp-note", "fc-rp-required"]
+    flat = rp.locator(".fc-rp-stat").evaluate_all("els => els.map(e => e.children[0].textContent + ' ' + e.children[1].textContent)")
+    assert flat[0] == "2 required left empty"
+    assert rp.locator(".fc-rp-stat").nth(0).get_attribute("data-severity") == "warning"
+    assert flat[1:4] == ["2 fields written", "1 fields left empty", "8 table cells written"]
+
+
+def test_report_with_only_required_gaps_has_no_other_line(panels):
+    panels.setup(report={**REPORT, "gaps": ["name"], "required_gaps": ["name"]})
+    notes = panels.page.locator("#report .fc-rp-note:not(.fc-rp-writer)")
+    assert notes.all_inner_texts() == ["Required boxes left empty: name"]
+
+
 def test_report_without_a_browser_writer_has_no_note(panels):
     panels.setup(report={**REPORT, "writer": None})
     assert panels.page.locator("#report .fc-rp-writer").count() == 0

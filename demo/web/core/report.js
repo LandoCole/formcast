@@ -4,7 +4,9 @@
 
 import { SEVERITY } from "./values.js";
 
+/** [count key, tile label, severity]: the required tile comes first and reads as a warning. */
 const TOTALS = [
+  ["required_left_empty", "required left empty", "warning"],
   ["fields_written", "fields written"],
   ["fields_empty", "fields left empty"],
   ["cells_written", "table cells written"],
@@ -52,8 +54,8 @@ function counts(report) {
   const all = report.counts ?? {};
   const codes = Object.keys(all).filter((k) => !TOTALS.some(([key]) => key === k));
   const bySeverity = (s) => codes.filter((c) => severityOf(c) === s).sort();
-  for (const [key, label] of TOTALS) {
-    if (key in all) box.append(stat(all[key], label));
+  for (const [key, label, severity] of TOTALS) {
+    if (key in all) box.append(stat(all[key], label, severity));
   }
   for (const code of bySeverity("warning")) box.append(stat(all[code], code.replaceAll("_", " "), "warning"));
   for (const code of bySeverity("info")) box.append(stat(all[code], code.replaceAll("_", " "), "info"));
@@ -112,7 +114,10 @@ export function renderReport(target, report) {
   if (top) parts.push(top);
   if ((report.fields ?? []).length > 0) parts.push(fieldRows(report));
   if ((report.tables ?? []).length > 0) parts.push(tableSummaries(report));
-  if ((report.gaps ?? []).length > 0) parts.push(el("p", "fc-rp-note", `No data field: ${report.gaps.join(", ")}`));
+  const required = report.required_gaps ?? [];
+  const others = (report.gaps ?? []).filter((id) => !required.includes(id));
+  if (required.length > 0) parts.push(el("p", "fc-rp-note fc-rp-required", `Required boxes left empty: ${required.join(", ")}`));
+  if (others.length > 0) parts.push(el("p", "fc-rp-note", `Other empty boxes: ${others.join(", ")}`));
   if (report.writer === "browser") parts.push(el("p", "fc-rp-note fc-rp-writer", BROWSER_NOTE));
   target.replaceChildren(...parts);
 }

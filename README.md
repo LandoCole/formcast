@@ -153,6 +153,7 @@ The report also has:
   font size.
 - `report.paths`: per schema path, what was rendered where.
 - `report.gaps`: boxes that came out empty.
+- `report.required_gaps`: the gaps whose box is marked required.
 - `report.counts`.
 - `report.to_json()`.
 

@@ -1513,14 +1513,14 @@ _EQ = lambda v: {"op": "equals", "args": {"value": v}}  # noqa: E731
 def _fill_templates() -> dict[str, dict]:
     hand = [  # the 4-field hand template: text, comb text, checkbox, choice_mark
         _field("name", "text", 0, [72, 100, 300, 120], source=_src("name")),
-        _field("code", "text", 0, [72, 140, 160, 160], source=_src("code"), style={"comb": 4}),
+        _field("code", "text", 0, [72, 140, 160, 160], source=_src("code"), style={"comb": 4}, required=True),
         _field("agree", "checkbox", 0, [72, 180, 84, 192], source=_src("answer", when=_EQ("Sí"))),
         _field("zurich", "choice_mark", 0, [100, 178, 160, 194], source=_src("city", when=_EQ("Zürich"))),
     ]
     table = [
-        _field("note", "text", 0, [72, 400, 300, 440], source=_src("note"), style={"multiline": True}),
+        _field("note", "text", 0, [72, 400, 300, 440], source=_src("note"), style={"multiline": True}, required=True),
         _field("yes", "radio_option", 0, [320, 400, 332, 412], source=_src("answer", when=_EQ("Sí"))),
-        _field("unmapped", "text", 0, [320, 420, 500, 436]),
+        _field("unmapped", "text", 0, [320, 420, 500, 436], required=True),
         {"id": "items", "type": "table", "origin": "human", "source": _src("items"), "segments": [
             {"page": 0, "rect": [60, 290, 400, 345], "row_top": 300, "row_height": 20, "max_rows": 2,
              "columns": [{"key": "desc", "x": [72, 300]},
@@ -1596,12 +1596,14 @@ def _fill_cases() -> list[dict]:
         "probe": {"name": "Ann Lee", "code": "1234", "answer": "Sí", "city": "Zürich"},
         "latin1": {"name": "José Núñez", "code": "ÄB12", "answer": "Sí", "city": "Zürich"},
         "non-latin": {"name": "北京 Sí", "code": "北京12345", "answer": "No", "city": "北京"},
+        "no-code": {"name": "Ann Lee", "answer": "No"},
     }
     table = {
         "probe": {"note": "First line of the note\nsecond line", "answer": "Sí",
                   "items": [{"desc": "Bolts", "qty": 40}, {"desc": "Washers", "qty": 120}]},
         "non-latin": {"note": "北京 " + "long words " * 30, "answer": "No",
                       "items": [{"desc": "José's 北京 order", "qty": 3}, {"desc": "Zürich"}, {"desc": "dropped", "qty": 1}]},
+        "no-note": {"answer": "No", "items": [{"desc": "Bolts", "qty": 40}]},
     }
     binding = {
         "probe": {"name": "Ann Lee", "code": "123456", "answer": "No", "city": "Springfield", "note": long_name.strip()},
