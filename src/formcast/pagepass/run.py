@@ -91,10 +91,15 @@ def _call_page(provider: Provider, page: int, messages: list[Message], limits: d
     )
 
 
-def _table_op_page(template: Template, op: dict) -> int:
-    """The page a table op counts against: the first segment's page, or the page of the box being cleared."""
+def _table_op_page(template: Template, op: dict, previous: int) -> int:
+    """The page a table op counts against: the first segment's page, or the page of the box being cleared.
+
+    A ``set_required`` always follows its ``add_table`` and counts against the same page (``previous``).
+    """
     if op["op"] == "add_table":
         return op["segments"][0]["page"]
+    if op["op"] == "set_required":
+        return previous
     return next(f.page for f in template.fields if f.id == op["id"])
 
 
@@ -118,7 +123,8 @@ def map_pages(
     applied afterwards in page order, so the result does not depend on which call finished first:
     every page's plain mappings, then the tables of all pages (those continuing across pages
     merged into one). A failed or unparsable page keeps its boxes unmapped; a rejected op is
-    recorded in its page's outcome, never raised. Table ops count against the page of their first
+    recorded in its page's outcome, never raised. The boxes an answer lists as required are marked with
+    ``set_required`` (a table when one of its boxes is listed). Table ops count against the page of their first
     segment, and a box-clearing op against the box's page. ``llm`` is an :class:`LLMConfig` (the
     pass creates and closes the provider) or a ready :class:`Provider` (the caller keeps ownership).
     """
@@ -161,9 +167,14 @@ def map_pages(
         specs.extend(page_specs)
 
     # Tables last: they read the sources the mappings set to decide which boxes to clear.
+    page, table_added = 0, False
     for op in table_ops(template, specs):
-        page = _table_op_page(template, op)
+        if op["op"] == "set_required" and not table_added:
+            continue  # its table was rejected: that rejection is already recorded
+        page = _table_op_page(template, op, page)
         template, applied, rejected = apply_ops(template, [op], None, context)
+        if op["op"] == "add_table":
+            table_added = applied == 1
         outcomes[page].applied += applied
         outcomes[page].rejected.extend(rejected)
 

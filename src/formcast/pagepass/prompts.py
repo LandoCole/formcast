@@ -5,6 +5,7 @@ from __future__ import annotations
 from formcast.llm import ImagePart, Message, TextPart
 from formcast.pagemap.model import FormMap
 from formcast.pagemap.summarize import summarize_page
+from formcast.required_rules import REQUIRED_RULES
 from formcast.schema import flatten_schema
 from formcast.template.model import Template
 from formcast.transforms import _REGISTRY
@@ -45,12 +46,19 @@ Rules:
   heading cell (under the heading's text) is not a row: the first row starts below the heading's
   bottom rule.
 
+Required and optional: besides the mapping, list the boxes of this page that a filled copy of the form must
+have filled in. Every box you do not list is optional. List a required box whether or not you map it, with a
+short reason (the form's own words, or the rule you applied).
+""" + REQUIRED_RULES + """\
+A box in a table may be listed too: one listed box makes the whole table required.
+
 Reply with one JSON object and nothing else:
 {"mappings": [{"id": "<box id>", "source": {"paths": ["a.b"], "transforms": [{"op": "...", "args": {...}}],
  "join": null, "when": null}}],
- "tables": [{"source_path": "x", "columns": [{"key": "col", "transforms": []}], "rows": [{"col": "<box id>"}]}]}
-List only boxes you map ("tables" may be empty). Use only box ids from the list given, and only schema paths
-from the list given.
+ "tables": [{"source_path": "x", "columns": [{"key": "col", "transforms": []}], "rows": [{"col": "<box id>"}]}],
+ "required": [{"id": "<box id>", "reason": "..."}]}
+List only boxes you map in "mappings" ("tables" and "required" may be empty). Use only box ids from the list given, and only
+schema paths from the list given.
 """
 
 _NOTE_START = "The image shows this page with every box outlined (blue: text box, green: checkbox). "

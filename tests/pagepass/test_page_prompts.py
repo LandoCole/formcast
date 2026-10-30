@@ -132,3 +132,10 @@ def test_a_page_longer_than_the_cap_is_cut_with_a_note_that_names_no_query_helpe
     note = text.splitlines()[-1]
     assert note.startswith("[truncated: ") and note.endswith(" of 900 item lines on this page dropped]")
     assert "query helpers" not in text and "c0_0 text" in text
+
+
+def test_system_prompt_states_the_required_rules_and_asks_for_the_required_list():
+    from formcast.data.ai import REQUIRED_RULES
+
+    assert REQUIRED_RULES in SYSTEM_PROMPT
+    assert '"required": [{"id": "<box id>", "reason": "..."}]' in SYSTEM_PROMPT

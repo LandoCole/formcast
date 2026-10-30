@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import itertools
 import json
 import re
 from dataclasses import dataclass
@@ -23,6 +24,7 @@ class TableSpec:
     source_path: str
     transforms: dict[str, list]  # column key -> transforms
     rows: list[dict[str, str]]  # column key -> box id, one dict per printed row
+    required_reason: str | None = None  # the reason of the first listed required box among the rows; None: none listed
 
 
 def _list(v: object) -> list:
@@ -33,7 +35,8 @@ def _list(v: object) -> list:
 def parse_answer(text: str) -> dict | None:
     """The outermost ``{...}`` of ``text`` as ``{"mappings": [...], "tables": [...]}``; None if it does not parse.
 
-    An answer cut off at the output limit keeps every list item that was complete (``_salvage``).
+    A ``"required"`` list is kept when the answer has one. An answer cut off at the output limit keeps every
+    list item that was complete (``_salvage``).
     """
     m = re.search(r"\{.*\}", text, re.S)
     try:
@@ -48,14 +51,16 @@ def parse_answer(text: str) -> dict | None:
     for key in ("mappings", "tables"):
         value = data.get(key)
         out[key] = value if isinstance(value, list) else []
+    if isinstance(data.get("required"), list):
+        out["required"] = data["required"]
     return out
 
 
 def _salvage(text: str) -> dict | None:
-    """The complete items of the ``mappings`` and ``tables`` lists of a cut-off answer; None when there are none."""
+    """The complete items of the ``mappings``, ``tables`` and ``required`` lists of a cut-off answer; None when none."""
     decoder = json.JSONDecoder()
     out: dict = {}
-    for key in ("mappings", "tables"):
+    for key in ("mappings", "tables", "required"):
         m = re.search(rf'"{key}"\s*:\s*\[', text)
         if m is None:
             continue
@@ -92,7 +97,11 @@ def _box_ids(template: Template, page: int):
 
 
 def mapping_ops(template: Template, answer: dict, page: int) -> tuple[list[dict], list[TableSpec]]:
-    """Ops for the answer's plain mappings on ``page``, and the page's table specs with their rows cleaned."""
+    """Ops for the answer's plain mappings on ``page``, and the page's table specs with their rows cleaned.
+
+    Each listed required box that is not in a table also gets a ``set_required`` op; a listed box inside a
+    table goes to the table's spec instead (``TableSpec.required_reason``).
+    """
     fields = {f.id: f for f in template.fields if f.page == page}
     resolve = _box_ids(template, page)
     tables = [t for t in _list(answer.get("tables")) if isinstance(t, dict)]
@@ -119,10 +128,29 @@ def mapping_ops(template: Template, answer: dict, page: int) -> tuple[list[dict]
         if choice and fields[fid].type == "text":
             ops.append({"op": "set_type", "id": fid, "type": "checkbox"})
         ops.append({"op": "set_source", "id": fid, "source": src})
-    return ops, _table_specs(tables, resolve, page)
+    reasons = _required_reasons(answer, resolve)
+    ops.extend(
+        {"op": "set_required", "id": fid, "required": True, "reason": reason}
+        for fid, reason in reasons.items()
+        if fid not in in_tables
+    )
+    return ops, _table_specs(tables, resolve, page, reasons)
 
 
-def _table_specs(tables: list[dict], resolve, page: int) -> list[TableSpec]:
+def _required_reasons(answer: dict, resolve) -> dict[str, str]:
+    """Box id -> reason for the answer's listed required boxes on the page; an unknown or malformed entry is dropped."""
+    reasons: dict[str, str] = {}
+    for item in _list(answer.get("required")):
+        if not isinstance(item, dict):
+            continue
+        fid = resolve(item.get("id"))
+        if fid is not None and fid not in reasons:
+            reason = item.get("reason")
+            reasons[fid] = reason.strip() if isinstance(reason, str) else ""
+    return reasons
+
+
+def _table_specs(tables: list[dict], resolve, page: int, reasons: dict[str, str]) -> list[TableSpec]:
     specs: list[TableSpec] = []
     used: set[str] = set()
     for t in tables:
@@ -146,22 +174,42 @@ def _table_specs(tables: list[dict], resolve, page: int) -> list[TableSpec]:
             if isinstance(c, dict) and isinstance(c.get("key"), str)
         }
         source_path = t.get("source_path")
-        specs.append(TableSpec(page, source_path if isinstance(source_path, str) else "", transforms, rows))
+        listed = [reasons[fid] for row in rows for fid in row.values() if fid in reasons]
+        specs.append(
+            TableSpec(
+                page,
+                source_path if isinstance(source_path, str) else "",
+                transforms,
+                rows,
+                listed[0] if listed else None,
+            )
+        )
     return specs
 
 
 def table_ops(template: Template, specs: list[TableSpec]) -> list[dict]:
-    """Ops for the tables: each merged table clears its linked boxes' sources, then one ``add_table``."""
+    """Ops for the tables: each merged table clears its linked boxes' sources, then one ``add_table``.
+
+    Each ``add_table`` names its own id (unique among the template's fields and the other tables), so that a
+    ``set_required`` with the first reason any of its segments carries can follow it.
+    """
     fields = {f.id: f for f in template.fields}
+    taken = set(fields)
     ops: list[dict] = []
     for group in _merge(specs):
         ids = [fid for spec in group for row in spec.rows for fid in row.values()]
         ops.extend({"op": "set_source", "id": fid, "source": None} for fid in ids if fields[fid].source is not None)
+        table_id = next(f"tbl{n}" for n in itertools.count(1) if f"tbl{n}" not in taken)
+        taken.add(table_id)
         ops.append({
             "op": "add_table",
+            "id": table_id,
             "source_path": group[0].source_path,
             "segments": [_segment(spec, fields) for spec in group],
         })
+        reason = next((s.required_reason for s in group if s.required_reason is not None), None)
+        if reason is not None:
+            ops.append({"op": "set_required", "id": table_id, "required": True, "reason": reason})
     return ops
 
 

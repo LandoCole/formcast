@@ -12,6 +12,7 @@ from formcast.geometry import Rect, intersect
 from formcast.llm import ContentPart, ImagePart, TextPart
 from formcast.pagemap.query import FormMapQuery
 from formcast.pagepass.marks import marks_for
+from formcast.required_rules import REQUIRED_RULES
 from formcast.schema import SchemaPath
 from formcast.template.model import Field, Template
 from formcast.template.op_models import OP_NAMES
@@ -131,6 +132,14 @@ signature, choice_mark (a mark drawn on or next to printed option text) and tabl
    Never map a path to a field you cannot justify from nearby text.
 9. Fillable forms: map the widget fields with set_source and fix their labels; do not add
    duplicates on top of them.
+10. Required and optional: set_required(id, required, reason) says whether a filled copy of the
+    form must have that box filled in. Boxes start optional; a page pass, when there was one, has
+    already marked the boxes it judged required (`required`, `required_reason` and `required_by`
+    in `tpl`). Use set_required on a box you add that the form requires, on a required box the
+    page pass missed, and on a box it marked that the form shows to be optional; always give a
+    short reason. When a box's `required_by` is "human", the person set it: set_required on it
+    is refused, so leave that box as it is. Judge by these rules:
+{REQUIRED_RULES}
 
 # The step report
 After each run_python call you get a report: your printed output (truncated when long), errors,

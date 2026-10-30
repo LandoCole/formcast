@@ -297,3 +297,38 @@ def test_pages_are_rendered_one_by_one_on_the_calling_thread_before_any_call(pdf
     assert [o.status for o in result.pages] == ["ok", "ok"]
     assert threads == {threading.get_ident()}
     assert events[:2] == [("render", 0), ("render", 1)] and sorted(events[2:]) == [("call", 0), ("call", 1)]
+
+
+def test_required_boxes_and_tables_are_marked_and_counted_on_their_pages(pdf):
+    replies = {
+        0: json.dumps({
+            "mappings": [{"id": "c0_1", "source": {"paths": ["name"]}}],
+            "tables": [{
+                "source_path": "rows",
+                "columns": [{"key": "a", "transforms": []}, {"key": "b", "transforms": []}],
+                "rows": [{"a": "c0_2", "b": "c0_3"}],
+            }],
+            "required": [{"id": "c0_1", "reason": "first line"}, {"id": "c0_3", "reason": "at least one row"}],
+        }),
+        1: _table_reply(1, [("c1_1", "c1_2")]),
+    }
+    result = map_pages(_template(with_page1_boxes=True), _form(), pdf, FakeProvider(replies))
+    by_id = {f.id: f for f in result.template.fields}
+    box = by_id["c0_1"]
+    assert (box.required, box.required_reason, box.required_by) == (True, "first line", "agent")
+    (table,) = [f for f in result.template.fields if f.type == "table"]
+    assert (table.required, table.required_reason, table.required_by) == (True, "at least one row", "agent")
+    assert "c0_3" not in by_id or not by_id["c0_3"].required
+    # page 0: set_source and set_required for the box, then its table's add_table and set_required
+    assert [o.applied for o in result.pages] == [4, 0]
+    assert all(o.rejected == [] for o in result.pages)
+
+
+def test_a_rejected_table_leaves_its_required_op_out(pdf):
+    replies = {0: json.dumps({
+        "tables": [{"source_path": "not_a_path", "columns": [{"key": "a", "transforms": []}], "rows": [{"a": "c0_2"}]}],
+        "required": [{"id": "c0_2", "reason": "needed"}],
+    })}
+    result = map_pages(_template(), _form(), pdf, FakeProvider(replies))
+    assert len(result.pages[0].rejected) == 1 and result.pages[0].applied == 0
+    assert not any(f.required for f in result.template.fields)

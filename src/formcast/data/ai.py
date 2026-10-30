@@ -34,6 +34,7 @@ from formcast.pagemap.model import FormMap
 from formcast.pagemap.summarize import summarize_page
 from formcast.pagepass.marks import render_marked_page
 from formcast.pagepass.run import _call_limits
+from formcast.required_rules import REQUIRED_RULES
 from formcast.schema import REASON_KEY, flatten_schema
 from formcast.template.model import new_template
 
@@ -73,22 +74,6 @@ Rules:
 - Every blank on the form should be covered by some property; do not invent fields the form lacks.
 
 Reply with one JSON object and nothing else: {"schema": {...}}
-"""
-
-#: How to tell a required field from an optional one, for any prompt that designs fields or boxes of a form. Each prompt
-#: adds its own line on how to reply (the schema's "required" lists and an :data:`~formcast.schema.REASON_KEY` per
-#: property; the page pass's list of required boxes).
-REQUIRED_RULES = """\
-Decide for each field (or box) of the form whether it is required or optional, by these rules in this order:
-1. What the form says decides first. Wording such as "required", "an entry is required" or "must", or an asterisk
-   the form explains as meaning required, makes it required. Wording such as "optional", "if any", "if applicable"
-   or "if different", or "(optional)", makes it optional.
-2. When the form is silent, use its structure and context. The fields that identify who or what the form is about
-   and the answers the form exists to collect (a name on the first line, a date beside a signature) are required;
-   supplementary, alternative and follow-up fields are optional.
-3. A field that is one of several alternatives (one may be blank when another is given), or that is needed only
-   under a condition (only when another answer is a certain one), is optional; put that rule in its reason.
-4. When unsure, it is optional; put what is unclear in its reason.
 """
 
 #: What ``derive_schema`` adds to :data:`DERIVE_SYSTEM` when asked to classify (extraction only; fill's prompt is

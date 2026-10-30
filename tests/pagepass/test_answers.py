@@ -274,3 +274,110 @@ def test_malformed_values_never_raise_and_good_parts_still_apply():
     assert [r["op"]["id"] for r in rejected] == ["w0_2"]
     assert parse_answer('{"mappings": "x", "tables": {"a": 1}}') == {"mappings": [], "tables": []}
     assert mapping_ops(_template(), {"mappings": 3, "tables": "x"}, 0) == ([], [])
+
+
+def _by_id(t, fid):
+    return next(f for f in t.fields if f.id == fid)
+
+
+def test_listed_boxes_become_required_with_their_reason():
+    answer = {
+        "mappings": [_mapping("w0_1", "name")],
+        "required": [
+            {"id": "w0_1", "reason": "the form marks it with an asterisk"},
+            {"id": "w0_2", "reason": "its first line"},
+        ],
+    }
+    t = _template()
+    ops, specs = mapping_ops(t, answer, 0)
+    assert [o for o in ops if o["op"] == "set_required"] == [
+        {"op": "set_required", "id": "w0_1", "required": True, "reason": "the form marks it with an asterisk"},
+        {"op": "set_required", "id": "w0_2", "required": True, "reason": "its first line"},
+    ]
+    t, applied, rejected = apply_ops(t, ops, 0, None)
+    assert rejected == []
+    assert (_by_id(t, "w0_1").required, _by_id(t, "w0_1").required_by) == (True, "agent")
+    assert _by_id(t, "w0_1").required_reason == "the form marks it with an asterisk"
+    assert _by_id(t, "w0_2").required is True  # listed although the page pass mapped nothing to it
+
+
+def test_unlisted_boxes_stay_optional():
+    answer = {
+        "mappings": [_mapping("w0_1", "name"), _mapping("w0_2", "ok")],
+        "required": [{"id": "w0_1", "reason": "r"}],
+    }
+    t = _template()
+    ops, _ = mapping_ops(t, answer, 0)
+    t, _, rejected = apply_ops(t, ops, 0, None)
+    assert rejected == []
+    assert (_by_id(t, "w0_2").required, _by_id(t, "w0_2").required_by) == (False, None)
+    ops, _ = mapping_ops(t, {"mappings": [_mapping("w0_1", "name")]}, 0)  # no "required" key at all
+    assert [o["op"] for o in ops] == ["set_source"]
+
+
+def test_a_listed_box_inside_a_table_makes_the_table_required_not_the_box():
+    answer = {
+        "tables": [_table([{"a": "w0_3", "b": "w0_4"}, {"a": "w0_5", "b": "w0_6"}])],
+        "required": [{"id": "w0_5", "reason": "at least one row"}, {"id": "w0_3", "reason": "later reason"}],
+    }
+    t = _template()
+    ops, specs = mapping_ops(t, answer, 0)
+    assert [o for o in ops if o["op"] == "set_required"] == []  # not on the boxes themselves
+    assert specs[0].required_reason == "later reason"  # the first listed box in row order: w0_3 is in row 0
+    ops = table_ops(t, specs)
+    assert [o["op"] for o in ops] == ["add_table", "set_required"]
+    assert ops[1] == {"op": "set_required", "id": ops[0]["id"], "required": True, "reason": "later reason"}
+    t, applied, rejected = apply_ops(t, ops, None, None)
+    assert (applied, rejected) == (2, [])
+    (table,) = [f for f in t.fields if f.type == "table"]
+    assert (table.id, table.required, table.required_by) == (ops[0]["id"], True, "agent")
+    assert all(not _by_id(t, fid).required for fid in ("w0_3", "w0_5"))
+
+
+def test_a_table_with_no_listed_box_has_no_set_required():
+    spec = TableSpec(0, "rows", {}, [{"a": "w0_3", "b": "w0_4"}])
+    assert [o["op"] for o in table_ops(_template(), [spec])] == ["add_table"]
+
+
+def test_tables_get_explicit_ids_unique_against_the_template_and_each_other():
+    t = _template()
+    t.fields.append(Field(id="tbl1", type="text", page=0, rect=(0, 0, 10, 10), origin="detector"))
+    specs = [TableSpec(0, "rows", {}, [{"a": "w0_3"}]), TableSpec(0, "rows", {}, [{"b": "w0_4"}])]
+    ops = table_ops(t, specs)
+    ids = [o["id"] for o in ops if o["op"] == "add_table"]
+    assert len(set(ids)) == 2 and "tbl1" not in ids
+    t, applied, rejected = apply_ops(t, ops, None, None)
+    assert rejected == []
+
+
+def test_a_merged_table_takes_the_first_reason_among_its_segments():
+    specs = [
+        TableSpec(0, "rows", {}, [{"a": "w0_3"}]),
+        TableSpec(1, "rows", {}, [{"a": "w1_1"}], required_reason="needed"),
+    ]
+    ops = table_ops(_template(), specs)
+    assert [o["op"] for o in ops] == ["add_table", "set_required"] and ops[1]["reason"] == "needed"
+
+
+def test_unknown_required_ids_are_ignored():
+    answer = {
+        "mappings": [],
+        "required": [
+            {"id": "nope", "reason": "x"},
+            {"id": "w1_1", "reason": "on another page"},
+            "w0_1",
+            {"reason": "no id"},
+            {"id": ["w0_1"], "reason": "x"},
+            {"id": "w0_2", "reason": 5},
+        ],
+    }
+    ops, _ = mapping_ops(_template(), answer, 0)
+    assert ops == [{"op": "set_required", "id": "w0_2", "required": True, "reason": ""}]
+    assert mapping_ops(_template(), {"required": "w0_1"}, 0) == ([], [])
+
+
+def test_the_required_list_is_parsed_and_survives_a_cut_off_answer():
+    full = '{"mappings": [], "tables": [], "required": [{"id": "w0_1", "reason": "r"}]}'
+    assert parse_answer(full)["required"] == [{"id": "w0_1", "reason": "r"}]
+    cut = '{"mappings": [], "tables": [], "required": [{"id": "w0_1", "reason": "r"}, {"id": "w0_2", "rea'
+    assert parse_answer(cut)["required"] == [{"id": "w0_1", "reason": "r"}]

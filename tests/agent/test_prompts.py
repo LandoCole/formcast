@@ -62,7 +62,7 @@ def test_system_prompt_contains_no_corpus_labels():
 # summary, coverage and transform docs. Module docstrings are skipped (never shown).
 MODEL_FACING = [
     "src/formcast/agent/prompts.py", "src/formcast/agent/session.py", "src/formcast/agent/report.py",
-    "src/formcast/pagepass/prompts.py", "src/formcast/data/ai.py",
+    "src/formcast/pagepass/prompts.py", "src/formcast/data/ai.py", "src/formcast/required_rules.py",
     "src/formcast/template/ops.py", "src/formcast/template/coverage.py", "src/formcast/sandbox/worker.py",
     "src/formcast/pagemap/query.py", "src/formcast/pagemap/summarize.py", "src/formcast/transforms.py",
     "src/formcast/extract/prompts.py", "src/formcast/extract/ask.py", "src/formcast/extract/samples.py",
@@ -356,3 +356,9 @@ def test_vision_note_explains_the_images_and_their_marks():
     colours = ("blue a text box", "green a checkbox", "teal a radio option", "purple a signature", "red any remaining")
     assert all(c in note for c in colours)
     assert "mark" in note
+
+
+def test_the_agent_prompt_teaches_set_required():
+    text = " ".join(SYSTEM_PROMPT.split())
+    assert "set_required" in text
+    assert "the person set" in text  # a box the person set is left alone
