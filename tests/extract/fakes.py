@@ -131,7 +131,7 @@ class CorpusModel:
 
     def complete(self, messages, tools, **kwargs):
         system, text = messages[0].content, user_text(messages[1])
-        if system == DERIVE_SYSTEM:
+        if system.startswith(DERIVE_SYSTEM):  # DERIVE_SYSTEM, or with the required rules after it
             kind, answer = "derive", {"schema": self.schema}
         elif system == FIELDS_SYSTEM:
             kind, answer = "fields", self._fields(text)

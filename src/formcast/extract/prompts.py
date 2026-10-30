@@ -15,7 +15,9 @@ from __future__ import annotations
 
 import textwrap
 
+from formcast.data.ai import REQUIRED_RULES
 from formcast.data.mapping import transforms_ref
+from formcast.schema import REASON_KEY
 
 #: What every call gets, said once for all four prompts.
 _SAMPLES = """\
@@ -42,7 +44,7 @@ Rules:
   definition of the value, so a person can tell a right answer from a wrong one).
 - Add the checks every right answer passes, as keywords: "pattern" (a regular expression), "enum" (a fixed set of
   answers in short lower-case words), "format" ("date" or "email"), "minimum" and "maximum" for numbers; list the
-  fields every copy must answer in their object's "required".
+  required fields (see the rules below) in their object's "required".
 - Types: "string"; {{"type": "string", "format": "date"}} for a date; "number" or "integer" for amounts and
   counts; "boolean" for a yes/no question or a lone check box; a string with "enum" for a choose-one set.
 - Rows or blocks printed again and again (several drivers, line items): one property that is an array of
@@ -50,6 +52,10 @@ Rules:
 - Names are snake_case and say what the value is; fields of one topic go in one object ("delivery" holding
   "street_line" and "route_code").
 - Never give a top-level property a name listed under NAMES ALREADY USED: those fields exist already.
+
+{REQUIRED_RULES}\
+Give every property a "{REASON_KEY}": one short line in plain words saying why it is required or optional, quoting
+the form's own wording when it has some (the form says "if any"). Put a field in "required" only when it is required.
 
 Reply with one JSON object and nothing else:
 {{"schema": {{"type": "object", "properties": {{...}}}}, "line_paths": {{"<a line as given>": ["<path>", ...]}}}}

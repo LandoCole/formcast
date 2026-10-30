@@ -703,6 +703,9 @@ class GatedModel(CorpusModel):
 
     KINDS = {DERIVE_SYSTEM: "derive", FIELDS_SYSTEM: "fields"}
 
+    def kind(self, system) -> str | None:
+        return next((kind for prompt, kind in self.KINDS.items() if system.startswith(prompt)), None)  # derive may add rules
+
     def __init__(self, clients_by_file, *, gate: str | None = None, us_files=()) -> None:
         super().__init__(clients_by_file)
         self.gate = gate
@@ -711,7 +714,7 @@ class GatedModel(CorpusModel):
         self.released = threading.Event()
 
     def complete(self, messages, tools, **kwargs):
-        if self.gate is not None and self.KINDS.get(messages[0].content) == self.gate:
+        if self.gate is not None and self.kind(messages[0].content) == self.gate:
             self.reached.set()
             assert self.released.wait(10)
         return super().complete(messages, tools, **kwargs)
@@ -831,6 +834,15 @@ def test_the_fields_stage_is_labelled_by_where_the_fields_start(bench):
     assert job["result"]["setup"]["template"]["setup"]["lines"] == ["tax ID"]
 
 
+def _without_reasons(node):
+    """``node`` (a schema) with every ``x-required-reason`` taken out."""
+    if isinstance(node, dict):
+        return {k: _without_reasons(v) for k, v in node.items() if k != "x-required-reason"}
+    if isinstance(node, list):
+        return [_without_reasons(v) for v in node]
+    return node
+
+
 def test_a_setup_from_a_destination_marks_the_destinations_fields_the_form_lacks_absent(bench):
     status, listed = get_json(bench.base, "/api/templates")
     assert "fw9" in [t["name"] for t in listed["templates"]]
@@ -838,7 +850,8 @@ def test_a_setup_from_a_destination_marks_the_destinations_fields_the_form_lacks
     setup = built(bench, start="destination", destination="fw9")
     template = setup["template"]
     on_form = set(concrete_paths(hand_template().schema_))  # CorpusModel: the destination's fields the hand template has
-    assert template["schema"] == schema and template["setup"]["destination"] == "fw9"
+    assert _without_reasons(template["schema"]) == schema and template["setup"]["destination"] == "fw9"
+    assert template["schema"]["properties"]["legal_name"]["x-required-reason"] == "from the destination's schema"
     assert set(template["absent"]) == {p for p in concrete_paths(schema) if p not in on_form}
     assert "address.street" not in template["absent"] and "address.street" in template["readers"]
     assert_proven(setup["proof"])

@@ -54,6 +54,7 @@ from formcast.llm import LLMConfig, Provider, Usage, make_provider
 from formcast.match import PdfFeatures
 from formcast.pagemap.build import DetectPolicy, PageProgress
 from formcast.pagemap.detect import Detector
+from formcast.schema import REASON_KEY
 from formcast.template.model import FormInfo, form_info_for
 
 __all__ = [
@@ -227,18 +228,41 @@ def _fields(
     """The ``fields`` stage: (schema, absent paths, each line's paths, usage, warnings)."""
     if spec.start == "ai":
         doc = max(docs, key=_boxes)  # the first of the samples with the most boxes
-        derived = derive_schema(doc.pdf, llm, form_map=doc.form_map, vision=spec.vision)
+        derived = derive_schema(doc.pdf, llm, form_map=doc.form_map, vision=spec.vision, classify_required=True)
         return derived.schema, [], {}, derived.usage, []
     if spec.start == "lines":
         answer = fields_from_lines(spec.lines, docs, llm, vision=spec.vision)
         given = [line for line in dict.fromkeys(spec.lines) if line in answer.line_paths]
         return answer.schema, [], {line: answer.line_paths[line] for line in given}, answer.usage, []
     schema = copy.deepcopy(spec.destination or {})
+    _give_destination_reasons(schema)
     on_form, usage = fields_on_form(schema, docs, llm, vision=spec.vision)
     on = set(on_form)
     absent = [p for p in concrete_paths(schema) if _generic(p) not in on]
     warnings = [] if on_form else ["the model found none of the destination's fields on the form"]
     return schema, absent, {}, usage, warnings
+
+
+#: The reason of a field that comes with a destination schema's own level and no reason of its own.
+DESTINATION_REASON = "from the destination's schema"
+
+
+def _give_destination_reasons(node: dict) -> None:
+    """Put :data:`DESTINATION_REASON` on every field of the destination schema ``node`` that has no reason.
+
+    A field keeps the level (``required`` list) the destination gave it; the reason says where that level came from.
+    Groups and rows are walked into; a node written as a ``$ref`` or ``anyOf`` is left as it is.
+    """
+    for child in (node.get("properties") or {}).values():
+        if not isinstance(child, dict):
+            continue
+        items = child.get("items")
+        if child.get("properties"):
+            _give_destination_reasons(child)
+        elif isinstance(items, dict) and items.get("properties"):
+            _give_destination_reasons(items)
+        else:
+            child.setdefault(REASON_KEY, DESTINATION_REASON)
 
 
 # ---------------------------------------------------------------- add_line

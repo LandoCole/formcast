@@ -247,3 +247,11 @@ def test_lines_are_compared_by_their_words_and_may_be_named_by_number(sample_doc
     assert got.line_paths == {"first line": ["a"], "second line": ["b"]}
     text = user_text(llm.calls[0][1])
     assert "2. second line" in text and "First" not in text
+
+
+def test_fields_prompt_carries_the_required_rules():
+    from formcast.data.ai import REQUIRED_RULES
+    from formcast.extract.prompts import FIELDS_SYSTEM
+
+    assert REQUIRED_RULES in FIELDS_SYSTEM
+    assert '"x-required-reason"' in FIELDS_SYSTEM  # every property gets a one-line reason

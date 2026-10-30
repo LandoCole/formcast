@@ -20,6 +20,7 @@ from formcast.extract.edit import (
     apply_edit,
 )
 from formcast.extract.model import ChoiceRead, SampleRecord, SetupInfo
+from formcast.schema import REASON_KEY
 from tests.extract.corpus import FIELD_RECTS, SHIFT, TYPE_BOXES, clients, hand_template, make_form, truth
 
 
@@ -76,6 +77,23 @@ def test_required_false_takes_the_field_out_of_required_and_drops_an_empty_list(
     assert "required" not in t.schema_["properties"]["investor"]
     t = apply_edit(t, SetField(op="set_field", path="owners[0].name", required=True))
     assert t.schema_["properties"]["owners"]["items"]["required"] == ["name"]
+
+
+def test_a_persons_required_change_is_set_by_you():
+    t = apply_edit(hand_template(), SetField(op="set_field", path="investor.tax_id", required=False))
+    assert _prop(t, "investor", "tax_id")[REASON_KEY] == "Set by you"
+    t = apply_edit(t, SetField(op="set_field", path="owners[1].percent", required=True))
+    assert _prop(t, "owners")["items"]["properties"]["percent"][REASON_KEY] == "Set by you"
+    t = apply_edit(t, SetField(op="set_field", path="investor.dob", title="Born"))  # no level change, no reason
+    assert REASON_KEY not in _prop(t, "investor", "dob")
+
+
+def test_a_required_change_with_a_reason_keeps_it():
+    t = apply_edit(
+        hand_template(), SetField(op="set_field", path="investor.dob", required=True, required_reason="the clerk asked")
+    )
+    assert _prop(t, "investor", "dob")[REASON_KEY] == "the clerk asked"
+    assert "dob" in t.schema_["properties"]["investor"]["required"]
 
 
 def test_an_edit_gives_back_a_copy_and_leaves_the_template_it_was_given_alone():

@@ -5,7 +5,8 @@
 A field is required exactly when its own object names it in ``required`` (inside an item of a repeated group, the
 item schema's ``required``); a parent group's level is not inherited. Every other field is optional. The level is the
 template's, the same for every document it reads. A run keeps each template's required paths in ``run.json`` (see
-:mod:`formcast.extract.batch`), and the AI pass asks only about required fields.
+:mod:`formcast.extract.batch`), and the AI pass asks only about required fields. The reason for a level is a line on
+the field's property under :data:`REASON_KEY`.
 """
 
 from __future__ import annotations
@@ -14,9 +15,9 @@ import re
 from typing import Literal
 
 from formcast.extract.model import concrete_paths
-from formcast.schema import _normalize, is_array_item, parse_path
+from formcast.schema import REASON_KEY, _normalize, is_array_item, parse_path
 
-__all__ = ["LEVELS", "Level", "required_paths"]
+__all__ = ["LEVELS", "Level", "REASON_KEY", "required_paths"]
 
 #: The two levels of a field, and of a problem on it.
 Level = Literal["required", "optional"]

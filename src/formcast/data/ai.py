@@ -34,7 +34,7 @@ from formcast.pagemap.model import FormMap
 from formcast.pagemap.summarize import summarize_page
 from formcast.pagepass.marks import render_marked_page
 from formcast.pagepass.run import _call_limits
-from formcast.schema import flatten_schema
+from formcast.schema import REASON_KEY, flatten_schema
 from formcast.template.model import new_template
 
 PdfInput = str | Path | bytes
@@ -73,6 +73,33 @@ Rules:
 - Every blank on the form should be covered by some property; do not invent fields the form lacks.
 
 Reply with one JSON object and nothing else: {"schema": {...}}
+"""
+
+#: How to tell a required field from an optional one, for any prompt that designs fields or boxes of a form. Each prompt
+#: adds its own line on how to reply (the schema's "required" lists and an :data:`~formcast.schema.REASON_KEY` per
+#: property; the page pass's list of required boxes).
+REQUIRED_RULES = """\
+Decide for each field (or box) of the form whether it is required or optional, by these rules in this order:
+1. What the form says decides first. Wording such as "required", "an entry is required" or "must", or an asterisk
+   the form explains as meaning required, makes it required. Wording such as "optional", "if any", "if applicable"
+   or "if different", or "(optional)", makes it optional.
+2. When the form is silent, use its structure and context. The fields that identify who or what the form is about
+   and the answers the form exists to collect (a name on the first line, a date beside a signature) are required;
+   supplementary, alternative and follow-up fields are optional.
+3. A field that is one of several alternatives (one may be blank when another is given), or that is needed only
+   under a condition (only when another answer is a certain one), is optional; put that rule in its reason.
+4. When unsure, it is optional; put what is unclear in its reason.
+"""
+
+#: What ``derive_schema`` adds to :data:`DERIVE_SYSTEM` when asked to classify (extraction only; fill's prompt is
+#: :data:`DERIVE_SYSTEM` alone).
+_DERIVE_REQUIRED = f"""\
+
+Required and optional:
+{REQUIRED_RULES}\
+List the names of an object's required properties in its "required" array. Give every property a "{REASON_KEY}":
+one short line in plain words saying why it is required or optional, quoting the form's own wording when it has
+some (the form says "if any").
 """
 
 MAP_SYSTEM = """\
@@ -207,10 +234,13 @@ def derive_schema(
     form_map: FormMap | None = None,
     vision: bool = True,
     instructions: str = "",
+    classify_required: bool = False,
 ) -> SchemaResult:
     """A JSON Schema for the data ``pdf`` collects, designed by the model from the form itself.
 
-    ``instructions`` adds the user's own words (say, "name the holder section 'buyer'").
+    ``instructions`` adds the user's own words (say, "name the holder section 'buyer'"). With ``classify_required``
+    the model also decides which fields are required (the ``required`` lists) and gives each property a one-line
+    reason (:data:`~formcast.schema.REASON_KEY`); without it the prompt is :data:`DERIVE_SYSTEM` alone.
     The schema is checked with :func:`formcast.flatten_schema` and must have at least one field.
     """
     fm = form_map if form_map is not None else build_form_map(pdf)
@@ -242,7 +272,8 @@ def derive_schema(
             raise ValueError("the schema has no fields")
         return schema
 
-    schema, usage, raw = _ask(llm, [Message("system", DERIVE_SYSTEM), Message("user", parts)], check, long=True)
+    system = DERIVE_SYSTEM + _DERIVE_REQUIRED if classify_required else DERIVE_SYSTEM
+    schema, usage, raw = _ask(llm, [Message("system", system), Message("user", parts)], check, long=True)
     return SchemaResult(schema, usage, raw)
 
 

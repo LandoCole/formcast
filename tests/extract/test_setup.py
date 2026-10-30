@@ -21,7 +21,7 @@ from formcast.extract.setup import MAX_SAMPLES, STAGES, SetupSpec, StageEvent, a
 from formcast.llm import LLMConfig, LLMResponse
 from formcast.match import PdfFeatures
 from formcast.pagemap.build import DetectPolicy
-from formcast.schema import flatten_schema
+from formcast.schema import REASON_KEY, flatten_schema
 from tests.extract.conftest import corpus_clients
 from tests.extract.corpus import (
     FIELD_RECTS,
@@ -107,6 +107,15 @@ def test_lines_start_records_which_paths_each_line_became(five_samples):
     no_unreadable(r.warnings)
 
 
+def _without_reasons(node):
+    """``node`` (a schema) with every ``x-required-reason`` taken out."""
+    if isinstance(node, dict):
+        return {k: _without_reasons(v) for k, v in node.items() if k != REASON_KEY}
+    if isinstance(node, list):
+        return [_without_reasons(v) for v in node]
+    return node
+
+
 def test_destination_start_marks_the_fields_this_form_lacks_absent(five_samples):
     dest = {"type": "object", "properties": {**CORPUS_SCHEMA["properties"], "subscription": {"type": "object",
             "properties": {"amount": {"type": "number"}}}, "signers": {"type": "array", "maxItems": 2,
@@ -115,7 +124,7 @@ def test_destination_start_marks_the_fields_this_form_lacks_absent(five_samples)
     spec = SetupSpec(name="x", start="destination", destination=dest, destination_name="sub")
     r = build_setup(five_samples.pdfs, spec, model, **NO_DETECTORS)
     assert set(r.template.absent) == {"subscription.amount", "signers[0].name", "signers[1].name"}
-    assert r.template.schema_ == dest and r.template.setup.destination == "sub"
+    assert _without_reasons(r.template.schema_) == dest and r.template.setup.destination == "sub"
     assert r.proof.total == len([f for f in r.proof.fields if not f.absent])
     assert not set(r.template.absent) & set(r.template.readers)
     assert all("subscription.amount" not in s.opinion for s in r.template.samples)  # absent paths are not asked
@@ -325,3 +334,43 @@ def test_a_box_drawn_where_a_shifted_samples_marks_show_it_reads_an_unshifted_co
     other = clients(1, seed=78)[0]
     got = next(f for f in extract(edited, make_form(other, kind="flattened")).fields if f.path == "investor.dob")
     assert (got.status, got.strategy, got.value) == ("found", "box", truth(other)["investor.dob"])
+
+
+def test_the_ai_start_classifies_required(five_samples, monkeypatch):
+    seen = []
+    real = setup_mod.derive_schema
+
+    def spy(*args, **kwargs):
+        seen.append(kwargs.get("classify_required"))
+        return real(*args, **kwargs)
+
+    model = CorpusModel(five_samples.clients)
+    leveled = json.loads(json.dumps(CORPUS_SCHEMA))
+    leveled["properties"]["investor"]["properties"]["tax_id"][REASON_KEY] = "the form says 'An entry is required'"
+    model.schema = leveled
+    monkeypatch.setattr(setup_mod, "derive_schema", spy)
+    r = build_setup(five_samples.pdfs, SetupSpec(name="x"), model, **NO_DETECTORS)
+    assert seen == [True]
+    investor = r.template.schema_["properties"]["investor"]
+    assert "tax_id" in investor["required"]
+    assert investor["properties"]["tax_id"][REASON_KEY] == "the form says 'An entry is required'"
+
+
+def test_destination_fields_keep_their_levels_with_the_destination_reason(five_samples):
+    dest = {"type": "object", "required": ["investor"], "properties": {
+        "investor": {"type": "object", "required": ["tax_id"], "properties": {
+            "tax_id": {"type": "string"},
+            "name": {"type": "string", REASON_KEY: "the destination says so"}}},
+        "signers": {"type": "array", "maxItems": 2, "items": {"type": "object", "required": ["name"],
+            "properties": {"name": {"type": "string"}}}}}}  # fmt: skip
+    spec = SetupSpec(name="x", start="destination", destination=dest, destination_name="sub")
+    r = build_setup(five_samples.pdfs, spec, CorpusModel(five_samples.clients), **NO_DETECTORS)
+    schema = r.template.schema_
+    investor = schema["properties"]["investor"]
+    assert schema["required"] == ["investor"] and investor["required"] == ["tax_id"]
+    assert investor["properties"]["tax_id"][REASON_KEY] == "from the destination's schema"
+    assert investor["properties"]["name"][REASON_KEY] == "the destination says so"
+    item = schema["properties"]["signers"]["items"]
+    assert item["required"] == ["name"] and item["properties"]["name"][REASON_KEY] == "from the destination's schema"
+    assert REASON_KEY not in investor and REASON_KEY not in schema["properties"]["signers"]  # groups carry none
+    assert REASON_KEY not in dest["properties"]["investor"]["properties"]["tax_id"]  # the spec's own is left alone

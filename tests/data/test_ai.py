@@ -8,6 +8,7 @@ import pymupdf
 import pytest
 
 from formcast.data import Table, derive_schema, extract_records, map_table
+from formcast.data.ai import DERIVE_SYSTEM, REQUIRED_RULES
 from formcast.errors import FormcastError
 from formcast.llm import ImagePart, LLMResponse, TextPart, Usage
 from formcast.pagemap.build import DetectPolicy, build_form_map
@@ -52,6 +53,18 @@ def test_derive_schema_sends_the_page_image_and_map_and_returns_the_schema(form)
     parts = llm.calls[0][1].content
     assert any(isinstance(p, ImagePart) for p in parts)
     assert any(isinstance(p, TextPart) and "PAGE MAP" in p.text and "Name" in p.text for p in parts)
+
+
+def test_derive_schema_asks_for_required_levels_only_when_asked(form):
+    pdf, fm = form
+    reply = '{"schema": {"type": "object", "properties": {"name": {"type": "string"}}}}'
+    plain, asked = Scripted(reply), Scripted(reply)
+    derive_schema(pdf, plain, form_map=fm)
+    derive_schema(pdf, asked, form_map=fm, classify_required=True)
+    assert plain.calls[0][0].content == DERIVE_SYSTEM  # fill's one-shot prompt is unchanged
+    system = asked.calls[0][0].content
+    assert system.startswith(DERIVE_SYSTEM) and REQUIRED_RULES in system
+    assert '"x-required-reason"' in system and '"required" array' in system
 
 
 def test_derive_schema_without_vision_sends_no_image(form):

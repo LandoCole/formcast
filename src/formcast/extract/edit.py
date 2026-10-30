@@ -51,7 +51,10 @@ from formcast.extract.layout import page_fit
 from formcast.extract.page import DocText
 from formcast.extract.proof import _check_samples
 from formcast.geometry import Rect
-from formcast.schema import ARRAY_ITEM, flatten_schema, parse_path
+from formcast.schema import ARRAY_ITEM, REASON_KEY, flatten_schema, parse_path
+
+#: The reason recorded on a field whose level a person changed, when the edit gives none.
+SET_BY_YOU = "Set by you"
 
 #: The JSON Schema each type a person can pick stands for. A date is a string with a ``format``.
 _TYPES: dict[str, dict[str, str]] = {
@@ -70,8 +73,9 @@ class _Edit(BaseModel):
 class SetField(_Edit):
     """Change what the schema says about a field. A key left ``None`` is kept; ``pattern=""`` or ``enum=[]`` clears it.
 
-    ``required`` adds the field to (or takes it out of) the ``required`` list of the object it is in. Setting a
-    ``type`` replaces the field's type and its ``format`` (only ``date`` has one).
+    ``required`` adds the field to (or takes it out of) the ``required`` list of the object it is in, and records
+    why on the field (:data:`~formcast.schema.REASON_KEY`): ``required_reason`` when given, else "Set by you".
+    Setting a ``type`` replaces the field's type and its ``format`` (only ``date`` has one).
     """
 
     op: Literal["set_field"] = "set_field"
@@ -80,6 +84,7 @@ class SetField(_Edit):
     description: str | None = None
     type: Literal["text", "number", "integer", "date", "yes/no"] | None = None
     required: bool | None = None
+    required_reason: str | None = None
     pattern: str | None = None
     enum: list[str] | None = None
     minimum: float | None = None
@@ -271,6 +276,10 @@ def _set_field(t: ExtractionTemplate, edit: SetField) -> None:
     if edit.required is not None:
         parent, name = steps[-1]
         _set_required(parent, name, edit.required)
+    if edit.required_reason is not None:
+        node[REASON_KEY] = edit.required_reason
+    elif edit.required is not None:
+        node[REASON_KEY] = SET_BY_YOU
 
 
 def _remove_field(t: ExtractionTemplate, edit: RemoveField) -> None:

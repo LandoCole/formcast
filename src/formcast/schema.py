@@ -46,6 +46,7 @@ from formcast.errors import FormcastError
 
 __all__ = [
     "ARRAY_ITEM",
+    "REASON_KEY",
     "SchemaPath",
     "data_location",
     "flatten_schema",
@@ -56,6 +57,10 @@ __all__ = [
     "validate_data",
     "validate_data_located",
 ]
+
+#: The annotation on a property that says, in one line, why its field is required or optional (JSON Schema ignores
+#: unknown keywords). The level itself is the parent object's ``required`` list.
+REASON_KEY = "x-required-reason"
 
 PathType = Literal["string", "integer", "number", "boolean", "date", "enum", "array", "object"]
 
