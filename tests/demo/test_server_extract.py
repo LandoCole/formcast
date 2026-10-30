@@ -1387,7 +1387,7 @@ def test_a_runs_results_are_read_once_and_a_decision_a_page_image_and_a_problems
     reads["lines"] = 0
     decision = {"doc_id": doc["doc_id"], "path": "investor.tax_id", "decision": "value", "value": "12-3456789"}
     status, after = get_json(r.base, f"/api/runs/{run_id}/decisions", "POST", decision)
-    assert status == 200 and after["summary"]["with_problems"] == 2
+    assert status == 200 and after["summary"]["with_problems"] == 1  # bad_tin; mars's country is optional
     status, _, _ = http_request(r.base, "GET", f"/api/runs/{run_id}/pages.png?doc={doc['doc_id']}&page=0&dpi=40")
     assert status == 200
     page = problems_of(r, run_id, "?limit=1")[1]
@@ -1400,7 +1400,7 @@ def test_a_runs_results_are_read_once_and_a_decision_a_page_image_and_a_problems
     with (runs_dir(r) / run_id / "reviews.jsonl").open("a") as sink:  # another process settles that document
         for problem in other["problems"]:
             sink.write(json.dumps({"doc_id": other["doc_id"], "path": problem["path"], "decision": "not_in_document"}) + "\n")
-    assert get_json(r.base, f"/api/runs/{run_id}")[1]["summary"]["with_problems"] == 1
+    assert get_json(r.base, f"/api/runs/{run_id}")[1]["summary"]["with_problems"] == 0  # mars: optional only
     assert problems_of(r, run_id)[1]["total"] == 1
     assert reads["loads"] == 1  # the appended lines are read on their own
 

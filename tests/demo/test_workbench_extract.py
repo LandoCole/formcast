@@ -1204,10 +1204,11 @@ def test_run_on_all_saves_the_setup_first_reads_every_document_with_its_progress
     assert [e["name"] for e in get_json(base, "/api/extractions")[1]["extractions"]] == ["Client info"]
     [entry] = get_json(base, "/api/runs")[1]["runs"]
     summary = entry["summary"]
-    assert summary["total"] == RUN_TOTAL and summary["with_problems"] == 3 and summary["no_template"] == 2
+    # bad_tin and no_tin; mars's country is optional, so mars is complete with an optional problem
+    assert summary["total"] == RUN_TOTAL and summary["with_problems"] == 2 and summary["no_template"] == 2
     expect(stat(b, "total")).to_have_text(str(RUN_TOTAL))
     expect(stat(b, "complete")).to_have_text(str(summary["complete"]))
-    expect(stat(b, "with_problems")).to_have_text("3")
+    expect(stat(b, "with_problems")).to_have_text("2")
     expect(stat(b, "set_aside")).to_have_text("2")
     expect(stat(b, "time")).to_have_text(re.compile(r"^\d+:\d\d$"))
     shown = [int(stat(b, key).inner_text()) for key in ("complete", "with_problems", "set_aside")]
@@ -1441,7 +1442,7 @@ def test_each_decision_settles_its_card_and_updates_the_stats_and_the_list(start
     c.locator('[data-act="value"]').click()
     expect(c.locator(".state")).to_have_text("Value entered: 12-3456789")
     expect(c.locator("input")).to_have_count(0)
-    expect(stat(b, "with_problems")).to_have_text("2")
+    expect(stat(b, "with_problems")).to_have_text("1")  # bad_tin; mars's country is optional
     expect(stat(b, "complete")).to_have_text(str(complete + 1))
     expect(listed(b, "no_tin.pdf").locator("small")).to_have_text("all settled")
     expect(b.page.locator("#docs-legend")).to_have_text("2 of 3 still have problems")
@@ -1597,7 +1598,8 @@ def test_the_choice_lists_the_saved_runs_and_extractions_and_opens_them_or_a_run
     b = bench(base, fill=False)  # the page opened again later: the run is on the server
     runs = b.page.locator("#saved-runs li")
     expect(runs).to_have_count(1)
-    expect(runs).to_contain_text(f"Client forms · Client info · {RUN_TOTAL} documents · 3 with problems")
+    # mars is complete: its country is optional
+    expect(runs).to_contain_text(f"Client forms · Client info · {RUN_TOTAL} documents · 2 with problems")
     expect(b.page.locator("#saved-extractions li")).to_contain_text(["Client info"])
     runs.first.locator("button").click()
     expect(b.page.locator("#choose")).to_be_hidden()
@@ -1664,7 +1666,7 @@ def test_a_saved_extraction_reopened_from_the_choice_runs_on_a_new_batch_and_its
     assert started == [{"kind": "extract-run", "extraction": "Client info", "batch": batch_id, "ai": False}]
     assert batch_id != setup["batch"] and (entry["extraction"], entry["summary"]["total"]) == ("Client info", 25)
     expect(stat(b, "total")).to_have_text("25")
-    expect(stat(b, "with_problems")).to_have_text("3")
+    expect(stat(b, "with_problems")).to_have_text("2")  # mars's country is optional
     expect(b.page.locator("#docs li .doc-name")).to_have_text(list(PROBLEM_FILES))
     views = b.page.locator("#view-pick [data-view]")
     expect(views.nth(0)).to_be_enabled()  # the setup it was run from is on screen

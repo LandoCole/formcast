@@ -21,6 +21,7 @@ from formcast.extract.batch import (
     run_batch,
 )
 from formcast.extract.layout import LAYOUT_MATCH, learn_layout
+from formcast.extract.levels import required_paths
 from formcast.extract.model import SampleRecord, SetupInfo
 from formcast.match import fingerprint
 from tests.extract import crashing
@@ -485,8 +486,8 @@ def test_problems_filter_by_path_and_status(tmp_path):
     assert found(path="investor.tax_id") == {("bad_tin.pdf", "investor.tax_id", "failed_check")}
     with pytest.raises(FormcastError, match="not a problem status"):
         list(results.problems(status="found"))
-    summary = results.summary()
-    assert (summary.total, summary.complete, summary.with_problems) == (3, 1, 2)
+    summary = results.summary()  # mars.pdf's country is optional: complete, with an optional problem
+    assert (summary.total, summary.complete, summary.with_problems, summary.optional_only) == (3, 2, 1, 1)
 
 
 def write_many_problem_forms(folder: Path) -> list[Path]:
@@ -503,8 +504,10 @@ def write_many_problem_forms(folder: Path) -> list[Path]:
 def test_field_counts_give_each_paths_statuses_after_decisions_and_ai_answers(corpus_run, tmp_path):
     counts = Results.load(corpus_run).field_counts()
     tax_id = counts["investor.tax_id"]
-    assert set(tax_id) == {"found", "missing", "failed_check", "unsure", "absent", "not_on_form", "reviewed"}
-    assert sum(v for k, v in tax_id.items() if k != "reviewed") == 20  # the 2 documents set aside are not counted
+    assert set(tax_id) == {
+        "found", "missing", "failed_check", "unsure", "absent", "not_on_form", "reviewed", "required",
+    }  # fmt: skip
+    assert sum(v for k, v in tax_id.items() if k not in ("reviewed", "required")) == 20  # set aside: not counted
     assert tax_id["found"] == 20 and tax_id["reviewed"] == 0
 
     paths = write_many_problem_forms(tmp_path / "in")
@@ -513,6 +516,7 @@ def test_field_counts_give_each_paths_statuses_after_decisions_and_ai_answers(co
     results = Results.load(out)
     assert results.field_counts()["investor.tax_id"] == {
         "found": 1, "missing": 5, "failed_check": 2, "unsure": 0, "absent": 0, "not_on_form": 0, "reviewed": 0,
+        "required": True,
     }  # fmt: skip
     results.decide(ReviewDecision(doc_id="a.pdf", path="investor.tax_id", decision="value", value="84-2219037"))
     results.decide(ReviewDecision(doc_id="b.pdf", path="investor.tax_id", decision="not_in_document"))
@@ -524,6 +528,7 @@ def test_field_counts_give_each_paths_statuses_after_decisions_and_ai_answers(co
     counts = Results.load(out).field_counts()["investor.tax_id"]
     assert counts == {
         "found": 2, "missing": 2, "failed_check": 2, "unsure": 1, "absent": 1, "not_on_form": 0, "reviewed": 2,
+        "required": True,
     }  # a.pdf typed (the AI's answer never replaces a decision), b.pdf absent, c.pdf the AI's, d.pdf still missing
 
 
@@ -534,7 +539,7 @@ def test_field_counts_leave_out_failed_documents(tmp_path):
     (folder / "broken.pdf").write_bytes(b"%PDF-1.4 this is not a pdf")
     run_batch([hand_template()], sorted(folder.glob("*.pdf")), tmp_path / "out", workers=1)
     counts = Results.load(tmp_path / "out").field_counts()
-    assert sum(v for k, v in counts["investor.tax_id"].items() if k != "reviewed") == 1
+    assert sum(v for k, v in counts["investor.tax_id"].items() if k not in ("reviewed", "required")) == 1
 
 
 def test_a_page_of_problems_is_the_documents_with_problems_in_doc_id_order(tmp_path):
@@ -568,6 +573,169 @@ def test_a_page_of_problems_is_the_documents_with_problems_in_doc_id_order(tmp_p
         results.page(-1, 2)
     with pytest.raises(FormcastError, match="limit"):
         results.page(0, -1)
+
+
+# -------------------------------------------------------------------- levels
+
+
+def levelled_template():
+    """The hand template with ``investor.legal_name`` required as well as ``investor.tax_id``; its other fields,
+    ``investor.dob`` among them, are optional."""
+    template = hand_template()
+    template.schema_["properties"]["investor"]["required"] = ["legal_name", "tax_id"]
+    return template
+
+
+def other_template(required: list[str]):
+    """A second template, routed to by :func:`other_form`'s fingerprint, whose investor requires ``required``."""
+    template = hand_template()
+    template.schema_["properties"]["investor"]["required"] = required
+    return template.model_copy(
+        update={
+            "template_id": "w9", "name": "W-9", "layout": learn_layout([], blank=other_form()),
+            "form": template.form.model_copy(update={"fingerprint": fingerprint(other_form())}),
+        }
+    )  # fmt: skip
+
+
+def write_level_forms(folder: Path, *names: str) -> list[Path]:
+    """Flattened copies: ``no_dob.pdf`` lacks the date of birth (optional), ``no_name.pdf`` the legal name
+    (required), ``no_name_no_dob.pdf`` both; every other answer of each is read."""
+    folder.mkdir(parents=True, exist_ok=True)
+    base = clients(1, seed=5)[0]
+    copies = {
+        "no_dob.pdf": dataclasses.replace(base, dob=""),
+        "no_name.pdf": dataclasses.replace(base, legal_name=""),
+        "no_name_no_dob.pdf": dataclasses.replace(base, legal_name="", dob=""),
+    }
+    paths = []
+    for name in names:
+        (folder / name).write_bytes(make_form(copies[name], kind="flattened"))
+        paths.append(folder / name)
+    return paths
+
+
+def page_fields(page) -> list[tuple[str, list[tuple[str, str]]]]:
+    return [(d.doc_id, [(f.path, f.status) for f in fields]) for d, fields in page]
+
+
+def test_run_json_records_each_templates_required_paths(tmp_path):
+    folder = tmp_path / "in"
+    paths = write_level_forms(folder, "no_dob.pdf")
+    (folder / "other.pdf").write_bytes(other_form())
+    templates = [levelled_template(), other_template([])]
+    run_batch(templates, [*paths, folder / "other.pdf"], tmp_path / "out", workers=1)
+    run = json.loads((tmp_path / "out" / "run.json").read_text())
+    assert run["required"] == {t.template_id: sorted(required_paths(t.schema_)) for t in templates}
+    assert run["required"] == {"client_information": ["investor.legal_name", "investor.tax_id"], "w9": []}
+
+    del run["required"]  # a resume leaves run.json as it is, a run made before the levels included
+    (tmp_path / "out" / "run.json").write_text(json.dumps(run))
+    run_batch(templates, [*paths, folder / "other.pdf"], tmp_path / "out", workers=1)
+    assert "required" not in json.loads((tmp_path / "out" / "run.json").read_text())
+
+
+def test_a_blank_optional_field_leaves_a_document_complete_with_an_optional_problem(tmp_path):
+    out = tmp_path / "out"
+    run_batch([levelled_template()], write_level_forms(tmp_path / "in", "no_dob.pdf"), out, workers=1)
+    results = Results.load(out)
+    summary = results.summary()
+    assert (summary.complete, summary.with_problems, summary.optional_only, summary.with_optional) == (1, 0, 1, 1)
+    assert results.page(0, 50, level="required") == (0, [])
+    total, page = results.page(0, 50, level="optional")
+    assert total == 1 and page_fields(page) == [("no_dob.pdf", [("investor.dob", "missing")])]
+    assert [(d.doc_id, f.path) for d, f in results.problems(level="optional")] == [("no_dob.pdf", "investor.dob")]
+    assert list(results.problems(level="required")) == []
+    assert results.page(0, 50)[0] == 1  # no level: both, as before
+    with pytest.raises(FormcastError, match="not a level"):
+        results.page(0, 50, level="sometimes")
+
+
+def test_a_missing_required_field_makes_a_document_with_problems(tmp_path):
+    out = tmp_path / "out"
+    run_batch([levelled_template()], write_level_forms(tmp_path / "in", "no_name_no_dob.pdf"), out, workers=1)
+    results = Results.load(out)
+    summary = results.summary()
+    assert (summary.complete, summary.with_problems, summary.optional_only, summary.with_optional) == (0, 1, 0, 1)
+    doc = "no_name_no_dob.pdf"
+    assert page_fields(results.page(0, 50, level="required")[1]) == [(doc, [("investor.legal_name", "missing")])]
+    assert page_fields(results.page(0, 50, level="optional")[1]) == [(doc, [("investor.dob", "missing")])]
+    both = [("investor.legal_name", "missing"), ("investor.dob", "missing")]
+    assert page_fields(results.page(0, 50)[1]) == [(doc, both)]  # no level: both, as before
+    assert results.page(0, 50, path="investor.dob", level="required") == (0, [])
+    assert results.page(0, 50, path="investor.dob", status="missing", level="optional")[0] == 1
+
+
+def test_a_run_json_without_required_counts_every_field_as_required(tmp_path):
+    out = tmp_path / "out"
+    run_batch([levelled_template()], write_level_forms(tmp_path / "in", "no_dob.pdf"), out, workers=1)
+    results = Results.load(out)
+    assert results.is_required("client_information", "investor.tax_id") is True
+    assert results.is_required("client_information", "investor.dob") is False
+    assert results.is_required("nope", "investor.tax_id") is False  # a template the run does not have
+
+    run = json.loads((out / "run.json").read_text())
+    del run["required"]  # a run made before the levels
+    (out / "run.json").write_text(json.dumps(run))
+    results = Results.load(out)
+    summary = results.summary()
+    assert (summary.complete, summary.with_problems, summary.optional_only, summary.with_optional) == (0, 1, 0, 0)
+    assert results.is_required("client_information", "investor.dob") is True
+    assert results.is_required("nope", "anything") is True
+    assert page_fields(results.page(0, 50, level="required")[1]) == [("no_dob.pdf", [("investor.dob", "missing")])]
+    assert results.page(0, 50, level="optional") == (0, [])
+
+
+def test_each_document_takes_its_level_from_its_own_template(tmp_path):
+    folder = tmp_path / "in"
+    write_problem_forms(folder)
+    (folder / "other.pdf").write_bytes(other_form())
+    paths = [folder / "bad_tin.pdf", folder / "other.pdf"]
+    run_batch([hand_template(), other_template([])], paths, tmp_path / "out", workers=1)  # tax_id required in one
+    results = Results.load(tmp_path / "out")
+    templates = {d.doc_id: d.template_id for d in results.documents()}
+    assert templates == {"bad_tin.pdf": "client_information", "other.pdf": "w9"}
+    summary = results.summary()
+    assert (summary.complete, summary.with_problems, summary.optional_only, summary.with_optional) == (1, 1, 1, 1)
+    tax_id = "investor.tax_id"
+    assert [d.doc_id for d, _ in results.page(0, 50, path=tax_id, level="required")[1]] == ["bad_tin.pdf"]
+    assert [d.doc_id for d, _ in results.page(0, 50, path=tax_id, level="optional")[1]] == ["other.pdf"]
+    assert [d.doc_id for d, _ in results.page(0, 50, level="required")[1]] == ["bad_tin.pdf"]
+    assert results.field_counts()[tax_id]["required"] is True  # required in one template that has it
+
+
+def test_settling_the_last_required_problem_makes_the_document_complete_in_place(tmp_path, parses):
+    out = tmp_path / "out"
+    run_batch([levelled_template()], write_level_forms(tmp_path / "in", "no_name_no_dob.pdf"), out, workers=1)
+    results = Results.load(out)
+    parses.update(lines=0, loads=0)
+    doc = "no_name_no_dob.pdf"
+    assert results.page(0, 50, level="required")[0] == 1 and results.page(0, 50, level="optional")[0] == 1
+    assert results.page(0, 50, path="investor.legal_name", level="required")[0] == 1  # a list kept per filter
+
+    results.decide(ReviewDecision(doc_id=doc, path="investor.legal_name", decision="value", value="Avery Alvarez"))
+    assert parses["loads"] == 0  # counted again in place, nothing read again
+    summary = results.summary()
+    assert (summary.complete, summary.with_problems, summary.optional_only, summary.with_optional) == (1, 0, 1, 1)
+    assert results.page(0, 50, level="required") == (0, [])
+    assert results.page(0, 50, path="investor.legal_name", level="required") == (0, [])
+    assert page_fields(results.page(0, 50, level="optional")[1]) == [(doc, [("investor.dob", "missing")])]
+    fresh = Results.load(out)
+    assert (results.summary(), results.field_counts()) == (fresh.summary(), fresh.field_counts())
+
+
+def test_field_counts_say_whether_a_path_is_required(tmp_path):
+    out = tmp_path / "out"
+    run_batch([levelled_template()], write_level_forms(tmp_path / "in", "no_dob.pdf"), out, workers=1)
+    counts = Results.load(out).field_counts()
+    assert counts["investor.legal_name"]["required"] is True and counts["investor.tax_id"]["required"] is True
+    assert counts["investor.dob"]["required"] is False and counts["owners[0].name"]["required"] is False
+    assert counts["investor.dob"]["missing"] == 1
+
+    run = json.loads((out / "run.json").read_text())
+    del run["required"]  # a run made before the levels: every field required
+    (out / "run.json").write_text(json.dumps(run))
+    assert all(row["required"] is True for row in Results.load(out).field_counts().values())
 
 
 # ---------------------------------------------------------------------- rows
@@ -674,7 +842,7 @@ def test_a_page_of_problems_at_a_few_thousand_documents_parses_only_the_pages_do
     assert results.summary().with_problems == len(with_problems) - 1
     assert results.field_counts()["field_1"] == {
         "found": 2700 - len(with_problems) + 1, "missing": len(with_problems) - 1, "failed_check": 0, "unsure": 0,
-        "absent": 0, "not_on_form": 0, "reviewed": 1,
+        "absent": 0, "not_on_form": 0, "reviewed": 1, "required": True,
     }  # fmt: skip
     total, page = results.page(0, 1, status="missing")
     assert total == len(with_problems) - 1 and page[0][0].doc_id == f"{with_problems[1]:06d}.pdf"

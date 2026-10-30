@@ -4,7 +4,8 @@
 ``out_dir``:
 
     run.json        the templates' ids, names and sha256 (:func:`template_sha256`), when the run started, its
-                    ``root``, and the seconds spent so far
+                    ``root``, the seconds spent so far, and ``required``: each template's required concrete paths
+                    (:func:`~formcast.extract.levels.required_paths`), sorted, by ``template_id``
     results.jsonl   one DocumentResult per line, appended and flushed as each document is done
     reviews.jsonl   one ReviewDecision per line, appended by ``Results.decide``; a run never touches it
     ai.jsonl        one AiAnswer per line, appended by :func:`~formcast.extract.aipass.ai_pass`; a run never touches it
@@ -80,27 +81,39 @@ that the field was asked. An ``accept`` of a field that now has no value (the va
 field as read, never ``found`` with no value. ``rows()`` and
 ``status_rows()`` flatten paths to columns as the Global Constraints say (:func:`column_name`: ``owners[0].name``
 -> ``owners_1_name``; ``investor.tax_id`` stays), after ``doc_id``, ``file``, ``template``, ``matched`` and
-``extracted_at``; failed documents are never rows. :class:`RunSummary` counts the whole ``out_dir``: ``complete``
-(read, no problem left), ``with_problems`` (``missing``, ``failed_check`` or ``unsure`` with no decision),
+``extracted_at``; failed documents are never rows.
+
+**Problems and their levels.** A field still ``missing``, ``failed_check`` or ``unsure`` once the AI's answers and
+the decisions are applied is a problem (the statuses themselves never change); its level is its field's in the
+document's template, ``"required"`` or ``"optional"`` (:meth:`Results.is_required`), so a blank optional field is an
+optional problem of status ``missing``. The levels are the template's, kept in ``run.json`` when the run starts (a
+template cannot change under a run); a run made before they were kept has no ``"required"``, and every field of it
+counts as required, as it always did. :class:`RunSummary` counts the whole ``out_dir``: ``complete`` (read, no
+required problem left; it may have optional ones), ``with_problems`` (read, a required problem left),
 ``no_template``, ``internal_errors`` (an error starting "internal error:", a fault of the code or a template, not of
-the file) and ``unreadable`` (every other error), which add up to ``total``.
+the file) and ``unreadable`` (every other error), which add up to ``total``; and apart from those, ``optional_only``
+(the complete documents with an optional problem) and ``with_optional`` (every document with one).
 
 **For a screen over a run** (meant for ~100k documents). The pass of ``load`` that indexes the lines also counts
 them, so nothing below reads the whole file again. ``summary()`` is those counts. ``field_counts()`` gives, for each
 concrete path (``owners[0].name`` is its own path), how many documents read ended ``found``, ``missing``,
 ``failed_check``, ``unsure``, ``absent`` and ``not_on_form`` after the AI's answers and the decisions are applied (so
-it is what ``rows`` would show), and ``reviewed``, how many of them have a decision on that path; a failed document
-has no fields and is counted nowhere. The pass keeps, for each document that still has a problem, its problem paths
-and statuses (a few bytes each); ``page(offset, limit, path=..., status=...)`` is the documents that still have a
-problem (the fields ``problems`` gives, filtered the same way: ``path`` may be ``owners[].name``, every item), in
-``doc_id`` order, as ``(how many such documents, the ones from offset on up to limit)``, each with its effective
-result and the problem fields that matched. The sorted list of documents for each ``(path, status)`` filter is made from those the first time it is asked for and
-kept, so a page parses only its own documents. ``set_aside_page`` pages the failed documents the same way, and
-``document(doc_id)`` parses one document by its line. A decision (``decide``), and every line ``refresh()`` reads,
-takes the documents it touches out of the counts and lists and puts them back as they now are. ``refresh()``
-catches up with the files: it reads only the lines appended since (a run, the AI pass or another process writing),
-and reads everything again only when a file was rewritten (it shrank, or changed with nothing added); with no file
-changed it reads nothing. A Results is not safe for threads; a server sharing one holds a lock around each use.
+it is what ``rows`` would show), ``reviewed``, how many of them have a decision on that path, and ``required``,
+whether the path is required in any template that has it; a failed document has no fields and is counted nowhere.
+The pass keeps, for each document that still has a problem, its problem paths, statuses and levels (a few bytes
+each); ``page(offset, limit, path=..., status=..., level=...)`` is the documents that still have a problem (the
+fields ``problems`` gives, filtered the same way: ``path`` may be ``owners[].name``, every item; ``level`` lists only
+the documents with a problem of that level, with only that level's fields), in ``doc_id`` order, as ``(how many such
+documents, the ones from offset on up to limit)``, each with its effective result and the problem fields that
+matched. The sorted list of documents for each ``(path, status, level)`` filter is made from those the first time it
+is asked for and kept, so a page parses only its own documents. ``set_aside_page`` pages the failed documents the
+same way, and ``document(doc_id)`` parses one document by its line. A decision (``decide``), and every line
+``refresh()`` reads, takes the documents it touches out of the counts and lists and puts them back as they now are
+(a level is part of what is kept, so settling a document's last required problem makes it complete in place).
+``refresh()`` catches up with the files: it reads only the lines appended since (a run, the AI pass or another
+process writing), and reads everything again only when a file was rewritten (it shrank, or changed with nothing
+added); with no file changed it reads nothing. A Results is not safe for threads; a server sharing one holds a lock
+around each use.
 """
 
 from __future__ import annotations
@@ -124,6 +137,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from formcast.errors import FormcastError
 from formcast.extract.layout import LAYOUT_MATCH, layout_score
+from formcast.extract.levels import LEVELS, Level, required_paths
 from formcast.extract.model import _HAS_VALUE, DocumentResult, ExtractionTemplate, FieldResult, Status
 from formcast.extract.page import DocText
 from formcast.extract.read import _extract_open, _failed, error_text, now
@@ -159,11 +173,18 @@ _DOC_COLUMNS = ("doc_id", "file", "template", "matched", "extracted_at")
 _FILES = (RUN, RESULTS, REVIEWS, AI)
 #: How a document can end, as :class:`RunSummary` counts them.
 _KINDS = ("complete", "with_problems", "no_template", "unreadable", "internal_errors")
+#: The documents :class:`RunSummary` counts by their optional problems, apart from how they ended.
+_OPTIONAL = ("optional_only", "with_optional")
+#: A document's problem as :class:`Results` keeps it: ``(path, status, level)``.
+_Problem = tuple[str, str, Level]
+#: A filter of the documents with problems: ``(path, status, level)``, ``None`` for any.
+_Filter = tuple[str | None, str | None, Level | None]
 
 
 class RunSummary(BaseModel):
     """How a run's documents ended; ``complete + with_problems + no_template + unreadable + internal_errors ==
-    total``."""
+    total``. ``optional_only`` counts the complete documents that still have an optional problem, ``with_optional``
+    every document that has one (complete or with problems)."""
 
     total: int
     complete: int
@@ -172,6 +193,8 @@ class RunSummary(BaseModel):
     unreadable: int
     internal_errors: int
     seconds: float
+    optional_only: int = 0
+    with_optional: int = 0
 
 
 class ReviewDecision(BaseModel):
@@ -512,7 +535,8 @@ def _start_run(out: Path, templates: list[ExtractionTemplate], root: str | Path 
         return Path(run["root"])
     if given is None:
         given = Path(os.path.commonpath([f.parent for f in files])) if files else Path.cwd().resolve()
-    run = {"templates": names, "started": now(), "root": str(given), "seconds": 0.0}
+    required = {t.template_id: sorted(required_paths(t.schema_)) for t in templates}
+    run = {"templates": names, "started": now(), "root": str(given), "seconds": 0.0, "required": required}
     _write_json(out / RUN, run)
     return given
 
@@ -642,15 +666,17 @@ class Results:
         """Read the run's files from the start: one pass over ``results.jsonl`` indexes and counts every document."""
         self._stats = {name: _stat(self.out_dir / name) for name in _FILES}  # before reading: a later line is seen later
         self.run = json.loads((self.out_dir / RUN).read_text(encoding="utf-8"))  # templates, started, root, seconds
+        self._required = _levels(self.run)  # template_id -> its required paths; None: every field is required
         self._index: dict[str, tuple[int, int]] = {}  # doc_id -> (offset, length) of its line in results.jsonl
         self._decisions: dict[str, dict[str, ReviewDecision]] = {}  # doc_id -> path -> the latest decision
         self._ai: dict[str, dict[str, AiAnswer]] = {}  # doc_id -> path -> the latest AI answer
         self._ends = {RESULTS: 0, REVIEWS: 0, AI: 0}  # where the whole lines read so far end, per file
         self._kinds = dict.fromkeys(_KINDS, 0)  # how many documents ended each way, as RunSummary counts them
+        self._optional = dict.fromkeys(_OPTIONAL, 0)  # the documents with optional problems, as RunSummary counts
         self._counts: dict[str, dict[str, int]] = {}  # path -> status (and "reviewed") -> documents
-        self._problems: dict[str, tuple[tuple[str, str], ...]] = {}  # doc_id -> its (path, status) still problems
+        self._problems: dict[str, tuple[_Problem, ...]] = {}  # doc_id -> its (path, status, level) still problems
         self._aside: list[str] = []  # the failed documents' doc_ids, sorted
-        self._lists: dict[tuple[str | None, str | None], list[str]] = {}  # (path, status) -> sorted doc_ids, made lazily
+        self._lists: dict[_Filter, list[str]] = {}  # (path, status, level) -> sorted doc_ids, made lazily
         for name in (REVIEWS, AI, RESULTS):  # the decisions and answers first: a document is counted as they leave it
             self._follow(name)
         self.version += 1
@@ -693,6 +719,9 @@ class Results:
                 return True
         if stats[RUN] != self._stats[RUN]:
             self.run = json.loads((self.out_dir / RUN).read_text(encoding="utf-8"))
+            if _levels(self.run) != self._required:  # never by a run (its templates cannot change): counted afresh
+                self._read_all()
+                return True
         self._stats = stats
         for name in (RESULTS, REVIEWS, AI):
             self._follow(name)
@@ -724,11 +753,19 @@ class Results:
             record = json.loads(self._line(doc_id))
         if doc_id in self._decisions or doc_id in self._ai:
             doc = self.effective(DocumentResult.model_validate(record))
-            error, fields = doc.error, [(f.path, f.status) for f in doc.fields]
+            error, template_id, fields = doc.error, doc.template_id, [(f.path, f.status) for f in doc.fields]
         else:  # as it was read: nothing changes it, so its line's statuses are its own
-            error, fields = record.get("error"), [(f["path"], f["status"]) for f in record.get("fields") or ()]
-        problems = tuple((path, status) for path, status in fields if status in PROBLEMS)
-        self._kinds[_kind(error, bool(problems))] += sign
+            error, template_id = record.get("error"), record.get("template_id")
+            fields = [(f["path"], f["status"]) for f in record.get("fields") or ()]
+        problems = tuple(
+            (path, status, self._level(template_id, path)) for path, status in fields if status in PROBLEMS
+        )
+        required = any(level == "required" for _, _, level in problems)
+        self._kinds[_kind(error, required)] += sign
+        if error is None and any(level == "optional" for _, _, level in problems):
+            self._optional["with_optional"] += sign
+            if not required:
+                self._optional["optional_only"] += sign
         decided = self._decisions.get(doc_id, {})
         for path, status in fields:
             row = self._counts.get(path)
@@ -741,7 +778,7 @@ class Results:
             self._set_problems(doc_id, problems)
             _place(self._aside, doc_id, error is not None)
 
-    def _set_problems(self, doc_id: str, problems: tuple[tuple[str, str], ...]) -> None:
+    def _set_problems(self, doc_id: str, problems: tuple[_Problem, ...]) -> None:
         old = self._problems.get(doc_id, ())
         if old == problems:
             return
@@ -749,19 +786,31 @@ class Results:
             self._problems[doc_id] = problems
         else:
             self._problems.pop(doc_id, None)
-        for (path, status), ids in self._lists.items():
-            if _matches(old, path, status) != _matches(problems, path, status):
-                _place(ids, doc_id, _matches(problems, path, status))
+        for key, ids in self._lists.items():
+            if _matches(old, *key) != _matches(problems, *key):
+                _place(ids, doc_id, _matches(problems, *key))
 
-    def _with_problems(self, path: str | None, status: str | None) -> list[str]:
-        """The doc_ids, sorted, of the documents with a problem field matching ``path`` and ``status``; kept and
-        updated in place once asked for."""
-        ids = self._lists.get((path, status))
+    def _with_problems(self, path: str | None, status: str | None, level: Level | None) -> list[str]:
+        """The doc_ids, sorted, of the documents with a problem field matching ``path``, ``status`` and ``level``;
+        kept and updated in place once asked for."""
+        key = (path, status, level)
+        ids = self._lists.get(key)
         if ids is None:
-            ids = self._lists[(path, status)] = sorted(
-                doc_id for doc_id, problems in self._problems.items() if _matches(problems, path, status)
+            ids = self._lists[key] = sorted(
+                doc_id for doc_id, problems in self._problems.items() if _matches(problems, *key)
             )
         return ids
+
+    def is_required(self, template_id: str | None, path: str) -> bool:
+        """Whether ``path`` is required in the template ``template_id``, as ``run.json`` keeps the levels: always in
+        a run made before the levels were kept (it has no ``"required"``), never in a template the run does not
+        have."""
+        if self._required is None:
+            return True
+        return path in self._required.get(template_id or "", ())
+
+    def _level(self, template_id: str | None, path: str) -> Level:
+        return "required" if self.is_required(template_id, path) else "optional"
 
     # ------------------------------------------------------------ reading the results
 
@@ -848,60 +897,78 @@ class Results:
         return doc.model_copy(update={"fields": fields})
 
     def _problem_documents(
-        self, path: str | None, status: Status | None, ids: Iterable[str] | None = None
+        self, path: str | None, status: Status | None, level: Level | None, ids: Iterable[str] | None = None
     ) -> Iterator[tuple[DocumentResult, list[FieldResult]]]:
         """Each document (of ``ids``, else of all) with its fields still ``missing``, ``failed_check`` or ``unsure``
         that match the filters; a document with none is left out. The document is :meth:`effective`."""
-        if status is not None and status not in PROBLEMS:
-            raise FormcastError(f"{status!r} is not a problem status (one of {', '.join(PROBLEMS)})")
-        for doc_id in list(self._with_problems(path, status)) if ids is None else ids:
+        _check_filters(status, level)
+        for doc_id in list(self._with_problems(path, status, level)) if ids is None else ids:
             doc = self.effective(self.document(doc_id))
             fields = [
                 f
                 for f in doc.fields
-                if f.status in PROBLEMS and _path_is(f.path, path) and (status is None or f.status == status)
+                if f.status in PROBLEMS
+                and _path_is(f.path, path)
+                and (status is None or f.status == status)
+                and (level is None or self._level(doc.template_id, f.path) == level)
             ]
             if fields:
                 yield doc, fields
 
     def problems(
-        self, *, path: str | None = None, status: Status | None = None
+        self, *, path: str | None = None, status: Status | None = None, level: Level | None = None
     ) -> Iterator[tuple[DocumentResult, FieldResult]]:
         """Each field still ``missing``, ``failed_check`` or ``unsure`` (no decision on it), with its document.
         ``path`` is a concrete path (``owners[0].name``), or a path with ``[]`` for every item of a repeated group
-        (``owners[].name``); ``status`` one of the three.
+        (``owners[].name``); ``status`` one of the three; ``level`` ``"required"`` or ``"optional"``, the fields of
+        that level only (``None``: both).
 
         Raises:
-            FormcastError: ``status`` is not one of those three.
+            FormcastError: ``status`` is not one of those three, or ``level`` not a level.
         """
-        for doc, fields in self._problem_documents(path, status):
+        for doc, fields in self._problem_documents(path, status, level):
             for f in fields:
                 yield doc, f
 
     def page(
-        self, offset: int, limit: int, *, path: str | None = None, status: Status | None = None
+        self,
+        offset: int,
+        limit: int,
+        *,
+        path: str | None = None,
+        status: Status | None = None,
+        level: Level | None = None,
     ) -> tuple[int, list[tuple[DocumentResult, list[FieldResult]]]]:
         """The documents with problems (filtered as :meth:`problems`) in ``doc_id`` order: how many there are, and
-        ``limit`` of them from the ``offset``-th on, each with the problem fields that matched. Only the page's
-        documents are parsed: which documents have problems is kept from the load (see the module).
+        ``limit`` of them from the ``offset``-th on, each with the problem fields that matched. With a ``level``,
+        only the documents with a problem of that level are counted and listed, each with that level's problem
+        fields only. Only the page's documents are parsed: which documents have problems is kept from the load (see
+        the module).
 
         Raises:
-            FormcastError: ``status`` is not a problem status, or ``offset`` or ``limit`` is negative.
+            FormcastError: ``status`` is not a problem status, ``level`` not a level, or ``offset`` or ``limit`` is
+                negative.
         """
         if offset < 0:
             raise FormcastError(f"the offset must not be negative, not {offset!r}")
         if limit < 0:
             raise FormcastError(f"the limit must not be negative, not {limit!r}")
-        if status is not None and status not in PROBLEMS:
-            raise FormcastError(f"{status!r} is not a problem status (one of {', '.join(PROBLEMS)})")
-        ids = self._with_problems(path, status)
-        return len(ids), list(self._problem_documents(path, status, ids[offset : offset + limit]))
+        _check_filters(status, level)
+        ids = self._with_problems(path, status, level)
+        return len(ids), list(self._problem_documents(path, status, level, ids[offset : offset + limit]))
 
-    def field_counts(self) -> dict[str, dict[str, int]]:
+    def field_counts(self) -> dict[str, dict[str, int | bool]]:
         """For each path, how many documents read ended in each status (``found``, ``missing``, ``failed_check``,
-        ``unsure``, ``absent``, ``not_on_form``) with the AI's answers and the decisions applied, and ``reviewed``,
-        how many have a decision on that path. A failed document has no fields and is not counted."""
-        return {path: dict(row) for path, row in self._counts.items() if any(row.values())}
+        ``unsure``, ``absent``, ``not_on_form``) with the AI's answers and the decisions applied, ``reviewed``,
+        how many have a decision on that path, and ``required``, whether the path is required in any template that
+        has it (always, in a run made before the levels were kept). A failed document has no fields and is not
+        counted."""
+        required = None if self._required is None else set().union(*self._required.values())
+        return {
+            path: {**row, "required": required is None or path in required}
+            for path, row in self._counts.items()
+            if any(row.values())
+        }
 
     def decide(self, decision: ReviewDecision) -> None:
         """Record ``decision`` in ``reviews.jsonl``; it applies at once and in every later load.
@@ -939,7 +1006,9 @@ class Results:
 
     def summary(self) -> RunSummary:
         """The counts of the run, with decisions applied; ``seconds`` is the time its runs have spent so far."""
-        return RunSummary(total=sum(self._kinds.values()), seconds=self.run.get("seconds", 0.0), **self._kinds)
+        return RunSummary(
+            total=sum(self._kinds.values()), seconds=self.run.get("seconds", 0.0), **self._kinds, **self._optional
+        )
 
     def _rows(self, cell: Callable[[FieldResult], Any]) -> Iterator[dict]:
         for doc in self.documents():
@@ -990,18 +1059,36 @@ def _aside_row(doc: DocumentResult) -> dict:
     }  # fmt: skip
 
 
-def _kind(error: str | None, problems: bool) -> str:
-    """How a document ended, as :class:`RunSummary` counts it."""
+def _kind(error: str | None, required_problems: bool) -> str:
+    """How a document ended, as :class:`RunSummary` counts it: read, it is complete unless a required field is a
+    problem."""
     if error is None:
-        return "with_problems" if problems else "complete"
+        return "with_problems" if required_problems else "complete"
     if error.startswith(NO_TEMPLATE):
         return "no_template"
     return "internal_errors" if error.startswith(INTERNAL_ERROR) else "unreadable"
 
 
-def _matches(problems: tuple[tuple[str, str], ...], path: str | None, status: str | None) -> bool:
-    """Whether one of ``problems`` (``(path, status)`` pairs) is of ``path`` and ``status`` (``None``: any)."""
-    return any(_path_is(p, path) and (status is None or s == status) for p, s in problems)
+def _levels(run: dict) -> dict[str, frozenset[str]] | None:
+    """Each template's required paths, as ``run.json`` keeps them; ``None`` for a run made before it kept them."""
+    required = run.get("required")
+    return None if required is None else {template_id: frozenset(paths) for template_id, paths in required.items()}
+
+
+def _check_filters(status: str | None, level: str | None) -> None:
+    if status is not None and status not in PROBLEMS:
+        raise FormcastError(f"{status!r} is not a problem status (one of {', '.join(PROBLEMS)})")
+    if level is not None and level not in LEVELS:
+        raise FormcastError(f"{level!r} is not a level (one of {', '.join(LEVELS)})")
+
+
+def _matches(problems: tuple[_Problem, ...], path: str | None, status: str | None, level: str | None) -> bool:
+    """Whether one of ``problems`` (``(path, status, level)``) is of ``path``, ``status`` and ``level`` (``None``:
+    any)."""
+    return any(
+        _path_is(p, path) and (status is None or s == status) and (level is None or lv == level)
+        for p, s, lv in problems
+    )
 
 
 def _path_is(concrete: str, path: str | None) -> bool:

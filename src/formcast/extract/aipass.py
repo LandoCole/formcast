@@ -4,10 +4,10 @@
 
 Off unless called: ``run_batch`` and ``extract`` never call a model (a model is called only while a template is built
 from samples, and here). For each document of the run that was read (no ``error``) with a *required* field
-(:func:`required_paths`) still ``missing`` or ``failed_check`` once the review decisions are applied, the pass opens
-the document, shows it to the model as :func:`~formcast.extract.ask.read_values` does a sample, and asks only for
-those fields: a document whose required fields were read, a document that was set aside, and a field that is not
-required are never sent. Every other field of the document keeps what the template read.
+(:func:`~formcast.extract.levels.required_paths`) still ``missing`` or ``failed_check`` once the review decisions are
+applied, the pass opens the document, shows it to the model as :func:`~formcast.extract.ask.read_values` does a
+sample, and asks only for those fields: a document whose required fields were read, a document that was set aside,
+and a field that is not required are never sent. Every other field of the document keeps what the template read.
 
 The answers go to ``out_dir/ai.jsonl`` (:class:`~formcast.extract.batch.AiAnswer`), one line per field asked,
 appended and flushed as each document is done; an answer of ``None`` is written too, so a later pass skips the
@@ -33,13 +33,13 @@ from pathlib import Path
 from typing import Any
 
 from formcast.errors import FormcastError
-from formcast.extract.ask import Llm, _generic, read_values
+from formcast.extract.ask import Llm, read_values
 from formcast.extract.batch import AI, AI_REASON, AiAnswer, Results, _cut, _whole_lines
-from formcast.extract.model import ExtractionTemplate, concrete_paths
+from formcast.extract.levels import required_paths
+from formcast.extract.model import ExtractionTemplate
 from formcast.extract.samples import SamplePdf, read_samples
 from formcast.extract.setup import _shared
 from formcast.llm import Provider, Usage
-from formcast.schema import _normalize, is_array_item, parse_path
 
 __all__ = ["AI", "AI_REASON", "AiPassSummary", "ai_pass", "required_paths"]
 
@@ -56,32 +56,6 @@ class AiPassSummary:
     answered: int
     usage: Usage
     failed: int = 0
-
-
-def required_paths(schema: dict) -> set[str]:
-    """The concrete leaf paths of ``schema`` named in their parent's ``required`` (inside an item of a repeated
-    group, in the item schema's ``required``): ``investor.tax_id``, ``owners[0].name`` and ``owners[1].name``."""
-    memo: dict[str, bool] = {}
-
-    def required(generic: str) -> bool:
-        if generic not in memo:
-            memo[generic] = _is_required(schema, generic)
-        return memo[generic]
-
-    return {p for p in concrete_paths(schema) if required(_generic(p))}
-
-
-def _is_required(schema: dict, generic: str) -> bool:
-    node, _ = _normalize(schema, schema, ())
-    required = False
-    for segment in parse_path(generic):
-        if is_array_item(segment):
-            node, _ = _normalize(node.get("items"), schema, ())
-            required = False
-        else:
-            required = segment in (node.get("required") or [])
-            node, _ = _normalize((node.get("properties") or {}).get(segment), schema, ())
-    return required
 
 
 @dataclass(frozen=True)

@@ -10,7 +10,8 @@ while a template is built from samples: ``build_setup``, ``add_line``, and by th
     resolve, ReaderProposal, ...      formcast.extract.readers (a model's reader proposals made readers, by code)
     read_values, propose_readers, ... formcast.extract.ask     (the model calls that build a template from samples)
     build_setup, add_line, SetupSpec  formcast.extract.setup   (a template built from samples in stages, with a model)
-    ai_pass, required_paths           formcast.extract.aipass  (a model asked for a run's failing required fields)
+    required_paths                    formcast.extract.levels  (which fields of a template are required)
+    ai_pass                           formcast.extract.aipass  (a model asked for a run's failing required fields)
 
 The public names load on first use, as in ``formcast``, so importing one module does not pull in the rest.
 """
@@ -80,7 +81,7 @@ _LAZY = {
     "prove": "formcast.extract.proof",
     "read_samples": "formcast.extract.samples",
     "read_values": "formcast.extract.ask",
-    "required_paths": "formcast.extract.aipass",
+    "required_paths": "formcast.extract.levels",
     "resolve": "formcast.extract.readers",
     "same_value": "formcast.extract.proof",
     "sample_marks": "formcast.extract.proof",
@@ -89,11 +90,12 @@ _LAZY = {
 }
 
 if TYPE_CHECKING:
-    from formcast.extract.aipass import AiPassSummary, ai_pass, required_paths
+    from formcast.extract.aipass import AiPassSummary, ai_pass
     from formcast.extract.ask import FieldsAnswer, fields_from_lines, fields_on_form, propose_readers, read_values
     from formcast.extract.edit import (
         Edit, MarkAbsent, RemoveField, Restore, SetBox, SetClean, SetField, SetLabels, SetOptionBox, apply_edit,
     )  # fmt: skip
+    from formcast.extract.levels import required_paths
     from formcast.extract.model import (
         AnchorRead, BoxRead, ChoiceMark, ChoiceRead, DocumentResult, ExtractionTemplate, FieldResult, Layout,
         PhraseRead, Reader, SampleRecord, SetupInfo, StaticLine, Status, Strategy, WidgetRead, concrete_paths,
