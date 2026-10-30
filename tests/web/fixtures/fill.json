@@ -98,7 +98,10 @@
       "existing_widget": null,
       "segments": [],
       "confidence": null,
-      "origin": "human"
+      "origin": "human",
+      "required": false,
+      "required_reason": "",
+      "required_by": null
      },
      {
       "id": "code",
@@ -129,7 +132,10 @@
       "existing_widget": null,
       "segments": [],
       "confidence": null,
-      "origin": "human"
+      "origin": "human",
+      "required": false,
+      "required_reason": "",
+      "required_by": null
      },
      {
       "id": "agree",
@@ -165,7 +171,10 @@
       "existing_widget": null,
       "segments": [],
       "confidence": null,
-      "origin": "human"
+      "origin": "human",
+      "required": false,
+      "required_reason": "",
+      "required_by": null
      },
      {
       "id": "zurich",
@@ -201,7 +210,10 @@
       "existing_widget": null,
       "segments": [],
       "confidence": null,
-      "origin": "human"
+      "origin": "human",
+      "required": false,
+      "required_reason": "",
+      "required_by": null
      }
     ],
     "history": []
@@ -293,7 +305,10 @@
       "existing_widget": null,
       "segments": [],
       "confidence": null,
-      "origin": "human"
+      "origin": "human",
+      "required": false,
+      "required_reason": "",
+      "required_by": null
      },
      {
       "id": "code",
@@ -324,7 +339,10 @@
       "existing_widget": null,
       "segments": [],
       "confidence": null,
-      "origin": "human"
+      "origin": "human",
+      "required": false,
+      "required_reason": "",
+      "required_by": null
      },
      {
       "id": "agree",
@@ -360,7 +378,10 @@
       "existing_widget": null,
       "segments": [],
       "confidence": null,
-      "origin": "human"
+      "origin": "human",
+      "required": false,
+      "required_reason": "",
+      "required_by": null
      },
      {
       "id": "zurich",
@@ -396,7 +417,10 @@
       "existing_widget": null,
       "segments": [],
       "confidence": null,
-      "origin": "human"
+      "origin": "human",
+      "required": false,
+      "required_reason": "",
+      "required_by": null
      }
     ],
     "history": []
@@ -488,7 +512,10 @@
       "existing_widget": null,
       "segments": [],
       "confidence": null,
-      "origin": "human"
+      "origin": "human",
+      "required": false,
+      "required_reason": "",
+      "required_by": null
      },
      {
       "id": "yes",
@@ -524,7 +551,10 @@
       "existing_widget": null,
       "segments": [],
       "confidence": null,
-      "origin": "human"
+      "origin": "human",
+      "required": false,
+      "required_reason": "",
+      "required_by": null
      },
      {
       "id": "unmapped",
@@ -548,7 +578,10 @@
       "existing_widget": null,
       "segments": [],
       "confidence": null,
-      "origin": "human"
+      "origin": "human",
+      "required": false,
+      "required_reason": "",
+      "required_by": null
      },
      {
       "id": "items",
@@ -616,7 +649,10 @@
        }
       ],
       "confidence": null,
-      "origin": "human"
+      "origin": "human",
+      "required": false,
+      "required_reason": "",
+      "required_by": null
      }
     ],
     "history": []
@@ -733,7 +769,10 @@
       "existing_widget": "topmostSubform[0].Page1[0].f1_01[0]",
       "segments": [],
       "confidence": null,
-      "origin": "widget"
+      "origin": "widget",
+      "required": false,
+      "required_reason": "",
+      "required_by": null
      },
      {
       "id": "wrong_kind",
@@ -764,7 +803,10 @@
       "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[0]",
       "segments": [],
       "confidence": null,
-      "origin": "widget"
+      "origin": "widget",
+      "required": false,
+      "required_reason": "",
+      "required_by": null
      },
      {
       "id": "no_widget",
@@ -800,7 +842,10 @@
       "existing_widget": "topmostSubform[0].Page1[0].nothing_here[0]",
       "segments": [],
       "confidence": null,
-      "origin": "widget"
+      "origin": "widget",
+      "required": false,
+      "required_reason": "",
+      "required_by": null
      },
      {
       "id": "named_box",
@@ -836,7 +881,10 @@
       "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[2]",
       "segments": [],
       "confidence": null,
-      "origin": "widget"
+      "origin": "widget",
+      "required": false,
+      "required_reason": "",
+      "required_by": null
      },
      {
       "id": "adopt_text",
@@ -867,7 +915,10 @@
       "existing_widget": null,
       "segments": [],
       "confidence": null,
-      "origin": "human"
+      "origin": "human",
+      "required": false,
+      "required_reason": "",
+      "required_by": null
      },
      {
       "id": "adopt_box",
@@ -903,7 +954,10 @@
       "existing_widget": null,
       "segments": [],
       "confidence": null,
-      "origin": "human"
+      "origin": "human",
+      "required": false,
+      "required_reason": "",
+      "required_by": null
      },
      {
       "id": "comb_cut",
@@ -934,7 +988,10 @@
       "existing_widget": "topmostSubform[0].Page1[0].f1_11[0]",
       "segments": [],
       "confidence": null,
-      "origin": "widget"
+      "origin": "widget",
+      "required": false,
+      "required_reason": "",
+      "required_by": null
      },
      {
       "id": "long_note",
@@ -965,7 +1022,10 @@
       "existing_widget": "topmostSubform[0].Page1[0].f1_10[0]",
       "segments": [],
       "confidence": null,
-      "origin": "widget"
+      "origin": "widget",
+      "required": false,
+      "required_reason": "",
+      "required_by": null
      }
     ],
     "history": []

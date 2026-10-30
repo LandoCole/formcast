@@ -97,6 +97,13 @@ class SetStyle(_FieldOp):
     style: Style
 
 
+class SetRequired(_FieldOp):
+    op: Literal["set_required"] = "set_required"
+    id: str
+    required: bool
+    reason: str = ""
+
+
 class AddTable(OpBase):
     op: Literal["add_table"] = "add_table"
     id: str | None = None
@@ -134,7 +141,7 @@ class LinkWidget(_FieldOp):
 
 
 OP_CLASSES = (
-    AddField, RemoveField, Move, Resize, SetLabel, SetType, SetSource, SetStyle,
+    AddField, RemoveField, Move, Resize, SetLabel, SetType, SetSource, SetStyle, SetRequired,
     AddTable, SetTableColumns, SetTableRows, AddTableSegment, LinkWidget,
 )  # fmt: skip
 Op = Annotated[Union[OP_CLASSES], pydantic.Field(discriminator="op")]  # noqa: UP007

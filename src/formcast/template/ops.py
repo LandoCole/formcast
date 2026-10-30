@@ -29,6 +29,9 @@ reasons name the field id, the offending value and what would be valid.
   that replaces it) or the fields inside it cover most of it (``SPLIT_COVER``: it was
   split into parts). A seeded box that is not a blank stays unmapped (it fills
   nothing). Human edits are not restricted.
+* ``set_required`` sets a field's level, its reason and ``required_by`` (the op's
+  author). The person's choice wins: an agent's ``set_required`` on a field the
+  person set is rejected.
 * History records the op as given (only the keys that were set) plus any
   generated id, so :func:`replay` reproduces the template exactly.
 """
@@ -73,6 +76,7 @@ from formcast.template.op_models import (
     RemoveField,
     Resize,
     SetLabel,
+    SetRequired,
     SetSource,
     SetStyle,
     SetTableColumns,
@@ -83,7 +87,7 @@ from formcast.transforms import Transform, validate_chain
 
 __all__ = [  # op models are re-exported so ``from formcast.template.ops import Move`` keeps working
     "OP_NAMES", "AddField", "AddTable", "AddTableSegment", "FieldType", "LinkWidget", "Move", "Op",
-    "OpContext", "RemoveField", "Resize", "SetLabel", "SetSource", "SetStyle", "SetTableColumns",
+    "OpContext", "RemoveField", "Resize", "SetLabel", "SetRequired", "SetSource", "SetStyle", "SetTableColumns",
     "SetTableRows", "SetType", "apply", "diff", "replay",
 ]  # fmt: skip
 
@@ -736,6 +740,14 @@ def _set_label(run: _Run, op: SetLabel) -> Field:
     return f
 
 
+def _set_required(run: _Run, op: SetRequired) -> Field:
+    f = run.field(op.id)
+    if run.author == "agent" and f.required_by == "human":
+        run.fail(f"{f.id}: the person set whether this box is required; leave it as it is")
+    f.required, f.required_reason, f.required_by = op.required, op.reason, run.author
+    return f
+
+
 def _set_type(run: _Run, op: SetType) -> Field:
     f = run.field(op.id)
     if op.type == "table":
@@ -838,6 +850,7 @@ _HANDLERS: dict[str, Callable[[_Run, OpBase], Field | None]] = {
     "set_type": _set_type,
     "set_source": _set_source,
     "set_style": _set_style,
+    "set_required": _set_required,
     "add_table": _add_table,
     "set_table_columns": _set_table_columns,
     "set_table_rows": _set_table_rows,

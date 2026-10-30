@@ -83,6 +83,9 @@ test("fields have the library's full shape and key order", () => {
     segments: [],
     confidence: null,
     origin: "widget",
+    required: false,
+    required_reason: "",
+    required_by: null,
   });
 });
 

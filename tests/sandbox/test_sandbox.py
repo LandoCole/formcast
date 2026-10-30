@@ -203,6 +203,14 @@ def test_an_op_with_one_value_argument_also_takes_it_positionally(sandbox):
     assert "TypeError" in both.error and "label" in both.error
 
 
+def test_set_required_takes_the_id_and_the_level_positionally(sandbox):
+    result = _ok(sandbox.exec('set_required("f1", True, reason="the form asks for it")\nset_required("f2", False)'))
+    assert result.ops == [
+        {"op": "set_required", "id": "f1", "required": True, "reason": "the form asks for it"},
+        {"op": "set_required", "id": "f2", "required": False},
+    ]
+
+
 def test_non_json_argument_values_raise_type_error(sandbox):
     result = sandbox.exec('set_label("f1", label={1, 2})')
     assert "TypeError" in result.error and "JSON" in result.error

@@ -51,6 +51,9 @@ function field(id, type, label, page, rect, existingWidget, confidence, origin) 
     segments: [],
     confidence,
     origin,
+    required: false,
+    required_reason: "",
+    required_by: null,
   };
 }
 

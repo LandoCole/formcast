@@ -39,13 +39,22 @@ test("without widget kinds any type may use a widget, as Python without a form m
 
 test("fixture covers every browser op, both outcomes, and templates with tables", () => {
   const ids = fixture.cases.map((c) => c.id);
-  for (const name of ["add", "remove", "move", "resize", "label", "type", "source", "style"]) {
+  for (const name of ["add", "remove", "move", "resize", "label", "type", "source", "style", "required"]) {
     assert.ok(ids.some((id) => id.includes(`/${name}/`) && !id.includes("/err-")), `a valid ${name} case`);
     assert.ok(ids.some((id) => id.includes(`/${name}/err-`)), `an invalid ${name} case`);
   }
   assert.ok(fixture.cases.some((c) => c.id.startsWith("table/")));
   assert.ok(fixture.cases.some((c) => c.output?.warnings.length));
   assert.ok(fixture.cases.filter((c) => "error" in c).length >= 100);
+});
+
+test("a new field is optional until someone sets it; set_required records the person", () => {
+  const added = fixture.cases.find((c) => c.id === "plain/add/basic").output.fields.at(-1);
+  assert.deepEqual([added.required, added.required_reason, added.required_by], [false, "", null]);
+  const set = fixture.cases.find((c) => c.id === "plain/required/set").output.fields[0];
+  assert.deepEqual([set.required, set.required_reason, set.required_by], [true, "Set by you", "human"]);
+  const cleared = fixture.cases.find((c) => c.id === "plain/required/clear").output.fields[0];
+  assert.deepEqual([cleared.required, cleared.required_reason, cleared.required_by], [false, "Set by you", "human"]);
 });
 
 for (const c of fixture.cases) {

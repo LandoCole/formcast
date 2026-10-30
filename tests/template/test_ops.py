@@ -7,7 +7,7 @@ from formcast.errors import OpError
 from formcast.pagemap.build import build_form_map
 from formcast.schema import flatten_schema
 from formcast.template.model import Field, FormInfo, Template, linked_cells, new_template, table_cells
-from formcast.template.ops import AddField, LinkWidget, Move, OpContext, SetType, apply, diff, replay
+from formcast.template.ops import AddField, LinkWidget, Move, OpContext, SetRequired, SetType, apply, diff, replay
 
 SCHEMA = {
     "type": "object",
@@ -245,6 +245,46 @@ def test_set_type_label_style():
     t, _ = apply(t, {"op": "set_style", "id": "f1", "style": {"font_size": 9}}, author="agent", context=CTX)
     f = _field(t, "f1")
     assert (f.type, f.label, f.style.align, f.style.font_size) == ("signature", "Sign here", "center", 9)
+
+
+def test_set_required_sets_the_level_reason_and_author():
+    t, _ = _add(_template())
+    t, _ = apply(t, {"op": "set_required", "id": "f1", "required": True, "reason": "the form asks for it"},
+                 author="agent", context=CTX)
+    f = _field(t, "f1")
+    assert (f.required, f.required_reason, f.required_by) == (True, "the form asks for it", "agent")
+    assert t.history[-1].op == {"op": "set_required", "id": "f1", "required": True, "reason": "the form asks for it"}
+    t, _ = apply(t, {"op": "set_required", "id": "f1", "required": False}, author="human", context=CTX)
+    f = _field(t, "f1")
+    assert (f.required, f.required_reason, f.required_by) == (False, "", "human")
+
+
+def test_an_agent_cannot_change_a_level_the_person_set():
+    t, _ = _add(_template())
+    t, _ = apply(t, {"op": "set_required", "id": "f1", "required": True, "reason": "Set by you"},
+                 author="human", context=CTX)
+    before = t.model_copy(deep=True)
+    _rejects(t, {"op": "set_required", "id": "f1", "required": False, "reason": "a copy may leave it empty"},
+             "f1: the person set whether this box is required; leave it as it is")
+    assert t == before
+
+
+def test_a_person_can_change_a_level_the_agent_set():
+    t, _ = _add(_template())
+    t, _ = apply(t, {"op": "set_required", "id": "f1", "required": True, "reason": "the form asks for it"},
+                 author="agent", context=CTX)
+    t, _ = apply(t, {"op": "set_required", "id": "f1", "required": False, "reason": "Set by you"},
+                 author="human", context=CTX)
+    f = _field(t, "f1")
+    assert (f.required, f.required_reason, f.required_by) == (False, "Set by you", "human")
+
+
+def test_set_required_takes_the_field_id_first_and_names_an_unknown_one():
+    t, _ = _add(_template())
+    t, _ = apply(t, SetRequired("f1", required=True), author="agent", context=CTX)
+    assert _field(t, "f1").required
+    _rejects(t, {"op": "set_required", "id": "nope", "required": True}, "unknown field id")
+    _rejects(t, {"op": "set_required", "id": "f1"}, "required")
 
 
 def test_remove_field():

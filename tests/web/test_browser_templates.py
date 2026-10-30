@@ -77,6 +77,23 @@ def test_replaying_the_history_reproduces_the_fields(built, seed, name):
 
 
 @pytest.mark.parametrize("name", NAMES)
+def test_python_dumps_the_replayed_fields_as_the_browser_wrote_them(built, seed, name):
+    browser = json.loads(built[name])["fields"]
+    replayed = ops.replay(seed, Template.model_validate_json(built[name]).history)
+    assert [f.model_dump(mode="json") for f in replayed.fields] == browser
+
+
+def test_a_level_the_person_set_survives_the_round_trip(built):
+    def level(name, fid):
+        f = next(f for f in Template.model_validate_json(built[name]).fields if f.id == fid)
+        return f.required, f.required_reason, f.required_by
+
+    assert level("names", "w0_0") == (True, "Set by you", "human")
+    assert level("taxid", "sign-here") == (True, "", "human")
+    assert level("names", "w0_1") == (False, "", None)
+
+
+@pytest.mark.parametrize("name", NAMES)
 @pytest.mark.parametrize("data", [{}, RECORD], ids=["empty-record", "record"])
 def test_fill_runs_without_a_fingerprint(built, name, data):
     t = Template.model_validate_json(built[name])
@@ -87,4 +104,6 @@ def test_fill_runs_without_a_fingerprint(built, name, data):
 
 def test_the_scripts_use_every_edit_the_demo_makes(built):
     used = {h.op["op"] for name in NAMES for h in Template.model_validate_json(built[name]).history}
-    assert used >= {"add_field", "remove_field", "move", "resize", "set_label", "set_type", "set_source", "set_style"}
+    assert used >= {
+        "add_field", "remove_field", "move", "resize", "set_label", "set_type", "set_source", "set_style", "set_required",
+    }  # fmt: skip

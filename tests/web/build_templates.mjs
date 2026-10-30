@@ -25,14 +25,14 @@ function build(templateId, ops) {
 const rect = (x0, y0, x1, y1) => [x0, y0, x1, y1];
 
 const scripts = {
-  // names, a new field, a checkbox with a condition
+  // names (one marked required), a new field, a checkbox with a condition
   names: [
     { op: "set_source", id: "w0_0", source: { paths: ["legal_name"], transforms: [{ op: "strip" }] } },
     { op: "set_source", id: "w0_1", source: { paths: ["business_name"] } },
     { op: "add_field", type: "text", page: 0, rect: rect(58.6, 360, 300, 374), label: "Remit email", source: { paths: ["remit_email"] } },
     { op: "move", id: "f1", dx: 4, dy: 2.5 },
     { op: "resize", id: "f1", rect: rect(62.6, 362.5, 320, 376.5) },
-    { op: "set_label", id: "w0_0", label: "Name" },
+    { op: "set_required", id: "w0_0", required: true, reason: "Set by you" },
     { op: "set_type", id: "w0_2", type: "checkbox" },
     {
       op: "set_source",
@@ -42,7 +42,7 @@ const scripts = {
     { op: "set_style", id: "w0_14", style: { font_size: 9, align: "left" } },
     { op: "remove_field", id: "w0_17" },
   ],
-  // the tax id split over comb boxes, with an explicit id and a signature
+  // the tax id split over comb boxes, with an explicit id and a required signature
   taxid: [
     { op: "set_source", id: "w0_18", source: { paths: ["ssn"], transforms: [{ op: "split", args: { sep: "-", index: 0 } }] } },
     { op: "set_source", id: "w0_19", source: { paths: ["ssn"], transforms: [{ op: "split", args: { sep: "-", index: 1 } }] } },
@@ -52,7 +52,7 @@ const scripts = {
     { op: "add_field", id: "sign-here", type: "signature", page: 0, rect: rect(100, 600, 400, 640), label: "Signature" },
     { op: "move", id: "sign-here", rect: rect(100, 610, 400, 650) },
     { op: "resize", id: "w0_21", rect: rect(417.6, 420, 450, 444) },
-    { op: "set_type", id: "w0_22", type: "signature" },
+    { op: "set_required", id: "sign-here", required: true },
     { op: "remove_field", id: "w0_22" },
   ],
   // choice boxes mapped by condition, a date taken apart, a boolean

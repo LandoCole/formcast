@@ -86,6 +86,10 @@ class Field(BaseModel):
     segments: list[TableSegment] = []
     confidence: float | None = None
     origin: Literal["detector", "agent", "human", "widget"] = "agent"
+    # Whether a filled copy needs this box, why, and who said so last (None: nobody yet, Optional).
+    required: bool = False
+    required_reason: str = ""
+    required_by: Literal["agent", "human"] | None = None
 
     @pydantic.model_validator(mode="after")
     def _check_shape(self) -> Field:

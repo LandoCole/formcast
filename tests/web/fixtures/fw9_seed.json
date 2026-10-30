@@ -164,7 +164,10 @@
    "existing_widget": "topmostSubform[0].Page1[0].f1_01[0]",
    "segments": [],
    "confidence": null,
-   "origin": "widget"
+   "origin": "widget",
+   "required": false,
+   "required_reason": "",
+   "required_by": null
   },
   {
    "id": "w0_1",
@@ -188,7 +191,10 @@
    "existing_widget": "topmostSubform[0].Page1[0].f1_02[0]",
    "segments": [],
    "confidence": null,
-   "origin": "widget"
+   "origin": "widget",
+   "required": false,
+   "required_reason": "",
+   "required_by": null
   },
   {
    "id": "w0_2",
@@ -212,7 +218,10 @@
    "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[0]",
    "segments": [],
    "confidence": null,
-   "origin": "widget"
+   "origin": "widget",
+   "required": false,
+   "required_reason": "",
+   "required_by": null
   },
   {
    "id": "w0_3",
@@ -236,7 +245,10 @@
    "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[1]",
    "segments": [],
    "confidence": null,
-   "origin": "widget"
+   "origin": "widget",
+   "required": false,
+   "required_reason": "",
+   "required_by": null
   },
   {
    "id": "w0_4",
@@ -260,7 +272,10 @@
    "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[2]",
    "segments": [],
    "confidence": null,
-   "origin": "widget"
+   "origin": "widget",
+   "required": false,
+   "required_reason": "",
+   "required_by": null
   },
   {
    "id": "w0_5",
@@ -284,7 +299,10 @@
    "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[3]",
    "segments": [],
    "confidence": null,
-   "origin": "widget"
+   "origin": "widget",
+   "required": false,
+   "required_reason": "",
+   "required_by": null
   },
   {
    "id": "w0_6",
@@ -308,7 +326,10 @@
    "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[4]",
    "segments": [],
    "confidence": null,
-   "origin": "widget"
+   "origin": "widget",
+   "required": false,
+   "required_reason": "",
+   "required_by": null
   },
   {
    "id": "w0_8",
@@ -332,7 +353,10 @@
    "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].f1_03[0]",
    "segments": [],
    "confidence": null,
-   "origin": "widget"
+   "origin": "widget",
+   "required": false,
+   "required_reason": "",
+   "required_by": null
   },
   {
    "id": "w0_12",
@@ -356,7 +380,10 @@
    "existing_widget": "topmostSubform[0].Page1[0].f1_05[0]",
    "segments": [],
    "confidence": null,
-   "origin": "widget"
+   "origin": "widget",
+   "required": false,
+   "required_reason": "",
+   "required_by": null
   },
   {
    "id": "w0_7",
@@ -380,7 +407,10 @@
    "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[5]",
    "segments": [],
    "confidence": null,
-   "origin": "widget"
+   "origin": "widget",
+   "required": false,
+   "required_reason": "",
+   "required_by": null
   },
   {
    "id": "w0_10",
@@ -404,7 +434,10 @@
    "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].f1_04[0]",
    "segments": [],
    "confidence": null,
-   "origin": "widget"
+   "origin": "widget",
+   "required": false,
+   "required_reason": "",
+   "required_by": null
   },
   {
    "id": "w0_13",
@@ -428,7 +461,10 @@
    "existing_widget": "topmostSubform[0].Page1[0].f1_06[0]",
    "segments": [],
    "confidence": null,
-   "origin": "widget"
+   "origin": "widget",
+   "required": false,
+   "required_reason": "",
+   "required_by": null
   },
   {
    "id": "w0_9",
@@ -452,7 +488,10 @@
    "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_1[6]",
    "segments": [],
    "confidence": null,
-   "origin": "widget"
+   "origin": "widget",
+   "required": false,
+   "required_reason": "",
+   "required_by": null
   },
   {
    "id": "w0_11",
@@ -476,7 +515,10 @@
    "existing_widget": "topmostSubform[0].Page1[0].Boxes3a-b_ReadOrder[0].c1_2[0]",
    "segments": [],
    "confidence": null,
-   "origin": "widget"
+   "origin": "widget",
+   "required": false,
+   "required_reason": "",
+   "required_by": null
   },
   {
    "id": "w0_14",
@@ -500,7 +542,10 @@
    "existing_widget": "topmostSubform[0].Page1[0].Address_ReadOrder[0].f1_07[0]",
    "segments": [],
    "confidence": null,
-   "origin": "widget"
+   "origin": "widget",
+   "required": false,
+   "required_reason": "",
+   "required_by": null
   },
   {
    "id": "w0_16",
@@ -524,7 +569,10 @@
    "existing_widget": "topmostSubform[0].Page1[0].f1_09[0]",
    "segments": [],
    "confidence": null,
-   "origin": "widget"
+   "origin": "widget",
+   "required": false,
+   "required_reason": "",
+   "required_by": null
   },
   {
    "id": "w0_15",
@@ -548,7 +596,10 @@
    "existing_widget": "topmostSubform[0].Page1[0].Address_ReadOrder[0].f1_08[0]",
    "segments": [],
    "confidence": null,
-   "origin": "widget"
+   "origin": "widget",
+   "required": false,
+   "required_reason": "",
+   "required_by": null
   },
   {
    "id": "w0_17",
@@ -572,7 +623,10 @@
    "existing_widget": "topmostSubform[0].Page1[0].f1_10[0]",
    "segments": [],
    "confidence": null,
-   "origin": "widget"
+   "origin": "widget",
+   "required": false,
+   "required_reason": "",
+   "required_by": null
   },
   {
    "id": "w0_18",
@@ -596,7 +650,10 @@
    "existing_widget": "topmostSubform[0].Page1[0].f1_11[0]",
    "segments": [],
    "confidence": null,
-   "origin": "widget"
+   "origin": "widget",
+   "required": false,
+   "required_reason": "",
+   "required_by": null
   },
   {
    "id": "w0_19",
@@ -620,7 +677,10 @@
    "existing_widget": "topmostSubform[0].Page1[0].f1_12[0]",
    "segments": [],
    "confidence": null,
-   "origin": "widget"
+   "origin": "widget",
+   "required": false,
+   "required_reason": "",
+   "required_by": null
   },
   {
    "id": "w0_20",
@@ -644,7 +704,10 @@
    "existing_widget": "topmostSubform[0].Page1[0].f1_13[0]",
    "segments": [],
    "confidence": null,
-   "origin": "widget"
+   "origin": "widget",
+   "required": false,
+   "required_reason": "",
+   "required_by": null
   },
   {
    "id": "w0_21",
@@ -668,7 +731,10 @@
    "existing_widget": "topmostSubform[0].Page1[0].f1_14[0]",
    "segments": [],
    "confidence": null,
-   "origin": "widget"
+   "origin": "widget",
+   "required": false,
+   "required_reason": "",
+   "required_by": null
   },
   {
    "id": "w0_22",
@@ -692,7 +758,10 @@
    "existing_widget": "topmostSubform[0].Page1[0].f1_15[0]",
    "segments": [],
    "confidence": null,
-   "origin": "widget"
+   "origin": "widget",
+   "required": false,
+   "required_reason": "",
+   "required_by": null
   }
  ],
  "history": []

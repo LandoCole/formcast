@@ -113,6 +113,16 @@ def test_defaults_are_independent_instances():
     assert a.segments == [] and a.segments is not b.segments
 
 
+def test_a_template_without_the_new_keys_loads_with_optional_defaults():
+    data = json.loads(_template().to_json())
+    for f in data["fields"]:
+        for key in ("required", "required_reason", "required_by"):
+            del f[key]
+    t = Template.model_validate(data)
+    assert [(f.required, f.required_reason, f.required_by) for f in t.fields] == [(False, "", None)] * 2
+    assert t == _template()
+
+
 def test_template_requires_version_one():
     data = json.loads(_template().to_json())
     data["formcast_version"] = "2"

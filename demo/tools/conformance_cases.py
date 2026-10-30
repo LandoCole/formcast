@@ -1075,6 +1075,21 @@ def _ops_cases() -> list[dict]:
     add("plain", "label/err-not-a-string", {"op": "set_label", "id": "n1", "label": 4})
     add("table", "label/table", {"op": "set_label", "id": "t1", "label": "Drugs"})
 
+    # ---- set_required
+    add("plain", "required/set", {"op": "set_required", "id": "n1", "required": True, "reason": "Set by you"})
+    add("plain", "required/clear", {"op": "set_required", "id": "n1", "required": True, "reason": "Set by you"},
+        {"op": "set_required", "id": "n1", "required": False, "reason": "Set by you"})
+    add("plain", "required/no-reason", {"op": "set_required", "id": "sig", "required": True})
+    add("plain", "required/bool-from-string", {"op": "set_required", "id": "n2", "required": "yes"})
+    add("plain", "required/then-add", {"op": "set_required", "id": "c1", "required": True, "reason": "Set by you"},
+        af(type="text", page=0, rect=box))
+    add("table", "required/table", {"op": "set_required", "id": "t1", "required": True, "reason": "Set by you"})
+    add("plain", "required/err-unknown", {"op": "set_required", "id": "x1", "required": True})
+    add("plain", "required/err-missing", {"op": "set_required", "id": "n1"})
+    add("plain", "required/err-not-a-bool", {"op": "set_required", "id": "n1", "required": "maybe"})
+    add("plain", "required/err-reason-not-a-string", {"op": "set_required", "id": "n1", "required": True, "reason": 4})
+    add("plain", "required/err-extra-key", {"op": "set_required", "id": "n1", "required": True, "by": "human"})
+
     # ---- set_type
     add("plain", "type/text-to-checkbox-string-source-warns", {"op": "set_type", "id": "n1", "type": "checkbox"})
     add("plain", "type/text-to-checkbox-no-source", {"op": "set_type", "id": "n2", "type": "checkbox"})

@@ -1,4 +1,4 @@
-// Edit operations for the browser: the eight ops a person can make, validated the way
+// Edit operations for the browser: the nine ops a person can make, validated the way
 // src/formcast/template/ops.py validates them, with Python's error messages and Python's
 // history entries, so a template edited here replays identically in Python.
 //
@@ -7,7 +7,8 @@
 // [x0, y0, x1, y1] in PDF points, origin top-left.
 //
 // Not ported (the browser has no use for them): the table-building ops, `link_widget`, and the
-// guards that only apply to an agent author (seeded fields can't be moved or removed by an agent).
+// guards that only apply to an agent author (seeded fields can't be moved or removed by an agent,
+// and an agent can't change whether a box is required once the person has set it).
 // Python's lax input coercion is kept for numbers, integers and booleans given as strings, so the
 // same op data gives the same answer.
 
@@ -38,6 +39,7 @@ export const BROWSER_OPS = [
   "set_type",
   "set_source",
   "set_style",
+  "set_required",
 ];
 
 /** Every op the Python library knows, in its order (the "unknown op" message lists them). */
@@ -344,6 +346,11 @@ const OP_SPECS = {
     { key: "source", parse: nullable(parseSource), required: true, fullOf: fullPart, givenOf: givenPart },
   ],
   set_style: [ID, { key: "style", parse: parseStyle, required: true, fullOf: fullPart, givenOf: givenPart }],
+  set_required: [
+    ID,
+    { key: "required", parse: parseBool, required: true },
+    { key: "reason", parse: parseStr, default: "" },
+  ],
 };
 
 /** Python's `_describe`: pydantic errors as "loc: message (got value); ...". */
@@ -989,6 +996,9 @@ function addField(run, op) {
     segments: [],
     confidence: null,
     origin: run.author,
+    required: false,
+    required_reason: "",
+    required_by: null,
   };
   run.checkSource(f);
   run.t.fields.push(f);
@@ -1071,6 +1081,14 @@ function setLabel(run, op) {
   return f;
 }
 
+function setRequired(run, op) {
+  const f = run.field(op.id);
+  f.required = op.required;
+  f.required_reason = op.reason;
+  f.required_by = run.author;
+  return f;
+}
+
 function setType(run, op) {
   const f = run.field(op.id);
   if (op.type === "table") {
@@ -1119,6 +1137,7 @@ const HANDLERS = {
   set_type: setType,
   set_source: setSource,
   set_style: (run, op) => setStyle(run, op, op.styleGiven),
+  set_required: setRequired,
 };
 
 // ---------------------------------------------------------------- public API
