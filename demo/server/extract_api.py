@@ -51,7 +51,10 @@ again with no model call. Marks and page images are of the setup's sample ``i`` 
 a mark is in that sample page's frame, so a box drawn on it is sent back as a ``set_box`` edit naming the sample.
 
 ``PUT /api/extractions/{name}`` saves the setup's template under ``name`` (its ``name`` field becomes ``name``, its
-``template_id`` is kept) with the setup's sample PDFs; ``POST /api/setups {extraction}`` reads those samples again
+``template_id`` is kept) with the setup's sample PDFs. A template whose run could not be exported is refused, 400
+``bad_template`` naming the field: a field whose export column is a document column (``name``, ``file``,
+``doc_id`` ...; ``formcast.extract.export.check_columns``, the check the export makes), so it is renamed before a
+run rather than found at the export after one; ``POST /api/setups {extraction}`` reads those samples again
 (no field detection) and proves the template on them.
 
 Errors: no model configured, 400 ``ai_not_configured``; a bad ``spec`` 400 ``bad_spec``; a batch the server does
@@ -87,7 +90,8 @@ counts the documents (``done`` of ``total`` in the result too); a cancel stops i
 written, ends the job ``cancelled`` and keeps the run, which the next run of the batch carries on. With ``ai`` a
 second stage, ``ai``, runs ``ai_pass`` on the run: only documents with a required field still failing are sent to
 the model, and its answers are problems to review. It is the only model call of a run, so a run without ``ai``
-needs no model. A run takes one job at a time: another ``extract-run`` of it meanwhile is 409 ``busy_run``.
+needs no model. A run takes one job at a time: another ``extract-run`` of it meanwhile is 409 ``busy_run``. A saved extraction whose
+run could not be exported (as its save checks) is 400 ``bad_template`` before anything starts.
 
 ``problems`` and ``set-aside`` are paged as the batch files are (``limit`` 1 to 200, default 50); ``status`` is one
 of ``missing``, ``failed_check`` and ``unsure``. A document's ``name`` is its file's name in the batch (a command
@@ -160,7 +164,8 @@ from formcast import FormcastError, SessionCancelled
 from formcast.extract.aipass import ai_pass
 from formcast.extract.batch import INTERNAL_ERROR, ReviewDecision, run_batch
 from formcast.extract.edit import Edit
-from formcast.extract.model import concrete_paths
+from formcast.extract.export import check_columns
+from formcast.extract.model import ExtractionTemplate, concrete_paths
 from formcast.extract.proof import prove
 from formcast.extract.samples import SamplePdf, read_samples
 from formcast.extract.setup import FIELDS_LABELS, MAX_SAMPLES, STAGES, SetupSpec, add_line, build_setup
@@ -260,13 +265,25 @@ def create_batch(api: Api, req: Request) -> dict:
         return api.batches.create(name).summary()
     if not api.settings.folder_scan:
         raise ApiError(403, "not_allowed", "This server does not open folders on its machine. Upload the files instead.")
-    path = Path(folder.strip()).expanduser() if isinstance(folder, str) else None
-    if path is None or not path.is_absolute():
+    path = _full_path(folder)
+    if path is None:
         raise ApiError(400, "bad_folder", "Send folder as the full path of a folder on the server's machine.")
     try:
         return api.batches.from_folder(path, name).summary()
     except FormcastError as exc:
         raise ApiError(400, "bad_folder", str(exc)) from None
+
+
+def _full_path(folder: Any) -> Path | None:
+    """``folder`` (text, ``~`` for a home folder) as a full path on the server's machine; ``None`` when it is not
+    text, not a full path, or names a home folder that cannot be found (``expanduser`` raises ``RuntimeError``)."""
+    if not isinstance(folder, str):
+        return None
+    try:
+        path = Path(folder.strip()).expanduser()
+    except (RuntimeError, ValueError):
+        return None
+    return path if path.is_absolute() else None
 
 
 def get_batch(api: Api, req: Request) -> dict:
@@ -591,8 +608,18 @@ def save_extraction(api: Api, req: Request) -> dict:
     setup = _setup_of(api, _object(req).get("setup"))
     template, samples = setup.snapshot()
     saved = template.model_copy(update={"name": name})
+    _exportable(saved)
     api.extractions.put(name, saved, [SamplePdf(doc.file, doc.pdf) for doc in samples])
     return {"name": name, "template_id": saved.template_id}
+
+
+def _exportable(template: ExtractionTemplate) -> None:
+    """400 ``bad_template`` for a template whose run could not be exported: a field whose column clashes with a
+    document column of the export (``check_columns``, as ``Run.export`` will call ``export``, with names)."""
+    try:
+        check_columns([template], names=True)
+    except FormcastError as exc:
+        raise ApiError(400, "bad_template", str(exc)) from None
 
 
 def delete_extraction(api: Api, req: Request) -> dict:
@@ -619,6 +646,7 @@ def _start_run(api: Api, payload: dict) -> dict:
     _checked(name)
     with missing("extraction"):
         template = api.extractions.get(name)
+    _exportable(template)
     try:
         batch = api.batches.get(payload.get("batch"))
     except (KeyError, TypeError):
@@ -724,9 +752,8 @@ def open_run_folder(api: Api, req: Request) -> dict:
     """``{folder}`` -> a command line run (``python -m formcast.extract run``) opened where it is."""
     if not api.settings.folder_scan:
         raise ApiError(403, "not_allowed", "This server does not open folders on its machine.")
-    folder = _object(req).get("folder")
-    path = Path(folder.strip()).expanduser() if isinstance(folder, str) else None
-    if path is None or not path.is_absolute():
+    path = _full_path(_object(req).get("folder"))
+    if path is None:
         raise ApiError(400, "bad_run", "Send folder as the full path of a run's folder on the server's machine.")
     try:
         return api.runs.open_folder(path, api.extractions).summary()

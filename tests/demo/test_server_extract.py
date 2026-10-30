@@ -487,6 +487,48 @@ def test_a_folder_batch_is_refused_when_the_server_does_not_allow_it_or_the_fold
         assert str(tmp_path) not in body["detail"]
 
 
+def test_a_folders_walk_stops_past_the_most_files_and_a_file_that_cannot_be_read_or_a_bad_home_is_never_a_500(start_demo_server, tmp_path, monkeypatch):
+    folder = tmp_path / "many"
+    folder.mkdir()
+    for name in ("a.pdf", "b.pdf", "c.pdf", "d.pdf", "e.pdf"):
+        (folder / name).write_bytes(small_pdf())
+    base = start_demo_server()
+    monkeypatch.setattr(extraction, "MAX_BATCH_FILES", 3)
+    walked = []
+    rglob = Path.rglob
+
+    def counted(self, pattern):
+        for p in rglob(self, pattern):
+            walked.append(p)
+            yield p
+
+    monkeypatch.setattr(Path, "rglob", counted)
+    status, body = get_json(base, "/api/batches", "POST", {"folder": str(folder)})
+    assert (status, body["error"]) == (400, "bad_folder") and "more than 3 PDF files" in body["detail"]
+    assert len(walked) == 4  # the walk stopped at the fourth PDF
+    monkeypatch.setattr(extraction, "MAX_BATCH_FILES", 200_000)
+
+    stat = Path.stat
+
+    def gone_after_the_walk(self, *args, **kw):  # b.pdf disappears between the walk finding it and its stat
+        if self.name == "b.pdf":
+            raise FileNotFoundError(self)
+        return stat(self, *args, **kw)
+
+    monkeypatch.setattr(Path, "stat", gone_after_the_walk)
+    status, batch = get_json(base, "/api/batches", "POST", {"folder": str(folder)})
+    assert status == 200, batch
+    names = [f["name"] for f in get_json(base, f"/api/batches/{batch['id']}/files")[1]["files"]]
+    assert "b.pdf" not in names and len(names) == 4
+    monkeypatch.setattr(Path, "stat", stat)
+
+    for folder_text in ("~no_such_user_for_formcast/forms", "~no_such_user_for_formcast"):
+        status, body = get_json(base, "/api/batches", "POST", {"folder": folder_text})
+        assert (status, body["error"]) == (400, "bad_folder"), body
+        status, body = get_json(base, "/api/runs", "POST", {"folder": folder_text})
+        assert (status, body["error"]) == (400, "bad_run"), body
+
+
 def test_a_batch_name_must_be_text(demo_server):
     status, body = get_json(demo_server, "/api/batches", "POST", {"name": 5})
     assert status == 400 and body["error"] == "bad_request"
@@ -1032,6 +1074,23 @@ def test_a_setup_saved_as_an_extraction_is_listed_and_reopens_as_a_setup_with_a_
     assert edit(bench, reopened["id"], {"op": "mark_absent", "path": "wire.bank"})[0] == 200
 
 
+def with_a_field_named_name(template: ExtractionTemplate) -> ExtractionTemplate:
+    """``template`` with a top-level field ``name``, whose export column is the document's ``name`` column."""
+    schema = json.loads(json.dumps(template.schema_))
+    schema["properties"]["name"] = {"type": "string", "title": "Name"}
+    return ExtractionTemplate.model_validate({**template.model_dump(by_alias=True), "schema": schema})
+
+
+def test_a_setup_whose_field_would_share_the_exports_name_column_is_refused_when_saved(bench):
+    setup = built(bench)
+    kept = bench.api.setups.get(setup["id"])
+    kept.template = with_a_field_named_name(kept.template)
+    status, out = get_json(bench.base, "/api/extractions/Clash", "PUT", {"setup": setup["id"]})
+    assert (status, out["error"]) == (400, "bad_template")
+    assert out["detail"] == "the field 'name' would share its column with the document's name; rename the field"
+    assert get_json(bench.base, "/api/extractions")[1] == {"extractions": []}  # nothing saved
+
+
 def test_a_saved_extraction_can_be_deleted_and_names_are_checked(bench):
     setup = built(bench)
     status, out = get_json(bench.base, "/api/extractions/..%2Fx", "PUT", {"setup": setup["id"]})
@@ -1233,6 +1292,16 @@ def test_a_run_is_refused_before_it_starts_for_an_unknown_extraction_or_batch_or
     # demo_server has no model and shares the data folder (and so the extraction), not the batches, which are in memory
     status, out = start_job(demo_server, {"kind": "extract-run", "extraction": "Client info", "batch": batch})
     assert (status, out["error"]) == (400, "bad_batch")  # a run without the AI needs no model: it got as far as the batch
+    assert get_json(runner.base, "/api/runs")[1] == {"runs": []}
+
+
+def test_a_run_of_an_extraction_whose_field_would_share_the_exports_name_column_is_refused_before_it_starts(runner, corpus_files):
+    template = ExtractionTemplate.model_validate(runner.template)
+    samples = runner.api.extractions.samples("Client info")
+    runner.api.extractions.put("Clash", with_a_field_named_name(template).model_copy(update={"name": "Clash"}), samples)
+    status, out = start_job(runner.base, {"kind": "extract-run", "extraction": "Clash", "batch": batch_of(runner, corpus_files[:2])})
+    assert (status, out["error"]) == (400, "bad_template")
+    assert out["detail"] == "the field 'name' would share its column with the document's name; rename the field"
     assert get_json(runner.base, "/api/runs")[1] == {"runs": []}
 
 

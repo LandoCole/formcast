@@ -16,7 +16,8 @@ filled in one of two ways:
               path: it is cut to its last component, so ``../evil.pdf`` is shown as ``evil.pdf`` and stored by its
               number like every other file.
     a folder  ``Batches.from_folder(folder)``: every ``*.pdf`` under a folder on the server's machine, recursively,
-              sorted by path, referenced where it is (nothing is copied or written).
+              sorted by path, referenced where it is (nothing is copied or written). The walk stops past
+              :data:`MAX_BATCH_FILES` PDFs (refused), and a file whose ``stat`` fails is left out.
 
 An upload is all or nothing: every zip of the request is checked before anything is written, and the request is
 refused (``FormcastError``, nothing written) when the uncompressed PDFs a zip declares pass :data:`MAX_ZIP_BYTES`
@@ -110,6 +111,7 @@ import logging
 import os
 import re
 import shutil
+import stat
 import tempfile
 import threading
 import time
@@ -295,8 +297,12 @@ class Batches:
     def from_folder(self, folder: Path, name: str | None = None) -> Batch:
         """A batch of every ``*.pdf`` under ``folder`` (recursively, sorted by path), referenced in place, its scan started.
 
+        The walk stops at the first PDF past :data:`MAX_BATCH_FILES`; a file whose ``stat`` fails (gone since the
+        walk found it, or not readable) is left out, as is anything that is not a plain file.
+
         Raises:
-            FormcastError: ``folder`` is not a folder, holds no PDF, or holds more than :data:`MAX_BATCH_FILES`.
+            FormcastError: ``folder`` is not a folder or cannot be read, holds no PDF, or holds more than
+                :data:`MAX_BATCH_FILES`.
         """
         try:
             is_dir = folder.is_dir()
@@ -304,14 +310,28 @@ class Batches:
             is_dir = False
         if not is_dir:
             raise FormcastError("There is no folder at that path on the server.")
-        paths = sorted(p for p in folder.rglob("*") if p.suffix.lower() == ".pdf" and p.is_file())
-        if not paths:
+        found: list[tuple[Path, int]] = []
+        try:
+            for p in folder.rglob("*"):
+                if p.suffix.lower() != ".pdf":
+                    continue
+                try:
+                    st = p.stat()
+                except (OSError, ValueError):
+                    continue
+                if not stat.S_ISREG(st.st_mode):
+                    continue
+                found.append((p, st.st_size))
+                if len(found) > MAX_BATCH_FILES:
+                    raise FormcastError(f"That folder holds more than {MAX_BATCH_FILES:,} PDF files, the most a batch may hold.")
+        except OSError:
+            raise FormcastError("That folder can't be read on the server.") from None
+        if not found:
             raise FormcastError("That folder holds no PDF files.")
-        if len(paths) > MAX_BATCH_FILES:
-            raise FormcastError(f"That folder holds more than {MAX_BATCH_FILES:,} PDF files, the most a batch may hold.")
+        found.sort()
         batch_id = uuid.uuid4().hex
         batch = Batch(batch_id, _label(name or folder.name, "Server folder"), self.root / batch_id / "files", folder=folder)
-        batch.files = [BatchFile(i, _shown(p.name), p, p.stat().st_size) for i, p in enumerate(paths)]
+        batch.files = [BatchFile(i, _shown(p.name), p, size) for i, (p, size) in enumerate(found)]
         batch.bytes = sum(f.size for f in batch.files)
         self._keep(batch)
         self.start_scan(batch)

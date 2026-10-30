@@ -8,7 +8,7 @@ import pytest
 
 from formcast.errors import FormcastError
 from formcast.extract.batch import Results, run_batch
-from formcast.extract.export import FIELD_COLUMNS, SET_ASIDE_COLUMNS, _checks, _kind, export
+from formcast.extract.export import FIELD_COLUMNS, SET_ASIDE_COLUMNS, _checks, _kind, check_columns, export
 from formcast.extract.model import ExtractionTemplate
 from formcast.schema import flatten_schema
 from tests.extract.conftest import write_corpus
@@ -283,6 +283,17 @@ def test_with_names_a_field_named_name_is_refused_as_a_document_column(tmp_path)
     with pytest.raises(FormcastError, match="'name'"):
         export(Stub([]), [template_with(schema)], tmp_path / "csv", format="csv", names={})
     assert export(Stub([]), [template_with(schema)], tmp_path / "plain", format="csv")  # without names it is a field
+
+
+def test_the_column_check_export_makes_can_be_made_alone_before_a_run_naming_the_field_and_the_clash():
+    schema = {"type": "object", "properties": {"name": {"type": "string"}, "file": {"type": "string"}}}
+    with pytest.raises(FormcastError) as caught:
+        check_columns([template_with({"type": "object", "properties": {"name": {"type": "string"}}})], names=True)
+    assert str(caught.value) == "the field 'name' would share its column with the document's name; rename the field"
+    check_columns([template_with({"type": "object", "properties": {"name": {"type": "string"}}})])  # no names: a field
+    with pytest.raises(FormcastError, match="the field 'file' would share its column with the document's file"):
+        check_columns([template_with(schema)])
+    check_columns([hand_template()], names=True)
 
 
 def test_a_field_named_like_a_document_column_is_refused_before_anything_is_written(tmp_path):

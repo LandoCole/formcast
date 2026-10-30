@@ -18,7 +18,8 @@ The export has four parts, the same in every format:
 ``export(..., names={doc_id: name})`` adds a ``name`` column after ``doc_id`` to ``values``, ``status`` and
 ``set_aside``, in every format: the name a person knows each document by (the workbench's uploads are stored by
 number, so their ``doc_id`` is ``3.pdf``), or the ``doc_id`` itself for a document the map does not name. A field
-whose column would be ``name`` is then refused as a document column.
+whose column would be ``name`` is then refused as a document column. :func:`check_columns` makes the same checks
+on the templates alone, so a template can be refused before a run rather than at its export.
 
 xlsx is one workbook with a sheet per part; Parquet and CSV are a folder with ``values``, ``status``, ``fields`` and
 ``set_aside`` files. Column order follows the schema: top-level fields in schema order, and the outermost repeated
@@ -181,10 +182,7 @@ def _columns_and_fields(
     for template in templates:
         for column, path, sp in _template_columns(template):
             if column in doc_columns:
-                raise FormcastError(
-                    f"{template.template_id}: {path!r} would make a column named {column!r}, which is a document "
-                    "column of the export; rename the path in the template"
-                )
+                raise FormcastError(f"the field {path!r} would share its column with the document's {column}; rename the field")
             if column in fields:
                 # a column two templates share is described by the first, if they agree on what it is
                 first = fields[column]
@@ -200,6 +198,18 @@ def _columns_and_fields(
                 "definition": sp.description, "type": _type_text(sp), "checks": _checks(template.schema_, sp),
             }  # fmt: skip
     return columns, list(fields.values())
+
+
+def check_columns(templates: Sequence[ExtractionTemplate], *, names: bool = False) -> None:
+    """Refuse ``templates`` whose export would be refused for its columns, as :func:`export` checks them: a field
+    whose column is a document column (``name`` too when the export will have ``names``), or one column made by two
+    different paths or types. A template can be checked so before a run, instead of failing at its export.
+
+    Raises:
+        FormcastError: the clash, naming the field (``"the field 'name' would share its column with the document's
+            name; rename the field"``).
+    """
+    _columns_and_fields(templates, _named(_DOC_COLUMNS) if names else _DOC_COLUMNS)
 
 
 # ---------------------------------------------------------------------- rows
