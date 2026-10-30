@@ -3,8 +3,10 @@
 //
 // Run on all (#run, the setup screen's toolbar) reads every document of the setup's batch with its template. A setup
 // never saved, or changed since it was, is saved first with the setup screen's name prompt (`app.setup.promptSave`);
-// closing the prompt unsaved starts nothing. Then the `extract-run` job starts, asking the AI about the failing
-// documents only when the Extract modal's "AI per document" (#ai-fallback) is on, and the run panel (#running) shows
+// closing the prompt unsaved starts nothing. A setup with no batch (a saved extraction template reopened) opens the
+// Extract modal in its "Run on a batch" mode instead (`app.extract.openRunOn`): the person adds the documents there,
+// and its Run on these → starts the run on them, which then goes on as below. Then the `extract-run` job starts,
+// asking the AI about the failing documents only when the Extract modal's "AI per document" (#ai-fallback) is on, and the run panel (#running) shows
 // its stages live (`showStages`: "Read every document", with "N of M" under it) and "done / total documents" under
 // them. Cancel asks the job to stop once the documents being read are written; the run keeps what it read, so a
 // cancelled run opens its review of those, and Run on all again carries on where it stopped. A run that ends with an
@@ -13,12 +15,17 @@
 // the setup on screen is the one it was run from (`app.extract.linked`).
 //
 // The review, as the mockup lays it out. Its numbers (#stats: the documents, the complete ones, the ones with
-// problems, the ones set aside and the run time, `runStats`) are the Run's summary, updated by every decision. On the
+// problems, the ones set aside and the run time, `runStats`) are the Run's summary, updated by every decision. Under
+// them the By field table (#field-table, `fieldTable`): a row per field, a repeated group's items folded into one,
+// with how many documents found it, have it missing, failing a check or unsure, and how many were reviewed; a row
+// clicked sets the field filter to that field (a folded row's `owners[].name` filters every item). On the
 // left the documents that still have problems (#docs, `engine.extract.problems`, 50 at a time, More for the next 50),
 // filtered by field and by problem; the problem filter's "Set aside" lists the documents not read instead
 // (`engine.extract.setAside`), each with why and the closest template. The middle column is the chosen document's
 // page (`runPageUrl`, ‹ › through its pages, the setup screen's zoom: `mountZoom`) with the place each problem field was
-// read, or looked for, outlined (`rect`, in points from the page's top left), the picked one heavy. On the right a card
+// read, or looked for, outlined (`rect`, in points from the page's top left), the picked one heavy. A page image that
+// fails is asked for again through the engine (`runPage`) to learn why: a 404 past page 1 is past the document's last
+// page, so › stops there; anything else says so under the page with Try again. On the right a card
 // per problem (#problems): the field's title, the problem, what was read and why it is a problem, and the decisions:
 // Use this value (the value typed), Accept as read (only when a value was read) and Not in this document. A decision
 // settles its card (only that card is drawn again; it stays disabled while the decision is on its way), and the stats,
@@ -34,12 +41,12 @@
 // the dataset holds only the first rows, and when the destination couldn't be read.
 //
 // The choice (#choose) lists, under its two choices, the saved runs (#saved-runs, newest first: "Open a saved run") and
-// extraction templates (#saved-extractions: reopened on the setup screen, its samples read again), each time it is
-// shown (saying so in #choose-msg when they can't be read), and opens a command line run's folder on the server's
-// machine by its path (#run-folder).
+// extraction templates (#saved-extractions: reopened on the setup screen, its samples read again, where Run on all
+// runs it on a new batch), each time it is shown (saying so in #choose-msg when they can't be read, and taking that
+// back once they can), and opens a command line run's folder on the server's machine by its path (#run-folder).
 
 import { downloadBytes } from "../core/store.js";
-import { asideLine, decisionText, docLine, problemLabel, runLine, runStats, sendNotice } from "./extract-model.js";
+import { FIELD_COUNTS, asideLine, decisionText, docLine, fieldTable, problemLabel, runLine, runStats, sendNotice } from "./extract-model.js";
 import { mountZoom } from "./extract-setup.js";
 import { showStages } from "./jobs.js";
 
@@ -57,6 +64,8 @@ const number = (n) => Number(n ?? 0).toLocaleString("en-US");
 const plural = (n, word, many = `${word}s`) => `${number(n)} ${n === 1 ? word : many}`;
 const pct = (fraction) => `${fraction * 100}%`;
 const keyOf = (docId, path) => `${docId}\n${path}`;
+/** The By field table's column headings, for FIELD_COUNTS. */
+const COUNT_HEADS = { found: "Found", missing: "Missing", failed_check: "Fails a check", unsure: "Unsure", reviewed: "Reviewed" };
 
 /** An element with `props` set and `children` appended. */
 function make(tag, props = {}, ...children) {
@@ -103,6 +112,7 @@ export function mountReview(app) {
   const deciding = new Set(); // keyOf(doc, path) of the decisions on their way
   let listing = 0; // the list asked for last
   let choices = 0; // the choice's lists asked for last
+  let listFailed = ""; // what #choose-msg said when the choice's lists last couldn't be read ("" when they could)
   let running = false; // Run on all is saving, starting or following its job
   let job = null; // the run job followed: {handle, stopping}
 
@@ -122,10 +132,13 @@ export function mountReview(app) {
 
   // ------------------------------------------------------------------ Run on all
 
-  /** Save the setup when it is not saved as it is, then read its batch with it (see the top). */
+  /**
+   * Save the setup when it is not saved as it is, then read its batch with it; a setup with no batch picks one in
+   * the Extract modal's Run on a batch mode first (see the top).
+   */
   async function runOnAll() {
     const setup = app.setup?.current;
-    if (running || !setup?.batch) return;
+    if (running || !setup) return;
     running = true;
     try {
       await app.setup.settled(); // an edit sent as the click took the focus from its box is part of what is run
@@ -135,14 +148,15 @@ export function mountReview(app) {
         name = await app.setup.promptSave();
         if (name === null) return; // closed without saving
       }
-      await follow(setup, name);
+      if (setup.batch) await follow(setup, setup.batch, name);
+      else app.extract.openRunOn(name, (batch) => follow(setup, batch, name));
     } finally {
       running = false;
     }
   }
 
-  /** Start the run job of the saved template `name` on the setup's batch and follow it in the run panel. */
-  async function follow(setup, name) {
+  /** Start the run job of the saved template `name` on the batch `batch` and follow it in the run panel. */
+  async function follow(setup, batch, name) {
     const panel = $("running");
     const run = { handle: null, stopping: false };
     job = run;
@@ -153,7 +167,7 @@ export function mountReview(app) {
     panel.hidden = false;
     let ended;
     try {
-      run.handle = await calls.startRun({ extraction: name, batch: setup.batch, ai: $("ai-fallback").checked });
+      run.handle = await calls.startRun({ extraction: name, batch, ai: $("ai-fallback").checked });
       if (run.stopping) run.handle.cancel().catch(() => {}); // Cancel was pressed while it was starting
       run.handle.onUpdate = (j) => showJob(j, run);
       ended = await run.handle.done;
@@ -229,7 +243,7 @@ export function mountReview(app) {
     const fieldPick = $("filter-path");
     fieldPick.replaceChildren(
       new Option("Every field", ""),
-      ...run.fields.map((f) => Object.assign(new Option(f.path, f.path), { title: f.title })),
+      ...fieldTable(run.fields).map((row) => Object.assign(new Option(row.path, row.path), { title: row.title })),
     );
     fieldPick.disabled = false;
     $("filter-status").value = "";
@@ -255,6 +269,44 @@ export function mountReview(app) {
         return el;
       }),
     );
+    renderFieldTable();
+  }
+
+  /** The By field table: a row per field (folded as the field filter is), its counts; a click filters by it. */
+  function renderFieldTable() {
+    const rows = fieldTable(state.run.fields);
+    $("by-field").hidden = rows.length === 0;
+    $("by-field-sum").textContent = plural(rows.length, "field");
+    const heads = ["Field", ...FIELD_COUNTS.map((k) => COUNT_HEADS[k])];
+    const head = make("tr", {}, ...heads.map((text) => make("th", { scope: "col", textContent: text })));
+    const body = rows.map((row) => {
+      const where = row.items === null ? row.path : `${row.path} · ${plural(row.items, "item")}`;
+      const name = make("th", { scope: "row", textContent: row.title }, make("small", { textContent: where }));
+      const tr = make("tr", { tabIndex: 0, className: row.path === state.path ? "on" : "", title: "Show the documents with a problem in this field" }, name);
+      tr.append(...FIELD_COUNTS.map((k) => make("td", { textContent: number(row[k]) })));
+      tr.dataset.path = row.path;
+      tr.addEventListener("click", () => filterBy(row.path));
+      tr.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        e.preventDefault();
+        filterBy(row.path);
+      });
+      return tr;
+    });
+    $("field-table").replaceChildren(make("thead", {}, head), make("tbody", {}, ...body));
+  }
+
+  /** Set the field filter to `path` (a row of the By field table), every problem of it, and list again. */
+  function filterBy(path) {
+    if (state.status === "set_aside") {
+      state.status = "";
+      $("filter-status").value = "";
+      $("filter-path").disabled = false;
+    }
+    state.path = path;
+    $("filter-path").value = path;
+    renderFieldTable();
+    list();
   }
 
   for (const btn of $("view-pick").querySelectorAll("[data-view]")) {
@@ -347,6 +399,7 @@ export function mountReview(app) {
 
   $("filter-path").addEventListener("change", () => {
     state.path = $("filter-path").value;
+    renderFieldTable();
     list();
   });
   $("filter-status").addEventListener("change", () => {
@@ -377,22 +430,44 @@ export function mountReview(app) {
         zoom.refresh();
         drawMarks();
       });
-      img.addEventListener("error", () => {
-        if (!img.isConnected) return;
-        if (state.page > 0) {
-          state.pages = state.page; // a page past the document's last: back to its last
-          state.page -= 1;
-          showPage();
-        } else {
-          $("rcap").textContent = "This document's page couldn't be shown.";
-        }
-      });
+      img.addEventListener("error", () => pageFailed(img, d.doc_id));
       img.src = src;
       pg.replaceChildren(img);
     }
     drawMarks();
     renderPager();
     renderCaption();
+  }
+
+  /**
+   * The page image `img` of `docId` failed: ask for it through the engine to learn why. A 404 past the first page is
+   * past the document's last, so its pages stop there; anything else (the server unreachable, the file unreadable,
+   * the page there after all) says so under the page, with Try again.
+   */
+  async function pageFailed(img, docId) {
+    if (!img.isConnected) return;
+    const page = state.page;
+    let reason = "";
+    try {
+      await calls.runPage(state.run.id, docId, page, DPI);
+      reason = "it didn't load";
+    } catch (e) {
+      if (e.status === 404 && page > 0) {
+        if (!img.isConnected || state.doc !== docId || state.page !== page) return;
+        state.pages = page; // a page past the document's last: back to its last
+        state.page = page - 1;
+        showPage();
+        return;
+      }
+      reason = e.message;
+    }
+    if (!img.isConnected || state.doc !== docId || state.page !== page) return;
+    const retry = make("button", { type: "button", className: "btn quiet small", textContent: "Try again" });
+    retry.addEventListener("click", () => {
+      pg.replaceChildren(); // a new image of the same page
+      showPage();
+    });
+    $("rcap").replaceChildren(`This page couldn't be shown: ${reason}. `, retry);
   }
 
   /** Outline where each problem on the page shown was read, or looked for; the picked one heavy. */
@@ -620,7 +695,6 @@ export function mountReview(app) {
     }
   }
 
-  /** The fill form a saved extraction template was made for (its destination), or null. */
   /** `{form, error}`: the fill form a saved extraction template was made for (its destination, or null), and why it
    * couldn't be read ("" when it could). */
   async function destinationOf(name) {
@@ -674,10 +748,15 @@ export function mountReview(app) {
     try {
       [runs, saved] = await Promise.all([calls.runs(), calls.list()]);
     } catch (e) {
-      if (token === choices) app.say(chooseMsg, `The saved runs and extractions couldn't be listed: ${e.message}`);
+      if (token === choices) {
+        listFailed = `The saved runs and extractions couldn't be listed: ${e.message}`;
+        app.say(chooseMsg, listFailed);
+      }
       return;
     }
     if (token !== choices) return;
+    if (listFailed && chooseMsg.textContent === listFailed) app.say(chooseMsg, ""); // listed now: that is no longer so
+    listFailed = "";
     $("saved-runs-group").hidden = runs.length === 0;
     $("saved-runs").replaceChildren(...runs.map((r) => choiceItem(runLine(r), startedText(r.started), () => openSaved(r.id))));
     $("saved-extractions-group").hidden = saved.length === 0;

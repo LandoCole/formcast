@@ -604,6 +604,20 @@ test("exportRun downloads the run's file with its name and type, and a refusal r
   await assert.rejects(engine.extract.exportRun(RUN_ID, "parquet"), (e) => e instanceof EngineError && e.code === "not_supported" && /pyarrow/.test(e.message));
 });
 
+test("runPage fetches a page of a run's document, and a page past its last rejects as not_found with its status", async () => {
+  const { engine } = await engineWith({
+    "GET /api/capabilities": json(200, EXTRACT_CAPS),
+    [`GET /api/runs/${RUN_ID}/pages.png?doc=a.pdf&page=0&dpi=40`]: new Response(new Uint8Array([137, 80, 78, 71]), { status: 200, headers: { "Content-Type": "image/png" } }),
+    [`GET /api/runs/${RUN_ID}/pages.png?doc=a.pdf&page=3&dpi=40`]: json(404, { error: "not_found", detail: "a.pdf has no page 4" }),
+    [`GET /api/runs/${RUN_ID}/pages.png?doc=a.pdf&page=1&dpi=40`]: json(422, { error: "bad_pdf", detail: "a.pdf can't be shown" }),
+  });
+  const png = await engine.extract.runPage(RUN_ID, "a.pdf", 0, 40);
+  assert.deepEqual([...png.bytes], [137, 80, 78, 71]);
+  assert.equal(png.type, "image/png");
+  await assert.rejects(engine.extract.runPage(RUN_ID, "a.pdf", 3, 40), (e) => e instanceof EngineError && e.code === "not_found" && e.status === 404);
+  await assert.rejects(engine.extract.runPage(RUN_ID, "a.pdf", 1, 40), (e) => e.code === "bad_pdf" && e.status === 422);
+});
+
 test("extraction reads a saved extraction template by name", async () => {
   const template = { name: "Client info", setup: { destination: "fw9" } };
   const { engine } = await engineWith({

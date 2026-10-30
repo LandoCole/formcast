@@ -11,6 +11,7 @@ import {
   docLine,
   fieldSchema,
   fieldState,
+  fieldTable,
   groupFields,
   outcomeLine,
   pagesText,
@@ -23,6 +24,7 @@ import {
   runTime,
   sendNotice,
   stripCells,
+  unusedName,
 } from "../../demo/web/workbench/extract-model.js";
 
 /** A sample's proof: its outcome and what the readers read (`status` found unless given). */
@@ -373,4 +375,29 @@ test("sendNotice warns of documents still with problems and of a dataset cut sho
     "Only the first 10,000 documents are in the data, as many as a dataset holds; export the run for every one.",
   );
   assert.match(sendNotice({ dataset, truncated: true, with_problems: 2 }), /^2 documents still have problems; .* gaps\. Only the first 10,000 documents/);
+});
+
+test("fieldTable gives the review's By field rows, a repeated group's items folded into one row and summed", () => {
+  const counts = (found, missing, failed_check = 0, unsure = 0, reviewed = 0) => ({ found, missing, failed_check, unsure, reviewed, not_on_form: 0 });
+  const fields = [
+    { path: "investor.tax_id", title: "Taxpayer ID", ...counts(20, 2, 1, 0, 1) },
+    { path: "owners[0].name", title: "Owner name", ...counts(9, 1) },
+    { path: "owners[1].name", title: "Owner name", ...counts(4, 3, 0, 2, 2) },
+    { path: "owners[0].percent", title: "owners[0].percent", ...counts(10, 0) },
+    { path: "owners[1].percent", title: "owners[1].percent", ...counts(5, 1) },
+  ];
+  assert.deepEqual(fieldTable(fields), [
+    { path: "investor.tax_id", title: "Taxpayer ID", items: null, found: 20, missing: 2, failed_check: 1, unsure: 0, reviewed: 1 },
+    { path: "owners[].name", title: "Owner name", items: 2, found: 13, missing: 4, failed_check: 0, unsure: 2, reviewed: 2 },
+    { path: "owners[].percent", title: "owners[].percent", items: 2, found: 15, missing: 1, failed_check: 0, unsure: 0, reviewed: 0 },
+  ]); // a title that is only the path is the folded path
+  assert.deepEqual(fieldTable([]), []);
+});
+
+test("unusedName offers the name itself when it is free, else the first numbered one no template has", () => {
+  assert.equal(unusedName("Uploaded files", []), "Uploaded files");
+  assert.equal(unusedName("Uploaded files", ["Uploaded files"]), "Uploaded files 2");
+  assert.equal(unusedName("Uploaded files", new Set(["Uploaded files", "Uploaded files 2", "Other"])), "Uploaded files 3");
+  const long = "x".repeat(80);
+  assert.equal(unusedName(long, [long]), `${"x".repeat(78)} 2`); // cut to fit 80 characters
 });

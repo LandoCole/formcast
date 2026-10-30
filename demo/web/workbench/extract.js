@@ -15,7 +15,11 @@
 //
 // The Extract modal, in the mockup's four groups. 1 · the batch: the PDFs and zips among the files chosen or dropped
 // (or in a folder chosen) go to one batch, made at the first upload and added to after; a folder typed is opened on
-// the server's machine as a new batch. A file over the server's upload limit is left out and named in
+// the server's machine as a new batch. Start a new batch (#new-batch, shown once there is one) clears the batch on
+// show, so the next files or folder start a new one; a batch the server no longer has (it restarted) is cleared the
+// same way the moment a call about it answers 404, with "That batch is no longer on the server; add the documents
+// again." While the modal is open a file dropped anywhere on the page but #drop is ignored, never opened by the
+// browser in place of the page. A file over the server's upload limit is left out and named in
 // #extract-msg (engine.extract.addFiles skips it). The batch's line, strip and note (extract-model.js) follow its
 // scan, polled until it ends: until the scan is done every cell reads "not scanned yet", and then the strip marks the
 // documents the sample would take now (the marks go as soon as the scan starts again or the sample changes). 2 · the
@@ -32,6 +36,12 @@
 // can't start, goes back to the modal with its message; Cancel asks the job to stop and goes back at once, the job's
 // end ignored. `openModal(setupInfo)` opens the modal again with a template's choices (a SetupInfo: start, lines,
 // destination, detect, pages, ocr, sample_how), for the setup screen's "Change the setup".
+//
+// Run on a batch. `openRunOn(name, start)` opens the modal for a saved extraction template that has no batch (one
+// reopened from the choice): titled "Run <name> on a batch", with group 1 only (the parts marked `data-part="build"`
+// hidden, those marked `data-part="run"` shown), and Run on these → (#run-these) in place of Read the sample,
+// enabled once the batch has documents and its scan is done. It closes the modal and calls `start(batch id)`, which
+// starts the run and follows it (extract-review.js). Back there returns to the setup screen it came from.
 
 import { POLL_MS } from "../engines/server/client.js";
 import { batchLine, batchNote, pagesText, parsePages, stripCells } from "./extract-model.js";
@@ -49,6 +59,8 @@ export const DETECT_SUM = { auto: "automatic, prose skipped", all: "automatic, e
 /** A setup's `start` for each choice of the "Start from" buttons, and back. */
 const START_OF = { ai: "ai", user: "lines", dest: "destination" };
 const MODE_OF = { ai: "ai", lines: "user", destination: "dest" };
+/** What the modal says when the server no longer has the batch on show. */
+export const BATCH_GONE = "That batch is no longer on the server; add the documents again.";
 /** What a strip cell's state means, as its title. */
 const CELL_TITLES = { sample: "in the sample", main: "fillable", flat: "flattened", other: "a different layout", pending: "not scanned yet" };
 
@@ -58,9 +70,10 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 /**
  * @param {object} app see workbench.js
  * @returns {{show: () => void, setMode: (mode: "fill" | "extract") => void, showView: (name: string | null) => void,
- *   openModal: (setupInfo?: object) => void, openSetup?: (setup: object, opts?: object) => void, onShow: () => void,
- *   linked: () => boolean}} `onShow` and `linked` are set by the review (extract-review.js): what the choice lists
- *   each time it is shown, and whether the setup and the run on screen belong together
+ *   openModal: (setupInfo?: object) => void, openRunOn: (name: string, start: (batch: string) => unknown) => void,
+ *   openSetup?: (setup: object, opts?: object) => void, onShow: () => void, linked: () => boolean}} `onShow` and
+ *   `linked` are set by the review (extract-review.js): what the choice lists each time it is shown, and whether the
+ *   setup and the run on screen belong together
  */
 export function mountExtract(app) {
   const { $, bus, engine } = app;
@@ -99,7 +112,7 @@ export function mountExtract(app) {
     }
   }
 
-  const api = { show, setMode, showView, openModal: () => {}, onShow: () => {}, linked: () => false };
+  const api = { show, setMode, showView, openModal: () => {}, openRunOn: () => {}, onShow: () => {}, linked: () => false };
 
   fill.addEventListener("click", () => {
     app.say($("choose-msg"), ""); // a message the choice was shown with goes with the choice made
@@ -120,7 +133,7 @@ export function mountExtract(app) {
   return api;
 }
 
-/** The Extract modal and the building panel (see the top); sets `api.openModal`. */
+/** The Extract modal and the building panel (see the top); sets `api.openModal` and `api.openRunOn`. */
 function mountModal(app, api) {
   const { $, bus, engine } = app;
   const calls = engine.extract;
@@ -140,6 +153,7 @@ function mountModal(app, api) {
     destination: null, // the destination to select once the list has loaded
     work: Promise.resolve(), // uploads and folder scans, one after another
     progress: "", // an upload under way, shown in place of the batch's line
+    runOn: null, // Run on a batch: {name, start} of the saved extraction template to run, or null to build one
   };
   let watching = 0; // the scan watch running (a newer one ends an older)
   let previewing = 0; // the sample preview asked for last
@@ -153,14 +167,32 @@ function mountModal(app, api) {
 
   /** Open the modal (closing any other overlay), with a template's choices when `info` (a SetupInfo) is given. */
   function openModal(info) {
-    for (const o of document.querySelectorAll(".overlay")) if (o !== sheet) o.hidden = true;
-    api.setMode("extract");
+    state.runOn = null;
     if (info) apply(info);
     renderMode();
     renderDetect();
-    sheet.hidden = false;
+    showSheet();
   }
   api.openModal = openModal;
+
+  /** Open the modal to run the saved extraction template `name` on a batch: `start(batch id)` starts it (see the top). */
+  function openRunOn(name, start) {
+    state.runOn = { name, start };
+    showSheet();
+  }
+  api.openRunOn = openRunOn;
+
+  /** Show the modal in its mode (building a template, or running one on a batch), closing any other overlay. */
+  function showSheet() {
+    for (const o of document.querySelectorAll(".overlay")) if (o !== sheet) o.hidden = true;
+    api.setMode("extract");
+    const running = state.runOn !== null;
+    $("extract-title").textContent = running ? `Run ${state.runOn.name} on a batch` : "Extract from PDFs";
+    for (const el of sheet.querySelectorAll("[data-part]")) el.hidden = el.dataset.part !== (running ? "run" : "build");
+    say("");
+    renderBatch();
+    sheet.hidden = false;
+  }
 
   /** Put a SetupInfo's choices in the modal. */
   function apply(info) {
@@ -208,6 +240,26 @@ function mountModal(app, api) {
       }),
     );
     $("batch-note").textContent = b ? batchNote(b, cells.length) : "";
+    $("run-these").disabled = !(b !== null && b.count > 0 && b.scan?.phase === "done" && !state.progress);
+  }
+
+  /** Clear the batch on show (Start a new batch, or a batch the server no longer has): the next upload makes one. */
+  function clearBatch() {
+    state.batch = null;
+    state.sample = [];
+    state.picked = new Set();
+    state.progress = "";
+    watching += 1; // a scan watch of it ends
+    previewing += 1;
+    relist();
+    renderBatch();
+  }
+
+  /** Whether `e` is the server saying it has no such batch (it restarted since): the batch is then cleared. */
+  function batchGone(e) {
+    if (e?.code !== "not_found" && e?.code !== "bad_batch") return false;
+    clearBatch();
+    return true;
   }
 
   /** Show `batch`, the batch's latest state; another batch starts its sample and pick list over. */
@@ -225,7 +277,7 @@ function mountModal(app, api) {
     state.work = state.work.then(task).catch((e) => {
       state.progress = "";
       renderBatch();
-      say(e.message);
+      say(batchGone(e) ? BATCH_GONE : e.message);
     });
     return state.work;
   }
@@ -247,6 +299,7 @@ function mountModal(app, api) {
       });
     } catch (e) {
       state.progress = "";
+      if (e?.code === "not_found") throw e; // the batch is gone: the queue clears it and says so
       setBatch(await calls.batch(batch.id).catch(() => batch)); // what went in before the refusal stays
       watchScan();
       throw e;
@@ -286,7 +339,7 @@ function mountModal(app, api) {
       try {
         batch = await calls.batch(state.batch.id);
       } catch (e) {
-        say(e.message);
+        if (token === watching) say(batchGone(e) ? BATCH_GONE : e.message);
         return;
       }
       if (token !== watching) return;
@@ -333,6 +386,16 @@ function mountModal(app, api) {
     e.preventDefault();
     drop.classList.remove("is-over");
     take(e.dataTransfer?.files ?? []);
+  });
+  // a file dropped beside the zone while the modal is open is ignored, not opened by the browser in the page's place
+  for (const type of ["dragover", "drop"]) {
+    document.addEventListener(type, (e) => {
+      if (!sheet.hidden) e.preventDefault();
+    });
+  }
+  $("new-batch").addEventListener("click", () => {
+    say("");
+    queue(clearBatch); // after the uploads under way: what they add goes to the batch being cleared
   });
   $("scan").addEventListener("click", () => queue(scanFolder));
   $("folder").addEventListener("keydown", (e) => {
@@ -396,7 +459,7 @@ function mountModal(app, api) {
     try {
       page = await calls.files(b.id, state.listed, PICK_PAGE);
     } catch (e) {
-      say(e.message);
+      if (state.batch?.id === b.id) say(batchGone(e) ? BATCH_GONE : e.message);
       return;
     }
     if (state.batch?.id !== b.id || page.files[0]?.index !== state.listed) return; // relisted meanwhile
@@ -586,7 +649,7 @@ function mountModal(app, api) {
     try {
       samples = (await calls.pickSample(batch.id, sample.body)).map((s) => s.index);
     } catch (e) {
-      say(e.message);
+      say(batchGone(e) ? BATCH_GONE : e.message);
       return null;
     }
     return { batch, samples, spec: { ...choices.spec, pages: pagesFor(samples.length, choices.searched) } };
@@ -603,7 +666,7 @@ function mountModal(app, api) {
     try {
       run.handle = await calls.startSetup({ batch: batch.id, samples, spec });
     } catch (e) {
-      backFrom(run, e.message);
+      backFrom(run, e.code === "bad_batch" && batchGone(e) ? BATCH_GONE : e.message);
       return;
     }
     if (run.cancelled) {
@@ -665,6 +728,26 @@ function mountModal(app, api) {
   });
   $("extract-back").addEventListener("click", () => {
     sheet.hidden = true;
-    api.show();
+    if (state.runOn === null) api.show(); // Run on a batch goes back to the setup screen under it
   });
+
+  /** Run on these →: the saved extraction template on the batch on show (see the top). */
+  async function runThese() {
+    const button = $("run-these");
+    if (button.disabled || state.runOn === null) return;
+    button.disabled = true;
+    say("");
+    await state.work; // the uploads under way go in first
+    const batch = state.batch;
+    if (batch === null || batch.count === 0 || batch.scan?.phase !== "done") {
+      renderBatch();
+      say("Add the documents first: drop them in, or scan a folder.");
+      return;
+    }
+    const { start } = state.runOn;
+    sheet.hidden = true;
+    renderBatch();
+    await start(batch.id);
+  }
+  $("run-these").addEventListener("click", runThese);
 }

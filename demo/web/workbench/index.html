@@ -168,6 +168,10 @@
   <!-- the review of a run (extract-review.js) -->
   <div class="view" data-only="review" hidden>
     <div class="stats" id="stats"></div>
+    <details class="by-field" id="by-field" open hidden>
+      <summary class="label">By field · <span id="by-field-sum"></span></summary>
+      <div class="by-field-scroll"><table class="field-table" id="field-table" aria-label="Each field's documents"></table></div>
+    </details>
     <div class="bench">
       <aside class="col col-schema pane" aria-label="Documents with problems">
         <p class="label" id="docs-label">Documents with problems</p>
@@ -251,7 +255,8 @@
 <div class="overlay" id="extract" role="dialog" aria-modal="true" aria-labelledby="extract-title" hidden>
   <div class="sheet wide">
     <h1 id="extract-title">Extract from PDFs</h1>
-    <p class="lede">Upload the batch. A few documents become the sample the template is learned from; then every document is read the same way, with no AI per document.</p>
+    <p class="lede" data-part="build">Upload the batch. A few documents become the sample the template is learned from; then every document is read the same way, with no AI per document.</p>
+    <p class="lede" data-part="run" hidden>Add the documents to read with this extraction template. Every one is read the way its samples were, with no AI per document.</p>
 
     <div class="group">
       <p class="label">1 · Your documents</p>
@@ -270,10 +275,11 @@
         <p class="batch-sum" id="batch-sum" aria-live="polite"></p>
         <ol class="reading-strip" id="batch-strip" aria-label="Documents by layout"></ol>
         <p class="opt" id="batch-note"></p>
+        <button type="button" class="btn quiet small" id="new-batch" title="Clear this batch: the next files or folder start a new one">Start a new batch</button>
       </div>
     </div>
 
-    <div class="group">
+    <div class="group" data-part="build">
       <p class="label">2 · The sample</p>
       <div class="samplerow">
         <label class="num">Use <input type="number" class="text" id="n-sample" min="3" max="20" value="5" step="1"> documents</label>
@@ -288,7 +294,7 @@
       <button type="button" class="btn quiet small below" id="pick-more" hidden>More</button>
     </div>
 
-    <div class="group">
+    <div class="group" data-part="build">
       <p class="label">3 · What to extract</p>
       <span class="seg" role="group" aria-label="Start from">
         <button type="button" class="btn quiet" data-mode="ai" aria-pressed="true">AI suggests</button>
@@ -310,7 +316,7 @@
       </div>
     </div>
 
-    <details class="group more" id="extract-settings">
+    <details class="group more" id="extract-settings" data-part="build">
       <summary class="label">4 · Detection and reading · <span id="settings-sum">automatic, prose skipped</span></summary>
       <dl class="settings">
         <dt><label for="detect">Find the blanks on the sample</label></dt>
@@ -340,7 +346,8 @@
     <p class="msg" id="extract-msg" role="alert" hidden></p>
     <div class="row">
       <button type="button" class="btn quiet" id="extract-back">Back</button>
-      <button type="button" class="btn dark" id="read-sample">Read the sample →</button>
+      <button type="button" class="btn dark" id="read-sample" data-part="build">Read the sample →</button>
+      <button type="button" class="btn dark" id="run-these" data-part="run" hidden disabled>Run on these →</button>
     </div>
   </div>
 </div>
@@ -463,13 +470,20 @@
     <div class="group">
       <p class="label"><label for="setup-save-name">Name in the store</label></p>
       <input type="text" class="text" id="setup-save-name" maxlength="80" autocomplete="off" spellcheck="false">
-      <p class="hint">Letters, digits, spaces, dots, dashes and underscores. An extraction template with the same name is replaced.</p>
+      <p class="hint">Letters, digits, spaces, dots, dashes and underscores. Saving under a name already saved asks before it replaces that extraction template.</p>
     </div>
     <p class="hint">Saves the fields, how each one is read and the sample PDFs, so the template reads the whole batch with no AI per document, and opens again later.</p>
     <p class="msg" id="setup-save-msg" role="alert" hidden></p>
-    <div class="row">
+    <div class="row" id="setup-save-row">
       <button type="button" class="btn quiet" id="setup-save-cancel">Cancel</button>
       <button type="button" class="btn dark" id="setup-save-go">Save</button>
+    </div>
+    <div class="confirm" id="setup-replace" role="alertdialog" aria-labelledby="setup-replace-text" hidden>
+      <p id="setup-replace-text"></p>
+      <div class="row">
+        <button type="button" class="btn quiet" id="setup-replace-cancel">Cancel</button>
+        <button type="button" class="btn dark" id="setup-replace-go">Replace</button>
+      </div>
     </div>
   </div>
 </div>

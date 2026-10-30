@@ -44,7 +44,7 @@
 // `files`, `pickSample`, `pageUrl`), a setup built from a sample of
 // it (`startSetup` and `startLine` are jobs; `setup`, `reopen` of a saved extraction template, `edit`, `learn`,
 // `marks`, `samplePageUrl`), the saved extraction templates (`save`, `list`, `extraction`, `remove`) and runs
-// (`startRun` is a job; `runs`, `openRun`, `run`, `problems`, `setAside`, `decide`, `runPageUrl`, `exportUrl`,
+// (`startRun` is a job; `runs`, `openRun`, `run`, `problems`, `setAside`, `decide`, `runPageUrl`, `runPage`, `exportUrl`,
 // `exportRun`, which downloads the export, `toData`). They are the
 // server's routes (demo/server/extract_api.py) one for one, and fail with EngineError as every call does: a setup or
 // run the server no longer has (it restarted) is `not_found`, an edit while a line job runs on the setup
@@ -436,6 +436,16 @@ export async function createServerEngine({
       decide: (id, decision) => call("POST", `${runPath(id)}/decisions`, { json: decision }),
       /** The URL of page `page` (from 0) of the run's document `docId`, as a PNG. */
       runPageUrl: (id, docId, page, dpi = DEFAULT_DPI) => `${root}${runPath(id)}/pages.png${query({ doc: docId, page, dpi: Math.round(dpi) })}`,
+      /**
+       * That page fetched: `{bytes, type}`. It rejects as every call does, so a page past the document's last is
+       * `not_found` (status 404), told apart from any other failure (an image element's error event can't).
+       * @param {string} id
+       * @param {string} docId
+       * @param {number} page
+       * @param {number} [dpi]
+       */
+      runPage: (id, docId, page, dpi = DEFAULT_DPI) =>
+        call("GET", `${runPath(id)}/pages.png${query({ doc: docId, page, dpi: Math.round(dpi) })}`, { file: true }),
       /** The URL that downloads the run's results: `xlsx`, or a zip of the `parquet` or `csv` files. */
       exportUrl: (id, format = "xlsx") => `${root}${runPath(id)}/export${query({ format })}`,
       /**

@@ -247,16 +247,54 @@ def test_choosing_five_pdfs_shows_the_batch_summary_and_a_strip_cell_for_each_af
     expect(b.page.locator("#batch-note")).to_contain_text("One layout fits 5 of them (3 fillable, 2 flattened)")
 
 
-def test_dropping_pdfs_and_then_a_zip_puts_them_in_one_batch(start_demo_server, bench):
+def test_dropping_pdfs_and_then_a_zip_puts_them_in_one_batch_and_start_a_new_batch_starts_another(start_demo_server, bench):
     b = bench(extract_server(start_demo_server), fill=False)
     open_extract(b)
+    expect(b.page.locator("#new-batch")).to_be_hidden()  # no batch yet
     b.page.dispatch_event("#drop", "drop", {"dataTransfer": data_transfer(b, FILES[:3])})
     expect(b.page.locator("#batch-sum")).to_contain_text("3 PDFs")
     archive = zip_of(FILES[3:])
     b.page.dispatch_event("#drop", "drop", {"dataTransfer": data_transfer(b, [("more.zip", archive)], "application/zip")})
     expect(b.page.locator("#batch-sum")).to_contain_text("5 fillable or flattened copies of one layout")
     expect(b.page.locator("#batch-sum")).to_contain_text("5 PDFs")
-    assert len(start_demo_server.servers[-1].api.batches._batches) == 1
+    batches = start_demo_server.servers[-1].api.batches._batches
+    assert len(batches) == 1
+
+    b.page.click("#new-batch")  # the next files start a batch of their own
+    expect(b.page.locator("#batch")).to_be_hidden()
+    b.page.dispatch_event("#drop", "drop", {"dataTransfer": data_transfer(b, FILES[:2])})
+    expect(b.page.locator("#batch-sum")).to_contain_text("2 PDFs")
+    expect(b.page.locator("#batch-strip li")).to_have_count(2)
+    assert len(batches) == 2 and sorted(len(x.files) for x in batches.values()) == [2, 5]
+
+
+def test_a_batch_the_server_no_longer_has_is_cleared_and_the_next_files_start_a_new_one(start_demo_server, bench):
+    b = bench(extract_server(start_demo_server), fill=False)
+    open_extract(b)
+    add_five(b)
+    batches = start_demo_server.servers[-1].api.batches._batches
+    batches.clear()  # as after a restart: the batch's id is unknown
+    b.page.set_input_files("#drop-files", files=pdf_files(FILES[:1]))
+    expect(b.page.locator("#extract-msg")).to_have_text("That batch is no longer on the server; add the documents again.")
+    expect(b.page.locator("#batch")).to_be_hidden()
+    b.page.set_input_files("#drop-files", files=pdf_files(FILES[:3]))
+    expect(b.page.locator("#batch-sum")).to_contain_text("3 PDFs")
+    expect(b.page.locator("#extract-msg")).to_be_hidden()
+    assert len(batches) == 1
+
+
+def test_a_file_dropped_beside_the_drop_zone_while_the_modal_is_open_is_ignored(start_demo_server, bench):
+    b = bench(extract_server(start_demo_server), fill=False)
+    url = b.page.url
+    drop_on_body = """dt => {
+        const events = ["dragover", "drop"].map((type) => new DragEvent(type, { dataTransfer: dt, bubbles: true, cancelable: true }));
+        return events.map((e) => { document.querySelector(".sheet h1").dispatchEvent(e); return e.defaultPrevented; });
+    }"""
+    assert b.page.evaluate(drop_on_body, data_transfer(b, FILES[:1])) == [False, False]  # the modal closed: as ever
+    open_extract(b)
+    assert b.page.evaluate(drop_on_body, data_transfer(b, FILES[:1])) == [True, True]
+    expect(b.page.locator("#batch")).to_be_hidden()  # nothing was added either
+    assert b.page.url == url
 
 
 def test_the_sample_size_must_be_3_to_20(start_demo_server, bench):
@@ -870,6 +908,59 @@ def test_save_asks_for_a_name_and_stores_the_extraction_template(start_demo_serv
     assert [e["name"] for e in listed] == ["client intake"] and listed[0]["samples"] == 5
 
 
+def test_save_offers_a_name_not_saved_yet_and_asks_before_replacing_a_saved_extraction(start_demo_server, bench):
+    base = extract_server(start_demo_server)
+    first = setup_on(base)
+    assert get_json(base, "/api/extractions/Client%20forms", "PUT", {"setup": first["id"]})[0] == 200
+    setup = setup_on(base)  # a second batch of the same name: its setup is named the same
+    b = bench(base, fill=False)
+    show_setup(b, setup)
+    saves = []
+    b.page.on("request", lambda r: saves.append(r.url) if r.method == "PUT" else None)
+    b.page.click("#setup-save")
+    expect(b.page.locator("#setup-save-name")).to_have_value("Client forms 2")  # "Client forms" is saved already
+
+    b.page.fill("#setup-save-name", "Client forms")  # typed over the saved one: asked first
+    b.page.click("#setup-save-go")
+    expect(b.page.locator("#setup-replace")).to_be_visible()
+    expect(b.page.locator("#setup-replace-text")).to_have_text("Replace the saved extraction “Client forms”?")
+    expect(b.page.locator("#setup-save-go")).to_be_hidden()
+    b.page.click("#setup-replace-cancel")
+    expect(b.page.locator("#setup-replace")).to_be_hidden()
+    expect(b.page.locator("#setup-save-box")).to_be_visible()
+    assert saves == []  # nothing was sent
+
+    b.page.click("#setup-save-go")
+    b.page.click("#setup-replace-go")
+    expect(b.page.locator("#setup-save-box")).to_be_hidden()
+    expect(b.page.locator("#notice")).to_contain_text("Saved “Client forms”")
+    assert len(saves) == 1
+    b.page.click("#setup-save")  # its own name now: saved again without a question
+    expect(b.page.locator("#setup-save-name")).to_have_value("Client forms")
+    b.page.click("#setup-save-go")
+    expect(b.page.locator("#setup-save-box")).to_be_hidden()
+    assert len(saves) == 2 and [e["name"] for e in get_json(base, "/api/extractions")[1]["extractions"]] == ["Client forms"]
+
+
+def test_save_shows_why_the_server_refuses_a_field_whose_column_clashes_with_the_exports_name(start_demo_server, bench):
+    from test_server_extract import with_a_field_named_name
+
+    base = extract_server(start_demo_server)
+    setup = setup_on(base)
+    kept = start_demo_server.servers[-1].api.setups.get(setup["id"])
+    kept.template = with_a_field_named_name(kept.template)
+    b = bench(base, fill=False)
+    show_setup(b, setup)
+    b.page.click("#setup-save")
+    b.page.fill("#setup-save-name", "Clash")
+    b.page.click("#setup-save-go")
+    expect(b.page.locator("#setup-save-msg")).to_have_text(
+        "the field 'name' would share its column with the document's name; rename the field"
+    )
+    expect(b.page.locator("#setup-save-box")).to_be_visible()
+    assert get_json(base, "/api/extractions")[1] == {"extractions": []}
+
+
 def test_an_edit_after_the_server_has_forgotten_the_setup_returns_to_the_choice_with_a_notice(start_demo_server, bench):
     base = extract_server(start_demo_server)
     setup = setup_on(base)
@@ -1209,6 +1300,93 @@ def test_the_review_lists_the_documents_with_problems_and_filters_them_by_field_
     page_loaded(b)
 
 
+def test_the_by_field_table_counts_each_field_folds_a_repeated_groups_items_and_filters_by_the_row_clicked(start_demo_server, bench, run_files):
+    base = extract_server(start_demo_server)
+    _, run_id = saved_run(base, run_files)
+    b = bench(base, fill=False)
+    show_review(b, run_id)
+    fields = get_json(base, f"/api/runs/{run_id}")[1]["fields"]
+    folded: dict[str, dict] = {}  # the run's fields folded as the table folds them
+    for f in fields:
+        row = folded.setdefault(re.sub(r"\[\d+\]", "[]", f["path"]), {k: 0 for k in ("found", "missing", "failed_check", "unsure", "reviewed")})
+        for k in row:
+            row[k] += f[k]
+    rows = b.page.locator("#field-table tbody tr")
+    expect(b.page.locator("#by-field")).to_be_visible()
+    expect(b.page.locator("#field-table thead th")).to_have_text(["Field", "Found", "Missing", "Fails a check", "Unsure", "Reviewed"])
+    expect(rows).to_have_count(len(folded))
+    expect(b.page.locator("#by-field-sum")).to_have_text(f"{len(folded)} fields")
+    tax = b.page.locator('#field-table tr[data-path="investor.tax_id"]')
+    counts = folded["investor.tax_id"]
+    expect(tax.locator("td")).to_have_text([str(counts[k]) for k in ("found", "missing", "failed_check", "unsure", "reviewed")])
+    expect(tax.locator("th")).to_contain_text("Taxpayer ID")
+    repeated = next(path for path in folded if "[]" in path)  # the owners: a row for all their items
+    items = sum(1 for f in fields if re.sub(r"\[\d+\]", "[]", f["path"]) == repeated)
+    assert items > 1
+    expect(b.page.locator(f'#field-table tr[data-path="{repeated}"] th small')).to_have_text(f"{repeated} · {items} items")
+
+    tax.click()  # the documents with a problem in that field
+    expect(b.page.locator("#filter-path")).to_have_value("investor.tax_id")
+    expect(b.page.locator("#docs li .doc-name")).to_have_text(["bad_tin.pdf", "no_tin.pdf"])
+    expect(tax).to_have_class(re.compile(r"\bon\b"))
+    b.page.select_option("#filter-status", "set_aside")
+    b.page.locator(f'#field-table tr[data-path="{repeated}"]').click()  # every item of the group, every problem again
+    expect(b.page.locator("#filter-status")).to_have_value("")
+    expect(b.page.locator("#filter-path")).to_have_value(repeated)
+    expect(b.page.locator("#filter-path")).to_be_enabled()
+    expect(b.page.locator("#docs-label")).to_have_text("Documents with problems · 0")
+
+    listed_after = b.page.locator("#docs li .doc-name")
+    b.page.select_option("#filter-path", "")
+    expect(listed_after).to_have_text(list(PROBLEM_FILES))
+    listed(b, "no_tin.pdf").click()
+    card(b, "investor.tax_id").locator("input").fill("12-3456789")
+    card(b, "investor.tax_id").locator('[data-act="value"]').click()  # a decision: the table follows
+    expect(tax.locator("td").nth(4)).to_have_text(str(counts["reviewed"] + 1))
+    expect(tax.locator("td").nth(1)).to_have_text(str(counts["missing"] - 1))
+
+
+def test_a_page_image_that_fails_past_the_first_page_stops_the_pages_only_when_it_is_not_there(start_demo_server, bench, run_files):
+    base = extract_server(start_demo_server)
+    _, run_id = saved_run(base, run_files)
+    b = bench(base, fill=False)
+    show_review(b, run_id)
+    page_loaded(b)
+    failing = re.compile(rf"/api/runs/{run_id}/pages\.png\?.*page=1&")
+    b.page.route(failing, lambda route: route.fulfill(status=500, content_type="application/json", body='{"error": "server", "detail": "the server had a problem"}'))
+    b.page.click("#rnext-p")  # page 2 fails for another reason than not being there: say so, and keep the pages
+    expect(b.page.locator("#rcap")).to_contain_text("This page couldn't be shown: the server had a problem.")
+    expect(b.page.locator("#rcap button")).to_have_text("Try again")
+    expect(b.page.locator("#rpage-of")).to_have_text("Page 2")
+    expect(b.page.locator("#rnext-p")).to_be_enabled()  # the document was not cut short
+    b.page.unroute(failing)
+    b.page.click("#rcap button")  # again: the page is there now (the form has two)
+    expect(b.page.locator("#rpage-of")).to_have_text("Page 2")
+    page_loaded(b)
+    expect(b.page.locator("#rcap")).to_have_text("The boxes are where each problem field was read, or looked for")
+    b.page.click("#rnext-p")  # page 3 is not there (404): the document ends at page 2
+    expect(b.page.locator("#rpage-of")).to_have_text("Page 2")
+    expect(b.page.locator("#rnext-p")).to_be_disabled()
+    page_loaded(b)
+
+
+def test_the_choices_message_that_the_lists_could_not_be_read_goes_once_they_are_listed(start_demo_server, bench, run_files):
+    base = extract_server(start_demo_server)
+    saved_run(base, run_files)
+    b = bench(base, fill=False)
+    expect(b.page.locator("#saved-runs li")).to_have_count(1)
+    runs = re.compile(r"/api/runs$")
+    b.page.route(runs, lambda route: route.fulfill(status=500, content_type="application/json", body='{"error": "server", "detail": "the server had a problem"}'))
+    open_extract(b)
+    b.page.click("#extract-back")  # the choice again: its lists can't be read
+    expect(b.page.locator("#choose-msg")).to_contain_text("The saved runs and extractions couldn't be listed")
+    b.page.unroute(runs)
+    open_extract(b)
+    b.page.click("#extract-back")  # and now they can: the message goes
+    expect(b.page.locator("#choose-msg")).to_be_hidden()
+    expect(b.page.locator("#saved-runs li")).to_have_count(1)
+
+
 def test_choosing_a_document_shows_its_page_with_the_problems_place_outlined_and_its_cards(start_demo_server, bench, run_files):
     base = extract_server(start_demo_server)
     _, run_id = saved_run(base, run_files)
@@ -1445,4 +1623,56 @@ def test_the_choice_lists_the_saved_runs_and_extractions_and_opens_them_or_a_run
     b.page.locator("#saved-extractions li button").first.click()  # a saved extraction opens on the setup screen
     expect(b.page.locator('.view[data-only="setup"]')).to_be_visible(timeout=30_000)
     expect(b.page.locator("#doc-pick")).to_contain_text("Client info")
-    expect(b.page.locator("#run")).to_be_disabled()  # it has no batch to run on
+    expect(b.page.locator("#run")).to_be_enabled()  # it has no batch: Run on all asks for one
+
+
+def test_a_saved_extraction_reopened_from_the_choice_runs_on_a_new_batch_and_its_review_follows(start_demo_server, bench, corpus_files, problem_files):
+    base = extract_server(start_demo_server)
+    setup = setup_on(base)
+    assert get_json(base, "/api/extractions/Client%20info", "PUT", {"setup": setup["id"]})[0] == 200
+    b = bench(base, fill=False)
+    started = []
+    b.page.on("request", lambda r: started.append(r.post_data_json) if r.method == "POST" and r.url.endswith("/api/jobs") else None)
+    b.page.locator("#saved-extractions li button").first.click()
+    expect(b.page.locator('.view[data-only="setup"]')).to_be_visible(timeout=30_000)
+    b.page.click("#run")  # saved and unchanged: no name asked, the documents to read with it
+    sheet = b.page.locator("#extract")
+    expect(sheet).to_be_visible()
+    expect(b.page.locator("#setup-save-box")).to_be_hidden()
+    expect(b.page.locator("#extract-title")).to_have_text("Run Client info on a batch")
+    expect(sheet.locator(".group > .label:visible")).to_have_text(["1 · Your documents"])  # the documents only
+    expect(b.page.locator("#read-sample")).to_be_hidden()
+    run_these = b.page.locator("#run-these")
+    expect(run_these).to_have_text("Run on these →")
+    expect(run_these).to_be_disabled()  # no documents yet
+
+    b.page.click("#extract-back")  # back to the setup screen it came from
+    expect(sheet).to_be_hidden()
+    expect(b.page.locator("#choose")).to_be_hidden()
+    expect(b.page.locator('.view[data-only="setup"]')).to_be_visible()
+    b.page.click("#run")
+    expect(sheet).to_be_visible()
+
+    b.page.set_input_files("#drop-files", files=pdf_files(corpus_files + problem_files))
+    expect(b.page.locator("#batch-sum")).to_contain_text("25 PDFs")
+    expect(run_these).to_be_enabled(timeout=30_000)  # scanned
+    run_these.click()
+    expect(b.page.locator('.view[data-only="review"]')).to_be_visible(timeout=60_000)
+    expect(sheet).to_be_hidden()
+    [entry] = get_json(base, "/api/runs")[1]["runs"]
+    batch_id = started[-1]["batch"]
+    assert started == [{"kind": "extract-run", "extraction": "Client info", "batch": batch_id, "ai": False}]
+    assert batch_id != setup["batch"] and (entry["extraction"], entry["summary"]["total"]) == ("Client info", 25)
+    expect(stat(b, "total")).to_have_text("25")
+    expect(stat(b, "with_problems")).to_have_text("3")
+    expect(b.page.locator("#docs li .doc-name")).to_have_text(list(PROBLEM_FILES))
+    views = b.page.locator("#view-pick [data-view]")
+    expect(views.nth(0)).to_be_enabled()  # the setup it was run from is on screen
+    views.nth(0).click()
+    expect(b.page.locator('.view[data-only="setup"]')).to_be_visible()
+
+    b.page.click("#doc-pick")  # Extract from PDFs afterwards builds a template again
+    open_extract(b)
+    expect(b.page.locator("#extract-title")).to_have_text("Extract from PDFs")
+    expect(b.page.locator("#read-sample")).to_be_visible()
+    expect(run_these).to_be_hidden()

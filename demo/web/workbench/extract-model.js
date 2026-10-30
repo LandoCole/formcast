@@ -16,8 +16,9 @@
 // plain words; `fieldSchema` finds a concrete path's schema node. A batch (`batchLine`, `stripCells`, `batchNote`) is
 // told by its scan: how many of its PDFs are copies of its largest layout, the rest being set aside for another
 // template. A run's review says its numbers (`runStats`, `runTime`), each document's open problems (`docLine`) or why
-// it was set aside (`asideLine`), a decision made (`decisionText`), a saved run in a line (`runLine`) and what Send to
-// fill warns of first (`sendNotice`).
+// it was set aside (`asideLine`), a decision made (`decisionText`), a saved run in a line (`runLine`), its By field
+// table (`fieldTable`, a repeated group's items folded and summed) and what Send to fill warns of first
+// (`sendNotice`). `unusedName` is the name the setup screen's save offers: one no saved extraction template has.
 
 /** Items a repeated group has when its schema gives no `maxItems`, as the library gives it (formcast.extract.model). */
 const DEFAULT_ITEMS = 4;
@@ -253,6 +254,55 @@ export function rowProof(row, proof) {
 }
 
 // ------------------------------------------------------------------ runs and batches
+
+/** The longest name a saved extraction template may have (the store's). */
+const NAME_MAX = 80;
+
+/**
+ * A name to offer for saving: `name` when none of `taken` (the saved extraction templates' names) is it, else the
+ * first of "name 2", "name 3" ... that none is, cut to fit the store's 80 characters.
+ * @param {string} name
+ * @param {Iterable<string>} taken
+ * @returns {string}
+ */
+export function unusedName(name, taken) {
+  const used = new Set(taken);
+  if (!used.has(name)) return name;
+  for (let n = 2; ; n += 1) {
+    const end = ` ${n}`;
+    const next = `${name.slice(0, NAME_MAX - end.length).trimEnd()}${end}`;
+    if (!used.has(next)) return next;
+  }
+}
+
+/** The counts the review's By field table shows, in its column order. */
+export const FIELD_COUNTS = ["found", "missing", "failed_check", "unsure", "reviewed"];
+
+/**
+ * The review's By field rows from a Run's `fields` ({path, title, found, missing, failed_check, unsure, reviewed}):
+ * one per field, a repeated group's items (`owners[0].name`, `owners[1].name` ...) folded into one row as the
+ * setup's field list folds them, its counts the items' summed. A row is `{path, title, items, ...counts}`: `path`
+ * the field's path, with `[]` for a folded row (`owners[].name`, which the review's field filter takes for every
+ * item), `items` how many were folded (null for a plain field), `title` the field's (its path when it has none).
+ * @param {{path: string, title: string}[]} fields
+ * @returns {{path: string, title: string, items: number | null, found: number, missing: number, failed_check: number,
+ *   unsure: number, reviewed: number}[]}
+ */
+export function fieldTable(fields) {
+  const rows = new Map();
+  for (const f of fields) {
+    const path = genericOf(f.path);
+    let row = rows.get(path);
+    if (row === undefined) {
+      const title = f.title && f.title !== f.path ? f.title : path;
+      row = { path, title, items: path === f.path ? null : 0, ...Object.fromEntries(FIELD_COUNTS.map((k) => [k, 0])) };
+      rows.set(path, row);
+    }
+    if (row.items !== null) row.items += 1;
+    for (const k of FIELD_COUNTS) row[k] += Number(f[k] ?? 0);
+  }
+  return [...rows.values()];
+}
 
 /**
  * A review problem's status in words.

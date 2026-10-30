@@ -142,6 +142,23 @@ body[data-mode="extract"] [data-for="fill"] { display: none !important; }
 .stats { display: flex; flex-wrap: wrap; gap: 8px 28px; padding: 12px 24px; box-shadow: inset 0 -.5px 0 0 var(--rule); }
 .stat b { display: block; font: 500 22px/28px var(--serif); }
 .stat span { font: 10px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--graphite); }
+/* By field: a row per field with its counts; a row clicked filters the documents by it */
+.by-field { padding: 8px 24px 10px; box-shadow: inset 0 -.5px 0 0 var(--rule); }
+.by-field summary { cursor: pointer; }
+.by-field-scroll { max-height: 168px; overflow: auto; margin-top: 6px; }
+.field-table { border-collapse: collapse; width: 100%; font: 12px/18px var(--mono); }
+.field-table th, .field-table td { padding: 3px 10px 3px 0; text-align: right; white-space: nowrap; box-shadow: inset 0 -.5px 0 0 var(--rule); }
+.field-table th:first-child { text-align: left; white-space: normal; overflow-wrap: anywhere; }
+.field-table thead th { position: sticky; top: 0; background: var(--paper); font: 10px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--graphite); }
+.field-table tbody th { font-weight: 500; }
+.field-table tbody th small { display: block; font-weight: 400; color: var(--graphite); font-size: 11px; }
+.field-table tbody tr { cursor: pointer; }
+.field-table tbody tr:hover, .field-table tbody tr.on { background: var(--panel); }
+.field-table tbody tr:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+#new-batch { margin-top: 6px; }
+/* the save prompt's question before it replaces a saved extraction template */
+.confirm { margin-top: 16px; }
+.confirm p { margin: 0 0 10px; }
 .filters { display: flex; gap: 6px; margin-bottom: 12px; }
 .filters select { flex: 1; min-width: 0; }
 .docs { list-style: none; margin: 0; padding: 0; font: 12px/1.4 var(--mono); }
@@ -167,4 +184,4 @@ body[data-mode="extract"] [data-for="fill"] { display: none !important; }
 .problem .fc-in { margin-top: 8px; width: 100%; box-sizing: border-box; }
 .problem .row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .problem .state { margin: 6px 0 0; font: italic 14px var(--serif); color: var(--graphite); }
-@media (max-width: 1023px) { .stats { padding-left: 16px; padding-right: 16px; } }
+@media (max-width: 1023px) { .stats, .by-field { padding-left: 16px; padding-right: 16px; } }

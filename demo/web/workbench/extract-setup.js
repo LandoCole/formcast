@@ -30,7 +30,12 @@
 //
 // Save asks for a name (#setup-save-box, as the fill template's save) and stores the template with its sample PDFs
 // (`engine.extract.save`); `promptSave()` resolves the name saved (null when the prompt closed unsaved), so Run on
-// all (extract-review.js, enabled when the setup has a batch to read) saves first. A setup the server no longer has
+// all (extract-review.js) saves first. The name offered is the one the setup was last saved as, else its own name
+// made unused among the saved extraction templates (" 2", " 3" ... after it: every batch of dropped files is named
+// "Uploaded files"). Saving under a name already saved, other than the setup's own last save, asks first in the same
+// sheet: "Replace the saved extraction “X”?" with Replace and Cancel. A refusal (a field whose export column is a
+// document's, 400 bad_template) shows the server's words in the sheet. Run on all is open on every setup: one with
+// no batch (a saved template reopened) has its documents chosen in the Extract modal first. A setup the server no longer has
 // (it restarted, or dropped it) answers any call with 404 "no such setup": the screen closes and the choice opens with
 // "This setup is no longer on the server; start again."
 //
@@ -41,12 +46,14 @@ import { createBus } from "../core/bus.js";
 import { makeView, viewSize } from "../core/geometry.js";
 import { PageView } from "../core/pageview.js";
 import { DETECT_SUM } from "./extract.js";
-import { checksOf, fieldSchema, fieldState, groupFields, outcomeLine, readFrom, rowProof } from "./extract-model.js";
+import { checksOf, fieldSchema, fieldState, groupFields, outcomeLine, readFrom, rowProof, unusedName } from "./extract-model.js";
 
 /** What the screen says when the server no longer has the setup. */
 export const GONE = "This setup is no longer on the server; start again.";
 /** Store names, as the server accepts them (demo/server/store.py). */
 const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9 _.-]{0,79}$/;
+/** The longest store name. */
+const NAME_MAX = 80;
 /** Zoom levels in pixels per point (1 is the page at 72 dpi, a PDF viewer's actual size), as the mockup has them. */
 const ZOOMS = [0.5, 0.67, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];
 /** The page images' resolution bounds (the server's). */
@@ -89,7 +96,7 @@ function isGone(e) {
 
 /** A store name made from a template's name. */
 function suggest(name) {
-  return String(name ?? "").replace(/[^A-Za-z0-9 _.-]+/g, "_").replace(/^[^A-Za-z0-9]+/, "").slice(0, 80) || "extraction";
+  return String(name ?? "").replace(/[^A-Za-z0-9 _.-]+/g, "_").replace(/^[^A-Za-z0-9]+/, "").slice(0, NAME_MAX) || "extraction";
 }
 
 /** The field type the inspector's select shows for a schema node ("" when it is none of them). */
@@ -336,10 +343,10 @@ export function mountSetup(app) {
     parts.push(plural(s.samples.length, "sample"));
     $("doc-pick").textContent = parts.join(" · ");
     const run = $("run");
-    run.disabled = !s.batch; // a saved template reopened has no batch to read
+    run.disabled = false;
     run.title = s.batch
       ? "Save the template, then read every document of the batch with it"
-      : "This template was reopened without its batch: start from Extract from PDFs to read a batch with it";
+      : "Choose the documents to read with this saved template, then read every one";
   }
 
   /** The strip: where the fields started, the sample and the detection, and Change the setup. */
@@ -917,23 +924,57 @@ export function mountSetup(app) {
   function promptSave() {
     if (state.setup === null) return Promise.resolve(null);
     settlePrompt(null);
-    $("setup-save-name").value = state.savedName ?? suggest(template().name);
-    app.say(saveMsg, "");
-    saveBox.hidden = false;
-    $("setup-save-name").select();
-    return new Promise((resolve) => {
+    const asked = new Promise((resolve) => {
       answer = resolve;
     });
+    const nameBox = $("setup-save-name");
+    nameBox.value = state.savedName ?? suggest(template().name);
+    askReplace(null);
+    app.say(saveMsg, "");
+    saveBox.hidden = false;
+    nameBox.select();
+    if (state.savedName === null) {
+      const offered = nameBox.value;
+      savedNames().then((names) => {
+        // a name already saved is not offered: the person types it to replace that one
+        if (!saveBox.hidden && nameBox.value === offered) {
+          nameBox.value = unusedName(offered, names);
+          nameBox.select();
+        }
+      });
+    }
+    return asked;
+  }
+
+  /** The names of the saved extraction templates ([] when they can't be listed: the save then asks nothing). */
+  async function savedNames() {
+    try {
+      return (await calls.list()).map((x) => x.name);
+    } catch {
+      return [];
+    }
   }
 
   function closePrompt() {
     saveBox.hidden = true;
+    askReplace(null);
     settlePrompt(null);
+  }
+
+  /** Ask (in the save sheet, in place of its Save row) whether to replace the saved extraction `name`; null hides it. */
+  function askReplace(name) {
+    $("setup-replace").hidden = name === null;
+    $("setup-save-row").hidden = name !== null;
+    if (name === null) return;
+    $("setup-replace-text").textContent = `Replace the saved extraction “${name}”?`;
+    app.say(saveMsg, "");
+    $("setup-replace-go").focus();
   }
 
   let saving = false; // a save is under way: Save and Enter in the name box start no second one
 
-  async function save() {
+  /** Save under the name typed: asked first when another extraction template has it, unless `replace`. */
+  async function save({ replace = false } = {}) {
     if (saving) return;
     const name = $("setup-save-name").value.trim();
     if (!NAME_RE.test(name)) {
@@ -943,8 +984,13 @@ export function mountSetup(app) {
     const go = $("setup-save-go");
     saving = true;
     go.disabled = true;
-    app.say(saveMsg, "Saving…");
     try {
+      if (!replace && name !== state.savedName && (await savedNames()).includes(name)) {
+        askReplace(name); // the setup's own last save is replaced without asking
+        return;
+      }
+      askReplace(null);
+      app.say(saveMsg, "Saving…");
       await queue; // the changes on their way are part of what is saved
       const s = state.setup;
       if (s === null) return;
@@ -965,7 +1011,12 @@ export function mountSetup(app) {
 
   $("setup-save").addEventListener("click", promptSave);
   $("setup-save-cancel").addEventListener("click", closePrompt);
-  $("setup-save-go").addEventListener("click", save);
+  $("setup-save-go").addEventListener("click", () => save());
+  $("setup-replace-go").addEventListener("click", () => save({ replace: true }));
+  $("setup-replace-cancel").addEventListener("click", () => {
+    askReplace(null);
+    $("setup-save-name").select(); // another name, or Cancel again
+  });
   saveBox.addEventListener("keydown", (e) => {
     if (e.key === "Escape") closePrompt();
     if (e.key === "Enter" && e.target === $("setup-save-name")) save();
