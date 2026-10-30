@@ -701,10 +701,10 @@ class GatedModel(CorpusModel):
     ``us_files`` are samples whose country the model reads as ``"US"`` whatever the form prints there.
     """
 
-    KINDS = {DERIVE_SYSTEM: "derive", FIELDS_SYSTEM: "fields"}
+    KINDS = {DERIVE_SYSTEM.split("Reply with one JSON object")[0]: "derive", FIELDS_SYSTEM: "fields"}
 
     def kind(self, system) -> str | None:
-        return next((kind for prompt, kind in self.KINDS.items() if system.startswith(prompt)), None)  # derive may add rules
+        return next((kind for prompt, kind in self.KINDS.items() if system.startswith(prompt)), None)  # derive may add rules before its reply sentence
 
     def __init__(self, clients_by_file, *, gate: str | None = None, us_files=()) -> None:
         super().__init__(clients_by_file)

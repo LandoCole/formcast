@@ -63,8 +63,13 @@ def test_derive_schema_asks_for_required_levels_only_when_asked(form):
     derive_schema(pdf, asked, form_map=fm, classify_required=True)
     assert plain.calls[0][0].content == DERIVE_SYSTEM  # fill's one-shot prompt is unchanged
     system = asked.calls[0][0].content
-    assert system.startswith(DERIVE_SYSTEM) and REQUIRED_RULES in system
+    assert REQUIRED_RULES in system
     assert '"x-required-reason"' in system and '"required" array' in system
+    assert "says nothing about the fields inside it" in " ".join(system.split())  # a group's level is not its fields'
+    reply = DERIVE_SYSTEM.splitlines()[-1]
+    assert reply.startswith("Reply with one JSON object") and system.rstrip().endswith(reply)  # the reply format is last
+    assert system.count(reply) == 1
+    assert system.index("Required and optional:") > system.index("Every blank on the form")
 
 
 def test_derive_schema_without_vision_sends_no_image(form):

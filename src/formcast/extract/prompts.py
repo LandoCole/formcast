@@ -56,6 +56,8 @@ Rules:
 {REQUIRED_RULES}\
 Give every property a "{REASON_KEY}": one short line in plain words saying why it is required or optional, quoting
 the form's own wording when it has some (the form says "if any"). Put a field in "required" only when it is required.
+A field is required only when its own object's "required" list names it: listing a group (an object) as required says
+nothing about the fields inside it, so list those that are required in the group's own "required".
 
 Reply with one JSON object and nothing else:
 {{"schema": {{"type": "object", "properties": {{...}}}}, "line_paths": {{"<a line as given>": ["<path>", ...]}}}}

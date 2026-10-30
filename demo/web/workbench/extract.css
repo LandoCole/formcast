@@ -155,7 +155,8 @@ body[data-mode="extract"] [data-for="fill"] { display: none !important; }
 .field-table tbody th small { display: block; font-weight: 400; color: var(--graphite); font-size: 11px; }
 .field-table tbody tr { cursor: pointer; }
 .field-table tbody tr:hover, .field-table tbody tr.on { background: var(--panel); }
-.field-table tbody tr:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }#new-batch { margin-top: 6px; }
+.field-table tbody tr:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
+#new-batch { margin-top: 6px; }
 /* the save prompt's question before it replaces a saved extraction template */
 .confirm { margin-top: 16px; }
 .confirm p { margin: 0 0 10px; }

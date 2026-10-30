@@ -255,3 +255,15 @@ def test_fields_prompt_carries_the_required_rules():
 
     assert REQUIRED_RULES in FIELDS_SYSTEM
     assert '"x-required-reason"' in FIELDS_SYSTEM  # every property gets a one-line reason
+    assert "says nothing about the fields inside it" in " ".join(FIELDS_SYSTEM.split())  # a group's level is not its fields'
+
+
+def test_the_alternatives_and_conditions_rule_outranks_the_forms_must_wording():
+    from formcast.required_rules import REQUIRED_RULES
+
+    text = " ".join(REQUIRED_RULES.split())
+    assert "Rule 3 outranks rules 1 and 2" in text
+    rule3 = text[text.index("3. A field"):text.index("4. When unsure")]
+    assert 'even when the form says "must" or "required" over it' in rule3
+    assert "group of alternatives" in rule3 and "every field in it is optional" in rule3
+    assert "quotes the wording and names the alternatives or the condition" in rule3

@@ -47,7 +47,7 @@ _SECTION_GAP = 1  # pages without blanks inside one section of forms
 _TEXT_CHARS = 60000
 _SAMPLE_TABLE_COLUMNS = 300
 
-DERIVE_SYSTEM = """\
+_DERIVE_RULES = """\
 You design the data schema of a blank form: a JSON Schema for one record holding everything a person
 filling in this form would write on it. Software will map the form's boxes to your schema's paths and
 then fill the form from records, so the schema must follow the form closely.
@@ -73,18 +73,25 @@ Rules:
   page numbers and form ids.
 - Every blank on the form should be covered by some property; do not invent fields the form lacks.
 
+"""
+
+_DERIVE_REPLY = """\
 Reply with one JSON object and nothing else: {"schema": {...}}
 """
+
+DERIVE_SYSTEM = _DERIVE_RULES + _DERIVE_REPLY
 
 #: What ``derive_schema`` adds to :data:`DERIVE_SYSTEM` when asked to classify (extraction only; fill's prompt is
 #: :data:`DERIVE_SYSTEM` alone).
 _DERIVE_REQUIRED = f"""\
-
 Required and optional:
 {REQUIRED_RULES}\
-List the names of an object's required properties in its "required" array. Give every property a "{REASON_KEY}":
+List the names of an object's required properties in its "required" array. A property is required only when its own
+object's "required" array lists it: listing a group (an object) as required says nothing about the fields inside it,
+so list those that are required in the group's own "required" array. Give every property a "{REASON_KEY}":
 one short line in plain words saying why it is required or optional, quoting the form's own wording when it has
 some (the form says "if any").
+
 """
 
 MAP_SYSTEM = """\
@@ -257,7 +264,7 @@ def derive_schema(
             raise ValueError("the schema has no fields")
         return schema
 
-    system = DERIVE_SYSTEM + _DERIVE_REQUIRED if classify_required else DERIVE_SYSTEM
+    system = _DERIVE_RULES + _DERIVE_REQUIRED + _DERIVE_REPLY if classify_required else DERIVE_SYSTEM
     schema, usage, raw = _ask(llm, [Message("system", system), Message("user", parts)], check, long=True)
     return SchemaResult(schema, usage, raw)
 
