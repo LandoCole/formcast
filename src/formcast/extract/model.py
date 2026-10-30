@@ -42,6 +42,13 @@ from formcast.geometry import Rect
 from formcast.schema import ARRAY_ITEM, _normalize, flatten_schema, format_path, parse_path
 from formcast.template.model import FormInfo
 
+#: The columns every exported row starts with.
+_DOC_COLUMNS = ("doc_id", "file", "template", "matched", "extracted_at")
+#: The column ``export(names=...)`` adds after ``doc_id``: the name a person knows each document by.
+NAME_COLUMN = "name"
+#: The names a top-level field cannot have: its export column would be one of the document's own.
+RESERVED_NAMES = (*_DOC_COLUMNS, NAME_COLUMN)
+
 #: Items given to a repeated group whose schema has no ``maxItems``.
 DEFAULT_ITEMS = 4
 

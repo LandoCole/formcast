@@ -46,7 +46,7 @@ from formcast.data.ai import derive_schema
 from formcast.errors import FormcastError
 from formcast.extract.ask import _generic, fields_from_lines, fields_on_form, propose_readers, read_values
 from formcast.extract.layout import learn_layout
-from formcast.extract.model import ExtractionTemplate, SampleRecord, SetupInfo, concrete_paths
+from formcast.extract.model import RESERVED_NAMES, ExtractionTemplate, SampleRecord, SetupInfo, concrete_paths
 from formcast.extract.proof import Proof, _check_samples, prove
 from formcast.extract.readers import ReaderProposal, resolve
 from formcast.extract.samples import Detect, SampleDoc, SamplePdf, _detect, _read
@@ -228,7 +228,9 @@ def _fields(
     """The ``fields`` stage: (schema, absent paths, each line's paths, usage, warnings)."""
     if spec.start == "ai":
         doc = max(docs, key=_boxes)  # the first of the samples with the most boxes
-        derived = derive_schema(doc.pdf, llm, form_map=doc.form_map, vision=spec.vision, classify_required=True)
+        derived = derive_schema(
+            doc.pdf, llm, form_map=doc.form_map, vision=spec.vision, classify_required=True, reserved_names=RESERVED_NAMES
+        )
         return derived.schema, [], {}, derived.usage, []
     if spec.start == "lines":
         answer = fields_from_lines(spec.lines, docs, llm, vision=spec.vision)

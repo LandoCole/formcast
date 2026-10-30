@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -227,12 +228,14 @@ def derive_schema(
     vision: bool = True,
     instructions: str = "",
     classify_required: bool = False,
+    reserved_names: Sequence[str] = (),
 ) -> SchemaResult:
     """A JSON Schema for the data ``pdf`` collects, designed by the model from the form itself.
 
     ``instructions`` adds the user's own words (say, "name the holder section 'buyer'"). With ``classify_required``
     the model also decides which fields are required (the ``required`` lists) and gives each property a one-line
-    reason (:data:`~formcast.schema.REASON_KEY`); without it the prompt is :data:`DERIVE_SYSTEM` alone.
+    reason (:data:`~formcast.schema.REASON_KEY`). ``reserved_names`` are names no top-level property may have. With
+    neither, the prompt is :data:`DERIVE_SYSTEM` alone.
     The schema is checked with :func:`formcast.flatten_schema` and must have at least one field.
     """
     fm = form_map if form_map is not None else build_form_map(pdf)
@@ -264,9 +267,21 @@ def derive_schema(
             raise ValueError("the schema has no fields")
         return schema
 
-    system = _DERIVE_RULES + _DERIVE_REQUIRED + _DERIVE_REPLY if classify_required else DERIVE_SYSTEM
+    required = _DERIVE_REQUIRED if classify_required else ""
+    system = _DERIVE_RULES + required + _reserved_rule(reserved_names) + _DERIVE_REPLY
     schema, usage, raw = _ask(llm, [Message("system", system), Message("user", parts)], check, long=True)
     return SchemaResult(schema, usage, raw)
+
+
+def _reserved_rule(names: Sequence[str]) -> str:
+    """The prompt's rule against ``names``; nothing when there are none."""
+    if not names:
+        return ""
+    listed = ", ".join(f'"{name}"' for name in names)
+    return (
+        f"Never give a top-level property one of these names, which the results keep for the document itself: {listed}.\n"
+        'Say whose value it is instead ("holder_name"), or put it in an object.\n'
+    )
 
 
 def _image_pages(counts: dict[int, int]) -> list[int]:

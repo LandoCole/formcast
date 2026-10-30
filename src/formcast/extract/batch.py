@@ -138,7 +138,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from formcast.errors import FormcastError
 from formcast.extract.layout import LAYOUT_MATCH, layout_score
 from formcast.extract.levels import LEVELS, Level, required_paths
-from formcast.extract.model import _HAS_VALUE, DocumentResult, ExtractionTemplate, FieldResult, Status
+from formcast.extract.model import _DOC_COLUMNS, _HAS_VALUE, DocumentResult, ExtractionTemplate, FieldResult, Status
 from formcast.extract.page import DocText
 from formcast.extract.read import _extract_open, _failed, error_text, now
 from formcast.match import PdfFeatures
@@ -168,7 +168,6 @@ _STATUSES: tuple[str, ...] = get_args(Status)
 _AHEAD = 4
 _ITEM = re.compile(r"\[(\d+)\](\.)?")
 _ITEM_NUMBER = re.compile(r"\[\d+\]")
-_DOC_COLUMNS = ("doc_id", "file", "template", "matched", "extracted_at")
 #: The files of a run's ``out_dir`` that :meth:`Results.refresh` watches.
 _FILES = (RUN, RESULTS, REVIEWS, AI)
 #: How a document can end, as :class:`RunSummary` counts them.

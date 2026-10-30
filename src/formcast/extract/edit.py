@@ -38,6 +38,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from formcast.data.mapping import Transform
 from formcast.errors import FormcastError
 from formcast.extract.model import (
+    RESERVED_NAMES,
     AnchorRead,
     BoxRead,
     ChoiceMark,
@@ -211,8 +212,9 @@ def apply_edit(template: ExtractionTemplate, edit: Edit, *, pdfs: list[bytes] | 
 
     Raises:
         FormcastError: ``edit.path`` is not a field of the schema, a ``set_option_box`` answer is not one of the
-            field's answers, a ``rename_field`` name a path cannot hold or another field beside it has, or the
-            field's schema is built with ``$ref``/``anyOf`` and cannot be edited in place;
+            field's answers, a ``rename_field`` name a path cannot hold, that is reserved
+            (:data:`~formcast.extract.model.RESERVED_NAMES`, at the top level) or that another field beside it has,
+            or the field's schema is built with ``$ref``/``anyOf`` and cannot be edited in place;
             for a box drawn on a sample, no ``pdfs``, ``pdfs`` that are not the template's samples, or a sample or
             page the template's samples do not have.
         pydantic.ValidationError: the edited template is not valid.
@@ -327,6 +329,9 @@ def _rename_field(t: ExtractionTemplate, edit: RenameField) -> None:
     parent, old = steps[-1]
     if edit.name == old:
         return
+    if len(steps) == 1 and edit.name.lower() in RESERVED_NAMES:
+        reserved = ", ".join(RESERVED_NAMES)
+        raise FormcastError(f"{edit.name!r} is reserved for the document's own columns; these names can't be used here: {reserved}")
     if edit.name in parent["properties"]:
         raise FormcastError(f"there is already a field named {edit.name!r} here")
     concrete = concrete_paths(t.schema_)

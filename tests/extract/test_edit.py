@@ -20,9 +20,16 @@ from formcast.extract.edit import (
     SetOptionBox,
     apply_edit,
 )
-from formcast.extract.model import ChoiceRead, SampleRecord, SetupInfo
+from formcast.extract.model import RESERVED_NAMES, ChoiceRead, ExtractionTemplate, SampleRecord, SetupInfo
 from formcast.schema import REASON_KEY
 from tests.extract.corpus import FIELD_RECTS, SHIFT, TYPE_BOXES, clients, hand_template, make_form, truth
+
+
+def with_top_level_field(template, name):
+    return ExtractionTemplate.model_validate({
+        **template.model_dump(by_alias=True),
+        "schema": {**template.schema_, "properties": {**template.schema_["properties"], name: {"type": "string"}}},
+    })
 
 
 def _prop(template, *names):
@@ -266,6 +273,21 @@ def test_rename_field_to_its_own_name_changes_nothing():
 def test_rename_field_refuses_a_name_a_path_cannot_hold(name):
     with pytest.raises(FormcastError, match="letters, numbers"):
         apply_edit(hand_template(), RenameField(op="rename_field", path="investor.tax_id", name=name))
+
+
+@pytest.mark.parametrize("name", [*RESERVED_NAMES, "Name", "FILE"])
+def test_rename_field_refuses_a_reserved_name_at_the_top_level_and_lists_them(name):
+    base = with_top_level_field(hand_template(), "holder")
+    with pytest.raises(FormcastError, match="reserved") as refused:
+        apply_edit(base, RenameField(op="rename_field", path="holder", name=name))
+    assert all(reserved in str(refused.value) for reserved in RESERVED_NAMES)
+
+
+def test_a_reserved_name_is_allowed_inside_a_group_and_a_field_can_be_renamed_away_from_one():
+    t = apply_edit(hand_template(), RenameField(op="rename_field", path="investor.tax_id", name="name"))
+    assert "investor.name" in t.readers  # its column is investor.name, not the document's
+    t = apply_edit(with_top_level_field(hand_template(), "name"), RenameField(op="rename_field", path="name", name="legal_name"))
+    assert "legal_name" in t.schema_["properties"] and "name" not in t.schema_["properties"]
 
 
 def test_rename_field_refuses_the_name_of_another_field_beside_it():

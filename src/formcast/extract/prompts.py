@@ -17,7 +17,10 @@ import textwrap
 
 from formcast.data.ai import REQUIRED_RULES
 from formcast.data.mapping import transforms_ref
+from formcast.extract.model import RESERVED_NAMES
 from formcast.schema import REASON_KEY
+
+_RESERVED = ", ".join(f'"{name}"' for name in RESERVED_NAMES)
 
 #: What every call gets, said once for all four prompts.
 _SAMPLES = """\
@@ -52,6 +55,8 @@ Rules:
 - Names are snake_case and say what the value is; fields of one topic go in one object ("delivery" holding
   "street_line" and "route_code").
 - Never give a top-level property a name listed under NAMES ALREADY USED: those fields exist already.
+- Never give a top-level property one of these names, which the results keep for the document itself:
+  {_RESERVED}. Say whose value it is instead ("holder_name"), or put it in an object.
 
 {REQUIRED_RULES}\
 Give every property a "{REASON_KEY}": one short line in plain words saying why it is required or optional, quoting

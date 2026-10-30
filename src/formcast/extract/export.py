@@ -48,8 +48,8 @@ from pathlib import Path
 from typing import Any, Literal
 
 from formcast.errors import FormcastError
-from formcast.extract.batch import _DOC_COLUMNS, Results, column_name
-from formcast.extract.model import ExtractionTemplate, _expand, _max_items, concrete_paths
+from formcast.extract.batch import Results, column_name
+from formcast.extract.model import _DOC_COLUMNS, NAME_COLUMN, ExtractionTemplate, _expand, _max_items, concrete_paths
 from formcast.schema import ARRAY_ITEM, SchemaPath, _enum_values, _normalize, flatten_schema, format_path, parse_path
 
 ExportFormat = Literal["xlsx", "parquet", "csv"]
@@ -57,8 +57,6 @@ ExportFormat = Literal["xlsx", "parquet", "csv"]
 #: The columns of the ``fields`` part and of the ``set_aside`` part.
 FIELD_COLUMNS = ("column", "path", "title", "definition", "type", "checks")
 SET_ASIDE_COLUMNS = ("doc_id", "file", "reason", "closest_template", "closest_score")
-#: The column ``export(names=...)`` adds after ``doc_id``: the name a person knows each document by.
-NAME_COLUMN = "name"
 
 _FORMATS = ("xlsx", "parquet", "csv")
 _PARTS = ("values", "status", "fields", "set_aside")

@@ -12,7 +12,7 @@ import formcast.extract.setup as setup_mod
 from formcast.errors import FormcastError, SessionCancelled
 from formcast.extract.batch import route
 from formcast.extract.edit import SetBox, apply_edit
-from formcast.extract.model import BoxRead, concrete_paths
+from formcast.extract.model import RESERVED_NAMES, BoxRead, concrete_paths
 from formcast.extract.prompts import READERS_SYSTEM
 from formcast.extract.proof import Proof, learn_maps, prove, sample_marks
 from formcast.extract.read import extract
@@ -334,6 +334,19 @@ def test_a_box_drawn_where_a_shifted_samples_marks_show_it_reads_an_unshifted_co
     other = clients(1, seed=78)[0]
     got = next(f for f in extract(edited, make_form(other, kind="flattened")).fields if f.path == "investor.dob")
     assert (got.status, got.strategy, got.value) == ("found", "box", truth(other)["investor.dob"])
+
+
+def test_the_ai_start_is_told_the_reserved_names(five_samples, monkeypatch):
+    seen = []
+    real = setup_mod.derive_schema
+
+    def spy(*args, **kwargs):
+        seen.append(kwargs.get("reserved_names"))
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(setup_mod, "derive_schema", spy)
+    build_setup(five_samples.pdfs, SetupSpec(name="x"), CorpusModel(five_samples.clients), **NO_DETECTORS)
+    assert seen == [RESERVED_NAMES]
 
 
 def test_the_ai_start_classifies_required(five_samples, monkeypatch):

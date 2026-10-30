@@ -39,7 +39,7 @@ from test_workbench_page import Bench, bench, no_model_loads, widget_pdf  # noqa
 
 from demo.server import extract_api, extraction
 from demo.server.api import Api
-from formcast.extract.edit import SetField
+from formcast.extract.edit import RenameField, SetField
 from formcast.extract.setup import STAGES
 from tests.extract.corpus import FIELD_RECTS, SHIFT, clients, make_form
 
@@ -1064,6 +1064,24 @@ def test_a_refused_rename_says_why_and_puts_the_name_back(start_demo_server, ben
     b.page.press("#ins-name", "Enter")
     expect(b.page.locator("#notice")).to_contain_text("letters, numbers")
     expect(b.page.locator("#ins-name")).to_have_value("tax_id")
+
+
+def test_a_reserved_name_is_refused_in_the_name_box_and_the_name_put_back(start_demo_server, bench):
+    from test_server_extract import with_a_field_named_name
+
+    base = extract_server(start_demo_server)
+    setup = setup_on(base)
+    kept = start_demo_server.servers[-1].api.setups.get(setup["id"])
+    kept.template = with_a_field_named_name(kept.template)
+    kept.edit(RenameField(op="rename_field", path="name", name="holder"))  # a top-level field, proven again
+    b = bench(base, fill=False)
+    show_setup(b, get_json(base, f"/api/setups/{setup['id']}")[1])
+    row(b, "holder").click()
+    b.page.fill("#ins-name", "name")
+    b.page.press("#ins-name", "Enter")
+    expect(b.page.locator("#notice")).to_contain_text("reserved")
+    expect(b.page.locator("#ins-name")).to_have_value("holder")
+    expect(row(b, "name")).to_have_count(0)
 
 
 def test_the_field_the_save_refuses_can_be_renamed_and_then_saved(start_demo_server, bench):

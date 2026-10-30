@@ -249,6 +249,13 @@ def test_lines_are_compared_by_their_words_and_may_be_named_by_number(sample_doc
     assert "2. second line" in text and "First" not in text
 
 
+def test_fields_prompt_lists_the_reserved_names():
+    from formcast.extract.model import RESERVED_NAMES
+    from formcast.extract.prompts import FIELDS_SYSTEM
+
+    assert all(f'"{name}"' in FIELDS_SYSTEM for name in RESERVED_NAMES)
+
+
 def test_fields_prompt_carries_the_required_rules():
     from formcast.data.ai import REQUIRED_RULES
     from formcast.extract.prompts import FIELDS_SYSTEM

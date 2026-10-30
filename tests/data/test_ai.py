@@ -55,6 +55,19 @@ def test_derive_schema_sends_the_page_image_and_map_and_returns_the_schema(form)
     assert any(isinstance(p, TextPart) and "PAGE MAP" in p.text and "Name" in p.text for p in parts)
 
 
+def test_derive_schema_is_told_the_reserved_names_only_when_given_them(form):
+    pdf, fm = form
+    reply = '{"schema": {"type": "object", "properties": {"holder": {"type": "string"}}}}'
+    plain, asked = Scripted(reply), Scripted(reply)
+    derive_schema(pdf, plain, form_map=fm)
+    derive_schema(pdf, asked, form_map=fm, reserved_names=("name", "file"))
+    assert plain.calls[0][0].content == DERIVE_SYSTEM  # fill's one-shot prompt is unchanged
+    system = asked.calls[0][0].content
+    assert '"name"' in system and '"file"' in system
+    reply = DERIVE_SYSTEM.splitlines()[-1]
+    assert system.rstrip().endswith(reply)  # the reply format is last
+
+
 def test_derive_schema_asks_for_required_levels_only_when_asked(form):
     pdf, fm = form
     reply = '{"schema": {"type": "object", "properties": {"name": {"type": "string"}}}}'
