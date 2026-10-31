@@ -31,8 +31,8 @@
 // have problems (#docs, `engine.extract.problems`, 50 at a time, More for the next 50) in two sections, switched above
 // the list (#level-pick, `levelSwitch`, with how many documents each lists): Required, first, lists the documents with
 // a required problem and shows only their required problems; Optional the documents with an optional problem
-// (complete or not), only those, each card with why the field is optional, under a note (#optional-note) that they
-// never stop a document from being complete. The field and problem filters apply inside the section; a field picked
+// (complete or not), only those, each card with why the field is optional. The field and problem filters apply inside
+// the section; a field picked
 // in the filter shows the section it is in. The problem filter's "Set aside" lists the
 // documents not read instead (`engine.extract.setAside`), each with why and the closest template, and the sections
 // wait meanwhile. The middle column is the chosen document's
@@ -43,11 +43,11 @@
 // tag: "Should be here" for a field with no value, otherwise the problem ("Doubtful", "Fails a check"). A field with no
 // place at all (its label isn't on the document, say) has nothing to point at; the caption says so. A page image that
 // fails is asked for again through the engine (`runPage`) to learn why: a 404 past page 1 is past the document's last
-// page, so › stops there; anything else says so under the page with Try again. On the right a card
-// per problem (#problems): the field's title, the problem, what was read and why it is a problem, and the decisions:
-// Use this value (the value typed), Accept as read (only when a value was read) and Not in this document. A decision
-// settles its card (only that card is drawn again; it stays disabled while the decision is on its way), and the stats,
-// the document's line and the list's legend follow; the documents settled stay listed (marked "all settled") until the
+// page, so › stops there; anything else says so under the page with Try again. On the right a compact card per problem
+// (#problems, `problemCard`): the field's title, the problem and an info icon, with what was read and why behind it, then
+// the value box and the decisions as icons: Use this value (the value typed), Accept as read (only when a value was
+// read) and Not in this document. A decision settles its card (only that card is drawn again; it stays disabled while
+// the decision is on its way), and the stats, the document's line and the list's legend follow; the documents settled stay listed (marked "all settled") until the
 // list is asked for again. The server lists only documents that still have problems, so More asks from the listed
 // ones not settled since, and the label and legend count from the list as it was first asked for.
 //
@@ -64,7 +64,7 @@
 // back once they can), and opens a command line run's folder on the server's machine by its path (#run-folder).
 
 import { downloadBytes } from "../core/store.js";
-import { asideLine, decisionText, docLine, fieldBreakdown, fieldTable, levelSwitch, markTag, noValue, problemLabel, problemName, reprocessNote, runLine, runStats, sendNotice } from "./extract-model.js";
+import { asideLine, decisionText, docLine, fieldBreakdown, fieldTable, levelSwitch, markTag, noValue, optionalWhy, problemLabel, problemName, reprocessNote, runLine, runStats, sendNotice } from "./extract-model.js";
 import { mountZoom } from "./extract-setup.js";
 import { showStages } from "./jobs.js";
 
@@ -78,6 +78,16 @@ const CAPTION = "The boxes are where each problem field was read, or looked for"
 const ASIDE_LEGEND =
   "Not read, so not in the values; the export lists them on their own. To read them, run Extract from PDFs again with just these documents.";
 
+/** What each decision on a problem does, as its icon's tooltip. */
+const DECISIONS = { value: "Use this value", accept: "Accept as read", not_in_document: "Not in this document" };
+/** The cards' icons, drawn on a 24 by 24 grid. */
+const ICONS = {
+  value: '<path d="M4 12.5 9.5 18 20 6.5"/>',
+  accept: '<path d="M2 12.5 7.5 18 18 6.5"/><path d="m13 17 1 1L23 7.5"/>',
+  not_in_document: '<circle cx="12" cy="12" r="9"/><path d="m5.7 5.7 12.6 12.6"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v6"/><path d="M12 7.5v.01"/>',
+};
+
 const number = (n) => Number(n ?? 0).toLocaleString("en-US");
 const plural = (n, word, many = `${word}s`) => `${number(n)} ${n === 1 ? word : many}`;
 const pct = (fraction) => `${fraction * 100}%`;
@@ -88,6 +98,13 @@ function make(tag, props = {}, ...children) {
   const el = document.createElement(tag);
   Object.assign(el, props);
   el.append(...children);
+  return el;
+}
+
+/** The icon `name` of ICONS. */
+function icon(name) {
+  const el = make("span", { className: "icon" });
+  el.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
   return el;
 }
 
@@ -313,7 +330,7 @@ export function mountReview(app) {
     renderLevels();
   }
 
-  /** The section switch, with how many documents each section lists, and the Optional section's note. */
+  /** The section switch, with how many documents each section lists. */
   function renderLevels() {
     const texts = new Map(levelSwitch(state.run.summary).map((s) => [s.level, s.text]));
     for (const btn of $("level-pick").querySelectorAll("[data-level]")) {
@@ -321,7 +338,6 @@ export function mountReview(app) {
       btn.setAttribute("aria-pressed", String(btn.dataset.level === state.level));
       btn.disabled = isAside(); // the documents set aside have no problems of either level
     }
-    $("optional-note").hidden = !isOptional();
   }
 
   /** List the section `level` ("required" or "optional"), the filters as they are. */
@@ -496,7 +512,7 @@ export function mountReview(app) {
   function renderDocs() {
     const aside = isAside();
     const problems = isOptional() ? "optional problems" : "problems";
-    $("docs-label").textContent = `${aside ? "Documents set aside" : `Documents with ${problems}`} · ${number(state.total)}`;
+    $("docs-label").textContent = `Documents · ${number(state.total)}`;
     const items = state.docs.map((d) => {
       const li = make(
         "li",
@@ -743,20 +759,39 @@ export function mountReview(app) {
   }
 
   /**
-   * A problem's card: the field, the problem, what was read and why, why the field is optional (on an optional
-   * field's card), and the decisions (or the one made).
+   * A problem's card, compact: the field and the problem with an info icon, then the value box and the decisions as
+   * icons named by their tooltips (or the decision made). What was read, why it is a problem and why the field is
+   * optional stay behind the info icon: hovering shows them, a click or Enter keeps them open on the card.
    */
   function problemCard(d, p) {
     const reasons = p.reasons.length ? ` · ${p.reasons.join("; ")}` : "";
+    const name = problemName(p);
+    const raw = p.raw || "nothing";
+    const details = make(
+      "div",
+      { className: "details", hidden: true },
+      make("p", { className: "fc-ins-hint" }, "Read: ", make("code", { textContent: raw }), reasons),
+    );
+    const lines = [`Read: ${raw}${reasons}`];
+    if (p.required === false) {
+      const reason = optionalWhy(p.required_reason);
+      const why = reason ? `Optional: ${reason}` : "Optional";
+      lines.push(why);
+      details.append(make("p", { className: "fc-ins-hint why", textContent: why }));
+    }
+    const info = make("button", { type: "button", className: "info", title: lines.join("\n") }, icon("info"));
+    info.ariaLabel = `About ${name}`;
+    info.setAttribute("aria-expanded", "false");
+    info.addEventListener("click", () => {
+      details.hidden = !details.hidden;
+      info.setAttribute("aria-expanded", String(!details.hidden));
+    });
     const el = make(
       "div",
       { className: `problem${p.path === state.problem ? " on" : ""}` },
-      make("div", { className: "head" }, make("b", { textContent: problemName(p) }), ` · ${problemLabel(p.status)}`),
-      make("p", { className: "fc-ins-hint" }, "Read: ", make("code", { textContent: p.raw || "nothing" }), reasons),
+      make("div", { className: "head" }, make("span", {}, make("b", { textContent: name }), ` · ${problemLabel(p.status)}`), info),
+      details,
     );
-    if (p.required === false) {
-      el.append(make("p", { className: "fc-ins-hint why", textContent: p.required_reason ? `Optional: ${p.required_reason}` : "Optional" }));
-    }
     el.dataset.path = p.path;
     el.addEventListener("click", (e) => {
       if (!e.target.closest("button")) pick(p.path);
@@ -775,21 +810,22 @@ export function mountReview(app) {
       spellcheck: false,
     });
     input.setAttribute("aria-label", `The value of ${p.title}`);
-    const act = (decision, text, dark = false) => {
-      const b = make("button", { type: "button", className: `btn small ${dark ? "dark" : "quiet"}`, textContent: text });
+    const act = (decision, dark = false) => {
+      const b = make("button", { type: "button", className: `btn small icon-only ${dark ? "dark" : "quiet"}`, title: DECISIONS[decision] }, icon(decision));
+      b.ariaLabel = DECISIONS[decision];
       b.dataset.act = decision;
       b.addEventListener("click", () => decide(d, p, decision, input));
       return b;
     };
-    const row = make("div", { className: "row" }, act("value", "Use this value", true));
-    if (p.value !== null && p.value !== undefined) row.append(act("accept", "Accept as read")); // a value was read
-    row.append(act("not_in_document", "Not in this document"));
+    const row = make("div", { className: "row" }, input, act("value", true));
+    if (p.value !== null && p.value !== undefined) row.append(act("accept")); // a value was read
+    row.append(act("not_in_document"));
     input.addEventListener("keydown", (e) => {
       if (e.key !== "Enter") return;
       e.preventDefault();
       decide(d, p, "value", input);
     });
-    el.append(input, row);
+    el.append(row);
     setBusy(el, deciding.has(keyOf(d.doc_id, p.path))); // drawn again while its decision is on its way
     return el;
   }
@@ -819,7 +855,7 @@ export function mountReview(app) {
 
   /** Disable (or enable again) a card's input and buttons while its decision is on its way. */
   function setBusy(card, busy) {
-    for (const el of card?.querySelectorAll("input, button") ?? []) el.disabled = busy;
+    for (const el of card?.querySelectorAll("input, button:not(.info)") ?? []) el.disabled = busy;
   }
 
   /**

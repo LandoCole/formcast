@@ -432,6 +432,11 @@ export function problemLabel(status) {
   return PROBLEM_LABELS[status] ?? status;
 }
 
+/** Why a field is optional, without the "Optional:" a reason from the AI may start with (the card says that itself). */
+export function optionalWhy(reason) {
+  return (reason ?? "").replace(/^\s*(?:optional\s*[:\-–—]\s*)+/i, "");
+}
+
 /** Whether a problem has no value: a blank or unlocated field (or, in an older run, a missing one). */
 export function noValue(status) {
   return status === "blank" || status === "not_located" || status === "missing";

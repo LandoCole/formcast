@@ -28,6 +28,7 @@ import {
   sendNotice,
   stripCells,
   unusedName,
+  optionalWhy,
 } from "../../demo/web/workbench/extract-model.js";
 
 /** A sample's proof: its outcome and what the readers read (`status` found unless given). */
@@ -475,6 +476,14 @@ test("groupFields titles a repeated group inside a category, and categoryOf says
   assert.deepEqual(groups.map((g) => g.group), ["Beneficial owners · up to 2"]);
   assert.equal(categoryOf(schema, "investor.owners[0].x"), "Investor details");
   assert.equal(categoryOf(schema, "name"), "");
+});
+
+test("optionalWhy drops the Optional an AI reason starts with, however often", () => {
+  assert.equal(optionalWhy("Optional: needed only when the Other box is checked."), "needed only when the Other box is checked.");
+  assert.equal(optionalWhy("optional - Optional: if any"), "if any");
+  assert.equal(optionalWhy("a copy may leave it empty"), "a copy may leave it empty");
+  assert.equal(optionalWhy("Optional fields stay optional"), "Optional fields stay optional");
+  assert.equal(optionalWhy(undefined), "");
 });
 
 test("fieldBreakdown says 100% only when every value was found", () => {

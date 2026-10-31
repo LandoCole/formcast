@@ -1465,7 +1465,7 @@ def test_a_setup_changed_after_its_run_asks_before_reprocessing_and_makes_a_new_
     expect(listed(b, "bad_tin.pdf")).to_be_visible()
     [first] = get_json(base, "/api/runs")[1]["runs"]
     card(b, "investor.tax_id").locator('[data-act="not_in_document"]').click()  # a decision to lose
-    expect(card(b, "investor.tax_id")).to_contain_text("Not in this document")
+    expect(card(b, "investor.tax_id").locator(".state")).to_have_text("Marked not in this document")
 
     b.page.click("#back-setup")
     row(b, "investor.country").click()
@@ -1621,7 +1621,7 @@ def test_the_review_lists_the_documents_with_problems_and_filters_them_by_field_
     b = bench(base, fill=False)
     show_review(b, run_id)
     names = b.page.locator("#docs li .doc-name")
-    expect(b.page.locator("#docs-label")).to_have_text("Documents with problems · 2")  # mars's country is optional
+    expect(b.page.locator("#docs-label")).to_have_text("Documents · 2")  # mars's country is optional
     expect(names).to_have_text(["bad_tin.pdf", "no_tin.pdf"])
     expect(listed(b, "no_tin.pdf").locator("small")).to_have_text("1 problem: Taxpayer ID")
     expect(b.page.locator("#docs-legend")).to_have_text("2 of 2 still have problems")
@@ -1630,7 +1630,7 @@ def test_the_review_lists_the_documents_with_problems_and_filters_them_by_field_
 
     b.page.select_option("#filter-status", "blank")
     expect(names).to_have_text(["no_tin.pdf"])
-    expect(b.page.locator("#docs-label")).to_have_text("Documents with problems · 1")
+    expect(b.page.locator("#docs-label")).to_have_text("Documents · 1")
     expect(card(b, "investor.tax_id")).to_contain_text("Blank")
     b.page.select_option("#filter-status", "")
     b.page.select_option("#filter-path", "investor.tax_id")
@@ -1638,7 +1638,7 @@ def test_the_review_lists_the_documents_with_problems_and_filters_them_by_field_
 
     b.page.select_option("#filter-status", "set_aside")  # the documents not read, with why, in place of problems
     expect(b.page.locator("#filter-path")).to_be_disabled()
-    expect(b.page.locator("#docs-label")).to_have_text("Documents set aside · 2")
+    expect(b.page.locator("#docs-label")).to_have_text("Documents · 2")
     expect(names).to_have_text(["client_00021.pdf", "client_00022.pdf"])
     expect(listed(b, "client_00021.pdf").locator("small")).to_contain_text("no template fits · closest: Client info, ")
     expect(b.page.locator("#rdoc-name")).to_have_text("client_00021.pdf")
@@ -1846,11 +1846,9 @@ def test_review_shows_required_problems_first_and_optional_ones_in_their_own_sec
     b = bench(base, fill=False)
     show_review(b, run_id)
     names = b.page.locator("#docs li .doc-name")
-    note = b.page.locator("#optional-note")
     expect(b.page.locator("#level-pick [data-level]")).to_have_text(["Required · 2", "Optional · 1"])
     expect(section(b, "required")).to_have_attribute("aria-pressed", "true")  # the Required section first
     expect(names).to_have_text(["bad_tin.pdf", "no_tin.pdf"])  # mars misses only an optional field: not here
-    expect(note).to_be_hidden()
     expect(stat(b, "with_problems")).to_have_text("2")
     expect(stat(b, "optional_only")).to_have_text("1")
     expect(b.page.locator("#stats .stat span")).to_have_text(["Documents", "Complete", "Required problems", "Optional only", "Set aside", "Run time"])
@@ -1858,14 +1856,21 @@ def test_review_shows_required_problems_first_and_optional_ones_in_their_own_sec
     section(b, "optional").click()
     expect(section(b, "optional")).to_have_attribute("aria-pressed", "true")
     expect(names).to_have_text(["mars.pdf"])
-    expect(b.page.locator("#docs-label")).to_have_text("Documents with optional problems · 1")
+    expect(b.page.locator("#docs-label")).to_have_text("Documents · 1")
     expect(b.page.locator("#docs-legend")).to_have_text("1 of 1 still have optional problems")
-    expect(note).to_have_text(
-        "Optional fields: blanks and doubtful answers on fields a copy may leave empty. They never stop a document from being complete."
-    )
+    expect(b.page.locator("#optional-note")).to_have_count(0)  # no note above the Optional section
     expect(b.page.locator("#rdoc-name")).to_have_text("mars.pdf")
     expect(b.page.locator("#problems .problem")).to_have_count(1)  # only this section's cards
-    expect(card(b, "investor.country").locator(".why")).to_have_text("Optional: a copy may leave it empty")
+    why = card(b, "investor.country").locator(".why")
+    expect(why).to_have_text("Optional: a copy may leave it empty")
+    expect(why).to_be_hidden()  # behind the info icon
+    expect(card(b, "investor.country").locator(".info")).to_have_attribute("title", re.compile("Optional: a copy may leave it empty"))
+    card(b, "investor.country").locator(".info").click()
+    expect(why).to_be_visible()
+    expect(card(b, "investor.country").locator('[data-act="value"]')).to_have_attribute("title", "Use this value")
+    expect(card(b, "investor.country").locator('[data-act="value"]')).to_have_attribute("aria-label", "Use this value")
+    card(b, "investor.country").locator(".info").click()
+    expect(why).to_be_hidden()
 
     b.page.select_option("#filter-status", "blank")  # the filters apply inside the section
     expect(b.page.locator("#docs li")).to_have_text(["No document has a problem of this kind."])
@@ -1876,7 +1881,6 @@ def test_review_shows_required_problems_first_and_optional_ones_in_their_own_sec
     expect(names).to_have_text(["mars.pdf"])
     section(b, "required").click()
     expect(b.page.locator("#docs li")).to_have_text(["No document has a problem of this kind."])
-    expect(note).to_be_hidden()
     section(b, "optional").click()
     b.page.select_option("#filter-path", "investor.tax_id")  # a field picked shows the section it is in
     expect(section(b, "required")).to_have_attribute("aria-pressed", "true")
@@ -1913,7 +1917,7 @@ def test_more_after_a_document_is_settled_lists_every_remaining_problem_document
     b.page.click("#docs-more")  # the server's list no longer holds bad_tin: the next page starts one earlier
     expect(names).to_have_text(["bad_tin.pdf", "no_tin.pdf"])
     expect(b.page.locator("#docs-more")).to_be_hidden()
-    expect(b.page.locator("#docs-label")).to_have_text("Documents with problems · 2")
+    expect(b.page.locator("#docs-label")).to_have_text("Documents · 2")
     expect(b.page.locator("#docs-legend")).to_have_text("1 of 2 still have problems")
 
 
