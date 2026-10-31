@@ -21,7 +21,7 @@ from formcast.extract.model import (
     concrete_paths,
 )
 from formcast.extract.page import DocText
-from formcast.extract.read import extract
+from formcast.extract.read import extract, places
 from formcast.match import pdf_features
 from tests.extract.corpus import (
     FIELD_RECTS,
@@ -174,6 +174,37 @@ def test_a_missing_required_field_is_missing_with_a_reason(template, kind):
     tax_id = fields(extract(template, make_form(client, kind=kind)))["investor.tax_id"]
     assert tax_id.status == "missing" and tax_id.raw is None and tax_id.value is None
     assert tax_id.reasons == ["'tax_id' is a required property"]
+
+
+@pytest.mark.parametrize("strategies, on_page", [
+    ([BoxRead(page=0, rect=(100, 100, 200, 120))], (100, 100, 200, 120)),
+    ([BoxRead(page=9, rect=(100, 100, 200, 120))], None),  # past the document's last page
+    ([AnchorRead(labels=["No such label anywhere"])], None),
+])  # fmt: skip
+def test_places_say_where_a_strategy_looks_and_leave_out_what_it_cannot_find(template, strategies, on_page):
+    t = with_reader(template, "investor.tax_id", *strategies)
+    found = places(t, make_form(CLIENT, kind="flattened"), ["investor.tax_id"], "fingerprint")
+    assert found == ({"investor.tax_id": (0, on_page)} if on_page else {})
+
+
+def test_a_box_has_no_place_on_a_document_of_another_layout(template):
+    t = with_reader(template, "investor.tax_id", BoxRead(page=0, rect=(100, 100, 200, 120)))
+    assert places(t, make_form(CLIENT, kind="flattened"), ["investor.tax_id"], "none") == {}
+
+
+def test_a_labels_place_runs_from_the_label_over_the_answer_within_the_page(template):
+    t = anchor_only(template)
+    pdf = make_form(CLIENT, kind="flattened")
+    [anchor] = [s for s in t.readers["investor.tax_id"].strategies if isinstance(s, AnchorRead)]
+    page, rect = places(t, pdf, ["investor.tax_id"], "fingerprint")["investor.tax_id"]
+    with DocText(pdf) as doc:
+        label_page, label = doc.find_label(anchor.labels, anchor.page)[0]
+        width = doc.page_sizes()[page][0]
+    assert page == label_page and rect[:2] == label[:2] and label[2] < rect[2] <= width
+
+
+def test_a_fillable_copys_field_has_its_widgets_place(template):
+    assert places(template, make_form(CLIENT, kind="fillable"), ["investor.tax_id"], "fingerprint")["investor.tax_id"][0] == 0
 
 
 def test_a_blank_form_reports_the_required_tax_id_missing(template):

@@ -28,6 +28,7 @@ import time
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import quote
 
 import pymupdf
 import pytest
@@ -1359,6 +1360,22 @@ def test_the_problems_are_paged_by_document_each_with_its_problems_titled_and_na
     for query in ("?limit=0", "?limit=201", "?offset=-1", "?status=found"):
         status, out = problems_of(r, run_id, query)
         assert (status, out["error"]) == (400, "bad_request"), query
+
+
+def test_places_say_where_a_field_left_missing_should_be_and_only_the_fields_with_no_place(reviewed):
+    r, run_id = reviewed
+    documents = problems_of(r, run_id)[1]["documents"]
+    missing = next(d for d in documents if d["name"] == "no_tin.pdf")
+    read = next(d for d in documents if d["name"] == "bad_tin.pdf")
+    assert [(p["path"], p["page"], p["rect"]) for p in missing["problems"]] == [("investor.tax_id", None, None)]
+    status, out = get_json(r.base, f"/api/runs/{run_id}/places?doc={quote(missing['doc_id'])}")
+    assert status == 200, out
+    place = out["places"]["investor.tax_id"]
+    x0, y0, x1, y1 = place["rect"]
+    assert set(out["places"]) == {"investor.tax_id"} and place["page"] == 0 and x0 < x1 and y0 < y1
+    assert get_json(r.base, f"/api/runs/{run_id}/places?doc={quote(read['doc_id'])}") == (200, {"places": {}})  # read: it has one
+    assert get_json(r.base, f"/api/runs/{run_id}/places?doc=nope")[0] == 404
+    assert get_json(r.base, f"/api/runs/{run_id}/places")[0] == 400
 
 
 def _reasoned(r: Runner) -> None:

@@ -86,7 +86,7 @@ import datetime as dt
 import hashlib
 import re
 from collections import defaultdict
-from collections.abc import Iterator
+from collections.abc import Iterable, Iterator
 from collections.abc import Set as AbstractSet
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -100,6 +100,7 @@ from formcast.extract.layout import LAYOUT_MATCH, PageFit, layout_score, page_fi
 from formcast.extract.model import (
     AnchorRead,
     BoxRead,
+    ChoiceMark,
     ChoiceRead,
     DocumentResult,
     ExtractionTemplate,
@@ -213,6 +214,70 @@ def extract(
         return _extract_open(template, doc, PdfFeatures(data), data, doc_id=doc_id, file=file, at=at)
     finally:
         doc.close()
+
+
+def places(
+    template: ExtractionTemplate, pdf: str | Path | bytes, paths: Iterable[str], matched: str
+) -> dict[str, tuple[int, Rect]]:
+    """Where each of ``paths`` is, or should be, on ``pdf``: ``(page, rect)``, for a review to point at.
+
+    A result has no place for a field left missing or read from a widget, so this asks the field's strategies where
+    they look, in order, ignoring whether anything is written there: the form field's first widget, a box (not when
+    ``matched`` is ``"none"``: the box is the template's layout), the area a label's answer is read from with the label
+    in it, the phrase itself, and every mark of a choice on the first mark's page. A path with no place (no strategy
+    finds its label, say) is left out. ``matched`` is the document's result's. Raises as :class:`DocText` opens ``pdf``.
+    """
+    doc = DocText(pdf)
+    try:
+        ctx = _Context(doc, template, matched, [])
+        found: dict[str, tuple[int, Rect]] = {}
+        for path in paths:
+            reader = template.readers.get(path)
+            place = next(filter(None, (_place(s, ctx) for s in (reader.strategies if reader else []))), None)
+            if place is not None:
+                found[path] = place
+        return found
+    finally:
+        doc.close()
+
+
+def _place(strategy: Strategy, ctx: _Context) -> tuple[int, Rect] | None:
+    """Where one strategy looks on the document (see :func:`places`), or ``None`` when it has nowhere to look."""
+    doc = ctx.doc
+    sizes = doc.page_sizes()
+    if isinstance(strategy, WidgetRead):
+        return next((found[0] for name in strategy.names if (found := doc.widget_places(name))), None)
+    if isinstance(strategy, BoxRead):
+        if ctx.matched == "none" or strategy.page >= len(sizes):
+            return None
+        return strategy.page, ctx.moved(strategy.page, strategy.rect)
+    if isinstance(strategy, AnchorRead):
+        hits = doc.find_label(strategy.labels, strategy.page)
+        if not hits:
+            return None
+        page, (x0, y0, x1, y1) = hits[0]
+        if strategy.side == "below":
+            return page, (x0, y0, x1, y1 + (y1 - y0) * strategy.max_lines)
+        return page, (x0, y0, min(x1 + strategy.max_width, sizes[page][0]), y1)
+    if isinstance(strategy, PhraseRead):
+        hits = doc.find_label(strategy.phrases, strategy.page)
+        return hits[0] if hits else None
+    marks = [m for mark in strategy.options.values() if (m := _mark_place(mark, ctx)) is not None]
+    if not marks:
+        return None
+    page = marks[0][0]
+    rects = [rect for on, rect in marks if on == page]
+    return page, (min(r[0] for r in rects), min(r[1] for r in rects), max(r[2] for r in rects), max(r[3] for r in rects))
+
+
+def _mark_place(mark: ChoiceMark, ctx: _Context) -> tuple[int, Rect] | None:
+    """Where one option's mark is, or ``None`` when the document has no such widget or the mark's page."""
+    if mark.widget is not None:
+        found = ctx.doc.widget_places(mark.widget, mark.state)
+        return found[0] if found else None
+    if ctx.matched == "none" or mark.page >= len(ctx.doc.page_sizes()):  # type: ignore[operator]
+        return None
+    return mark.page, ctx.moved(mark.page, mark.rect)  # type: ignore[arg-type,return-value]
 
 
 def now() -> str:

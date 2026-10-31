@@ -25,10 +25,7 @@
   </div>
   <div class="tb-left" data-for="extract">
     <button type="button" class="btn sel" id="doc-pick" title="Fill or extract other PDFs">No extraction open</button>
-    <span class="seg" role="group" aria-label="View" id="view-pick" hidden>
-      <button type="button" class="btn quiet" data-view="setup" aria-pressed="true">Set up</button>
-      <button type="button" class="btn quiet" data-view="review" aria-pressed="false" disabled title="Run the template on the batch first">Review</button>
-    </span>
+    <button type="button" class="btn quiet" id="back-setup" data-only="review" hidden title="Change the setup this run was read with">← Go back to setup</button>
   </div>
   <div class="tb-right" data-for="fill">
     <button type="button" class="btn quiet" id="undo" disabled>Undo</button>
@@ -39,6 +36,7 @@
     <button type="button" class="btn dark" id="fill-open" disabled>Fill →</button>
   </div>
   <div class="tb-right" data-for="extract" data-only="setup" hidden>
+    <button type="button" class="btn quiet" id="go-review" hidden title="Back to the review of this setup's run">Go to review →</button>
     <button type="button" class="btn quiet" id="setup-save">Save</button>
     <button type="button" class="btn dark" id="run" disabled>Run on all →</button>
   </div>
@@ -294,7 +292,6 @@
           <option value="pick">I'll pick them</option>
         </select>
       </div>
-      <p class="opt">3 to 20. Spread across the batch mixes fillable and flattened copies, early and late. More samples find more of the ways answers vary; each costs a little AI time while the template is built, not afterwards.</p>
       <ul class="picklist" id="picklist" aria-label="The batch's documents" hidden></ul>
       <button type="button" class="btn quiet small below" id="pick-more" hidden>More</button>
     </div>
@@ -489,6 +486,19 @@
         <button type="button" class="btn quiet" id="setup-replace-cancel">Cancel</button>
         <button type="button" class="btn dark" id="setup-replace-go">Replace</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- going back to a review after changing the setup (extract-review.js) -->
+<div class="overlay" id="reprocess-box" role="dialog" aria-modal="true" aria-labelledby="reprocess-title" hidden>
+  <div class="sheet narrow">
+    <h2 id="reprocess-title">Reprocess the documents?</h2>
+    <p>You changed the setup. Your changes take effect once the data is reprocessed: every document is read again, and the review shows the new results.</p>
+    <p class="hint" id="reprocess-decisions"></p>
+    <div class="row">
+      <button type="button" class="btn quiet" id="reprocess-cancel">Keep editing</button>
+      <button type="button" class="btn dark" id="reprocess-go">Reprocess →</button>
     </div>
   </div>
 </div>

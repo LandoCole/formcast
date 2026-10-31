@@ -181,8 +181,9 @@ export function mountZoom({ col, bar, below, size, apply }) {
 /**
  * @param {object} app see workbench.js
  * @returns {{open: (setup: object, opts?: {savedName?: string | null}) => void, promptSave: () => Promise<string | null>,
- *   settled: () => Promise<void>, readonly current: object | null, readonly savedName: string | null,
- *   readonly changed: boolean, readonly idle: boolean}}
+ *   show: () => void, saveChanges: () => Promise<string | null>, settled: () => Promise<void>,
+ *   readonly current: object | null, readonly savedName: string | null, readonly changed: boolean,
+ *   readonly revision: number, readonly idle: boolean}}
  */
 export function mountSetup(app) {
   const { $, engine } = app;
@@ -201,6 +202,7 @@ export function mountSetup(app) {
     marks: [], // the shown sample's marks
     savedName: null, // the name it was last saved as
     changed: false, // edited since it was opened or saved
+    revision: 0, // edits made on this screen, ever: saving doesn't reset it, so the review can tell what a run read
   };
   let queue = Promise.resolve(); // the changes, one after another
   let pending = 0; // changes and mark loads under way
@@ -300,6 +302,7 @@ export function mountSetup(app) {
   function replace(next, select = null) {
     state.setup = next;
     state.changed = true;
+    state.revision += 1;
     app.notice("");
     const paths = new Set(next.proof.fields.map((f) => f.path));
     if (select !== null && paths.has(select)) state.selected = select;
@@ -960,6 +963,26 @@ export function mountSetup(app) {
     return asked;
   }
 
+  /**
+   * Save the changes under the name last saved, asking nothing, and resolve it; null when that failed, as the notice
+   * says. A setup never saved has no name to save under: `promptSave` asks for one.
+   * @returns {Promise<string | null>}
+   */
+  async function saveChanges() {
+    if (state.savedName === null) return promptSave();
+    const name = state.savedName;
+    try {
+      await queue; // the changes on their way are part of what is saved
+      await calls.save(name, state.setup.id);
+      state.changed = false;
+      return name;
+    } catch (e) {
+      if (isGone(e)) lost();
+      else app.notice(`The changes couldn't be saved: ${e.message}`);
+      return null;
+    }
+  }
+
   /** The names of the saved extraction templates ([] when they can't be listed: the save then asks nothing). */
   async function savedNames() {
     try {
@@ -1035,18 +1058,20 @@ export function mountSetup(app) {
     if (e.key === "Escape") closePrompt();
     if (e.key === "Enter" && e.target === $("setup-save-name")) save();
   });
-  for (const btn of $("view-pick").querySelectorAll("[data-view]")) {
-    btn.addEventListener("click", () => {
-      if (state.setup === null || btn.dataset.view !== "setup") return;
-      app.extract.showView("setup"); // back from the review of a run of it
-      renderToolbar();
-      applyZoom();
-    });
+
+  /** Show the setup on screen again: back from the review of a run of it. */
+  function show() {
+    if (state.setup === null) return;
+    app.extract.showView("setup");
+    renderToolbar();
+    applyZoom();
   }
 
   return {
     open,
+    show,
     promptSave,
+    saveChanges,
     /** Resolves once the changes on their way (an edit sent as a text box lost focus, say) have been made or refused. */
     settled: () => queue.then(() => {}),
     get current() {
@@ -1057,6 +1082,9 @@ export function mountSetup(app) {
     },
     get changed() {
       return state.changed;
+    },
+    get revision() {
+      return state.revision;
     },
     get idle() {
       return pending === 0;

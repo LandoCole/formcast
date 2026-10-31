@@ -1344,16 +1344,148 @@ def test_run_on_all_saves_the_setup_first_reads_every_document_with_its_progress
     assert sum(shown) == RUN_TOTAL
     expect(b.page.locator("#doc-pick")).to_have_text(f"Client forms · {RUN_TOTAL} documents · Client info")
 
-    views = b.page.locator("#view-pick [data-view]")
-    expect(views.nth(1)).to_have_attribute("aria-pressed", "true")
-    expect(views.nth(0)).to_be_enabled()
-    views.nth(0).click()  # back to the setup it was run from, and to its review again
+    expect(b.page.locator("#back-setup")).to_have_text("← Go back to setup")
+    b.page.click("#back-setup")  # back to the setup it was run from, and to its review again
     expect(b.page.locator('.view[data-only="setup"]')).to_be_visible()
     expect(b.page.locator("#run")).to_be_visible()
     expect(b.page.locator("#doc-pick")).to_contain_text("5 samples")
-    views.nth(1).click()
+    b.page.click("#go-review")  # nothing changed: straight back, nothing asked
     expect(b.page.locator('.view[data-only="review"]')).to_be_visible()
+    expect(b.page.locator("#reprocess-box")).to_be_hidden()
     expect(b.page.locator("#export-xlsx")).to_be_visible()
+
+
+def run_from_setup(base: str, b: Bench, files: list[tuple[str, bytes]]) -> dict:
+    """Run a setup of the batch ``files`` from its screen, saved as "Client info", and show its review; the setup."""
+    setup = setup_on(base, files, samples=list(range(5)))
+    show_setup(b, setup)
+    b.page.click("#run")
+    b.page.fill("#setup-save-name", "Client info")
+    b.page.click("#setup-save-go")
+    expect(b.page.locator('.view[data-only="review"]')).to_be_visible(timeout=60_000)
+    return setup
+
+
+def test_a_setup_changed_after_its_run_asks_before_reprocessing_and_makes_a_new_run(start_demo_server, bench, run_files):
+    base = extract_server(start_demo_server)
+    b = bench(base, fill=False)
+    run_from_setup(base, b, run_files)
+    expect(listed(b, "bad_tin.pdf")).to_be_visible()
+    [first] = get_json(base, "/api/runs")[1]["runs"]
+    card(b, "investor.tax_id").locator('[data-act="not_in_document"]').click()  # a decision to lose
+    expect(card(b, "investor.tax_id")).to_contain_text("Not in this document")
+
+    b.page.click("#back-setup")
+    row(b, "investor.country").click()
+    b.page.fill("#ins-title", "Country code")
+    b.page.locator("#ins-title").press("Enter")
+    setup_idle(b)
+    b.page.click("#go-review")
+    box = b.page.locator("#reprocess-box")
+    expect(box).to_be_visible()
+    expect(box).to_contain_text("every document is read again")
+    expect(b.page.locator("#reprocess-decisions")).to_have_text("The decision made in this review stays with the earlier run; it isn't carried over.")
+    b.page.click("#reprocess-cancel")  # Keep editing: nothing is run
+    expect(box).to_be_hidden()
+    expect(b.page.locator('.view[data-only="setup"]')).to_be_visible()
+    assert len(get_json(base, "/api/runs")[1]["runs"]) == 1
+
+    b.page.click("#setup-save")  # saved: still changed since the run
+    b.page.click("#setup-save-go")
+    expect(b.page.locator("#setup-save-box")).to_be_hidden()
+    b.page.click("#go-review")
+    expect(box).to_be_visible()
+    b.page.click("#reprocess-go")
+    expect(b.page.locator("#setup-save-box")).to_be_hidden()  # it has a name: no name asked
+    expect(b.page.locator('.view[data-only="review"]')).to_be_visible(timeout=60_000)
+    expect(listed(b, "bad_tin.pdf")).to_be_visible()  # a new run: its decision stayed with the old one
+    runs = get_json(base, "/api/runs")[1]["runs"]
+    assert len(runs) == 2 and first["id"] in [r["id"] for r in runs]
+    b.page.click("#back-setup")
+    b.page.click("#go-review")  # as this run read it: nothing asked
+    expect(b.page.locator('.view[data-only="review"]')).to_be_visible()
+
+
+def test_a_saved_run_goes_back_to_its_templates_setup_and_on_to_its_review(start_demo_server, bench, run_files):
+    base = extract_server(start_demo_server)
+    _, run_id = saved_run(base, run_files)
+    b = bench(base, fill=False)
+    show_review(b, run_id)
+    b.page.click("#back-setup")
+    expect(b.page.locator('.view[data-only="setup"]')).to_be_visible(timeout=60_000)
+    expect(b.page.locator("#doc-pick")).to_contain_text("5 samples")
+    b.page.click("#go-review")
+    expect(b.page.locator('.view[data-only="review"]')).to_be_visible()
+    expect(listed(b, "bad_tin.pdf")).to_be_visible()
+
+
+def test_a_problem_picked_goes_to_its_place_on_the_page_with_what_is_wrong_there(start_demo_server, bench, run_files):
+    base = extract_server(start_demo_server)
+    _, run_id = saved_run(base, run_files)
+    b = bench(base, fill=False)
+    show_review(b, run_id)
+    page_loaded(b)
+    tag = b.page.locator("#rpage .rmark.is-picked .rtag")
+    expect(tag).to_have_text("Fails a check")  # bad_tin: read here, in doubt
+    listed(b, "no_tin.pdf").click()
+    mark = b.page.locator('#rpage .rmark.is-picked.is-missing[data-path="investor.tax_id"]')
+    expect(mark).to_be_visible()  # nothing was read: the server says where it should be
+    expect(tag).to_have_text("Should be here")
+    expect(b.page.locator("#rcap")).to_have_text("The boxes are where each problem field was read, or looked for")
+
+    b.page.click("#rnext-p")  # turned away; picking it again goes back to it
+    expect(b.page.locator("#rpage-of")).to_have_text("Page 2")
+    expect(mark).to_have_count(0)
+    card(b, "investor.tax_id").locator(".head").click()
+    expect(b.page.locator("#rpage-of")).to_have_text("Page 1")
+    expect(mark).to_be_visible()
+
+
+def test_the_side_columns_drag_wider_never_narrower_than_they_open_and_stay_that_way(start_demo_server, bench, run_files):
+    base = extract_server(start_demo_server)
+    _, run_id = saved_run(base, run_files)
+    b = bench(base, fill=False)
+    show_review(b, run_id)
+    left = b.page.locator('.view[data-only="review"] .col-schema')
+    right = b.page.locator('.view[data-only="review"] .col-side')
+    assert (left.bounding_box()["width"], right.bounding_box()["width"]) == (240, 300)
+
+    def drag(side: str, by: int) -> None:
+        box = b.page.locator(f'.view[data-only="review"] .pane-grip.{side}').bounding_box()
+        x, y = box["x"] + box["width"] / 2, box["y"] + 100
+        b.page.mouse.move(x, y)
+        b.page.mouse.down()
+        b.page.mouse.move(x + by, y, steps=4)
+        b.page.mouse.up()
+
+    drag("left", 120)
+    drag("right", -80)
+    assert abs(left.bounding_box()["width"] - 360) < 6 and abs(right.bounding_box()["width"] - 380) < 6
+    drag("left", -500)  # no narrower than it opens
+    assert left.bounding_box()["width"] == 240
+    b.page.locator('.view[data-only="review"] .pane-grip.left').focus()
+    b.page.keyboard.press("ArrowRight")
+    assert left.bounding_box()["width"] == 256
+    b.page.locator('.view[data-only="review"] .pane-grip.right').dblclick()
+    assert right.bounding_box()["width"] == 300
+
+
+def test_the_by_field_table_gives_its_counts_room(start_demo_server, bench, run_files):
+    base = extract_server(start_demo_server)
+    _, run_id = saved_run(base, run_files)
+    b = bench(base, fill=False)
+    show_review(b, run_id)
+    heads = b.page.locator("#field-table thead th")
+    widths = [heads.nth(i).bounding_box()["width"] for i in range(1, 7)]
+    assert min(widths) >= 90 and max(widths) - min(widths) < 2  # the count columns share the room evenly
+    text = b.page.evaluate("""() => {
+      const r = document.createRange();
+      return [...document.querySelectorAll('#field-table thead th')].slice(1).map((th) => {
+        r.selectNodeContents(th);
+        return th.getBoundingClientRect().right - r.getBoundingClientRect().right >= 0 ? th.clientWidth - r.getBoundingClientRect().width : -1;
+      });
+    }""")
+    assert min(text) >= 24  # a heading clears the one beside it
 
 
 def test_run_on_all_of_a_saved_setup_asks_no_name_and_a_cancel_opens_what_was_read(start_demo_server, bench, run_files, monkeypatch):
@@ -1804,7 +1936,7 @@ def test_the_choice_lists_the_saved_runs_and_extractions_and_opens_them_or_a_run
     assert b.page.evaluate("document.body.dataset.mode") == "extract"
     expect(stat(b, "total")).to_have_text(str(RUN_TOTAL))
     expect(b.page.locator("#docs li .doc-name")).to_have_text(["bad_tin.pdf", "no_tin.pdf"])  # the Required section
-    expect(b.page.locator("#view-pick [data-view='setup']")).to_be_disabled()  # no setup of it is open
+    expect(b.page.locator("#back-setup")).to_be_visible()  # no setup of it is open: its template reopens
 
     b.page.click("#doc-pick")
     expect(b.page.locator("#choose")).to_be_visible()
@@ -1865,9 +1997,7 @@ def test_a_saved_extraction_reopened_from_the_choice_runs_on_a_new_batch_and_its
     expect(stat(b, "total")).to_have_text("25")
     expect(stat(b, "with_problems")).to_have_text("2")  # mars's country is optional
     expect(b.page.locator("#docs li .doc-name")).to_have_text(["bad_tin.pdf", "no_tin.pdf"])  # the Required section
-    views = b.page.locator("#view-pick [data-view]")
-    expect(views.nth(0)).to_be_enabled()  # the setup it was run from is on screen
-    views.nth(0).click()
+    b.page.click("#back-setup")  # the setup it was run from is on screen
     expect(b.page.locator('.view[data-only="setup"]')).to_be_visible()
 
     b.page.click("#doc-pick")  # Extract from PDFs afterwards builds a template again

@@ -76,6 +76,7 @@ Runs (``api.runs``):
     GET  /api/runs/{r}/set-aside?offset=&limit=                     -> {total, documents: [{doc_id, name, reason, closest_template, closest_score}]}
     POST /api/runs/{r}/decisions     {doc_id, path, decision, value?} -> Run
     GET  /api/runs/{r}/pages.png?doc=&page=&dpi=                    -> image/png (a page of a document of the run)
+    GET  /api/runs/{r}/places?doc=                                  -> {places: {path: {page, rect}}} (see below)
     GET  /api/runs/{r}/export?format=xlsx|parquet|csv               -> the .xlsx, or a .zip of the Parquet or CSV files
     POST /api/runs/{r}/to-data                                      -> {dataset: Dataset.summary(), truncated, with_problems}
 
@@ -92,6 +93,10 @@ second stage, ``ai``, runs ``ai_pass`` on the run: only documents with a require
 the model, and its answers are problems to review. It is the only model call of a run, so a run without ``ai``
 needs no model. A run takes one job at a time: another ``extract-run`` of it meanwhile is 409 ``busy_run``. A saved extraction whose
 run could not be exported (as its save checks) is 400 ``bad_template`` before anything starts.
+
+``places`` says where a document's problems with no place in its results are, or should be (a field left missing,
+a value read from a form field): each path the template can point at on that document (``read.places``), from its
+file, so asked for one document at a time, as the review shows it. A path it can't point at is left out.
 
 ``problems`` and ``set-aside`` are paged as the batch files are (``limit`` 1 to 200, default 50); ``status`` is one
 of ``missing``, ``failed_check`` and ``unsure``, ``level`` ``required`` or ``optional`` (absent: both; another value
@@ -155,7 +160,7 @@ from typing import Any
 import pydantic
 
 from demo.server.api import AI_NOT_CONFIGURED, DEFAULT_DPI, Api, ApiError, Request, Response, _object, _uploads, missing
-from demo.server.documents import MAX_DPI, MIN_DPI, page_png
+from demo.server.documents import MAX_DPI, MIN_DPI, PYMUPDF_LOCK, page_png
 from demo.server.extraction import (
     MIN_SAMPLE, PAGE_DEFAULT, PAGE_LIMIT, Batch, Run, RunBusy, RunNotStarted, ScanNotDone, Setup, SetupBusy,
 )
@@ -164,11 +169,12 @@ from demo.server.settings import Settings
 from demo.server.store import check_name
 from formcast import FormcastError, SessionCancelled
 from formcast.extract.aipass import ai_pass
-from formcast.extract.batch import INTERNAL_ERROR, ReviewDecision, run_batch
+from formcast.extract.batch import INTERNAL_ERROR, PROBLEMS, ReviewDecision, run_batch
 from formcast.extract.edit import Edit
 from formcast.extract.export import check_columns
 from formcast.extract.model import ExtractionTemplate, concrete_paths
 from formcast.extract.proof import prove
+from formcast.extract.read import places
 from formcast.extract.samples import SamplePdf, read_samples
 from formcast.extract.setup import FIELDS_LABELS, MAX_SAMPLES, STAGES, SetupSpec, add_line, build_setup
 
@@ -214,6 +220,7 @@ def add_extract_routes(api: Api) -> None:
     route("GET", RUN + r"/set-aside", run_set_aside)
     route("POST", RUN + r"/decisions", decide)
     route("GET", RUN + r"/pages\.png", run_page_image)
+    route("GET", RUN + r"/places", run_places)
     route("GET", RUN + r"/export", export_run)
     route("POST", RUN + r"/to-data", run_to_data)
 
@@ -855,6 +862,33 @@ def run_page_image(api: Api, req: Request) -> Response:
     except OSError:
         raise ApiError(404, "not_found", f"{name} is no longer on the server") from None
     return _png(data, name, page, dpi)
+
+
+def run_places(api: Api, req: Request) -> dict:
+    """``GET .../places?doc=<doc_id>``: where the document's problems with no place are, or should be, on its pages."""
+    run = _run(api, req)
+    doc_id = req.query.get("doc")
+    if not doc_id:
+        raise ApiError(400, "bad_request", "Send doc as the doc_id of a document of the run.")
+    try:
+        doc = run.document(doc_id)
+    except KeyError:
+        raise ApiError(404, "not_found", "no such document in this run") from None
+    paths = [f.path for f in doc.fields if f.status in PROBLEMS and f.rect is None]
+    template = next((t for t in run.templates if t.template_id == doc.template_id), None)
+    if template is None or not paths:
+        return {"places": {}}
+    name = run.name_of(doc_id)
+    try:
+        data = Path(doc.file).read_bytes()
+    except OSError:
+        raise ApiError(404, "not_found", f"{name} is no longer on the server") from None
+    try:
+        with PYMUPDF_LOCK:
+            found = places(template, data, paths, doc.matched)
+    except FormcastError:
+        raise ApiError(422, "bad_pdf", f"{name} can't be read.") from None
+    return {"places": {path: {"page": page, "rect": list(rect)} for path, (page, rect) in found.items()}}
 
 
 def export_run(api: Api, req: Request) -> Response:

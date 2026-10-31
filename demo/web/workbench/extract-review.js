@@ -11,8 +11,16 @@
 // them. Cancel asks the job to stop once the documents being read are written; the run keeps what it read, so a
 // cancelled run opens its review of those, and Run on all again carries on where it stopped. A run that ends with an
 // error, or can't start (another run of it, every job slot taken, the AI asked for with none configured), says why in
-// the notice. A run done opens its review, with Set up and Review (#view-pick) switching between the two views while
-// the setup on screen is the one it was run from (`app.extract.linked`).
+// the notice. A run done opens its review.
+//
+// Back and forth. ← Go back to setup (#back-setup, on the review's toolbar) shows the setup the run came from, and
+// Go to review → (#go-review, on the setup's toolbar) comes back while that setup is on screen (`app.extract.linked`).
+// A run with no setup open (a saved run, a command line run) reopens its template on the setup screen first. A setup
+// changed since the run (`app.setup.revision`, or built again with Change the setup) can't be reviewed as it stands:
+// Go to review asks first (#reprocess-box), saying the changes take effect once every document is read again and how
+// many decisions stay with the earlier run. Reprocess saves it under its name, asking nothing, and runs it as Run on
+// all does (a setup that never had a name asks for one; a template reopened has no batch and picks one). A setup left
+// unchanged goes straight back, the review as it was.
 //
 // The review, as the mockup lays it out. Its numbers (#stats: the documents, the complete ones, the ones with a
 // required problem, the complete ones with an optional problem only, the ones set aside and the run time, `runStats`)
@@ -29,7 +37,11 @@
 // documents not read instead (`engine.extract.setAside`), each with why and the closest template, and the sections
 // wait meanwhile. The middle column is the chosen document's
 // page (`runPageUrl`, ‹ › through its pages, the setup screen's zoom: `mountZoom`) with the place each problem field was
-// read, or looked for, outlined (`rect`, in points from the page's top left), the picked one heavy. A page image that
+// read, or looked for, outlined (`rect`, in points from the page's top left). The results have no place for a field left
+// missing or read from a form field, so choosing a document asks the server where the template says they should be
+// (`engine.extract.places`, `locate`). Picking a card goes to its field's page and scrolls to it, highlighted with a
+// tag: "Should be here" for a missing field, otherwise the problem ("Unsure", "Fails a check"). A field with no place at
+// all (its label isn't on the document, say) has nothing to point at; the caption says so. A page image that
 // fails is asked for again through the engine (`runPage`) to learn why: a 404 past page 1 is past the document's last
 // page, so › stops there; anything else says so under the page with Try again. On the right a card
 // per problem (#problems): the field's title, the problem, what was read and why it is a problem, and the decisions:
@@ -52,7 +64,7 @@
 // back once they can), and opens a command line run's folder on the server's machine by its path (#run-folder).
 
 import { downloadBytes } from "../core/store.js";
-import { FIELD_COUNTS, asideLine, decisionText, docLine, fieldTable, levelSwitch, problemLabel, runLine, runStats, sendNotice } from "./extract-model.js";
+import { FIELD_COUNTS, asideLine, decisionText, docLine, fieldTable, levelSwitch, markTag, problemLabel, reprocessNote, runLine, runStats, sendNotice } from "./extract-model.js";
 import { mountZoom } from "./extract-setup.js";
 import { showStages } from "./jobs.js";
 
@@ -102,6 +114,7 @@ export function mountReview(app) {
   const state = {
     run: null, // the Run on show, as the server last gave it
     setupId: null, // the setup it was run from (Run on all), or null
+    revision: null, // that setup's `revision` as this run read it; null when it has been built again since
     level: "required", // the section listed: "required" or "optional"
     path: "", // the field filter ("" for every field)
     status: "", // the problem filter: "" for every problem, a status, or "set_aside"
@@ -111,6 +124,8 @@ export function mountReview(app) {
     doc: null, // the doc_id shown
     problem: null, // the path of the problem picked in it
     page: 0, // its page shown, from 0
+    turned: false, // the person has turned the page since picking a problem: a place found late moves nothing
+    reveal: false, // scroll to the picked problem's mark once it is drawn
     pages: Infinity, // its page count, once a page past the end was asked for
     size: null, // the page image's [width, height] in points, once it has loaded
   };
@@ -127,6 +142,12 @@ export function mountReview(app) {
   app.extract.onShow = () => {
     refreshChoices();
   };
+  // Change the setup builds a new setup: it is still the one this run came from, changed
+  app.bus.on("extract:setup", ({ setup, rebuilt }) => {
+    if (!rebuilt || !app.extract.linked()) return;
+    state.setupId = setup.id;
+    state.revision = null;
+  });
 
   const hideOverlays = () => {
     for (const o of document.querySelectorAll(".overlay")) o.hidden = true;
@@ -144,7 +165,7 @@ export function mountReview(app) {
    * Save the setup when it is not saved as it is, then read its batch with it; a setup with no batch picks one in
    * the Extract modal's Run on a batch mode first (see the top).
    */
-  async function runOnAll() {
+  async function runOnAll({ quietly = false } = {}) {
     const setup = app.setup?.current;
     if (running || !setup) return;
     running = true;
@@ -153,7 +174,7 @@ export function mountReview(app) {
       if (app.setup.current?.id !== setup.id) return;
       let name = app.setup.savedName;
       if (name === null || app.setup.changed) {
-        name = await app.setup.promptSave();
+        name = await (quietly ? app.setup.saveChanges() : app.setup.promptSave());
         if (name === null) return; // closed without saving
       }
       if (setup.batch) await follow(setup, setup.batch, name);
@@ -210,7 +231,7 @@ export function mountReview(app) {
     $("run-readout").textContent = text;
   }
 
-  $("run").addEventListener("click", runOnAll);
+  $("run").addEventListener("click", () => runOnAll());
   $("run-cancel").addEventListener("click", () => {
     const run = job;
     if (run === null || run.stopping) return;
@@ -246,7 +267,8 @@ export function mountReview(app) {
   function show(run, setupId) {
     hideOverlays();
     app.extract.setMode("extract");
-    Object.assign(state, { run, setupId, level: "required", path: "", status: "", docs: [], total: 0, listed: false, doc: null, problem: null, page: 0 });
+    const revision = setupId === null ? null : app.setup.revision;
+    Object.assign(state, { run, setupId, revision, level: "required", path: "", status: "", docs: [], total: 0, listed: false, doc: null, problem: null, page: 0 });
     decided.clear();
     const fieldPick = $("filter-path");
     fieldPick.replaceChildren(
@@ -347,14 +369,64 @@ export function mountReview(app) {
     list();
   }
 
-  for (const btn of $("view-pick").querySelectorAll("[data-view]")) {
-    btn.addEventListener("click", () => {
-      if (state.run === null || btn.dataset.view !== "review") return;
-      app.extract.showView("review"); // back from the setup screen it was run from
-      renderToolbar();
-      zoom.refresh();
-    });
+  // ------------------------------------------------------------------ back to the setup, and to the review
+
+  /** Show the setup the run came from: on screen already, or its template reopened (see the top). */
+  async function backToSetup() {
+    if (state.run === null) return;
+    if (app.extract.linked()) {
+      app.setup.show();
+      return;
+    }
+    const name = state.run.extraction;
+    const button = $("back-setup");
+    button.disabled = true;
+    app.notice(`Opening “${name}”: its samples are read again…`);
+    try {
+      const setup = await calls.reopen(name);
+      state.setupId = setup.id;
+      app.setup.open(setup, { savedName: name });
+      state.revision = app.setup.revision;
+      app.notice("");
+    } catch (e) {
+      app.notice(`The setup of this run couldn't be opened: ${e.message}`);
+    } finally {
+      button.disabled = false;
+    }
   }
+
+  function showReview() {
+    app.extract.showView("review");
+    renderToolbar();
+    zoom.refresh();
+  }
+
+  /** Go to the review of the run: straight back when the setup is as it was read, else asking first (see the top). */
+  async function goToReview() {
+    await app.setup.settled(); // an edit sent as the click took the focus from its box is a change
+    if (state.run === null || !app.extract.linked()) return;
+    if (state.revision === app.setup.revision) {
+      showReview();
+      return;
+    }
+    const decisions = state.run.fields.reduce((n, f) => n + (f.reviewed ?? 0), 0);
+    $("reprocess-decisions").textContent = reprocessNote(decisions);
+    $("reprocess-box").hidden = false;
+    $("reprocess-go").focus();
+  }
+
+  $("back-setup").addEventListener("click", backToSetup);
+  $("go-review").addEventListener("click", goToReview);
+  $("reprocess-cancel").addEventListener("click", () => {
+    $("reprocess-box").hidden = true;
+  });
+  $("reprocess-go").addEventListener("click", () => {
+    $("reprocess-box").hidden = true;
+    runOnAll({ quietly: true });
+  });
+  $("reprocess-box").addEventListener("keydown", (e) => {
+    if (e.key === "Escape") $("reprocess-box").hidden = true;
+  });
 
   // ------------------------------------------------------------------ the documents
 
@@ -424,8 +496,36 @@ export function mountReview(app) {
     state.problem = first?.path ?? null;
     state.page = first?.page ?? 0;
     state.pages = Infinity;
+    state.turned = false;
+    state.reveal = true;
     for (const li of $("docs").children) li.classList.toggle("on", li.dataset.doc === state.doc);
     renderDoc();
+    if (d !== null) locate(d);
+  }
+
+  /** Ask where the document's problems with no place should be, and point at them (see the top; once per listing). */
+  async function locate(d) {
+    if (isAside() || d.located || !d.problems?.some((p) => !p.rect)) return;
+    d.located = true;
+    const run = state.run;
+    let places;
+    try {
+      ({ places } = await calls.places(run.id, d.doc_id));
+    } catch {
+      return; // its file is gone, say: the caption keeps saying to look on the page, and the page says why it can't
+    }
+    for (const p of d.problems) {
+      if (!p.rect && places[p.path]) Object.assign(p, places[p.path]);
+    }
+    if (state.run !== run || state.doc !== d.doc_id) return;
+    const picked = d.problems.find((p) => p.path === state.problem);
+    if (!state.turned && picked?.rect && picked.page !== state.page) {
+      state.page = picked.page;
+      showPage();
+    } else {
+      drawMarks();
+      renderCaption();
+    }
   }
 
   function renderDoc() {
@@ -525,11 +625,18 @@ export function mountReview(app) {
     for (const p of d.problems) {
       if (p.page !== state.page || !p.rect) continue;
       const [x0, y0, x1, y1] = p.rect;
-      const mark = make("div", { className: `rmark${p.path === state.problem ? " is-picked" : ""}`, title: p.title });
+      const picked = p.path === state.problem;
+      const mark = make("div", { className: `rmark${p.status === "missing" ? " is-missing" : ""}${picked ? " is-picked" : ""}`, title: p.title });
       mark.dataset.path = p.path;
       Object.assign(mark.style, { left: pct(x0 / width), top: pct(y0 / height), width: pct((x1 - x0) / width), height: pct((y1 - y0) / height) });
+      if (picked) mark.append(make("span", { className: "rtag", textContent: markTag(p.status) }));
       pg.append(mark);
     }
+    if (!state.reveal) return;
+    const mark = pg.querySelector(".rmark.is-picked");
+    if (mark === null) return;
+    state.reveal = false;
+    mark.scrollIntoView({ block: "center", inline: "nearest" });
   }
 
   function renderPager() {
@@ -545,7 +652,7 @@ export function mountReview(app) {
     if (d !== null && isAside()) text = "Not read: no value of it is in the results";
     else if (d !== null) {
       const p = d.problems.find((x) => x.path === state.problem);
-      text = p && !p.rect ? `${p.title}: no place on the page was read for it; look for it on the page` : CAPTION;
+      text = p && !p.rect ? `${p.title}: its place on the page isn't known; look for it on the page` : CAPTION;
     }
     $("rcap").textContent = text;
   }
@@ -554,6 +661,8 @@ export function mountReview(app) {
     const next = state.page + step;
     if (docOf(state.doc) === null || next < 0 || next >= state.pages) return;
     state.page = next;
+    state.turned = true;
+    state.reveal = false;
     showPage();
   }
 
@@ -616,7 +725,7 @@ export function mountReview(app) {
     }
     el.dataset.path = p.path;
     el.addEventListener("click", (e) => {
-      if (!e.target.closest("button, input")) pick(p.path);
+      if (!e.target.closest("button")) pick(p.path);
     });
     const done = decided.get(keyOf(d.doc_id, p.path));
     if (done !== undefined) {
@@ -651,11 +760,13 @@ export function mountReview(app) {
     return el;
   }
 
-  /** Pick the problem `path` of the document shown: its page, its place heavy. */
+  /** Pick the problem `path` of the document shown: to its page and its place, highlighted, even if already picked. */
   function pick(path) {
     const p = docOf(state.doc)?.problems?.find((x) => x.path === path);
-    if (!p || state.problem === path) return;
+    if (!p) return;
     state.problem = path;
+    state.turned = false;
+    state.reveal = true;
     for (const card of $("problems").children) card.classList.toggle("on", card.dataset.path === path);
     if (p.page !== null && p.page !== state.page) {
       state.page = p.page;

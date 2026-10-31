@@ -322,6 +322,18 @@ export function problemLabel(status) {
   return PROBLEM_LABELS[status] ?? status;
 }
 
+/** What the tag on a picked problem's place says: where a missing field should be, or the problem with what was read. */
+export function markTag(status) {
+  return status === "missing" ? "Should be here" : problemLabel(status);
+}
+
+/** What the reprocess question says about the `decisions` made in the review of the earlier run. */
+export function reprocessNote(decisions) {
+  if (decisions === 0) return "";
+  const made = decisions === 1 ? "The decision" : `The ${decisions.toLocaleString("en-US")} decisions`;
+  return `${made} made in this review stay${decisions === 1 ? "s" : ""} with the earlier run; ${decisions === 1 ? "it isn't" : "they aren't"} carried over.`;
+}
+
 /** Seconds as the review's run time: m:ss, or h:mm:ss from an hour. */
 export function runTime(seconds) {
   const total = Math.round(Number(seconds) || 0);

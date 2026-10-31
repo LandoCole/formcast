@@ -726,7 +726,11 @@ called per document unless you ask for it.
    have a problem (filter by field and by *Missing*, *Fails a check* or *Unsure*; *Set aside* lists the documents
    no template fits or that could not be read, with the closest template), the chosen document's page with the
    problem's place outlined, and a card per problem: *Use this value* (type it), *Accept as read* or *Not in this
-   document*. Decisions are kept apart from the reads, in the run's folder. *Export xlsx* and *Export Parquet*
+   document*. Picking a card goes to its field's page and highlights it: where a missing field should be (from the
+   template, when its label or box can be found on that document), or the doubtful value and what is wrong with it.
+   *← Go back to setup* returns to the setup screen; *Go to review →* comes back, straight away if nothing changed,
+   or after asking, since changes take effect only when every document is read again as a new run (decisions made
+   stay with the earlier run). Decisions are kept apart from the reads, in the run's folder. *Export xlsx* and *Export Parquet*
    (`pip install 'formcast[parquet]'`) download the values, statuses, set-aside documents and field definitions,
    each document named as in the batch. *Send to fill →* opens the fill start screen with the run's results as
    *Your data* (the destination form picked when the template was made for one); a field still unsettled is left

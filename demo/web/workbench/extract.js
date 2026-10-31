@@ -5,7 +5,8 @@
 // back, and so do the start screen's Back while no form is open and the Extract modal's Back. A message the choice
 // opens with (#choose-msg: the setup screen's "no longer on the server") goes once a choice is made. Under the two
 // choices the review (extract-review.js) lists the saved runs and extraction templates to open again (`onShow`).
-// `showView(name)` shows one of extraction's views (the setup screen, the review) with its toolbar part.
+// `showView(name)` shows one of extraction's views (the setup screen, the review) with its toolbar part; the setup's
+// Go to review → (#go-review, extract-review.js) is there only when a run of that setup is open to go to.
 //
 // The mode is `body[data-mode]`, "fill" or "extract": the parts of the page that belong to one mode carry
 // `data-for="fill"` or `data-for="extract"`, and extract.css shows only the current mode's (its toolbar groups, its
@@ -32,7 +33,7 @@
 // Read the sample → (disabled from the click until the building panel opens or the choices are refused, so a double
 // click starts one build) picks the sample (`pickSample`) and starts the `extract-setup` job; the building panel
 // (#building) shows its stages live (`showStages`). When it is done the panel closes, the bus hears `extract:setup`
-// ({setup}) and `openSetup(setup)` of this module's API opens it, once the setup screen sets it. A job that fails, or
+// ({setup, rebuilt}: `rebuilt` when it came from "Change the setup") and `openSetup(setup)` of this module's API opens it, once the setup screen sets it. A job that fails, or
 // can't start, goes back to the modal with its message; Cancel asks the job to stop and goes back at once, the job's
 // end ignored. `openModal(setupInfo)` opens the modal again with a template's choices (a SetupInfo: start, lines,
 // destination, detect, pages, ocr, sample_how), for the setup screen's "Change the setup".
@@ -97,19 +98,14 @@ export function mountExtract(app) {
   }
 
   /**
-   * Show the extraction view `name` ("setup" or "review", null for none) with its toolbar part. The view buttons
-   * (#view-pick) press the one shown; the other is open to the person only when `linked()` says the setup and the run
-   * on screen belong together (the run was read with that setup's template).
+   * Show the extraction view `name` ("setup" or "review", null for none) with its toolbar part. The setup's Go to
+   * review is there only when `linked()` says the setup and the run on screen belong together (the run was read with
+   * that setup's template).
    */
   function showView(name) {
     for (const el of document.querySelectorAll("#extract-views [data-only], #toolbar [data-only]")) el.hidden = el.dataset.only !== name;
     $("extract-empty").hidden = name !== null;
-    $("view-pick").hidden = name === null;
-    const linked = api.linked();
-    for (const btn of $("view-pick").querySelectorAll("[data-view]")) {
-      btn.setAttribute("aria-pressed", String(btn.dataset.view === name));
-      btn.disabled = btn.dataset.view !== name && !linked;
-    }
+    $("go-review").hidden = !api.linked();
   }
 
   const api = { show, setMode, showView, openModal: () => {}, openRunOn: () => {}, onShow: () => {}, linked: () => false };
@@ -154,6 +150,7 @@ function mountModal(app, api) {
     work: Promise.resolve(), // uploads and folder scans, one after another
     progress: "", // an upload under way, shown in place of the batch's line
     runOn: null, // Run on a batch: {name, start} of the saved extraction template to run, or null to build one
+    rebuilding: false, // opened by "Change the setup": the build replaces the setup on screen
   };
   let watching = 0; // the scan watch running (a newer one ends an older)
   let previewing = 0; // the sample preview asked for last
@@ -168,6 +165,7 @@ function mountModal(app, api) {
   /** Open the modal (closing any other overlay), with a template's choices when `info` (a SetupInfo) is given. */
   function openModal(info) {
     state.runOn = null;
+    state.rebuilding = info !== undefined;
     if (info) apply(info);
     renderMode();
     renderDetect();
@@ -691,7 +689,7 @@ function mountModal(app, api) {
     }
     build = null;
     building.hidden = true;
-    bus.emit("extract:setup", { setup });
+    bus.emit("extract:setup", { setup, rebuilt: state.rebuilding });
     api.openSetup?.(setup);
   }
 
