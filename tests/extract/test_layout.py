@@ -12,6 +12,7 @@ from formcast.extract.layout import (
     normalize_line,
     page_fit,
 )
+from formcast.extract.model import StaticLine
 from formcast.extract.page import DocText
 from tests.extract.corpus import FIELD_RECTS, REVISED_GAP, ROTATE, SHIFT, clients, make_form, other_form
 
@@ -161,6 +162,27 @@ def test_a_page_fit_gives_the_offset_and_where_each_static_line_was_found(layout
         )
     with DocText(make_form(c, kind="flattened")) as doc:
         assert page_fit(layout, doc, 9).lines == () and page_fit(layout, doc, 9).offset == 0.0
+
+
+def _with_line(layout, line):
+    return layout.model_copy(update={"lines": [*layout.lines, line]})
+
+
+def test_a_learned_line_the_page_does_not_have_anywhere_says_nothing_about_a_box(layout):
+    x0, y0, x1, y1 = FIELD_RECTS["tax_id"]
+    with DocText(make_form(clients(1, seed=7)[0], kind="flattened")) as doc:
+        # what every sample happened to share: an answer, not the form
+        beside = StaticLine(page=0, text="northbridge capital partners", rect=(x1 + 4, y0, x1 + 120, y1))
+        above = StaticLine(page=0, text="100 federal st", rect=(x0, y0 - 9, x0 + 80, y0 - 1))
+        assert page_fit(_with_line(layout, beside), doc, 0).agrees(FIELD_RECTS["tax_id"])
+        assert page_fit(_with_line(layout, above), doc, 0).agrees(FIELD_RECTS["tax_id"])
+
+
+def test_a_learned_line_the_page_has_somewhere_else_still_counts_against_a_box(layout):
+    x0, y0, x1, y1 = FIELD_RECTS["tax_id"]
+    with DocText(make_form(clients(1, seed=7)[0], kind="flattened")) as doc:
+        elsewhere = StaticLine(page=0, text="date of birth or formation", rect=(x1 + 4, y0, x1 + 120, y1))
+        assert not page_fit(_with_line(layout, elsewhere), doc, 0).agrees(FIELD_RECTS["tax_id"])
 
 
 @pytest.mark.parametrize("kind", KINDS)

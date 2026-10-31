@@ -23,8 +23,12 @@ has it. A revised edition that inserts one row moves everything under it, and st
 ``page_fit`` gives, for one page, the offset and where on the document each static line was found at that offset
 (``None`` when it was not), made once per page and document. Reading uses it twice: :meth:`PageFit.agrees` tells
 whether a box's neighbourhood is where the layout has it (the static line nearest above the box and every static
-line on its row found at the offset), and :meth:`PageFit.found_rects` gives the document's printed lines, which a
+line on its row found at the offset; a line that is nowhere on the page says nothing, see below), and :meth:`PageFit.found_rects` gives the document's printed lines, which a
 label read never takes as its answer.
+
+A static line can be an answer after all: samples that all name the same requester teach that name as printed text.
+A copy with another requester doesn't have those lines, which says nothing about the form. So only a line the page has
+somewhere else, moved, counts against a box; one it doesn't have at all is left out of :meth:`PageFit.agrees`.
 
 Measured on the generated corpus (``tests/extract/corpus.py``), for Task 5 to calibrate ``LAYOUT_MATCH`` from:
     - layout learned from five clients' copies, scored on those five and three others in both kinds, each plain,
@@ -157,6 +161,7 @@ class PageFit:
 
     offset: float
     lines: tuple[tuple[StaticLine, Rect | None], ...]
+    on_page: frozenset[str] = frozenset()  # the text of every line the document has on this page
 
     def in_layout(self, rect: Rect) -> Rect:
         """``rect``, a place on the document's page, moved up by the offset: where it is in the layout's place.
@@ -174,11 +179,13 @@ class PageFit:
 
         True when the static line nearest above the box (the lowest one whose middle is above its top; of several
         on that row, the one nearest it sideways) and every static line on the box's row (at least half the line's
-        height inside the box's height) are found at the offset. A page with no such lines gives no evidence
-        against the box, and agrees.
+        height inside the box's height) are found at the offset. A line the page has nowhere is left out (an answer
+        the samples shared, see the module). A page with no such lines gives no evidence against the box, and agrees.
         """
         row, above = [], []
         for line, found in self.lines:
+            if found is None and line.text not in self.on_page:
+                continue
             r = line.rect
             if min(r[3], rect[3]) - max(r[1], rect[1]) >= _ROW_OVERLAP * (r[3] - r[1]):
                 row.append(found)
@@ -212,7 +219,7 @@ def page_fit(layout: Layout, doc: DocText, page: int) -> PageFit:
     lines = tuple(
         (ln, next((r for r in have.get(ln.text, ()) if _same_place(ln.rect, r, offset)), None)) for ln in static
     )
-    return PageFit(offset, lines)
+    return PageFit(offset, lines, frozenset(have))
 
 
 def layout_score(layout: Layout, doc: DocText) -> float:

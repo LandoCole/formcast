@@ -492,12 +492,18 @@ class DocText:
     # ------------------------------------------------------------------ boxes
 
     def text_in(self, page: int, rect: Rect) -> str | None:
-        """The words whose centre lies in ``rect``, in reading order, joined with a space; ``None`` when none."""
+        """The words whose centre lies in ``rect``, in reading order; ``None`` when none.
+
+        Words on one row are joined with a space and rows with a line break, as a multi-line form field holds them.
+        """
         text = self._page(page)
         if text is None:
             return None
-        inside = [w.text for w in text.words if _in(rect, _centre(w.rect))]
-        return " ".join(inside) if inside else None
+        rows: dict[int, list[str]] = {}
+        for word, row in zip(text.words, text.rows, strict=True):
+            if _in(rect, _centre(word.rect)):
+                rows.setdefault(row, []).append(word.text)
+        return "\n".join(" ".join(words) for words in rows.values()) if rows else None
 
     def marked(self, page: int, rect: Rect) -> bool | None:
         """Whether the drawn check box at ``rect`` is marked; ``None`` when ``rect`` is off the page.

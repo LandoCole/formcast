@@ -18,6 +18,8 @@ from formcast.extract.model import (
     ExtractionTemplate,
     Layout,
     Reader,
+    StaticLine,
+    Transform,
     WidgetRead,
     concrete_paths,
 )
@@ -206,6 +208,39 @@ def test_a_labels_place_runs_from_the_label_over_the_answer_within_the_page(temp
 
 def test_a_fillable_copys_field_has_its_widgets_place(template):
     assert places(template, make_form(CLIENT, kind="fillable"), ["investor.tax_id"], "fingerprint")["investor.tax_id"][0] == 0
+
+
+def test_an_answer_every_sample_shared_is_not_the_form_so_a_copy_without_it_still_reads_its_boxes(template):
+    x0, y0, x1, y1 = FIELD_RECTS["tax_id"]
+    shared = StaticLine(page=0, text="northbridge capital partners", rect=(x1 + 4, y0, x1 + 120, y1))  # beside the box
+    layout = template.layout.model_copy(update={"lines": [*template.layout.lines, shared]})
+    t = with_reader(template.model_copy(update={"layout": layout}), "investor.tax_id", BoxRead(page=0, rect=FIELD_RECTS["tax_id"]))
+    tax_id = fields(extract(t, make_form(CLIENT, kind="flattened")))["investor.tax_id"]
+    assert tax_id.status == "found" and tax_id.value == CLIENT.tax_id
+
+
+def test_a_box_over_several_printed_lines_cleans_as_a_multi_line_form_field_does(template):
+    x0, y0, x1, _ = FIELD_RECTS["address_1"]
+    _, _, _, y3 = FIELD_RECTS["address_2"]
+    block = BoxRead(page=0, rect=(x0, y0, x1, y3))
+    first = Transform(op="split", args={"sep": "\n", "index": 0})
+    rest = Transform(op="split", args={"sep": "\n", "start": 1})
+    readers = {
+        **template.readers,
+        "address.street": Reader(strategies=[block], clean=[first]),
+        "address.city_state_zip": Reader(strategies=[block], clean=[rest]),
+    }
+    got = fields(extract(template.model_copy(update={"readers": readers}), make_form(CLIENT, kind="flattened")))
+    assert got["address.street"].value == CLIENT.street
+    assert got["address.city_state_zip"].value == CLIENT.city_state_zip
+
+
+def test_a_box_over_two_lines_with_no_line_cleaning_reads_one_answer(template):
+    x0, y0, x1, _ = FIELD_RECTS["address_1"]
+    _, _, _, y3 = FIELD_RECTS["address_2"]
+    t = with_reader(template, "address.street", BoxRead(page=0, rect=(x0, y0, x1, y3)))
+    street = fields(extract(t, make_form(CLIENT, kind="flattened")))["address.street"]
+    assert street.value == f"{CLIENT.street} {CLIENT.city_state_zip}" and "\n" not in street.raw
 
 
 def test_a_blank_form_reports_the_required_tax_id_missing(template):

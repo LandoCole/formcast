@@ -412,6 +412,8 @@ def _read_path(path: str, reader: Reader | None, ctx: _Context) -> Iterator[_Rea
         if read is None:
             continue
         read.doubts += [s.reason for s in skipped if s.doubt and s.reason not in read.doubts]
+        if read.strategy == "box" and not _splits_lines(reader):
+            read.raw = " ".join(read.raw.split())  # a wrapped answer is one answer
         read.value = cleaned(reader, read.raw, sp)
         if read.value is None:
             read.reasons.append(f"cleaning left nothing of {read.raw!r}")
@@ -419,6 +421,11 @@ def _read_path(path: str, reader: Reader | None, ctx: _Context) -> Iterator[_Rea
         yield read
     if not read_any and skipped:
         yield _Read(reasons=[s.reason for s in skipped])
+
+
+def _splits_lines(reader: Reader) -> bool:
+    """Whether the reader's cleaning takes text apart at its line breaks, as a multi-line form field needs."""
+    return any(t.op == "split" and "\n" in str(t.args.get("sep") or "") for t in reader.clean)
 
 
 def cleaned(reader: Reader, raw: str, sp: SchemaPath) -> Any:

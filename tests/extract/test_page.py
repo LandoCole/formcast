@@ -469,6 +469,13 @@ def test_text_in_reads_the_words_whose_centre_is_in_the_box():
         assert doc.text_in(0, (label[0] - 5, label[1], label[0] + 5, label[3])) is None
 
 
+def test_text_in_keeps_each_printed_line_on_its_own_line_as_a_form_field_does():
+    x0, y0, x1, _ = FIELD_RECTS["address_1"]
+    _, _, _, y3 = FIELD_RECTS["address_2"]
+    with DocText(make_form(CLIENT, kind="flattened")) as doc:
+        assert doc.text_in(0, (x0, y0, x1, y3)) == f"{CLIENT.street}\n{CLIENT.city_state_zip}"
+
+
 def test_text_in_on_a_shifted_page_needs_the_shifted_box():
     shifted = make_form(CLIENT, kind="flattened", shift=SHIFT)
     with DocText(shifted) as doc:
