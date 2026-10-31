@@ -142,18 +142,10 @@ details.more > select { margin-bottom: 4px; }
 
 /* ---------- the three columns ---------- */
 .bench {
-  flex: 1 1 auto; min-height: 0; position: relative;
-  display: grid; grid-template-columns: var(--pane-left, 240px) minmax(0, 1fr) var(--pane-right, 300px);
+  flex: 1 1 auto; min-height: 0;
+  /* the side columns grow with the window, so a small laptop keeps its room for the page */
+  display: grid; grid-template-columns: clamp(240px, 21vw, 320px) minmax(0, 1fr) clamp(300px, 26vw, 400px);
 }
-/* dragged to widen a side column (panes.js): a wide target on the column's inner edge, a line while in use */
-.pane-grip { position: absolute; top: 0; bottom: 0; z-index: 3; width: 9px; cursor: col-resize; touch-action: none; }
-.pane-grip.left { left: calc(var(--pane-left, 240px) - 4px); }
-.pane-grip.right { right: calc(var(--pane-right, 300px) - 5px); }
-.pane-grip::after { content: ""; position: absolute; top: 0; bottom: 0; left: 3px; width: 2px; background: transparent; }
-.pane-grip:hover::after, .pane-grip:focus-visible::after { background: var(--ink); }
-.pane-grip:focus-visible { outline: none; }
-body.resizing-pane { cursor: col-resize; user-select: none; }
-body.resizing-pane .pane-grip::after { background: var(--graphite); }
 .col { min-width: 0; min-height: 0; overflow: auto; padding: 20px; box-sizing: border-box; }
 .col-schema { box-shadow: inset -.5px 0 0 var(--rule); }
 .col-side { box-shadow: inset .5px 0 0 var(--rule); }
@@ -230,7 +222,6 @@ body.resizing-pane .pane-grip::after { background: var(--graphite); }
 @media (max-width: 1023px) {
   html, body { height: auto; }
   body { display: block; }
-  .pane-grip { display: none; }
   .bench { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "page page" "schema side"; }
   .col { overflow: visible; }
   .col-page { grid-area: page; overflow-x: auto; }

@@ -1441,33 +1441,21 @@ def test_a_problem_picked_goes_to_its_place_on_the_page_with_what_is_wrong_there
     expect(mark).to_be_visible()
 
 
-def test_the_side_columns_drag_wider_never_narrower_than_they_open_and_stay_that_way(start_demo_server, bench, run_files):
+def test_the_side_columns_grow_with_the_window_and_never_go_narrower_than_240_and_300(start_demo_server, bench, run_files):
     base = extract_server(start_demo_server)
     _, run_id = saved_run(base, run_files)
     b = bench(base, fill=False)
     show_review(b, run_id)
     left = b.page.locator('.view[data-only="review"] .col-schema')
     right = b.page.locator('.view[data-only="review"] .col-side')
-    assert (left.bounding_box()["width"], right.bounding_box()["width"]) == (240, 300)
 
-    def drag(side: str, by: int) -> None:
-        box = b.page.locator(f'.view[data-only="review"] .pane-grip.{side}').bounding_box()
-        x, y = box["x"] + box["width"] / 2, box["y"] + 100
-        b.page.mouse.move(x, y)
-        b.page.mouse.down()
-        b.page.mouse.move(x + by, y, steps=4)
-        b.page.mouse.up()
+    def widths(width: int) -> tuple[float, float]:
+        b.page.set_viewport_size({"width": width, "height": 900})
+        return left.bounding_box()["width"], right.bounding_box()["width"]
 
-    drag("left", 120)
-    drag("right", -80)
-    assert abs(left.bounding_box()["width"] - 360) < 6 and abs(right.bounding_box()["width"] - 380) < 6
-    drag("left", -500)  # no narrower than it opens
-    assert left.bounding_box()["width"] == 240
-    b.page.locator('.view[data-only="review"] .pane-grip.left').focus()
-    b.page.keyboard.press("ArrowRight")
-    assert left.bounding_box()["width"] == 256
-    b.page.locator('.view[data-only="review"] .pane-grip.right').dblclick()
-    assert right.bounding_box()["width"] == 300
+    assert widths(1100) == (240, 300)
+    assert widths(1440) == (pytest.approx(302.4, abs=1), pytest.approx(374.4, abs=1))
+    assert widths(1920) == (320, 400)
 
 
 def test_the_by_field_table_gives_its_counts_room(start_demo_server, bench, run_files):

@@ -4,7 +4,7 @@
 // choice of Fill or Extract the page opens on and the page's mode (extract.js), the start screen and
 // match prompt (start.js), AI jobs and area revise (jobs.js), the fill drawer (fill.js), saving to
 // the store (save.js), extraction's setup screen (extract-setup.js) and its runs and their review
-// (extract-review.js), which call back through `app`. The side columns' widths are panes.js's.
+// (extract-review.js), which call back through `app`.
 //
 // Rendering under latency. Every edit is a round trip to the server, and the session runs edits one
 // at a time. Redrawing the page's boxes when one edit lands would put a box the person has since
@@ -40,7 +40,6 @@ import { mountExtract } from "./extract.js";
 import { mountFill } from "./fill.js";
 import { mountJobs } from "./jobs.js";
 import { mountPages } from "./pages.js";
-import { mountPanes } from "./panes.js";
 import { mountSave } from "./save.js";
 import { mountStart } from "./start.js";
 
@@ -503,6 +502,5 @@ if (engine.extract) {
   app.review = mountReview(app);
 }
 app.pages = mountPages(app);
-mountPanes();
 syncModal();
 render();
