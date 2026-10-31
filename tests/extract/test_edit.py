@@ -9,6 +9,7 @@ from formcast.data.mapping import Transform
 from formcast.errors import FormcastError
 from formcast.extract.edit import (
     Edit,
+    MakeOptionSet,
     MarkAbsent,
     RemoveField,
     RenameField,
@@ -19,9 +20,20 @@ from formcast.extract.edit import (
     SetField,
     SetLabels,
     SetOptionBox,
+    SplitOptionSet,
     apply_edit,
 )
-from formcast.extract.model import RESERVED_NAMES, ChoiceRead, ExtractionTemplate, SampleRecord, SetupInfo
+from formcast.extract.model import (
+    RESERVED_NAMES,
+    BoxRead,
+    ChoiceMark,
+    ChoiceRead,
+    ExtractionTemplate,
+    Reader,
+    SampleRecord,
+    SetupInfo,
+    WidgetRead,
+)
 from formcast.schema import REASON_KEY
 from tests.extract.corpus import FIELD_RECTS, SHIFT, TYPE_BOXES, clients, hand_template, make_form, truth
 
@@ -455,3 +467,138 @@ def test_a_box_drawn_on_a_sample_needs_the_templates_own_sample_pdfs():
         apply_edit(t, edit.model_copy(update={"sample": 2}), pdfs=pdfs)
     with pytest.raises(FormcastError, match="no page 5"):
         apply_edit(t, edit.model_copy(update={"page": 5}), pdfs=pdfs)
+
+
+# ------------------------------------------------------------------- option sets
+
+
+BOX_A, BOX_B = (60.0, 500.0, 72.0, 512.0), (60.0, 520.0, 72.0, 532.0)
+
+
+def with_checkboxes(template=None, *, opinions=None, setup=None):
+    """A template with three yes-or-no fields in ``investor``: read as a form field, a choice, and a drawn box."""
+    base = (template or hand_template()).model_dump(by_alias=True)
+    investor = base["schema"]["properties"]["investor"]
+    investor["properties"] = {
+        **investor["properties"],
+        "is_trust": {"type": "boolean", "title": "Trust"},
+        "is_llc": {"type": "boolean", "title": "LLC"},
+        "is_other": {"type": "boolean", "title": "Other (see instructions)"},
+    }
+    t = ExtractionTemplate.model_validate({**base, "setup": setup, "samples": opinions or []})
+    t.readers["investor.is_trust"] = Reader(strategies=[WidgetRead(names=["trust_box", "trust_box_2024"]), BoxRead(page=0, rect=BOX_A)])
+    t.readers["investor.is_llc"] = Reader(strategies=[
+        ChoiceRead(options={"yes": ChoiceMark(widget="llc_box")}),
+        ChoiceRead(options={"yes": ChoiceMark(page=0, rect=BOX_B)}),
+    ])
+    t.readers["investor.is_other"] = Reader(strategies=[BoxRead(page=0, rect=BOX_B)])
+    return t
+
+
+def link(template, *paths, title="Tax classification"):
+    return apply_edit(template, MakeOptionSet(op="make_option_set", path=paths[0], others=list(paths[1:]), title=title))
+
+
+def test_linked_checkboxes_become_one_field_with_an_answer_for_each_box():
+    t = link(with_checkboxes(), "investor.is_trust", "investor.is_llc", "investor.is_other")
+    node = _prop(t, "investor", "tax_classification")
+    assert (node["type"], node["title"]) == ("string", "Tax classification")
+    assert node["enum"] == ["Trust", "LLC", "Other (see instructions)"]
+    keys = list(_prop(t, "investor")["properties"])
+    assert not {"is_trust", "is_llc", "is_other"} & set(keys)
+    assert keys.index("tax_classification") == len(keys) - 1  # where the first of them was
+    widgets, boxes = t.readers["investor.tax_classification"].strategies
+    assert widgets.options == {"Trust": ChoiceMark(widget="trust_box"), "LLC": ChoiceMark(widget="llc_box")}
+    assert boxes.options == {
+        "Trust": ChoiceMark(page=0, rect=BOX_A),
+        "LLC": ChoiceMark(page=0, rect=BOX_B),
+        "Other (see instructions)": ChoiceMark(page=0, rect=BOX_B),
+    }
+    assert not {"investor.is_trust", "investor.is_llc", "investor.is_other"} & set(t.readers)
+
+
+def test_a_linked_set_is_required_when_one_of_its_fields_was():
+    base = apply_edit(with_checkboxes(), SetField(op="set_field", path="investor.is_llc", required=True))
+    t = link(base, "investor.is_trust", "investor.is_llc")
+    assert "tax_classification" in _prop(t, "investor")["required"]
+    assert "is_llc" not in _prop(t, "investor")["required"]
+    assert _prop(t, "investor", "tax_classification")[REASON_KEY] == "Set by you"
+
+
+def test_the_samples_readings_of_the_boxes_become_the_answer_of_the_set():
+    sample = SampleRecord(file="a.pdf", sha256="0" * 64, opinion={"investor.is_trust": False, "investor.is_llc": True})
+    blank = SampleRecord(file="b.pdf", sha256="1" * 64, opinion={"investor.is_trust": False, "investor.is_llc": False})
+    both = SampleRecord(file="c.pdf", sha256="2" * 64, opinion={"investor.is_trust": True, "investor.is_llc": "yes"})
+    asked = SampleRecord(file="d.pdf", sha256="3" * 64, opinion={"investor.tax_id": "1"})
+    t = link(with_checkboxes(opinions=[sample, blank, both, asked]), "investor.is_trust", "investor.is_llc")
+    assert t.samples[0].opinion == {"investor.tax_classification": "LLC"}
+    assert t.samples[1].opinion == {"investor.tax_classification": None}
+    assert t.samples[2].opinion == {"investor.tax_classification": "Trust, LLC"}
+    assert t.samples[3].opinion == {"investor.tax_id": "1"}  # the model was not asked about these boxes
+
+
+def test_a_set_takes_over_the_lines_its_fields_came_from():
+    setup = SetupInfo(start="lines", detect="auto", lines=["boxes"], line_paths={"boxes": ["investor.is_trust", "investor.is_llc", "investor.dob"]})
+    t = link(with_checkboxes(setup=setup.model_dump()), "investor.is_trust", "investor.is_llc")
+    assert t.setup.line_paths == {"boxes": ["investor.dob", "investor.tax_classification"]}
+
+
+def test_a_box_joins_a_set_that_already_exists():
+    t = link(with_checkboxes(), "investor.is_trust", "investor.is_llc")
+    t = link(t, "investor.tax_classification", "investor.is_other", title="Classification")
+    assert _prop(t, "investor", "classification")["enum"] == ["Trust", "LLC", "Other (see instructions)"]
+
+
+def test_a_field_with_no_title_answers_with_its_name_in_words():
+    t = with_checkboxes()
+    del _prop(t, "investor", "is_llc")["title"]
+    assert _prop(link(t, "investor.is_trust", "investor.is_llc"), "investor", "tax_classification")["enum"] == ["Trust", "Is llc"]
+
+
+def test_a_set_can_keep_the_name_of_one_of_its_fields():
+    t = link(with_checkboxes(), "investor.is_trust", "investor.is_llc", title="Is LLC")
+    assert _prop(t, "investor", "is_llc")["enum"] == ["Trust", "LLC"]
+    assert "investor.is_trust" not in t.readers
+
+
+@pytest.mark.parametrize(("paths", "title", "why"), [
+    (("investor.is_trust", "investor.tax_id"), "Set", "Taxpayer ID is not a checkbox"),
+    (("investor.is_trust", "owners[0].name"), "Set", "repeated group"),
+    (("investor.is_trust", "investor.gone"), "Set", "no field investor.gone"),
+    (("investor.is_trust", "investor.is_trust"), "Set", "at least two"),
+    (("investor.is_trust", "investor.is_llc"), "  ", "a letter or number"),
+    (("investor.is_trust", "investor.is_llc"), "Tax ID", "already a field"),
+])
+def test_what_cannot_be_linked_is_refused_with_why(paths, title, why):
+    with pytest.raises(FormcastError, match=why):
+        link(with_checkboxes(), *paths, title=title)
+
+
+def test_a_field_with_no_checkbox_on_the_form_cannot_be_linked():
+    t = apply_edit(with_checkboxes(), MarkAbsent(op="mark_absent", path="investor.is_llc"))
+    with pytest.raises(FormcastError, match="LLC has no checkbox"):
+        link(t, "investor.is_trust", "investor.is_llc")
+
+
+def test_a_set_comes_apart_into_a_yes_or_no_field_for_each_answer():
+    t = link(with_checkboxes(), "investor.is_trust", "investor.is_llc", "investor.is_other")
+    apart = apply_edit(t, SplitOptionSet(op="split_option_set", path="investor.tax_classification"))
+    assert "tax_classification" not in _prop(apart, "investor")["properties"]
+    assert _prop(apart, "investor", "trust") == {"type": "boolean", "title": "Trust"}
+    assert _prop(apart, "investor", "other_see_instructions")["title"] == "Other (see instructions)"
+    assert apart.readers["investor.llc"].strategies == [
+        ChoiceRead(options={"yes": ChoiceMark(widget="llc_box")}),
+        ChoiceRead(options={"yes": ChoiceMark(page=0, rect=BOX_B)}),
+    ]
+
+
+def test_coming_apart_gives_each_box_the_samples_reading():
+    sample = SampleRecord(file="a.pdf", sha256="0" * 64, opinion={"investor.is_trust": False, "investor.is_llc": True})
+    t = link(with_checkboxes(opinions=[sample]), "investor.is_trust", "investor.is_llc")
+    apart = apply_edit(t, SplitOptionSet(op="split_option_set", path="investor.tax_classification"))
+    assert apart.samples[0].opinion == {"investor.trust": False, "investor.llc": True}
+
+
+def test_only_a_set_comes_apart():
+    with pytest.raises(FormcastError, match="not an option set"):
+        apply_edit(hand_template(), SplitOptionSet(op="split_option_set", path="investor.tax_id"))

@@ -8,18 +8,23 @@
 // sample and the detection, with "Change the setup" (#change), which opens the Extract modal again with the
 // template's choices (its SetupInfo). The field list (#fields) has a row per field (a repeated group's items folded
 // into one, `groupFields`), with its state across the samples (`fieldState` of `rowProof`): ● every sample, ◐ some,
-// ? unsure, ○ not on this form, and * after the name of a required field; under it, "Add a field" (#add) runs an
-// `extract-line` job and selects the first field it adds. The middle column is a page of one sample (‹ › through the samples and their pages, fit width / fit page
+// ? unsure, ○ not on this form, and * after the name of a required field, an option set's row with a row per answer under
+// it; under it all, "Add a field" (#add) runs an `extract-line` job and selects the first field it adds. A click selects
+// one field (an answer's row, that answer's box); Ctrl or ⌘ and a click (in the list or on a box) adds or takes away one,
+// and Shift and a click a run of rows. The middle column is a page of one sample (‹ › through the samples and their pages, fit width / fit page
 // and zoom steps) with the readers' marks on it (`engine.extract.marks`, in that sample page's frame): each `box` and
 // each checkbox `option` drawn as the editor draws a linked box, which moves and resizes as there; where a value was
 // `read`, dotted, and a `label` a reader looks beside, underlined (these two only show, they do not move). The
-// selected field's marks are heavy, its first one with its path. On the right, the field (#ins): its name, title,
-// type and definition, how it is read (`readFrom`), its answers and the box of each, the wordings the samples have
+// selected field's marks are heavy, its first one with its path, and an answer selected is highlighted with its words.
+// On the right, the field (#ins): its name, title, type and definition, what is known to be wrong with how it is read,
+// an option set's answers (each selects its box) with Separate into fields, the wordings the samples have
 // that its answers' map lacks (accepted with "Add to the answers' map", `engine.extract.learn`), its labels as a comma
 // list, its checks (Required, with why it is required or optional under it, and a format), "Not on this form" or
 // "Bring back", and "Remove field"; under it, one line per sample (`outcomeLine`), which shows that sample when
 // clicked. Only a change of the Required checkbox sends `required`: the server then records the person's choice as
-// the reason ("Set by you").
+// the reason ("Set by you"). With several fields selected the right side is what can be done to them all (`manyParts`):
+// link them as an option set, make them required or optional, move them to a category, say they are not on this form,
+// or remove them.
 //
 // Every change is one call to the server (`edit`, `learn`, or the line job), made one after another (a change made
 // while a line job runs waits for it, since the server takes none meanwhile); the Setup it
@@ -48,7 +53,7 @@ import { createBus } from "../core/bus.js";
 import { makeView, viewSize } from "../core/geometry.js";
 import { PageView } from "../core/pageview.js";
 import { DETECT_SUM } from "./extract.js";
-import { categoryOf, REASON_KEY, checksOf, fieldSchema, fieldState, groupFields, outcomeLine, readFrom, rowProof, unusedName } from "./extract-model.js";
+import { categoryOf, REASON_KEY, checksOf, fieldSchema, fieldState, groupFields, linkBlock, optionsOf, outcomeLine, rowProof, unusedName } from "./extract-model.js";
 
 /** What the screen says when the server no longer has the setup. */
 export const GONE = "This setup is no longer on the server; start again.";
@@ -82,6 +87,10 @@ const plural = (n, word, many = `${word}s`) => `${n.toLocaleString("en-US")} ${n
 const generic = (path) => path.replace(/\[\d+\]/g, "[]");
 const leafWords = (path) => generic(path).split(".").at(-1).replace(/\[\]/g, "").replaceAll("_", " ");
 const andList = (words) => (words.length < 2 ? words.join("") : `${words.slice(0, -1).join(", ")} and ${words.at(-1)}`);
+/** Whether a press or a key adds to the selection, Ctrl on any system and ⌘ on a Mac. */
+const addsToSelection = (e) => e.ctrlKey || e.metaKey;
+/** What the inspector was last drawn for, when that was several fields. */
+const MANY = "#many";
 
 /** An element with `props` set and `children` appended. */
 function make(tag, props = {}, ...children) {
@@ -194,7 +203,9 @@ export function mountSetup(app) {
   const state = {
     setup: null, // the Setup on show, as the server last gave it
     batch: null, // its batch, for the toolbar (null for a saved template reopened, or until it is fetched)
-    selected: null, // the concrete path of the field selected, or null
+    selected: null, // the concrete path of the field selected, or null; with `many`, the row last added
+    answer: null, // the answer of the selected field picked out, or null
+    many: new Set(), // the rows selected (each by its path), when two or more are; else empty
     sample: 0, // the sample shown, from 0 in the template's order
     page: 0, // its page shown, from 0
     marks: [], // the shown sample's marks
@@ -208,7 +219,8 @@ export function mountSetup(app) {
   let held = false; // a press is held on the page
   let redrawLater = false;
   let adding = false; // a line job is running
-  let inspected = null; // the path the inspector was last drawn for
+  let inspected = null; // the path the inspector was last drawn for, or MANY
+  let addingBox = false; // a press on the page with Ctrl or ⌘ is held
   const renames = new Map(); // a path an edit renamed -> the field's path now
   /** @type {Map<string, {path: string, kind: string, answer: string | null, page: number, rect: number[], primary: boolean}>} */
   const shown = new Map(); // the page's box ids -> their marks
@@ -231,7 +243,7 @@ export function mountSetup(app) {
     for (const o of document.querySelectorAll(".overlay")) o.hidden = true;
     app.extract.setMode("extract");
     marksToken += 1;
-    Object.assign(state, { setup, batch: null, sample: 0, page: 0, marks: [], savedName, changed: false });
+    Object.assign(state, { setup, batch: null, sample: 0, page: 0, marks: [], savedName, changed: false, answer: null, many: new Set() });
     renames.clear();
     state.selected = firstPath();
     app.extract.showView("setup");
@@ -244,7 +256,7 @@ export function mountSetup(app) {
   /** The setup is gone from the server: close the screen and open the choice with the reason. */
   function lost() {
     marksToken += 1;
-    Object.assign(state, { setup: null, batch: null, selected: null, marks: [] });
+    Object.assign(state, { setup: null, batch: null, selected: null, answer: null, many: new Set(), marks: [] });
     settlePrompt(null);
     app.extract.showView(null);
     $("doc-pick").textContent = "No extraction open";
@@ -299,6 +311,9 @@ export function mountSetup(app) {
   /** An edit, of the field `op.path` was when it was asked for: one before it on the way may have renamed it. */
   const edit = (op, opts) => change((id) => calls.edit(id, { ...op, path: renames.get(op.path) ?? op.path }), opts);
 
+  /** Edits of several fields, made together. */
+  const editAll = (ops) => ops.length > 0 && change((id) => calls.edits(id, ops.map((op) => ({ ...op, path: renames.get(op.path) ?? op.path }))));
+
   /** The Setup `next` in place of the screen's, the selection kept (or `select`, when it has that field). */
   function replace(next, select = null) {
     state.setup = next;
@@ -311,8 +326,12 @@ export function mountSetup(app) {
       renames.set(old, now);
       if (state.selected === old) state.selected = now;
       if (inspected === old) inspected = now; // the same field: what is typed in the inspector stays
+      if (state.many.delete(old)) state.many.add(now);
     }
     const paths = new Set(next.proof.fields.map((f) => f.path));
+    state.many = new Set([...state.many].filter((p) => paths.has(p)));
+    if (state.many.size === 1) [state.selected] = state.many;
+    if (state.many.size < 2) state.many = new Set();
     if (select !== null && paths.has(select)) state.selected = select;
     else if (!paths.has(state.selected)) state.selected = firstPath();
     renderAll();
@@ -430,36 +449,93 @@ export function mountSetup(app) {
         li.dataset.path = r.path;
         li.dataset.state = st.state;
         li.style.setProperty("--depth", group ? "1" : "0");
-        li.classList.toggle("is-picked", r.paths.includes(state.selected));
-        const pick = () => select(r.paths.includes(state.selected) ? state.selected : r.path, { turn: true });
-        li.addEventListener("click", pick);
-        li.addEventListener("keydown", (e) => {
-          if (e.key !== "Enter" && e.key !== " ") return;
-          e.preventDefault();
-          pick();
-        });
+        li.classList.toggle("is-picked", isPicked(r));
+        pressable(li, r, () => select(r.paths.includes(state.selected) ? state.selected : r.path, { turn: true }));
         out.push(li);
+        for (const { answer } of optionsOf(template().readers?.[r.path], fieldSchema(schema(), r.path).prop)) {
+          const on = state.many.size === 0 && state.selected === r.path && state.answer === answer;
+          const opt = make("li", { className: `fc-sl-opt${on ? " is-on" : ""}`, tabIndex: 0, textContent: answer, title: answer });
+          opt.dataset.path = r.path;
+          opt.dataset.answer = answer;
+          pressable(opt, r, () => select(r.path, { turn: true, answer }));
+          out.push(opt);
+        }
       }
     }
     $("fields").replaceChildren(...out);
     $("fields-label").textContent = `Fields · ${count} · ${weak} need a look`;
   }
 
-  /** Select the field `path` (or none); `turn` turns to a page it has marks on when this page has none. */
-  function select(path, { turn = false } = {}) {
-    state.selected = path;
+  /** A row of the field list for `r`: a press with Ctrl or ⌘ adds it to the selection, Shift a run of rows, else `one()`. */
+  function pressable(li, r, one) {
+    // on the press: a Mac gives Ctrl and a click no click, only a context menu (kept shut on the list, below)
+    li.addEventListener("pointerdown", (e) => {
+      if (e.button === 0 && addsToSelection(e)) addToSelection(r);
+    });
+    li.addEventListener("click", (e) => {
+      if (addsToSelection(e)) return;
+      if (e.shiftKey) selectRun(r);
+      else one();
+    });
+    li.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      e.preventDefault();
+      if (addsToSelection(e)) addToSelection(r);
+      else one();
+    });
+  }
+
+  $("fields").addEventListener("contextmenu", (e) => {
+    if (e.ctrlKey) e.preventDefault();
+  });
+
+  /** Whether the row `r` is selected. */
+  const isPicked = (r) => (state.many.size > 0 ? state.many.has(r.path) : r.paths.includes(state.selected));
+
+  /** The row `r` added to the selection, or taken out if it is in it. */
+  function addToSelection(r) {
+    const on = state.many.size > 0 ? new Set(state.many) : new Set(rows().filter(isPicked).map((x) => x.path));
+    if (!on.delete(r.path)) on.add(r.path);
+    selectMany(on, r.path);
+  }
+
+  /** The rows from the one selected last to `r`, selected. */
+  function selectRun(r) {
+    const all = rows().map((x) => x.path);
+    const from = Math.max(0, all.indexOf(rowOf(state.selected)?.path));
+    const to = all.indexOf(r.path);
+    selectMany(all.slice(Math.min(from, to), Math.max(from, to) + 1), state.selected);
+  }
+
+  /** Select the rows `paths`; `last` is where a run goes on from. One or none is an ordinary selection. */
+  function selectMany(paths, last) {
+    const list = [...paths];
+    if (list.length < 2) {
+      select(list[0] ?? null, { turn: true });
+      return;
+    }
+    Object.assign(state, { many: new Set(list), selected: last, answer: null });
+    renderFields();
+    renderSide();
+    view.select(null);
+    decorate();
+  }
+
+  /** Select the field `path` (or none), and `answer` of it; `turn` turns to a page it has marks on when this page has none. */
+  function select(path, { turn = false, answer = null } = {}) {
+    Object.assign(state, { selected: path, answer, many: new Set() });
     renderFields();
     renderSide();
     $("fields").querySelector(".is-picked")?.scrollIntoView({ block: "nearest" });
-    if (turn && path !== null && primaryOf(path) === null) {
-      const elsewhere = marksOf(path)[0];
+    if (turn && path !== null && boxOf(path, answer) === null) {
+      const elsewhere = marksOf(path).find((m) => answer === null || m.answer === answer);
       if (elsewhere !== undefined && elsewhere.page !== state.page) {
         state.page = elsewhere.page;
         showPage();
         return;
       }
     }
-    view.select(primaryOf(path));
+    view.select(boxOf(path, answer));
     decorate();
   }
 
@@ -472,12 +548,13 @@ export function mountSetup(app) {
    */
   function renderInspector({ keepTyped = false, refused = null } = {}) {
     const ins = $("ins");
-    const path = state.selected;
+    const many = state.many.size > 0;
+    const path = many ? MANY : state.selected;
     const active = document.activeElement;
     const same = path === inspected;
     const typed = new Map();
     for (const el of same ? ins.querySelectorAll("textarea, input[type=text]") : []) {
-      if (el.id && el.id !== refused && (keepTyped || el === active)) typed.set(el.id, el.value);
+      if (el.id && el.id !== refused && (keepTyped || many || el === active)) typed.set(el.id, el.value);
     }
     const focus = same && ins.contains(active) && typed.has(active.id) ? { id: active.id, start: active.selectionStart, end: active.selectionEnd } : null;
     inspected = path;
@@ -485,7 +562,7 @@ export function mountSetup(app) {
       ins.replaceChildren(make("p", { className: "fc-ins-empty", textContent: "Click a field, or a box on the page, to see how it is read." }));
       return;
     }
-    ins.replaceChildren(...inspectorParts(path));
+    ins.replaceChildren(...(many ? manyParts() : inspectorParts(path)));
     for (const [id, value] of typed) {
       const el = document.getElementById(id);
       if (el) el.value = value;
@@ -549,16 +626,8 @@ export function mountSetup(app) {
     const line = Object.entries(t.setup?.line_paths ?? {}).find(([, paths]) => paths.includes(generic(path)))?.[0];
     if (line !== undefined) out.push(hint(`From your line “${line}”.`));
 
-    out.push(lab("Read from"));
-    if (absent) {
-      out.push(ro("Not on this form. It is left empty in the results, to ask for or fill in at review."));
-    } else {
-      const ways = readFrom(reader, prop);
-      if (ways.length === 0) out.push(ro("Nothing reads it yet: name the label it sits beside, below."));
-      for (const way of ways) out.push(ro(way));
-      if (ways.length > 1) out.push(hint("Tried in this order; the first that finds a value is used."));
-      if (reader?.clean?.length) out.push(hint(`Cleaned: ${reader.clean.map((c) => c.op).join(", ")}.`));
-    }
+    if (absent) out.push(ro("Not on this form. It is left empty in the results, to ask for or fill in at review."));
+    else if (!reader?.strategies?.length) out.push(ro("Nothing reads it yet: name the label it sits beside, below."));
     for (const warning of state.setup.warnings ?? []) {
       if (warning.startsWith(`${path}: `)) out.push(make("p", { className: "fc-ins-warn", textContent: warning.slice(path.length + 2) }));
     }
@@ -619,23 +688,120 @@ export function mountSetup(app) {
     return sel;
   }
 
-  /** A choice field's answers, each with where its box is. */
+  /** The answers a field allows; an option set's each say where the box is, and select it, and the set can be taken apart. */
   function answersParts(path, prop, reader) {
-    const choices = (reader?.strategies ?? []).filter((s) => s.kind === "choice");
-    const answers = [...new Set([...(prop.enum ?? []).map(String), ...choices.flatMap((s) => Object.keys(s.options ?? {}))])];
-    if (answers.length === 0) return [];
-    const where = (answer) => {
-      const places = choices.flatMap((s) => {
-        const m = s.options?.[answer];
-        if (!m) return [];
-        if (m.widget) return ["form field"];
-        return m.page !== null && m.page !== undefined ? [`box, page ${m.page + 1}`] : [];
+    const options = optionsOf(reader, prop);
+    if (options.length === 0) {
+      if (!prop.enum?.length) return [];
+      const list = make("ul", { className: "answers" }, ...prop.enum.map((a) => make("li", {}, make("span", { textContent: String(a) }))));
+      return [make("p", { className: "fc-ins-lab", textContent: "Answers" }), list];
+    }
+    const line = ({ answer, place }) => {
+      const li = make("li", { className: answer === state.answer ? "on" : "", tabIndex: 0 }, make("span", { textContent: answer }), make("span", { textContent: place }));
+      const pick = () => select(path, { turn: true, answer });
+      li.addEventListener("click", pick);
+      li.addEventListener("keydown", (e) => {
+        if (e.key !== "Enter" && e.key !== " ") return;
+        e.preventDefault();
+        pick();
       });
-      return places.length ? places.join(" · ") : "no box";
+      return li;
     };
-    const line = (a) => make("li", {}, make("span", { textContent: a }), ...(choices.length ? [make("span", { textContent: where(a) })] : []));
-    const list = make("ul", { className: "answers" }, ...answers.map(line));
-    return [make("p", { className: "fc-ins-lab", textContent: choices.length ? "Answers · a box each" : "Answers" }), list];
+    const split = make("button", { type: "button", className: "btn quiet small", id: "ins-split", textContent: "Separate into fields" });
+    split.title = "Make each answer a yes-or-no field of its own";
+    split.addEventListener("click", () => separate(path, options.map((o) => o.answer)));
+    return [
+      make("p", { className: "fc-ins-lab", textContent: `Option set · ${plural(options.length, "answer")}` }),
+      make("ul", { className: "answers", id: "ins-options" }, ...options.map(line)),
+      make("div", { className: "ins-acts" }, split),
+    ];
+  }
+
+  /** Take the option set `path` apart; the fields it became are left selected, ready to be linked another way. */
+  async function separate(path, answers) {
+    if (!(await edit({ op: "split_option_set", path }))) return;
+    const made = rows().filter((r) => answers.includes(r.title)).map((r) => r.path);
+    selectMany(made, made[0]);
+  }
+
+  /** The inspector's elements for several fields: what can be done to them all. */
+  function manyParts() {
+    const picked = rows().filter((r) => state.many.has(r.path));
+    const lab = (text) => make("p", { className: "fc-ins-lab", textContent: text });
+    const names = picked.map((r) => make("li", {}, make("span", { textContent: r.title })));
+    const out = [make("p", { className: "fc-ins-lab", id: "many-count", textContent: `${picked.length} fields selected` }), make("ul", { className: "answers" }, ...names)];
+
+    out.push(lab("Option set"), ...linkParts(picked));
+
+    out.push(lab("Required"));
+    const levels = picked.map((r) => fieldSchema(schema(), r.path).required);
+    const level = (text, id, required) => {
+      const b = make("button", { type: "button", className: "btn quiet small", id, textContent: text });
+      b.setAttribute("aria-pressed", String(levels.every((l) => l === required)));
+      b.addEventListener("click", () => editAll(picked.filter((_, i) => levels[i] !== required).map((r) => ({ op: "set_field", path: r.path, required }))));
+      return b;
+    };
+    out.push(make("div", { className: "many-row" }, level("Required", "many-required", true), level("Optional", "many-optional", false)));
+
+    if (template().setup?.name_follows_title === true && picked.every((r) => !r.items)) {
+      const now = [...new Set(picked.map((r) => categoryOf(schema(), r.path)))];
+      const category = make("input", { type: "text", className: "fc-in", id: "many-category", ariaLabel: "Category", value: now.length === 1 ? now[0] : "", placeholder: "Several" });
+      category.setAttribute("list", "many-categories");
+      commitOnChange(category, () => {
+        const to = category.value.trim();
+        editAll(picked.filter((r) => categoryOf(schema(), r.path) !== to).map((r) => ({ op: "set_category", path: r.path, category: to })));
+      });
+      out.push(lab("Category"), category, make("datalist", { id: "many-categories" }, ...groups().filter((g) => g.group && !g.items[0].items).map((g) => new Option(g.group))));
+    }
+
+    const absent = picked.every((r) => rowProof(r, state.setup.proof).absent);
+    const away = make("button", { type: "button", className: "btn quiet small", id: "many-absent", textContent: absent ? "Bring back" : "Not on this form" });
+    away.addEventListener("click", () => {
+      const paths = picked.flatMap((r) => r.paths).filter((p) => (proofOf(p)?.absent ?? false) === absent);
+      editAll(paths.map((path) => ({ op: absent ? "restore" : "mark_absent", path })));
+    });
+    const remove = make("button", { type: "button", className: "btn quiet small", id: "many-remove", textContent: `Remove ${plural(picked.length, "field")}` });
+    remove.addEventListener("click", () => {
+      if (remove.dataset.asked === undefined) {
+        remove.dataset.asked = "";
+        remove.textContent = "Click again to remove";
+        return;
+      }
+      editAll(picked.map((r) => ({ op: "remove_field", path: r.path })));
+    });
+    out.push(make("div", { className: "ins-acts" }, away, remove));
+    return out;
+  }
+
+  /** The title of an option set and the button that links the rows `picked` into it, or why they can't be. */
+  function linkParts(picked) {
+    const title = make("input", { type: "text", className: "fc-in", id: "many-title", ariaLabel: "Option set title", placeholder: "Title, such as Tax classification" });
+    const go = make("button", { type: "button", className: "btn dark small", id: "many-link", textContent: "Link as option set" });
+    go.title = "One field whose answer is whichever box is checked";
+    const blocked = picked.map((r) => linkBlock(r, template().readers?.[r.path], fieldSchema(schema(), r.path).prop)).find((why) => why !== null);
+    if (blocked !== undefined) {
+      go.disabled = title.disabled = true;
+      return [title, make("div", { className: "many-row" }, go), make("p", { className: "fc-ins-hint", id: "many-why", textContent: blocked })];
+    }
+    const link = async () => {
+      const name = title.value.trim();
+      if (!name) {
+        app.notice("Give the option set a title.");
+        title.focus();
+        return;
+      }
+      const [first, ...others] = picked.map((r) => r.path);
+      const now = (p) => renames.get(p) ?? p;
+      const linked = await change((id) => calls.edit(id, { op: "make_option_set", path: now(first), others: others.map(now), title: name }));
+      if (linked) select(rows().find((r) => r.title === name)?.path ?? firstPath(), { turn: true });
+    };
+    go.addEventListener("click", link);
+    title.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter") return;
+      e.preventDefault();
+      link();
+    });
+    return [title, make("div", { className: "many-row" }, go)];
   }
 
   /** The wordings read on the samples that the answers' map lacks (FieldProof.suggested), and accepting them. */
@@ -664,7 +830,7 @@ export function mountSetup(app) {
 
   /** One line per sample for the field selected; a click shows that sample. */
   function renderSamples() {
-    const fp = state.selected === null ? null : proofOf(state.selected);
+    const fp = state.selected === null || state.many.size > 0 ? null : proofOf(state.selected);
     $("per-sample").replaceChildren(
       ...state.setup.samples.map((smp, i) => {
         const sp = fp?.samples?.[i];
@@ -806,10 +972,12 @@ export function mountSetup(app) {
     return state.marks.filter((m) => m.path === path).sort((a, b) => PRIMARY[a.kind] - PRIMARY[b.kind]);
   }
 
-  /** The box id of `path`'s first mark on the page shown, or null. */
-  function primaryOf(path) {
+  /** The box id of `path`'s `answer` on the page shown, else (no answer named) of its first mark there; or null. */
+  function boxOf(path, answer = null) {
     if (path === null) return null;
-    for (const [id, m] of shown) if (m.path === path && m.primary && m.page === state.page) return id;
+    for (const [id, m] of shown) {
+      if (m.path === path && m.page === state.page && (answer === null ? m.primary : m.answer === answer)) return id;
+    }
     return null;
   }
 
@@ -846,30 +1014,41 @@ export function mountSetup(app) {
       shown.set(id, { path: m.path, kind: m.kind, answer: m.answer ?? null, page: m.page, rect: m.rect, primary: primaries.has(m) });
       const words = m.kind === "option" ? `the ${m.answer} checkbox` : KIND_WORDS[m.kind];
       const title = rowOf(m.path)?.title ?? m.path;
-      fields.push({ id, type: "text", page: m.page, rect: m.rect, label: `${title}, ${words}`, tag: title, source: { paths: [m.path] }, origin: "human" });
+      const inSet = m.kind === "option" && optionsOf(template().readers?.[m.path], fieldSchema(schema(), m.path).prop).length > 0;
+      fields.push({ id, type: "text", page: m.page, rect: m.rect, label: `${title}, ${words}`, tag: inSet ? m.answer : title, source: { paths: [m.path] }, origin: "human" });
     }
     view.setTemplate({ fields });
-    view.select(primaryOf(state.selected));
+    view.select(state.many.size > 0 ? null : boxOf(state.selected, state.answer));
     decorate();
   }
 
-  /** Mark each box with its kind, the selected field's heavy, and its primary one as the one tagged with its path. */
+  /**
+   * Mark each box with its kind, the selected field's heavy, and its primary one as the one tagged with its path. An
+   * option set's boxes each carry their answer, shown on the answer picked out, else under the pointer.
+   */
   function decorate() {
-    const picked = new Set(state.selected === null ? [] : (rowOf(state.selected)?.paths ?? [state.selected]));
+    const picked = new Set(state.many.size > 0 ? rows().filter(isPicked).flatMap((r) => r.paths) : state.selected === null ? [] : (rowOf(state.selected)?.paths ?? [state.selected]));
     for (const el of pvEl.querySelectorAll(".fc-box")) {
       const mark = shown.get(el.dataset.fieldId);
       if (mark === undefined) continue;
       el.dataset.kind = mark.kind;
       el.classList.toggle("is-picked", picked.has(mark.path));
-      el.classList.toggle("has-tag", mark.primary);
+      const picksAnswer = state.many.size === 0 && state.answer !== null && mark.path === state.selected && mark.answer === state.answer;
+      el.classList.toggle("is-answer", picksAnswer);
+      el.classList.toggle("has-tag", mark.primary || mark.kind === "option");
+      el.classList.toggle("shows-tag", picksAnswer || (mark.primary && state.answer === null));
     }
   }
   // the page view draws its boxes again on its own (a zoom, a resize): mark them again each time
   new MutationObserver(decorate).observe(pvEl, { childList: true, subtree: true });
 
   bus.on("select", ({ id }) => {
+    if (addingBox) {
+      view.select(null); // the box the press added taking the focus
+      return;
+    }
     const mark = id === null ? null : shown.get(id);
-    state.selected = mark ? mark.path : null;
+    Object.assign(state, { selected: mark ? mark.path : null, answer: mark?.answer ?? null, many: new Set() });
     renderFields();
     renderSide();
     $("fields").querySelector(".is-picked")?.scrollIntoView({ block: "nearest" });
@@ -888,9 +1067,18 @@ export function mountSetup(app) {
 
   pvEl.addEventListener("pointerdown", (e) => {
     if (e.button === 0) held = true;
+    addingBox = addsToSelection(e);
+    if (!addingBox) return;
+    e.stopPropagation(); // adds the box to the selection, and does not move it
+    const row = rowOf(shown.get(e.target.closest?.(".fc-box")?.dataset.fieldId)?.path);
+    if (row !== null) addToSelection(row);
   }, { capture: true }); // prettier-ignore
+  pvEl.addEventListener("contextmenu", (e) => {
+    if (e.ctrlKey) e.preventDefault();
+  });
   for (const type of ["pointerup", "pointercancel", "contextmenu"]) {
     addEventListener(type, () => {
+      addingBox = false;
       if (!held) return;
       held = false;
       if (redrawLater) {

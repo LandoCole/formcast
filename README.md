@@ -716,8 +716,12 @@ called per document unless you ask for it.
 2. **Set up** (the setup screen). The fields on the left, each with its state across the samples (● every sample,
    ◐ some, ? unsure, ○ not on this form) and *Add a field* from a line of your words; a sample page in the middle
    with where each field is read (drag a box to move it); the selected field on the right: its name, title, type,
-   definition, how it is read, its answers and checks, and its result on each sample. Every edit is proven again
-   on the samples with no model call. *Save* stores the template with its samples.
+   definition, its answers and checks, and its result on each sample. An option set, one field with a checkbox per
+   answer, lists its answers under its row, and selecting one highlights its box. Ctrl or ⌘ and a click selects
+   several fields, in the list or on the page, and Shift and a click a run of them; the right side then acts on them
+   all: *Link as option set*, required or optional, a category, not on this form, or remove. *Separate into fields*
+   takes an option set apart. Every edit is proven again on the samples with no model call. *Save* stores the template
+   with its samples.
 3. **Run on all.** Saves the template first if it is not saved, then reads every document of the batch with it
    (`FORMCAST_DEMO_EXTRACT_WORKERS` processes; one per CPU by default), shown as documents read of the total. *AI
    per document* in the modal's settings also asks the model about the documents whose required fields fail; its

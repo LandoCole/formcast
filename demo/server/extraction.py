@@ -627,8 +627,9 @@ class Setup:
             template, doc = self.template, self.sample(n)
         return sample_marks(template, doc.pdf)
 
-    def edit(self, edit: Edit) -> None:
-        """Make ``edit`` (``apply_edit`` with the sample PDFs) and prove the template again. No model is called.
+    def edit(self, *edits: Edit) -> None:
+        """Make ``edits`` (``apply_edit`` with the sample PDFs), all or none, and prove the template again, once. No
+        model is called.
 
         Raises:
             SetupBusy: a line job is running on the setup.
@@ -639,8 +640,14 @@ class Setup:
         with self._lock:
             self._free()
             pdfs = [doc.pdf for doc in self.samples]
-            template = apply_edit(self.template, edit, pdfs=pdfs)
-            self.renamed = _renamed(self.template, template)
+            template, renamed = self.template, {}
+            for edit in edits:
+                edited = apply_edit(template, edit, pdfs=pdfs)
+                for old, now in _renamed(template, edited).items():
+                    renamed = {first: now if path == old else path for first, path in renamed.items()}
+                    renamed.setdefault(old, now)
+                template = edited
+            self.renamed = renamed
             self.template, self.proof = template, prove(template, pdfs)
 
     def freeze_names(self) -> None:

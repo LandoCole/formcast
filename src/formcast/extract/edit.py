@@ -12,6 +12,8 @@ change to it, discriminated by ``op`` so the workbench can send them as plain JS
     {"op": "rename_field", "path": "investor.tax_id", "name": "tin"}
     {"op": "set_category", "path": "tax_id", "category": "Investor"}
     {"op": "mark_absent", "path": "wire.bank"}     (and "restore", "remove_field")
+    {"op": "make_option_set", "path": "is_trust", "others": ["is_llc"], "title": "Tax classification"}
+    {"op": "split_option_set", "path": "tax_classification"}
 
 :func:`apply_edit` gives back a validated copy and leaves the template it was given alone. The schema edits
 (``set_field``, ``rename_field``, ``set_category``, ``remove_field``) go to the one property schema every item path of a repeated group shares, so
@@ -26,6 +28,10 @@ layout's place by that page's offset, as ``resolve`` does a box the model took f
 
 A path marked absent has no reader (``mark_absent`` drops it), and a reader is never read on an absent path, so an
 edit that gives a path a reader takes it out of ``absent``: the person has just said it is on the form.
+
+An option set is one field with a check mark per answer (a :class:`~formcast.extract.model.ChoiceRead`).
+``make_option_set`` links yes-or-no fields, each one box on the form, into such a field, and ``split_option_set`` takes
+one apart again. What the model read on the samples goes across, so neither asks it again.
 """
 
 from __future__ import annotations
@@ -36,7 +42,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from formcast.data.mapping import Transform
+from formcast.data.mapping import Transform, _bool
 from formcast.errors import FormcastError
 from formcast.extract.model import (
     RESERVED_NAMES,
@@ -53,7 +59,7 @@ from formcast.extract.model import (
 from formcast.extract.layout import page_fit
 from formcast.extract.names import field_key
 from formcast.extract.page import DocText
-from formcast.extract.proof import _check_samples
+from formcast.extract.proof import _check_samples, same_value
 from formcast.geometry import Rect
 from formcast.schema import ARRAY_ITEM, REASON_KEY, flatten_schema, parse_path
 
@@ -212,8 +218,29 @@ class SetCategory(_Edit):
     category: str
 
 
+class MakeOptionSet(_Edit):
+    """Link ``path`` and ``others`` into one field called ``title``, its answers the fields' titles.
+
+    Each is a yes-or-no field with a box on the form, or an option set, whose answers are kept. The set takes the place
+    of ``path``, and is required when any of them was. None can be in a repeated group.
+    """
+
+    op: Literal["make_option_set"] = "make_option_set"
+    path: str
+    others: list[str]
+    title: str
+
+
+class SplitOptionSet(_Edit):
+    """Take an option set apart: a yes-or-no field per answer, named from it, in the set's place, none of them required."""
+
+    op: Literal["split_option_set"] = "split_option_set"
+    path: str
+
+
 Edit = Annotated[
-    SetField | SetBox | SetOptionBox | SetLabels | SetClean | MarkAbsent | Restore | RemoveField | RenameField | SetCategory,
+    SetField | SetBox | SetOptionBox | SetLabels | SetClean | MarkAbsent | Restore | RemoveField | RenameField
+    | SetCategory | MakeOptionSet | SplitOptionSet,
     Field(discriminator="op"),
 ]
 
@@ -523,10 +550,149 @@ def _restore(t: ExtractionTemplate, edit: Restore) -> None:
     t.absent = [p for p in t.absent if p != edit.path]
 
 
+# ------------------------------------------------------------------- option sets
+
+
+def _option_marks(t: ExtractionTemplate, path: str) -> dict[str, list[ChoiceMark]]:
+    """What ``path`` brings to an option set: each answer, with where its check mark is, form fields first.
+
+    An option set brings its own answers; a yes-or-no field one, its title, from whatever reads its box.
+    """
+    node, _ = _locate(t.schema_, path)
+    title = str(node.get("title") or path.rpartition(".")[2].replace("_", " ").capitalize())
+    strategies = _strategies(t, path)
+    choices = [s for s in strategies if isinstance(s, ChoiceRead)]
+    answers = list(dict.fromkeys(key for s in choices for key in s.options))
+    if len(answers) > 1:
+        return {key: [s.options[key] for s in choices if key in s.options] for key in answers}
+    if node.get("type") != "boolean" and not choices:
+        raise FormcastError(f"{title} is not a checkbox, so it cannot join an option set")
+    marks = [m for s in choices for m in s.options.values()]
+    for s in strategies:
+        if isinstance(s, WidgetRead):
+            marks.append(ChoiceMark(widget=s.names[0]))
+        elif isinstance(s, BoxRead):
+            marks.append(ChoiceMark(page=s.page, rect=s.rect))
+    if not marks:
+        raise FormcastError(f"{title} has no checkbox on the form, so it cannot join an option set")
+    return {title: marks}
+
+
+def _choice_reads(options: dict[str, list[ChoiceMark]]) -> list[Strategy]:
+    """A choice of the options' form fields, then one of their drawn boxes, as a built template has them."""
+    widgets = {key: m for key, marks in options.items() for m in marks if m.widget is not None}
+    boxes = {key: m for key, marks in options.items() for m in marks if m.widget is None}
+    return [ChoiceRead(options=marks) for marks in (widgets, boxes) if marks]
+
+
+def _swap_field(t: ExtractionTemplate, path: str, fields: dict[str, dict]) -> dict[str, str]:
+    """Put ``fields`` (each name's schema) in the place of the field ``path``, which goes, with its reader and its
+    place in ``required``; their paths, by name. The readings of the samples and the setup's lines stay to be seen to.
+    """
+    _, steps = _locate(t.schema_, path)
+    parent, old = steps[-1]
+    for name in fields:
+        if name != old:
+            _check_free(name, parent, top_level=len(steps) == 1)
+    parent["properties"] = {
+        name: node for k, v in parent["properties"].items() for name, node in (fields if k == old else {k: v}).items()
+    }
+    _set_required(parent, old, False)
+    t.readers.pop(path, None)
+    t.absent = [p for p in t.absent if p != path]
+    prefix = path[: -len(old)]
+    return {name: prefix + name for name in fields}
+
+
+#: A sample whose reading of an option set's fields the model was never asked for.
+_NOT_ASKED = object()
+
+
+def _set_reading(opinion: dict, brought: dict[str, dict[str, list[ChoiceMark]]]) -> object:
+    """The set's answer in the model's readings of the fields ``brought``: every answer it saw, as a read has them."""
+    if not set(opinion) & set(brought):
+        return _NOT_ASKED
+    picked: list[str] = []
+    for path, marks in brought.items():
+        value = opinion.get(path)
+        ticked = len(marks) == 1 and _bool(value) is True
+        picked += [answer for answer in marks if ticked or same_value(value, answer)]
+    return ", ".join(picked) or None
+
+
+def _make_option_set(t: ExtractionTemplate, edit: MakeOptionSet) -> None:
+    paths = list(dict.fromkeys([edit.path, *edit.others]))
+    if len(paths) < 2:
+        raise FormcastError("an option set takes at least two fields")
+    known = concrete_paths(t.schema_)
+    for path in paths:
+        if path not in known:
+            raise FormcastError(f"no field {path}")
+        if "[" in path:
+            raise FormcastError("a field of a repeated group cannot join an option set")
+    name = field_key(edit.title)
+    if not name:
+        raise FormcastError("an option set's title needs a letter or number to make its name from")
+    brought = {path: _option_marks(t, path) for path in paths}
+    options: dict[str, list[ChoiceMark]] = {}
+    for marks in brought.values():
+        for answer, places in marks.items():
+            if answer in options:
+                raise FormcastError(f"two of these fields answer {answer!r}: give them different titles")
+            options[answer] = places
+    places = [_locate(t.schema_, path)[1][-1] for path in paths]
+    required = any(name_ in parent.get("required", []) for parent, name_ in places)
+    readings = [_set_reading(sample.opinion, brought) for sample in t.samples]
+    lines = {} if t.setup is None else dict(t.setup.line_paths)
+    for path in paths[1:]:
+        _remove_field(t, RemoveField(op="remove_field", path=path))
+    node = {"type": "string", "title": edit.title.strip(), "enum": list(options), REASON_KEY: SET_BY_YOU}
+    new = _swap_field(t, paths[0], {name: node})[name]
+    _, steps = _locate(t.schema_, new)
+    _set_required(steps[-1][0], name, required)
+    _give_reader(t, new, _choice_reads(options))
+    for sample, reading in zip(t.samples, readings):
+        sample.opinion = {p: v for p, v in sample.opinion.items() if p not in paths}
+        if reading is not _NOT_ASKED:
+            sample.opinion[new] = reading
+    if t.setup is not None:
+        joined = {line: [*(p for p in kept if p not in paths), new] for line, kept in lines.items() if set(kept) & set(paths)}
+        t.setup = t.setup.model_copy(update={"line_paths": lines | joined})
+
+
+def _split_option_set(t: ExtractionTemplate, edit: SplitOptionSet) -> None:
+    if "[" in edit.path:
+        raise FormcastError("a field of a repeated group stays in its group")
+    choices = [s for s in _strategies(t, edit.path) if isinstance(s, ChoiceRead)]
+    answers = list(dict.fromkeys(key for s in choices for key in s.options))
+    if len(answers) < 2:
+        raise FormcastError(f"{edit.path} is not an option set")
+    names = {answer: field_key(answer) for answer in answers}
+    if not all(names.values()) or len(set(names.values())) < len(answers):
+        raise FormcastError("an answer needs a name of its own to become a field: change the answers' titles")
+    fields = {names[a]: {"type": "boolean", "title": a} for a in answers}
+    paths = _swap_field(t, edit.path, fields)
+    for answer in answers:
+        marks = [s.options[answer] for s in choices if answer in s.options]
+        _give_reader(t, paths[names[answer]], [ChoiceRead(options={"yes": m}) for m in marks])
+    for sample in t.samples:
+        if edit.path in sample.opinion:
+            value = sample.opinion.pop(edit.path)
+            sample.opinion.update({paths[names[a]]: same_value(value, a) for a in answers})
+    if t.setup is not None:
+        lines = {
+            line: [q for p in kept for q in (paths.values() if p == edit.path else [p])]
+            for line, kept in t.setup.line_paths.items()
+        }
+        t.setup = t.setup.model_copy(update={"line_paths": lines})
+
+
 _HANDLERS = {
     SetField: _set_field,
     SetBox: _set_box,
     SetOptionBox: _set_option_box,
+    MakeOptionSet: _make_option_set,
+    SplitOptionSet: _split_option_set,
     SetLabels: _set_labels,
     SetClean: _set_clean,
     MarkAbsent: _mark_absent,

@@ -15,12 +15,13 @@ import {
   fieldBreakdown,
   fieldTable,
   groupFields,
+  linkBlock,
+  optionsOf,
   levelSwitch,
   outcomeLine,
   pagesText,
   parsePages,
   problemLabel,
-  readFrom,
   rowProof,
   runLine,
   runStats,
@@ -71,37 +72,37 @@ test("fieldState: a field not ready with an unsure read is ?, and an absent fiel
   assert.deepEqual(fieldState(absent), { glyph: "○", text: "not on this form", state: "absent" });
 });
 
-// ------------------------------------------------------------------ readFrom
+// ------------------------------------------------------------------ option sets
 
-test("readFrom gives one line per strategy, for each kind of strategy", () => {
+test("optionsOf gives each answer of a field with a check mark per answer, with where its box is", () => {
   const reader = {
     strategies: [
-      { kind: "widget", names: ["tax_id"] },
-      { kind: "box", page: 0, rect: [72, 300, 300, 318] },
-      { kind: "anchor", labels: ["Taxpayer ID"], page: null, side: "right", max_width: 300, max_lines: 1 },
-      { kind: "anchor", labels: ["Mailing address"], page: null, side: "below", max_width: 300, max_lines: 2 },
-      { kind: "phrase", phrases: ["account"], page: null, stop: "digits" },
-      { kind: "choice", options: { individual: { widget: "t1" }, joint: { widget: "t2" }, trust: { widget: "t3" }, llc: { widget: "t4" } } },
+      { kind: "choice", options: { Trust: { widget: "a" }, LLC: { widget: "b" }, Other: { widget: "c" } } },
+      { kind: "choice", options: { Trust: { page: 0, rect: [0, 0, 1, 1] }, LLC: { page: 1, rect: [0, 0, 1, 1] } } },
     ],
-    clean: [],
   };
-  assert.deepEqual(readFrom(reader, { type: "string" }), [
-    "Form field tax_id",
-    "A box on page 1",
-    "Next to the label Taxpayer ID",
-    "Below the label Mailing address",
-    "Page text, after account",
-    "Checkbox group, 4 boxes",
+  assert.deepEqual(optionsOf(reader, { enum: ["Trust", "LLC", "Other", "Sole"] }), [
+    { answer: "Trust", place: "page 1" },
+    { answer: "LLC", place: "page 2" },
+    { answer: "Other", place: "form field" },
+    { answer: "Sole", place: "no box" },
   ]);
 });
 
-test("readFrom names every wording of a strategy, and a lone checkbox on a yes-or-no field as one", () => {
-  const reader = { strategies: [{ kind: "widget", names: ["TaxID", "tin"] }, { kind: "anchor", labels: ["Taxpayer ID", "TIN"], side: "right" }] };
-  assert.deepEqual(readFrom(reader, {}), ["Form field TaxID or tin", "Next to the label Taxpayer ID or TIN"]);
-  const lone = { strategies: [{ kind: "choice", options: { yes: { page: 0, rect: [1, 2, 3, 4] } } }] };
-  assert.deepEqual(readFrom(lone, { type: "boolean" }), ["A checkbox, checked for yes"]);
-  assert.deepEqual(readFrom(lone, { type: "string" }), ["Checkbox group, 1 box"]);
-  assert.deepEqual(readFrom(undefined, {}), []);
+test("optionsOf has nothing for a lone checkbox, or a field that is not read from check marks", () => {
+  assert.deepEqual(optionsOf({ strategies: [{ kind: "choice", options: { yes: { widget: "a" } } }] }, { type: "boolean" }), []);
+  assert.deepEqual(optionsOf({ strategies: [{ kind: "box", page: 0, rect: [0, 0, 1, 1] }] }, { enum: ["a", "b"] }), []);
+  assert.deepEqual(optionsOf(undefined), []);
+});
+
+test("linkBlock lets a checkbox join an option set, and says why anything else can't", () => {
+  const row = { title: "Trust" };
+  const box = { strategies: [{ kind: "box", page: 0, rect: [0, 0, 1, 1] }] };
+  assert.equal(linkBlock(row, box, { type: "boolean" }), null);
+  assert.equal(linkBlock(row, { strategies: [{ kind: "choice", options: { a: {}, b: {} } }] }, { type: "string" }), null);
+  assert.match(linkBlock(row, box, { type: "string" }), /Trust isn't a checkbox/);
+  assert.match(linkBlock(row, { strategies: [{ kind: "anchor", labels: ["x"] }] }, { type: "boolean" }), /no checkbox on the form/);
+  assert.match(linkBlock({ title: "Trust", items: [] }, box, { type: "boolean" }), /repeated group/);
 });
 
 // ------------------------------------------------------------------ checksOf

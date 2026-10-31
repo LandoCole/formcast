@@ -381,6 +381,13 @@ export async function createServerEngine({
        * @param {object} edit
        */
       edit: (id, edit) => call("POST", `${setupPath(id)}/edit`, { json: { edit }, timeout: formMapTimeoutMs }),
+      /**
+       * Several edits made together or not at all, proven once; resolves the Setup, as `edit` does.
+       * @param {string} id
+       * @param {object[]} edits
+       * @returns {Promise<object>}
+       */
+      edits: (id, edits) => call("POST", `${setupPath(id)}/edit`, { json: { edits }, timeout: formMapTimeoutMs }),
       /** Accept the wordings the proof suggests for `path` into its reader's map; resolves the Setup proven again. */
       learn: (id, path) => call("POST", `${setupPath(id)}/learn`, { json: { path }, timeout: formMapTimeoutMs }),
       /** The marks of the setup's sample `sample` (from 0): `[{path, kind, page, rect, ...}]`, in that sample's frame. */

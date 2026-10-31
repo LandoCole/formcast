@@ -955,6 +955,23 @@ def test_an_edit_is_applied_and_proven_again_with_no_model_call(bench):
     assert get_json(bench.base, f"/api/setups/{setup['id']}")[1] == after
 
 
+def test_several_edits_are_made_together_or_not_at_all(bench):
+    setup = built(bench)
+    together = [
+        {"op": "set_field", "path": "investor.dob", "required": False},
+        {"op": "set_field", "path": "investor.tax_id", "required": False},
+    ]
+    status, after = get_json(bench.base, f"/api/setups/{setup['id']}/edit", "POST", {"edits": together})
+    assert status == 200
+    assert "tax_id" not in after["template"]["schema"]["properties"]["investor"].get("required", [])
+
+    refused = [{"op": "set_field", "path": "investor.dob", "required": True}, {"op": "remove_field", "path": "investor.nope"}]
+    status, out = get_json(bench.base, f"/api/setups/{setup['id']}/edit", "POST", {"edits": refused})
+    assert (status, out["error"]) == (400, "bad_edit")
+    _, now = get_json(bench.base, f"/api/setups/{setup['id']}")
+    assert "dob" not in now["template"]["schema"]["properties"]["investor"].get("required", [])
+
+
 def test_a_bad_edit_is_refused_with_the_librarys_message_and_changes_nothing(bench):
     setup = built(bench)
     status, out = edit(bench, setup["id"], {"op": "set_labels", "path": "investor.nope", "labels": []})

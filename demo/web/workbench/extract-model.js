@@ -12,7 +12,7 @@
 // `groupFields` folds them back into one row per field of the group (`owners[ ] · up to 4`), whose items' proofs
 // `rowProof` takes together for the row's state.
 //
-// A field's schema says how it is checked (`checksOf`) and its reader how it is found (`readFrom`), each as lines of
+// A field's schema says how it is checked (`checksOf`), and its reader whether it is an option set (`optionsOf`), each as lines of
 // plain words; `fieldSchema` finds a concrete path's schema node. A batch (`batchLine`, `stripCells`, `batchNote`) is
 // told by its scan: how many of its PDFs are copies of its largest layout, the rest being set aside for another
 // template. A run's review says its numbers (`runStats`, `runTime`), its two sections (`levelSwitch`: Required and
@@ -31,7 +31,6 @@ const PROBLEM_LABELS = { blank: "Blank", not_located: "Not located", missing: "M
 
 const number = (n) => Number(n ?? 0).toLocaleString("en-US");
 const plural = (n, word, many = `${word}s`) => `${number(n)} ${n === 1 ? word : many}`;
-const either = (words) => words.join(" or ");
 const blank = (v) => v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0);
 
 /** A read value as text: a list's items joined, yes or no for a boolean, "—" for nothing. */
@@ -63,31 +62,39 @@ export function fieldState(fieldProof) {
 }
 
 /**
- * How a field is read, one line per strategy of its reader, in the order they are tried.
+ * An option set's answers (a field read from a check mark per answer) in their order, each with where its box is;
+ * [] for any other field, a lone checkbox included.
  * @param {{strategies: object[]} | undefined} reader the template's reader for the path
- * @param {object} [schemaProp] the path's schema: on a yes-or-no field a lone check mark reads as a checkbox
- * @returns {string[]}
+ * @param {object} [schemaProp] the path's schema, whose answers may have no box yet
+ * @returns {{answer: string, place: string}[]}
  */
-export function readFrom(reader, schemaProp = {}) {
-  return (reader?.strategies ?? []).map((s) => {
-    switch (s.kind) {
-      case "widget":
-        return `Form field ${either(s.names)}`;
-      case "box":
-        return `A box on page ${s.page + 1}`;
-      case "anchor":
-        return `${s.side === "below" ? "Below" : "Next to"} the label ${either(s.labels)}`;
-      case "phrase":
-        return `Page text, after ${either(s.phrases)}`;
-      case "choice": {
-        const keys = Object.keys(s.options ?? {});
-        if (schemaProp?.type === "boolean" && keys.length === 1) return `A checkbox, checked for ${keys[0]}`;
-        return `Checkbox group, ${plural(keys.length, "box", "boxes")}`;
-      }
-      default:
-        return s.kind;
-    }
-  });
+export function optionsOf(reader, schemaProp = {}) {
+  const choices = (reader?.strategies ?? []).filter((s) => s.kind === "choice");
+  if (choices.length === 0) return [];
+  const answers = [...new Set([...(schemaProp?.enum ?? []).map(String), ...choices.flatMap((s) => Object.keys(s.options ?? {}))])];
+  if (answers.length < 2) return [];
+  const placeOf = (answer) => {
+    const marks = choices.flatMap((s) => s.options?.[answer] ?? []);
+    const page = marks.find((m) => typeof m.page === "number")?.page;
+    if (page !== undefined) return `page ${page + 1}`;
+    return marks.length > 0 ? "form field" : "no box";
+  };
+  return answers.map((answer) => ({ answer, place: placeOf(answer) }));
+}
+
+/**
+ * Why a field can't join an option set, in words; null when it can.
+ * @param {{title: string, items?: unknown}} row its row in the field list
+ * @param {{strategies: object[]} | undefined} reader the template's reader for the path
+ * @param {object} [schemaProp] the path's schema
+ * @returns {string | null}
+ */
+export function linkBlock(row, reader, schemaProp = {}) {
+  if (row.items) return `${row.title} is in a repeated group, so it can't join an option set.`;
+  const kinds = (reader?.strategies ?? []).map((s) => s.kind);
+  if (schemaProp?.type !== "boolean" && !kinds.includes("choice")) return `${row.title} isn't a checkbox. If it is, set its Type to yes or no first.`;
+  if (!kinds.some((k) => ["choice", "widget", "box"].includes(k))) return `${row.title} has no checkbox on the form.`;
+  return null;
 }
 
 /**

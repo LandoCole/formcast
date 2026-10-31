@@ -29,7 +29,7 @@ Setups (``api.setups``) and saved extraction templates (``api.extractions``):
     POST /api/jobs {kind: "extract-line", setup, line}                      -> {id}; done: result {setup: Setup, paths}
     GET  /api/setups/{s}                                            -> Setup
     POST /api/setups                 {extraction: name}             -> Setup   (a saved template reopened)
-    POST /api/setups/{s}/edit        {edit: Edit}                   -> Setup
+    POST /api/setups/{s}/edit        {edit: Edit} or {edits: [Edit]} -> Setup
     POST /api/setups/{s}/learn       {path}                         -> Setup
     GET  /api/setups/{s}/samples/{i}/marks                          -> {marks: [Mark]}
     GET  /api/setups/{s}/samples/{i}/pages/{p}.png?dpi=             -> image/png
@@ -183,6 +183,7 @@ SETUP = r"/api/setups/(?P<setup>[0-9a-f]{32})"
 EXTRACTION = r"/api/extractions/(?P<name>[^/]+)"
 RUN = r"/api/runs/(?P<run>[0-9a-f]{32})"
 EDIT = pydantic.TypeAdapter(Edit)  #: an edit as the page sends it, JSON discriminated by "op"
+EDITS = pydantic.TypeAdapter(list[Edit])  #: several of them, as the page sends a change to several fields
 NAME_RULE = "A name is 1 to 80 letters, digits, spaces and _ . -, starting with a letter or digit."
 READ_STAGE = ("read", "Read every document")  #: the ``extract-run`` job's stage
 AI_STAGE = ("ai", "Ask the AI about the failing documents")  #: its second stage, when the run asks the AI
@@ -542,14 +543,16 @@ def reopen_setup(api: Api, req: Request) -> dict:
 
 
 def edit_setup(api: Api, req: Request) -> dict:
-    """``{edit}`` (an ``Edit`` as JSON) made on the setup's template, which is proven again; no model call."""
+    """``{edit}`` (an ``Edit`` as JSON), or ``{edits}`` (a list of them, made together or not at all), made on the
+    setup's template, which is proven again once; no model call."""
     setup = _setup(api, req)
+    body = _object(req)
     try:
-        edit = EDIT.validate_python(_object(req).get("edit"))
+        edits = EDITS.validate_python(body["edits"]) if "edits" in body else [EDIT.validate_python(body.get("edit"))]
     except pydantic.ValidationError as exc:
         raise ApiError(400, "bad_edit", f"this is not an edit: {_first_error(exc)}") from None
     try:
-        setup.edit(edit)
+        setup.edit(*edits)
     except SetupBusy as exc:
         raise ApiError(409, "busy_setup", str(exc)) from None
     except FormcastError as exc:

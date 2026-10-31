@@ -640,6 +640,7 @@ def edit_setup(base: str, setup: dict, edit: dict) -> dict:
 
 def show_setup(b: Bench, setup: dict) -> None:
     """Open ``setup`` on the setup screen, as the Extract modal does once it is built."""
+    b.page.wait_for_function("() => window.__workbench")  # the choice is on the page before its script has run
     b.page.evaluate("s => window.__workbench.openSetup(s)", setup)
     expect(b.page.locator('.view[data-only="setup"]')).to_be_visible()
     expect(b.page.locator("#setup-pv .fc-box").first).to_be_attached()
@@ -658,7 +659,13 @@ def picked(b: Bench, kind: str = "box"):
 def edits_sent(b: Bench) -> list[dict]:
     """Every edit the page sends from now on, as sent."""
     sent: list[dict] = []
-    b.page.on("request", lambda r: sent.append(r.post_data_json["edit"]) if r.method == "POST" and r.url.endswith("/edit") else None)
+
+    def note(request) -> None:
+        if request.method == "POST" and request.url.endswith("/edit"):
+            body = request.post_data_json
+            sent.extend(body["edits"] if "edits" in body else [body["edit"]])
+
+    b.page.on("request", note)
     return sent
 
 
@@ -737,7 +744,8 @@ def test_selecting_a_field_heavy_draws_its_box_with_its_path_and_the_inspector_s
     expect(b.page.locator("#ins-name")).to_have_text("investor.tax_id")
     expect(b.page.locator("#ins-title")).to_have_value("Taxpayer ID")
     expect(b.page.locator("#ins-type")).to_have_value("text")
-    expect(ins.locator(".ro")).to_contain_text(["Form field tax_id", "A box on page 1", "Next to the label Taxpayer ID"])
+    expect(ins).not_to_contain_text("Read from")
+    expect(ins).not_to_contain_text("Tried in this order")
     expect(b.page.locator("#ins-labels")).to_have_value("Taxpayer ID")
     expect(b.page.locator("#ins-required")).to_be_checked()
     expect(b.page.locator("#ins-pattern")).to_have_value(r"^\d{2}-\d{7}$|^\d{3}-\d{2}-\d{4}$")
@@ -761,6 +769,144 @@ def test_selecting_a_field_heavy_draws_its_box_with_its_path_and_the_inspector_s
     lines.nth(3).click()  # a sample's line shows that sample
     expect(b.page.locator("#sample-no")).to_have_text("Sample 4 / 5")
     expect(lines.nth(3)).to_have_class("on")
+
+
+def test_an_option_sets_answers_sit_under_its_row_and_each_picks_out_its_box(start_demo_server, bench):
+    base = extract_server(start_demo_server)
+    b = bench(base, fill=False)
+    show_setup(b, setup_on(base))
+    options = b.page.locator('#fields .fc-sl-opt[data-path="investor.type"]')
+    expect(options).to_have_count(4)
+    expect(b.page.locator("#fields .fc-sl-opt[data-path='investor.dob']")).to_have_count(0)
+    answer = options.nth(1).inner_text()
+    options.nth(1).click()
+    expect(row(b, "investor.type")).to_have_class("fc-sl-leaf is-picked")
+    expect(options.nth(1)).to_have_class("fc-sl-opt is-on")
+    chosen = b.page.locator("#setup-pv .fc-box.is-answer")
+    expect(chosen).to_have_count(1)
+    expect(chosen.locator(".fc-tag")).to_have_text(answer)
+    expect(chosen.locator(".fc-tag")).to_be_visible()
+
+    ins = b.page.locator("#ins-options li")  # the same answers on the right, each picking out its box
+    expect(ins.nth(1)).to_have_class("on")
+    expect(ins.nth(1)).to_contain_text("page 1")
+    ins.nth(2).click()
+    expect(options.nth(2)).to_have_class("fc-sl-opt is-on")
+    expect(chosen.locator(".fc-tag")).to_have_text(options.nth(2).inner_text())
+
+    box = b.page.locator('#setup-pv .fc-box[data-kind="option"]').nth(0)  # a box on the page finds its answer
+    box.click()
+    expect(chosen).to_have_count(1)
+    expect(b.page.locator("#fields .fc-sl-opt.is-on")).to_have_count(1)
+
+
+def test_ctrl_or_command_and_a_click_selects_several_fields_and_the_right_side_acts_on_them_all(start_demo_server, bench):
+    base = extract_server(start_demo_server)
+    b = bench(base, fill=False)
+    show_setup(b, setup_on(base))
+    row(b, "investor.dob").click()
+    row(b, "investor.tax_id").click(modifiers=["Control"])
+    row(b, "wire.bank").click(modifiers=["Meta"])
+    expect(b.page.locator("#many-count")).to_have_text("3 fields selected")
+    expect(b.page.locator("#fields .fc-sl-leaf.is-picked")).to_have_count(3)
+    expect(b.page.locator("#ins-title")).to_have_count(0)
+    expect(b.page.locator("#ins .answers")).to_contain_text("Taxpayer ID")
+    expect(b.page.locator("#many-link")).to_be_disabled()  # none of them is a checkbox
+    expect(b.page.locator("#many-why")).to_contain_text("isn't a checkbox")
+
+    row(b, "wire.bank").click(modifiers=["Control"])  # a selected field comes out again
+    expect(b.page.locator("#many-count")).to_have_text("2 fields selected")
+    expect(b.page.locator("#fields .fc-sl-leaf.is-picked")).to_have_count(2)
+
+    sent = edits_sent(b)
+    b.page.click("#many-optional")
+    expect(b.page.locator('#fields .fc-sl-leaf[data-path="investor.tax_id"] .fc-sl-req')).to_have_count(0)
+    expect(b.page.locator("#many-optional")).to_have_attribute("aria-pressed", "true")
+    assert [e["path"] for e in sent] == ["investor.tax_id"]  # the other was optional already
+    expect(b.page.locator("#many-count")).to_have_text("2 fields selected")  # still selected after the change
+
+    row(b, "wire.bank").click()  # a plain click is one field again
+    expect(b.page.locator("#fields .fc-sl-leaf.is-picked")).to_have_count(1)
+    expect(b.page.locator("#ins-title")).to_have_value(re.compile("."))
+    expect(b.page.locator("#many-count")).to_have_count(0)
+
+
+def test_shift_and_a_click_selects_a_run_of_fields(start_demo_server, bench):
+    base = extract_server(start_demo_server)
+    b = bench(base, fill=False)
+    show_setup(b, setup_on(base))
+    rows = b.page.locator("#fields .fc-sl-leaf")
+    rows.nth(1).click()
+    rows.nth(3).click(modifiers=["Shift"])
+    expect(b.page.locator("#many-count")).to_have_text("3 fields selected")
+    expect(b.page.locator("#fields .fc-sl-leaf.is-picked")).to_have_count(3)
+
+
+def test_a_box_on_the_page_joins_the_selection_with_ctrl(start_demo_server, bench):
+    base = extract_server(start_demo_server)
+    b = bench(base, fill=False)
+    show_setup(b, setup_on(base))
+    row(b, "investor.tax_id").click()
+    b.page.locator('#setup-pv .fc-box[data-field-id="investor.dob#box"]').click(modifiers=["Control"])
+    expect(b.page.locator("#many-count")).to_have_text("2 fields selected")
+    expect(row(b, "investor.dob")).to_have_class("fc-sl-leaf is-picked")
+
+
+def test_several_fields_are_removed_only_on_a_second_click(start_demo_server, bench):
+    base = extract_server(start_demo_server)
+    b = bench(base, fill=False)
+    show_setup(b, setup_on(base))
+    row(b, "investor.dob").click()
+    row(b, "wire.bank").click(modifiers=["Control"])
+    b.page.click("#many-remove")
+    expect(b.page.locator("#many-remove")).to_have_text("Click again to remove")
+    expect(row(b, "wire.bank")).to_have_count(1)
+    b.page.click("#many-remove")
+    expect(row(b, "wire.bank")).to_have_count(0)
+    expect(row(b, "investor.dob")).to_have_count(0)
+    expect(b.page.locator("#fields .fc-sl-leaf.is-picked")).to_have_count(1)
+
+
+def test_a_change_to_several_fields_is_one_call_to_the_server(start_demo_server, bench):
+    base = extract_server(start_demo_server)
+    b = bench(base, fill=False)
+    show_setup(b, setup_on(base))
+    calls: list[str] = []
+    b.page.on("request", lambda r: calls.append(r.url) if r.method == "POST" and r.url.endswith("/edit") else None)
+    sent = edits_sent(b)
+    row(b, "investor.dob").click()
+    row(b, "wire.bank").click(modifiers=["Control"])
+    b.page.click("#many-absent")
+    expect(b.page.locator("#many-absent")).to_have_text("Bring back")
+    assert len(calls) == 1
+    assert sent == [{"op": "mark_absent", "path": "investor.dob"}, {"op": "mark_absent", "path": "wire.bank"}]
+    b.page.click("#many-absent")
+    expect(b.page.locator("#many-absent")).to_have_text("Not on this form")
+
+
+def test_an_option_set_comes_apart_and_its_checkboxes_link_back_with_ctrl(start_demo_server, bench):
+    base = extract_server(start_demo_server)
+    b = bench(base, fill=False)
+    show_setup(b, setup_on(base))
+    row(b, "investor.type").click()
+    b.page.click("#ins-split")
+    expect(b.page.locator("#many-count")).to_have_text("4 fields selected")  # what it became, ready to link again
+    expect(row(b, "investor.type")).to_have_count(0)
+    picked_rows = b.page.locator("#fields .fc-sl-leaf.is-picked")
+    expect(picked_rows).to_have_count(4)
+    for i in range(4):
+        expect(picked_rows.nth(i)).to_have_attribute("data-state", "ready")  # read as checkboxes on every sample
+    expect(b.page.locator("#many-why")).to_have_count(0)
+    b.page.click("#many-link")
+    expect(b.page.locator("#notice")).to_contain_text("Give the option set a title")
+    b.page.fill("#many-title", "Kind of investor")
+    b.page.press("#many-title", "Enter")
+    made = row(b, "investor.kind_of_investor")
+    expect(made).to_have_class("fc-sl-leaf is-picked")
+    expect(made).to_have_attribute("data-state", "ready")
+    expect(b.page.locator('#fields .fc-sl-opt[data-path="investor.kind_of_investor"]')).to_have_count(4)
+    expect(b.page.locator("#ins-options li")).to_have_count(4)
+    expect(picked(b, "option")).to_have_count(4)
 
 
 def test_a_box_dragged_on_the_shifted_sample_sends_one_set_box_naming_it_and_lands_where_it_was_dropped(start_demo_server, bench):
