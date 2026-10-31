@@ -197,12 +197,12 @@ def test_an_unreadable_file_is_recorded_and_the_run_goes_on(tmp_path):
         "locked.pdf": "encrypted PDF",
         "good.pdf": None,
     }
-    set_aside = {row["doc_id"]: row for row in results.set_aside()}
+    set_aside = {row["document_id"]: row for row in results.set_aside()}
     assert set_aside["locked.pdf"] == {
-        "doc_id": "locked.pdf", "file": str((folder / "locked.pdf").resolve()), "reason": "encrypted PDF",
+        "document_id": "locked.pdf", "document_file": str((folder / "locked.pdf").resolve()), "reason": "encrypted PDF",
         "closest_template": None, "closest_score": None,
     }  # fmt: skip
-    assert [row["doc_id"] for row in results.rows()] == ["good.pdf"]
+    assert [row["document_id"] for row in results.rows()] == ["good.pdf"]
 
 
 @pytest.mark.parametrize("slow", [False, True], ids=["quick-progress", "slow-progress"])
@@ -432,7 +432,7 @@ def test_review_decisions_apply_and_survive_a_rerun(tmp_path):
     assert (country.status, country.value) == ("found", "Mars")
     assert list(results.problems()) == []
     assert results.summary().with_problems == 0 and results.summary().complete == 3
-    row = next(r for r in results.rows() if r["doc_id"] == "bad_tin.pdf")
+    row = next(r for r in results.rows() if r["document_id"] == "bad_tin.pdf")
     assert row["investor.tax_id"] == "84-2219037"
 
 
@@ -472,16 +472,16 @@ def test_problems_filter_by_path_and_status(tmp_path):
 
     assert found() == {
         ("bad_tin.pdf", "investor.tax_id", "failed_check"),
-        ("no_tin.pdf", "investor.tax_id", "missing"),
+        ("no_tin.pdf", "investor.tax_id", "blank"),
         ("mars.pdf", "investor.country", "failed_check"),
     }
     assert found(path="investor.tax_id") == {
-        ("bad_tin.pdf", "investor.tax_id", "failed_check"), ("no_tin.pdf", "investor.tax_id", "missing"),
+        ("bad_tin.pdf", "investor.tax_id", "failed_check"), ("no_tin.pdf", "investor.tax_id", "blank"),
     }  # fmt: skip
     assert found(status="failed_check") == {
         ("bad_tin.pdf", "investor.tax_id", "failed_check"), ("mars.pdf", "investor.country", "failed_check"),
     }  # fmt: skip
-    assert found(path="investor.tax_id", status="missing") == {("no_tin.pdf", "investor.tax_id", "missing")}
+    assert found(path="investor.tax_id", status="blank") == {("no_tin.pdf", "investor.tax_id", "blank")}
     results.decide(ReviewDecision(doc_id="no_tin.pdf", path="investor.tax_id", decision="value", value="84-2219037"))
     assert found(path="investor.tax_id") == {("bad_tin.pdf", "investor.tax_id", "failed_check")}
     with pytest.raises(FormcastError, match="not a problem status"):
@@ -505,7 +505,7 @@ def test_field_counts_give_each_paths_statuses_after_decisions_and_ai_answers(co
     counts = Results.load(corpus_run).field_counts()
     tax_id = counts["investor.tax_id"]
     assert set(tax_id) == {
-        "found", "missing", "failed_check", "unsure", "absent", "not_on_form", "reviewed", "required",
+        "found", "blank", "not_located", "missing", "failed_check", "unsure", "absent", "not_on_form", "reviewed", "required",
     }  # fmt: skip
     assert sum(v for k, v in tax_id.items() if k not in ("reviewed", "required")) == 20  # set aside: not counted
     assert tax_id["found"] == 20 and tax_id["reviewed"] == 0
@@ -515,7 +515,7 @@ def test_field_counts_give_each_paths_statuses_after_decisions_and_ai_answers(co
     run_batch([hand_template()], paths, out, workers=1)
     results = Results.load(out)
     assert results.field_counts()["investor.tax_id"] == {
-        "found": 1, "missing": 5, "failed_check": 2, "unsure": 0, "absent": 0, "not_on_form": 0, "reviewed": 0,
+        "found": 1, "blank": 5, "not_located": 0, "missing": 0, "failed_check": 2, "unsure": 0, "absent": 0, "not_on_form": 0, "reviewed": 0,
         "required": True,
     }  # fmt: skip
     results.decide(ReviewDecision(doc_id="a.pdf", path="investor.tax_id", decision="value", value="84-2219037"))
@@ -527,7 +527,7 @@ def test_field_counts_give_each_paths_statuses_after_decisions_and_ai_answers(co
     )  # fmt: skip
     counts = Results.load(out).field_counts()["investor.tax_id"]
     assert counts == {
-        "found": 2, "missing": 2, "failed_check": 2, "unsure": 1, "absent": 1, "not_on_form": 0, "reviewed": 2,
+        "found": 2, "blank": 2, "not_located": 0, "missing": 0, "failed_check": 2, "unsure": 1, "absent": 1, "not_on_form": 0, "reviewed": 2,
         "required": True,
     }  # a.pdf typed (the AI's answer never replaces a decision), b.pdf absent, c.pdf the AI's, d.pdf still missing
 
@@ -550,10 +550,10 @@ def test_a_page_of_problems_is_the_documents_with_problems_in_doc_id_order(tmp_p
 
     total, first = results.page(0, 2)
     assert total == 7 and [d.doc_id for d, _ in first] == ["a.pdf", "b.pdf"]
-    assert [[(f.path, f.status) for f in fields] for _, fields in first] == [[("investor.tax_id", "missing")]] * 2
-    total, rest = results.page(2, 2, status="missing")
+    assert [[(f.path, f.status) for f in fields] for _, fields in first] == [[("investor.tax_id", "blank")]] * 2
+    total, rest = results.page(2, 2, status="blank")
     assert total == 5 and [d.doc_id for d, _ in rest] == ["c.pdf", "d.pdf"]
-    total, last = results.page(4, 10, status="missing")
+    total, last = results.page(4, 10, status="blank")
     assert total == 5 and [d.doc_id for d, _ in last] == ["e.pdf"]
     assert results.page(7, 5) == (7, []) and results.page(0, 0) == (7, [])
     total, failed = results.page(0, 5, path="investor.tax_id", status="failed_check")
@@ -643,7 +643,7 @@ def test_a_blank_optional_field_leaves_a_document_complete_with_an_optional_prob
     assert (summary.complete, summary.with_problems, summary.optional_only, summary.with_optional) == (1, 0, 1, 1)
     assert results.page(0, 50, level="required") == (0, [])
     total, page = results.page(0, 50, level="optional")
-    assert total == 1 and page_fields(page) == [("no_dob.pdf", [("investor.dob", "missing")])]
+    assert total == 1 and page_fields(page) == [("no_dob.pdf", [("investor.dob", "blank")])]
     assert [(d.doc_id, f.path) for d, f in results.problems(level="optional")] == [("no_dob.pdf", "investor.dob")]
     assert list(results.problems(level="required")) == []
     assert results.page(0, 50)[0] == 1  # no level: both, as before
@@ -658,12 +658,27 @@ def test_a_missing_required_field_makes_a_document_with_problems(tmp_path):
     summary = results.summary()
     assert (summary.complete, summary.with_problems, summary.optional_only, summary.with_optional) == (0, 1, 0, 1)
     doc = "no_name_no_dob.pdf"
-    assert page_fields(results.page(0, 50, level="required")[1]) == [(doc, [("investor.legal_name", "missing")])]
-    assert page_fields(results.page(0, 50, level="optional")[1]) == [(doc, [("investor.dob", "missing")])]
-    both = [("investor.legal_name", "missing"), ("investor.dob", "missing")]
+    assert page_fields(results.page(0, 50, level="required")[1]) == [(doc, [("investor.legal_name", "blank")])]
+    assert page_fields(results.page(0, 50, level="optional")[1]) == [(doc, [("investor.dob", "blank")])]
+    both = [("investor.legal_name", "blank"), ("investor.dob", "blank")]
     assert page_fields(results.page(0, 50)[1]) == [(doc, both)]  # no level: both, as before
     assert results.page(0, 50, path="investor.dob", level="required") == (0, [])
-    assert results.page(0, 50, path="investor.dob", status="missing", level="optional")[0] == 1
+    assert results.page(0, 50, path="investor.dob", status="blank", level="optional")[0] == 1
+
+
+def test_a_run_made_before_blank_and_not_located_keeps_its_missing_fields_as_problems(tmp_path):
+    out = tmp_path / "out"
+    run_batch([levelled_template()], write_level_forms(tmp_path / "in", "no_dob.pdf"), out, workers=1)
+    before = Results.load(out)
+    summary = before.summary()
+    lines = (out / "results.jsonl").read_text()
+    assert '"status":"blank"' in lines or '"status": "blank"' in lines
+    (out / "results.jsonl").write_text(lines.replace('"status":"blank"', '"status":"missing"').replace('"status": "blank"', '"status": "missing"'))
+    results = Results.load(out)
+    assert results.summary() == summary  # the same problems, by the old name
+    assert results.field_counts()["investor.dob"]["missing"] == 1
+    assert results.field_counts()["investor.dob"]["blank"] == 0
+    assert [f.status for _, f in results.problems(status="missing")] == ["missing"]
 
 
 def test_a_run_json_without_required_counts_every_field_as_required(tmp_path):
@@ -682,7 +697,7 @@ def test_a_run_json_without_required_counts_every_field_as_required(tmp_path):
     assert (summary.complete, summary.with_problems, summary.optional_only, summary.with_optional) == (0, 1, 0, 0)
     assert results.is_required("client_information", "investor.dob") is True
     assert results.is_required("nope", "anything") is True
-    assert page_fields(results.page(0, 50, level="required")[1]) == [("no_dob.pdf", [("investor.dob", "missing")])]
+    assert page_fields(results.page(0, 50, level="required")[1]) == [("no_dob.pdf", [("investor.dob", "blank")])]
     assert results.page(0, 50, level="optional") == (0, [])
 
 
@@ -719,7 +734,7 @@ def test_settling_the_last_required_problem_makes_the_document_complete_in_place
     assert (summary.complete, summary.with_problems, summary.optional_only, summary.with_optional) == (1, 0, 1, 1)
     assert results.page(0, 50, level="required") == (0, [])
     assert results.page(0, 50, path="investor.legal_name", level="required") == (0, [])
-    assert page_fields(results.page(0, 50, level="optional")[1]) == [(doc, [("investor.dob", "missing")])]
+    assert page_fields(results.page(0, 50, level="optional")[1]) == [(doc, [("investor.dob", "blank")])]
     fresh = Results.load(out)
     assert (results.summary(), results.field_counts()) == (fresh.summary(), fresh.field_counts())
 
@@ -730,7 +745,7 @@ def test_field_counts_say_whether_a_path_is_required(tmp_path):
     counts = Results.load(out).field_counts()
     assert counts["investor.legal_name"]["required"] is True and counts["investor.tax_id"]["required"] is True
     assert counts["investor.dob"]["required"] is False and counts["owners[0].name"]["required"] is False
-    assert counts["investor.dob"]["missing"] == 1
+    assert counts["investor.dob"]["blank"] == 1
 
     run = json.loads((out / "run.json").read_text())
     del run["required"]  # a run made before the levels: every field required
@@ -743,8 +758,8 @@ def test_field_counts_say_whether_a_path_is_required(tmp_path):
 
 def test_rows_flatten_repeated_items_and_keep_dotted_paths(corpus_run):
     results = Results.load(corpus_run)
-    rows = {r["doc_id"]: r for r in results.rows()}
-    statuses = {r["doc_id"]: r for r in results.status_rows()}
+    rows = {r["document_id"]: r for r in results.rows()}
+    statuses = {r["document_id"]: r for r in results.status_rows()}
     assert len(rows) == 20 and rows.keys() == statuses.keys()
     people = clients(20)
     for n, client in enumerate(people, start=1):
@@ -755,18 +770,18 @@ def test_rows_flatten_repeated_items_and_keep_dotted_paths(corpus_run):
         for i in range(len(client.owners) + 1, OWNER_ROWS + 1):
             assert row[f"owners_{i}_name"] is None and status[f"owners_{i}_name"] == "absent"
     first = rows["client_00001.pdf"]
-    assert list(first)[:5] == ["doc_id", "file", "template", "matched", "extracted_at"]
-    assert (first["template"], first["matched"]) == ("client_information", "layout")
-    assert first["file"].endswith("client_00001.pdf") and first["extracted_at"]
+    assert list(first)[:5] == ["document_id", "document_file", "document_template", "document_match", "document_extracted_at"]
+    assert (first["document_template"], first["document_match"]) == ("client_information", "layout")
+    assert first["document_file"].endswith("client_00001.pdf") and first["document_extracted_at"]
     assert not any("[" in column for column in first)
     assert list(first) == list(statuses["client_00001.pdf"])
 
 
 def test_failed_documents_are_not_rows_and_carry_their_closest_template(corpus_run):
     results = Results.load(corpus_run)
-    names = {r["doc_id"] for r in results.rows()} | {r["doc_id"] for r in results.status_rows()}
+    names = {r["document_id"] for r in results.rows()} | {r["document_id"] for r in results.status_rows()}
     assert {"client_00021.pdf", "client_00022.pdf"}.isdisjoint(names)
-    assert [(r["doc_id"], r["reason"], r["closest_template"], r["closest_score"]) for r in results.set_aside()] == [
+    assert [(r["document_id"], r["reason"], r["closest_template"], r["closest_score"]) for r in results.set_aside()] == [
         ("client_00021.pdf", "no template fits", "Client information", 0.0),
         ("client_00022.pdf", "no template fits", "Client information", 0.0),
     ]
@@ -787,7 +802,7 @@ def synthetic_run(out: Path, n: int, *, fields: int = 6, start: int = 0) -> None
         for i in range(start, start + n):
             failed = i % 10 == 9
             row = [
-                {"path": f"field_{j}", "status": "missing" if (j == 1 and i % 3 == 0) else "found",
+                {"path": f"field_{j}", "status": "blank" if (j == 1 and i % 3 == 0) else "found",
                  "raw": None if (j == 1 and i % 3 == 0) else "value", "value": None if (j == 1 and i % 3 == 0) else "value"}
                 for j in range(fields)
             ]  # fmt: skip
@@ -826,13 +841,13 @@ def test_a_page_of_problems_at_a_few_thousand_documents_parses_only_the_pages_do
     with_problems = [i for i in range(3000) if i % 3 == 0 and i % 10 != 9]
     summary = results.summary()
     assert (summary.total, summary.with_problems, summary.no_template) == (3000, len(with_problems), 300)
-    assert results.field_counts()["field_1"]["missing"] == len(with_problems)
+    assert results.field_counts()["field_1"]["blank"] == len(with_problems)
 
     total, page = results.page(100, 50)
     assert total == len(with_problems)
     assert [d.doc_id for d, _ in page] == [f"{i:06d}.pdf" for i in with_problems[100:150]]
     assert parses["lines"] == 50
-    total, page = results.page(0, 50, path="field_1", status="missing")
+    total, page = results.page(0, 50, path="field_1", status="blank")
     assert total == len(with_problems) and parses["lines"] == 100
     assert results.page(0, 50, path="field_2") == (0, []) and parses["lines"] == 100
 
@@ -841,15 +856,15 @@ def test_a_page_of_problems_at_a_few_thousand_documents_parses_only_the_pages_do
     assert parses["loads"] == 1 and parses["lines"] <= 103  # the document checked, taken back and counted again
     assert results.summary().with_problems == len(with_problems) - 1
     assert results.field_counts()["field_1"] == {
-        "found": 2700 - len(with_problems) + 1, "missing": len(with_problems) - 1, "failed_check": 0, "unsure": 0,
+        "found": 2700 - len(with_problems) + 1, "blank": len(with_problems) - 1, "not_located": 0, "missing": 0, "failed_check": 0, "unsure": 0,
         "absent": 0, "not_on_form": 0, "reviewed": 1, "required": True,
     }  # fmt: skip
-    total, page = results.page(0, 1, status="missing")
+    total, page = results.page(0, 1, status="blank")
     assert total == len(with_problems) - 1 and page[0][0].doc_id == f"{with_problems[1]:06d}.pdf"
     assert results.page(0, 1)[1][0][0].doc_id == f"{with_problems[1]:06d}.pdf"  # every list kept is updated
 
     total, aside = results.set_aside_page(10, 5)
-    assert total == 300 and [r["doc_id"] for r in aside] == [f"{i:06d}.pdf" for i in range(109, 159, 10)]
+    assert total == 300 and [r["document_id"] for r in aside] == [f"{i:06d}.pdf" for i in range(109, 159, 10)]
     assert aside[0]["reason"] == "no template fits" and aside[0]["closest_template"] == "T"
     assert results.doc_ids()[:2] == ["000000.pdf", "000001.pdf"] and len(results.doc_ids()) == 3000
     assert results.document("000005.pdf").doc_id == "000005.pdf"
@@ -864,7 +879,7 @@ def test_a_path_with_empty_brackets_filters_the_problems_of_every_item_of_a_repe
 
     def doc(doc_id: str, missing: list[str]) -> str:
         paths = ["owners[0].name", "owners[1].name", "owners[0].percent", "investor.name"]
-        fields = [{"path": p, "status": "missing" if p in missing else "found", "raw": None, "value": None} for p in paths]
+        fields = [{"path": p, "status": "blank" if p in missing else "found", "raw": None, "value": None} for p in paths]
         return json.dumps({"doc_id": doc_id, "file": f"/x/{doc_id}", "template_id": "t", "matched": "layout",
                            "fields": fields, "extracted_at": "2026-10-29T00:00:00+00:00"})  # fmt: skip
 
@@ -878,7 +893,7 @@ def test_a_path_with_empty_brackets_filters_the_problems_of_every_item_of_a_repe
     ]  # fmt: skip
     assert [d.doc_id for d, _ in results.problems(path="owners[].name")] == ["a.pdf", "b.pdf"]
     assert results.page(0, 10, path="owners[0].name")[0] == 1  # a concrete path is that item only
-    assert results.page(0, 10, path="owners[].percent", status="missing")[0] == 1
+    assert results.page(0, 10, path="owners[].percent", status="blank")[0] == 1
     results.decide(ReviewDecision(doc_id="b.pdf", path="owners[1].name", decision="not_in_document"))
     assert results.page(0, 10, path="owners[].name")[0] == 1
 

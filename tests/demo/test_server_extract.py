@@ -778,7 +778,7 @@ def job_ended(base: str, job_id: str) -> dict:
 
 
 def setup_job(b: Bench, **spec) -> dict:
-    body = {"kind": "extract-setup", "batch": b.batch, "samples": [0, 1, 2, 3, 4], "spec": {"name": "Client forms", **spec}}
+    body = {"kind": "extract-setup", "batch": b.batch, "samples": [0, 1, 2, 3, 4], "spec": {"name": "Client forms", "names_from_titles": False, **spec}}
     status, out = start_job(b.base, body)
     assert status == 200, out
     return out
@@ -860,7 +860,7 @@ def test_a_setup_from_a_destination_marks_the_destinations_fields_the_form_lacks
 
 def test_a_setup_job_is_refused_before_it_starts_for_a_bad_spec_batch_sample_or_destination(bench):
     def refused(**changes):
-        body = {"kind": "extract-setup", "batch": bench.batch, "samples": [0, 1, 2], "spec": {"name": "x"}, **changes}
+        body = {"kind": "extract-setup", "batch": bench.batch, "samples": [0, 1, 2], "spec": {"name": "x", "names_from_titles": False}, **changes}
         status, out = start_job(bench.base, body)
         return status, out["error"], out["detail"]
 
@@ -881,14 +881,14 @@ def test_a_setup_job_is_refused_before_it_starts_for_a_bad_spec_batch_sample_or_
 
 def test_a_batch_of_fewer_than_three_files_builds_from_all_of_them(start_demo_server, setup_pdfs, setup_people):
     b = bench_of(start_demo_server, setup_pdfs[:2], model_for(setup_pdfs, setup_people))
-    status, out = start_job(b.base, {"kind": "extract-setup", "batch": b.batch, "samples": [0, 1], "spec": {"name": "x"}})
+    status, out = start_job(b.base, {"kind": "extract-setup", "batch": b.batch, "samples": [0, 1], "spec": {"name": "x", "names_from_titles": False}})
     assert status == 200, out
     assert job_ended(b.base, out["id"])["status"] == "done"
 
 
 def test_without_ai_a_setup_job_is_refused_and_an_unknown_setup_is_not_found(demo_server):
     batch = new_batch(demo_server)
-    status, out = start_job(demo_server, {"kind": "extract-setup", "batch": batch["id"], "samples": [0], "spec": {"name": "x"}})
+    status, out = start_job(demo_server, {"kind": "extract-setup", "batch": batch["id"], "samples": [0], "spec": {"name": "x", "names_from_titles": False}})
     assert (status, out["error"]) == (400, "ai_not_configured")
     status, out = start_job(demo_server, {"kind": "extract-line", "setup": "0" * 32, "line": "wire details"})
     assert (status, out["error"]) == (400, "ai_not_configured")
@@ -1064,7 +1064,8 @@ def test_a_suggested_wording_is_learned_only_when_asked_for_its_path(start_demo_
 def test_a_setup_saved_as_an_extraction_is_listed_and_reopens_as_a_setup_with_a_fresh_proof(bench):
     setup = built(bench)
     status, saved = get_json(bench.base, "/api/extractions/Client%20info", "PUT", {"setup": setup["id"]})
-    assert status == 200 and saved == {"name": "Client info", "template_id": "client_forms"}
+    assert status == 200 and (saved["name"], saved["template_id"]) == ("Client info", "client_forms")
+    assert saved["setup"]["id"] == setup["id"]
     folder = bench.api.settings.data_dir / "local" / "extractions"
     assert (folder / "Client info.json").is_file()
     stored = folder / "assets" / "Client info" / "samples"
@@ -1089,9 +1090,9 @@ def test_a_setup_saved_as_an_extraction_is_listed_and_reopens_as_a_setup_with_a_
 
 
 def with_a_field_named_name(template: ExtractionTemplate) -> ExtractionTemplate:
-    """``template`` with a top-level field ``name``, whose export column is the document's ``name`` column."""
+    """``template`` with a top-level field ``document_name``, whose export column is the document's own."""
     schema = json.loads(json.dumps(template.schema_))
-    schema["properties"]["name"] = {"type": "string", "title": "Name"}
+    schema["properties"]["document_name"] = {"type": "string", "title": "Document name"}
     return ExtractionTemplate.model_validate({**template.model_dump(by_alias=True), "schema": schema})
 
 
@@ -1101,7 +1102,7 @@ def test_a_setup_whose_field_would_share_the_exports_name_column_is_refused_when
     kept.template = with_a_field_named_name(kept.template)
     status, out = get_json(bench.base, "/api/extractions/Clash", "PUT", {"setup": setup["id"]})
     assert (status, out["error"]) == (400, "bad_template")
-    assert out["detail"] == "the field 'name' would share its column with the document's name; rename the field"
+    assert out["detail"] == "the field 'document_name' would share the document column document_name; change its title"
     assert get_json(bench.base, "/api/extractions")[1] == {"extractions": []}  # nothing saved
 
 
@@ -1266,9 +1267,9 @@ def test_a_run_reads_every_document_of_the_batch_with_no_model_call_lists_it_and
     assert run["seconds"] == run["summary"]["seconds"] > 0
     assert [f["path"] for f in run["fields"]] == read_fields(runner.template)
     tax_id = next(f for f in run["fields"] if f["path"] == "investor.tax_id")
-    assert set(tax_id) == {"path", "title", "required", "required_reason", "found", "missing", "failed_check", "unsure", "reviewed", "not_on_form"}
+    assert set(tax_id) == {"path", "title", "required", "required_reason", "found", "blank", "not_located", "missing", "failed_check", "unsure", "reviewed", "not_on_form", "absent"}
     assert tax_id["title"] == runner.template["schema"]["properties"]["investor"]["properties"]["tax_id"]["title"]
-    assert tax_id["found"] == 20 and tax_id["missing"] == tax_id["failed_check"] == tax_id["unsure"] == tax_id["reviewed"] == 0
+    assert tax_id["found"] == 20 and tax_id["blank"] == tax_id["failed_check"] == tax_id["unsure"] == tax_id["reviewed"] == 0
     folder = runs_dir(runner) / run_id
     meta = json.loads((folder / "run-meta.json").read_text())
     assert meta == {"name": "Client forms", "extraction": "Client info", "batch": batch, "started": entry["started"]}
@@ -1313,12 +1314,49 @@ def test_a_field_that_would_share_the_exports_name_column_can_be_renamed_and_the
     setup = built(bench)
     kept = bench.api.setups.get(setup["id"])
     kept.template = with_a_field_named_name(kept.template)
-    status, after = edit(bench, setup["id"], {"op": "rename_field", "path": "name", "name": "legal_name"})
+    status, after = edit(bench, setup["id"], {"op": "rename_field", "path": "document_name", "name": "legal_name"})
     assert status == 200, after
     assert "legal_name" in after["template"]["schema"]["properties"]
     assert "legal_name" in [f["path"] for f in after["proof"]["fields"]]
     status, out = get_json(bench.base, "/api/extractions/Clash", "PUT", {"setup": setup["id"]})
     assert status == 200, out
+
+
+def test_a_saved_templates_title_edit_keeps_the_name_and_offers_the_update(bench):
+    setup = built(bench)
+    kept = bench.api.setups.get(setup["id"])
+    info = kept.template.setup.model_copy(update={"name_follows_title": True})
+    kept.template = kept.template.model_copy(update={"setup": info})
+    status, after = edit(bench, setup["id"], {"op": "set_field", "path": "investor.tax_id", "title": "TIN number"})
+    assert status == 200, after
+    assert after["renamed"] == {"investor.tax_id": "investor.tin_number"} and after["name_updates"] == {}
+    status, out = get_json(bench.base, "/api/extractions/Kept", "PUT", {"setup": setup["id"]})
+    assert status == 200, out
+    assert bench.api.extractions.get("Kept").setup.name_follows_title is False
+    status, after = edit(bench, setup["id"], {"op": "set_field", "path": "investor.tin_number", "title": "Born on"})
+    assert status == 200, after
+    assert "investor.tin_number" in [f["path"] for f in after["proof"]["fields"]]
+    assert after["name_updates"]["investor.tin_number"] == "born_on"
+    status, after = edit(bench, setup["id"], {"op": "rename_field", "path": "investor.tin_number", "name": "born_on"})
+    assert status == 200, after
+    assert "investor.born_on" not in after["name_updates"]
+
+
+def test_update_name_is_not_offered_for_a_name_that_is_taken_or_reserved():
+    schema = {
+        "type": "object",
+        "properties": {
+            "date": {"type": "string", "title": "Date"},
+            "date_2": {"type": "string", "title": "Date"},
+            "document_id_2": {"type": "string", "title": "Document ID"},
+            "own": {
+                "type": "array", "maxItems": 2,
+                "items": {"type": "object", "properties": {"x": {"type": "string", "title": "Owner name"}}},
+            },
+        },
+    }  # fmt: skip
+    template = hand_template().model_copy(update={"schema_": schema, "readers": {}, "absent": []})
+    assert extraction._name_updates(template) == {"own[0].x": "owner_name", "own[1].x": "owner_name"}
 
 
 def test_a_rename_a_field_cannot_take_is_refused_with_the_librarys_message(bench):
@@ -1334,7 +1372,7 @@ def test_a_run_of_an_extraction_whose_field_would_share_the_exports_name_column_
     runner.api.extractions.put("Clash", with_a_field_named_name(template).model_copy(update={"name": "Clash"}), samples)
     status, out = start_job(runner.base, {"kind": "extract-run", "extraction": "Clash", "batch": batch_of(runner, corpus_files[:2])})
     assert (status, out["error"]) == (400, "bad_template")
-    assert out["detail"] == "the field 'name' would share its column with the document's name; rename the field"
+    assert out["detail"] == "the field 'document_name' would share the document column document_name; change its title"
     assert get_json(runner.base, "/api/runs")[1] == {"runs": []}
 
 
@@ -1348,14 +1386,14 @@ def test_the_problems_are_paged_by_document_each_with_its_problems_titled_and_na
         assert set(doc) == {"doc_id", "name", "problems"} and doc["name"] in PROBLEM_FILES and doc["problems"]
         for problem in doc["problems"]:
             assert set(problem) == {"path", "title", "required", "required_reason", "status", "raw", "value", "reasons", "page", "rect"}
-            assert problem["status"] in ("missing", "failed_check", "unsure") and problem["title"] == titles[problem["path"]]
+            assert problem["status"] in ("blank", "failed_check", "unsure") and problem["title"] == titles[problem["path"]]
     rest = problems_of(r, run_id, "?offset=2&limit=2")[1]
     assert rest["total"] == 3 and len(rest["documents"]) == 1
     assert {d["name"] for d in page["documents"] + rest["documents"]} == set(PROBLEM_FILES)
     assert problems_of(r, run_id, "?offset=3")[1] == {"total": 3, "documents": []}
     assert problems_of(r, run_id, "?offset=50&limit=2")[1] == {"total": 3, "documents": []}
     assert problems_of(r, run_id, "?path=investor.tax_id")[1]["total"] == 2
-    missing = problems_of(r, run_id, "?status=missing")[1]
+    missing = problems_of(r, run_id, "?status=blank")[1]
     assert missing["total"] == 1 and missing["documents"][0]["name"] == "no_tin.pdf"
     for query in ("?limit=0", "?limit=201", "?offset=-1", "?status=found"):
         status, out = problems_of(r, run_id, query)
@@ -1412,7 +1450,7 @@ def test_problems_by_level_list_only_that_levels_fields(leveled):
     assert optional["total"] == 1 and doc["name"] == "mars.pdf"
     assert [(p["path"], p["required"], p["status"]) for p in doc["problems"]] == [("investor.country", False, "failed_check")]
     assert problems_of(r, run_id, "?level=optional&path=investor.tax_id")[1] == {"total": 0, "documents": []}
-    assert problems_of(r, run_id, "?level=required&status=missing")[1]["total"] == 1
+    assert problems_of(r, run_id, "?level=required&status=blank")[1]["total"] == 1
 
 
 def test_a_bad_level_is_a_bad_request(leveled):
@@ -1430,7 +1468,7 @@ def test_the_runs_fields_say_required_and_why(leveled):
     assert fields["investor.legal_name"]["required_reason"] == ""  # a field the agent gave no reason for says none
     [mars] = [d for d in problems_of(r, run_id, "?level=optional")[1]["documents"]]
     assert mars["problems"][0]["required_reason"] == "a copy may leave it empty"
-    [tax_id] = [p for d in problems_of(r, run_id, "?status=missing")[1]["documents"] for p in d["problems"]]
+    [tax_id] = [p for d in problems_of(r, run_id, "?status=blank")[1]["documents"] for p in d["problems"]]
     assert tax_id["required_reason"] == "the form marks it required"
 
 
@@ -1451,7 +1489,7 @@ def test_to_data_counts_only_required_problems(leveled):
     r, run_id = leveled
     out = get_json(r.base, f"/api/runs/{run_id}/to-data", "POST", {})[1]
     assert out["with_problems"] == 2  # mars's country is optional: its row is complete
-    [doc] = problems_of(r, run_id, "?level=required&status=missing")[1]["documents"]
+    [doc] = problems_of(r, run_id, "?level=required&status=blank")[1]["documents"]
     decision = {"doc_id": doc["doc_id"], "path": "investor.tax_id", "decision": "value", "value": "12-3456789"}
     assert get_json(r.base, f"/api/runs/{run_id}/decisions", "POST", decision)[0] == 200
     assert get_json(r.base, f"/api/runs/{run_id}/to-data", "POST", {})[1]["with_problems"] == 1
@@ -1487,7 +1525,7 @@ def test_the_set_aside_documents_are_the_corpus_folders_w9_copies_with_the_close
 def test_a_decision_settles_its_problem_and_the_document_when_it_was_its_only_one(reviewed):
     r, run_id = reviewed
     before = get_json(r.base, f"/api/runs/{run_id}")[1]
-    [doc] = problems_of(r, run_id, "?status=missing")[1]["documents"]
+    [doc] = problems_of(r, run_id, "?status=blank")[1]["documents"]
     [problem] = doc["problems"]
     decision = {"doc_id": doc["doc_id"], "path": problem["path"], "decision": "value", "value": "12-3456789"}
     status, after = get_json(r.base, f"/api/runs/{run_id}/decisions", "POST", decision)
@@ -1524,7 +1562,7 @@ def test_a_runs_results_are_read_once_and_a_decision_a_page_image_and_a_problems
     get_json(r.base, "/api/runs")
     assert reads["loads"] == 1  # the listing and the run use the kept counts
 
-    [doc] = problems_of(r, run_id, "?status=missing")[1]["documents"]
+    [doc] = problems_of(r, run_id, "?status=blank")[1]["documents"]
     reads["lines"] = 0
     decision = {"doc_id": doc["doc_id"], "path": "investor.tax_id", "decision": "value", "value": "12-3456789"}
     status, after = get_json(r.base, f"/api/runs/{run_id}/decisions", "POST", decision)
@@ -1548,7 +1586,7 @@ def test_a_runs_results_are_read_once_and_a_decision_a_page_image_and_a_problems
 
 def test_a_decision_the_library_refuses_is_a_bad_decision_with_its_message(reviewed):
     r, run_id = reviewed
-    [doc] = problems_of(r, run_id, "?status=missing")[1]["documents"]
+    [doc] = problems_of(r, run_id, "?status=blank")[1]["documents"]
     for body, says in [
         ({"doc_id": "nope.pdf", "path": "investor.tax_id", "decision": "value", "value": "1"}, "no document"),
         ({"doc_id": doc["doc_id"], "path": "nope", "decision": "value", "value": "1"}, "no field"),
@@ -1564,7 +1602,7 @@ def test_a_decision_the_library_refuses_is_a_bad_decision_with_its_message(revie
 
 def test_a_page_of_a_document_of_the_run_is_a_png_and_anything_else_is_not_found(reviewed):
     r, run_id = reviewed
-    [doc] = problems_of(r, run_id, "?status=missing")[1]["documents"]
+    [doc] = problems_of(r, run_id, "?status=blank")[1]["documents"]
     status, headers, body = http_request(r.base, "GET", f"/api/runs/{run_id}/pages.png?doc={doc['doc_id']}&page=0&dpi=40")
     assert status == 200 and headers["content-type"] == "image/png"
     assert png_size(body)[0] == round(612 * 40 / 72)
@@ -1587,12 +1625,12 @@ def test_a_run_exports_as_a_workbook_or_a_zip_of_csv_files(reviewed):
     assert "values" in book.sheetnames
     values = list(book["values"].iter_rows(values_only=True))
     assert len(values) == 1 + 23  # the header, then each document read
-    assert list(values[0][:3]) == ["doc_id", "name", "file"]
+    assert list(values[0][:3]) == ["document_id", "document_name", "document_file"]
     shown = {row[1] for row in values[1:]}
     assert set(PROBLEM_FILES) <= shown and "client_00001.pdf" in shown  # the uploaded files' own names
     assert all(row[2] == row[1] for row in values[1:])  # an uploaded batch's file is its name, not where it is stored
     aside = list(book["set_aside"].iter_rows(values_only=True))
-    assert list(aside[0][:3]) == ["doc_id", "name", "file"] and [row[1] for row in aside[1:]] == ["client_00021.pdf", "client_00022.pdf"]
+    assert list(aside[0][:3]) == ["document_id", "document_name", "document_file"] and [row[1] for row in aside[1:]] == ["client_00021.pdf", "client_00022.pdf"]
     cells = [str(c) for sheet in book.sheetnames for row in book[sheet].iter_rows(values_only=True) for c in row if c is not None]
     assert not [c for c in cells if "local/batches" in c or str(r.api.settings.data_dir) in c]  # no data-dir path
     status, headers, body = http_request(r.base, "GET", f"/api/runs/{run_id}/export?format=csv")
@@ -1632,7 +1670,7 @@ def test_a_run_sent_to_fill_is_a_dataset_of_the_found_values_of_the_read_documen
     assert "8422-19037" not in tax_ids and tax_ids.count(None) == 2  # a value that failed its check is a gap, not a cell
     assert [row["investor.country"] for row in rows].count(None) == 1  # nor is mars's country, which is not in the map
     assert get_json(r.base, f"/api/data/{dataset['id']}")[1]["rows"] == 23
-    [doc] = problems_of(r, run_id, "?status=missing")[1]["documents"]
+    [doc] = problems_of(r, run_id, "?status=blank")[1]["documents"]
     decision = {"doc_id": doc["doc_id"], "path": "investor.tax_id", "decision": "value", "value": "12-3456789"}
     assert get_json(r.base, f"/api/runs/{run_id}/decisions", "POST", decision)[0] == 200
     out = get_json(r.base, f"/api/runs/{run_id}/to-data", "POST", {})[1]

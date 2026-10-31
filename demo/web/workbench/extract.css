@@ -108,7 +108,7 @@ body[data-mode="extract"] [data-for="fill"] { display: none !important; }
 #setup-pv .fc-box[data-kind="read"].is-picked { outline: 2px dotted var(--ink); }
 #setup-pv .fc-box[data-kind="label"] { outline: 0; background: none; box-shadow: inset 0 -1.5px 0 0 var(--graphite); }
 #setup-pv .fc-box[data-kind="label"].is-picked { box-shadow: inset 0 -2px 0 0 var(--ink); }
-.fc-ins-dl .ins-group { display: block; line-height: 28px; overflow-wrap: anywhere; }
+.fc-ins-dl .ins-name { display: block; line-height: 28px; overflow-wrap: anywhere; }
 #ins textarea.fc-in { height: auto; margin: 0; padding: 6px 8px; font: 14px/20px var(--serif); resize: vertical; }
 #ins .fc-ins-warn { margin-top: 10px; }
 .ins-format { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: center; margin-top: 4px; font: 14px var(--serif); }
@@ -143,19 +143,38 @@ body[data-mode="extract"] [data-for="fill"] { display: none !important; }
 .stats { display: flex; flex-wrap: wrap; gap: 8px 28px; padding: 12px 24px; box-shadow: inset 0 -.5px 0 0 var(--rule); }
 .stat b { display: block; font: 500 22px/28px var(--serif); }
 .stat span { font: 10px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--graphite); }
-/* By field: a row per field with its counts; a row clicked filters the documents by it */
-.by-field { padding: 8px 24px 10px; box-shadow: inset 0 -.5px 0 0 var(--rule); }
-.by-field summary { cursor: pointer; }
-.by-field-scroll { max-height: 168px; overflow: auto; margin-top: 6px; }
-.field-table { border-collapse: collapse; width: 100%; min-width: 1100px; table-layout: fixed; font: 12px/18px var(--mono); }
-.field-table th, .field-table td { padding: 5px 0 5px 24px; text-align: right; white-space: nowrap; box-shadow: inset 0 -.5px 0 0 var(--rule); }
-.field-table th:first-child { width: 34%; padding-left: 0; text-align: left; white-space: normal; overflow-wrap: anywhere; }
-.field-table thead th { position: sticky; top: 0; background: var(--paper); font: 10px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--graphite); }
+#see-details { align-self: center; margin-left: auto; }
+/* See details: the run's results by field, to read and close. The bars' colors are the same in both themes. */
+#field-details { grid-template-columns: minmax(0, 1360px); justify-content: center; padding-block: 16px; }
+/* the sheet fits the window and its fields scroll inside it, so the title and Close are always there */
+.sheet.details { display: flex; flex-direction: column; width: 100%; max-height: calc(100dvh - 32px); }
+.sheet.details h2 { margin-bottom: 4px; }
+.sheet.details .stats { flex: none; padding: 12px 0; }
+#details-sections { flex: 1 1 auto; min-height: 0; overflow: auto; margin-bottom: 16px; padding: 0 16px 12px 0; }
+.details-section { margin-top: 20px; }
+.details-section h3 { margin: 0 0 6px; }
+.details-section .field-table { table-layout: fixed; min-width: 1200px; }
+.details-section .field-table th, .details-section .field-table td { padding: 6px 24px 6px 0; }
+.details-section .field-table th:last-child, .details-section .field-table td:last-child { padding-right: 0; }
+.details-section .field-table th:nth-child(1) { width: 22%; }
+.details-section .field-table th:nth-child(2) { width: 200px; }
+.details-section .field-table thead th { white-space: normal; vertical-align: bottom; }
+.details-key { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 12px 0 0; padding: 0; list-style: none; font: 11px/18px var(--mono); color: var(--graphite); }
+.details-key li::before { content: ""; display: inline-block; width: 10px; height: 10px; margin-right: 6px; border-radius: 2px; vertical-align: -1px; background: var(--part); }
+[data-part="found"] { --part: var(--graphite); }
+[data-part="blank"], [data-part="missing"] { --part: #ec835a; }
+[data-part="not_located"] { --part: #2a78d6; }
+[data-part="unsure"] { --part: #fab219; }
+[data-part="failed_check"] { --part: #d03b3b; }
+[data-part="not_applicable"] { --part: var(--panel); }
+.value-bar { display: flex; gap: 2px; width: 180px; height: 10px; border-radius: 3px; overflow: hidden; background: var(--paper); }
+.value-bar span { flex: 0 0 2px; background: var(--part); }
+.field-table { border-collapse: collapse; width: 100%; font: 12px/18px var(--mono); }
+.field-table th, .field-table td { padding: 3px 10px 3px 0; text-align: right; white-space: nowrap; box-shadow: inset 0 -.5px 0 0 var(--rule); }
+.field-table th:first-child { text-align: left; white-space: normal; overflow-wrap: anywhere; }
+.field-table thead th { background: var(--paper); font: 10px var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--graphite); }
 .field-table tbody th { font-weight: 500; }
 .field-table tbody th small { display: block; font-weight: 400; color: var(--graphite); font-size: 11px; }
-.field-table tbody tr { cursor: pointer; }
-.field-table tbody tr:hover, .field-table tbody tr.on { background: var(--panel); }
-.field-table tbody tr:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
 #new-batch { margin-top: 6px; }
 /* the save prompt's question before it replaces a saved extraction template */
 .confirm { margin-top: 16px; }
@@ -193,4 +212,4 @@ body[data-mode="extract"] [data-for="fill"] { display: none !important; }
 .problem .fc-in { margin-top: 8px; width: 100%; box-sizing: border-box; }
 .problem .row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .problem .state { margin: 6px 0 0; font: italic 14px var(--serif); color: var(--graphite); }
-@media (max-width: 1023px) { .stats, .by-field { padding-left: 16px; padding-right: 16px; } }
+@media (max-width: 1023px) { .stats { padding-left: 16px; padding-right: 16px; } }

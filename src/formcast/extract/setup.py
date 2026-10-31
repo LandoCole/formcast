@@ -34,7 +34,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import re
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Collection, Iterator
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -47,6 +47,7 @@ from formcast.errors import FormcastError
 from formcast.extract.ask import _generic, fields_from_lines, fields_on_form, propose_readers, read_values
 from formcast.extract.layout import learn_layout
 from formcast.extract.model import RESERVED_NAMES, ExtractionTemplate, SampleRecord, SetupInfo, concrete_paths
+from formcast.extract.names import normalized
 from formcast.extract.proof import Proof, _check_samples, prove
 from formcast.extract.readers import ReaderProposal, resolve
 from formcast.extract.samples import Detect, SampleDoc, SamplePdf, _detect, _read
@@ -104,7 +105,9 @@ class SetupSpec(BaseModel):
     whether the model sees page images (``vision``) and, in the person's words, how the samples were chosen.
 
     ``lines`` are the person's lines for ``start="lines"``; ``destination`` is the destination's JSON Schema for
-    ``start="destination"`` and ``destination_name`` what to call it in the template's setup.
+    ``start="destination"`` and ``destination_name`` what to call it in the template's setup. ``names_from_titles``
+    makes each field's name from its category and title (:mod:`formcast.extract.names`); a destination's fields keep
+    their names whatever it says.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -120,6 +123,7 @@ class SetupSpec(BaseModel):
     ocr: Literal["auto", "never"] = "auto"
     vision: bool = True
     sample_how: str = ""
+    names_from_titles: bool = True
 
     @model_validator(mode="after")
     def _complete(self) -> SetupSpec:
@@ -212,6 +216,7 @@ def build_setup(
             start=spec.start, lines=list(line_paths), line_paths=line_paths,
             destination=spec.destination_name if spec.start == "destination" else None, detect=spec.detect,
             pages=spec.pages, ocr=spec.ocr, vision=spec.vision, sample_how=spec.sample_how,
+            name_follows_title=spec.names_from_titles and spec.start != "destination",
         )  # fmt: skip
         template = ExtractionTemplate(
             template_id=spec.template_id or _template_id(spec.name), name=spec.name, schema=schema, form=form,
@@ -229,13 +234,17 @@ def _fields(
     if spec.start == "ai":
         doc = max(docs, key=_boxes)  # the first of the samples with the most boxes
         derived = derive_schema(
-            doc.pdf, llm, form_map=doc.form_map, vision=spec.vision, classify_required=True, reserved_names=RESERVED_NAMES
-        )
-        return derived.schema, [], {}, derived.usage, []
+            doc.pdf, llm, form_map=doc.form_map, vision=spec.vision, classify_required=True,
+            reserved_names=RESERVED_NAMES, flat_fields=spec.names_from_titles,
+        )  # fmt: skip
+        schema, _ = _titled(derived.schema, {}, spec.names_from_titles)
+        return schema, [], {}, derived.usage, []
     if spec.start == "lines":
         answer = fields_from_lines(spec.lines, docs, llm, vision=spec.vision)
         given = [line for line in dict.fromkeys(spec.lines) if line in answer.line_paths]
-        return answer.schema, [], {line: answer.line_paths[line] for line in given}, answer.usage, []
+        lines = {line: answer.line_paths[line] for line in given}
+        schema, lines = _titled(answer.schema, lines, spec.names_from_titles)
+        return schema, [], lines, answer.usage, []
     schema = copy.deepcopy(spec.destination or {})
     _give_destination_reasons(schema)
     on_form, usage = fields_on_form(schema, docs, llm, vision=spec.vision)
@@ -296,7 +305,8 @@ def add_line(
     with _shared(llm) as provider:
         existing = list(template.schema_.get("properties") or {})
         answer = fields_from_lines([line], samples, provider, existing=existing, vision=vision)
-        schema = _merged(template.schema_, answer.schema)
+        added, line_paths = _titled(answer.schema, answer.line_paths, template.setup.name_follows_title, taken=existing)
+        schema = _merged(template.schema_, added)
         old = set(concrete_paths(template.schema_))
         paths = [p for p in concrete_paths(schema) if p not in old]
         proposals, used = propose_readers(schema, paths, samples, provider, vision=vision, max_parallel=max_parallel)
@@ -308,7 +318,7 @@ def add_line(
     setup = template.setup.model_copy(deep=True)
     if line not in setup.lines:
         setup.lines.append(line)
-    setup.line_paths[line] = list(dict.fromkeys([*setup.line_paths.get(line, []), *answer.line_paths[line]]))
+    setup.line_paths[line] = list(dict.fromkeys([*setup.line_paths.get(line, []), *line_paths[line]]))
     records = [
         record.model_copy(update={"opinion": {**record.opinion, **opinion}})
         for record, opinion in zip(template.samples, opinions)
@@ -324,6 +334,16 @@ def add_line(
     )
     proof = prove(built, [d.pdf for d in samples])
     return SetupResult(built, proof, samples, usage, warnings)
+
+
+def _titled(
+    schema: dict, line_paths: dict[str, list[str]], names_from_titles: bool, *, taken: Collection[str] = ()
+) -> tuple[dict, dict[str, list[str]]]:
+    """``schema`` and ``line_paths`` with names made from the titles; as they are without ``names_from_titles``."""
+    if not names_from_titles:
+        return schema, line_paths
+    out, moved = normalized(schema, taken=taken)
+    return out, {line: [moved.get(p, p) for p in paths] for line, paths in line_paths.items()}
 
 
 def _merged(schema: dict, added: dict) -> dict:

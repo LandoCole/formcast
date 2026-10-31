@@ -55,7 +55,9 @@ Then, for every concrete path of the template's schema:
 5. **Statuses**, decided in one place (:func:`_field`): a path in ``template.absent`` is ``not_on_form`` and never
    read; every field of a repeated item that has nothing at all (no text, and no reason such as a skipped box; an
    unmarked lone yes/no box counts as nothing) is ``absent``, with no value, and the item is left out of the
-   record and its checks; a field with no value is ``missing``; a value with a reason is ``failed_check``; a value
+   record and its checks; a field with no value is ``blank`` when one of its strategies finds where it is (:func:`_located`:
+   its form field, a box where the layout holds, its label or phrase, its check boxes) and ``not_located`` when none
+   does; a value with a reason is ``failed_check``; a value
    read by ``anchor`` or ``phrase`` is ``unsure`` when its labels or phrases matched more than one place (all wordings
    counted together, so two wordings found once each are two places) or the document's layout is ``"none"``;
    a value read after a box was skipped is ``unsure`` (``"layout differs near this box"``); a value read by
@@ -221,7 +223,7 @@ def places(
 ) -> dict[str, tuple[int, Rect]]:
     """Where each of ``paths`` is, or should be, on ``pdf``: ``(page, rect)``, for a review to point at.
 
-    A result has no place for a field left missing or read from a widget, so this asks the field's strategies where
+    A result has no place for a field with no value or read from a widget, so this asks the field's strategies where
     they look, in order, ignoring whether anything is written there: the form field's first widget, a box (not when
     ``matched`` is ``"none"``: the box is the template's layout), the area a label's answer is read from with the label
     in it, the phrase itself, and every mark of a choice on the first mark's page. A path with no place (no strategy
@@ -347,7 +349,7 @@ def _extract_open(
             file=file,
             template_id=template.template_id,
             matched=ctx.matched,  # type: ignore[arg-type]
-            fields=[_field(path, reads.get(path), path in absent) for path in paths],
+            fields=[_field(path, reads.get(path), path in absent, ctx) for path in paths],
             extracted_at=at,
         )
     except Exception as exc:
@@ -362,7 +364,7 @@ def _match(template: ExtractionTemplate, doc: DocText, features: PdfFeatures) ->
     return "none"
 
 
-def _field(path: str, read: _Read | None, absent: bool) -> FieldResult:
+def _field(path: str, read: _Read | None, absent: bool, ctx: _Context) -> FieldResult:
     """The path's result (``read`` is ``None`` for a path not on the form). Every status is decided here."""
     if read is None:
         return FieldResult(path=path, status="not_on_form", raw=None)
@@ -370,7 +372,9 @@ def _field(path: str, read: _Read | None, absent: bool) -> FieldResult:
     if absent:
         return FieldResult(path=path, status="absent", raw=None)  # an unmarked box in an empty row is not False
     if read.value is None:
-        status = "missing"
+        reader = ctx.template.readers.get(path)
+        located = read.raw is not None or (reader is not None and any(_located(s, ctx) for s in reader.strategies))
+        status = "blank" if located else "not_located"
     elif read.reasons:
         status = "failed_check"
     elif read.doubts:
@@ -484,6 +488,25 @@ def _validate(schema: dict, record: dict) -> list[tuple[str, str]]:
 def _at_or_below(location: str, path: str) -> bool:
     """Whether ``location`` is ``path`` or a place inside it (``tags[1]`` is inside ``tags``)."""
     return location == path or location.startswith((path + ".", path + "["))
+
+
+def _located(strategy: Strategy, ctx: _Context) -> bool:
+    """Whether the place ``strategy`` reads from is on the document, whatever is in it."""
+    doc = ctx.doc
+    if isinstance(strategy, WidgetRead):
+        return any(doc.has_widget(name) for name in strategy.names)
+    if isinstance(strategy, BoxRead):
+        return ctx.matched != "none" and ctx.agrees(strategy.page, strategy.rect)
+    if isinstance(strategy, AnchorRead):
+        return bool(doc.find_label(strategy.labels, strategy.page))
+    if isinstance(strategy, PhraseRead):
+        return bool(doc.find_label(strategy.phrases, strategy.page))
+    return any(
+        doc.has_widget(mark.widget)
+        if mark.widget is not None
+        else ctx.matched != "none" and ctx.agrees(mark.page, mark.rect)  # type: ignore[arg-type]
+        for mark in strategy.options.values()
+    )
 
 
 def _try(strategy: Strategy, ctx: _Context, *, yes_no: bool = False) -> _Read | _Skip | None:

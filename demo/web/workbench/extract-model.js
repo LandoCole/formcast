@@ -17,7 +17,7 @@
 // told by its scan: how many of its PDFs are copies of its largest layout, the rest being set aside for another
 // template. A run's review says its numbers (`runStats`, `runTime`), its two sections (`levelSwitch`: Required and
 // Optional), each document's open problems (`docLine`) or why it was set aside (`asideLine`), a decision made
-// (`decisionText`), a saved run in a line (`runLine`), its By field table (`fieldTable`, a repeated group's items folded
+// (`decisionText`), a saved run in a line (`runLine`), its results by field (`fieldTable`, a repeated group's items folded
 // and summed, the required fields first) and what Send to fill warns of first (`sendNotice`). `unusedName` is the name the setup screen's save offers: one no saved extraction template has.
 
 /** Items a repeated group has when its schema gives no `maxItems`, as the library gives it (formcast.extract.model). */
@@ -27,7 +27,7 @@ const PROVEN = new Set(["agree", "failed_check"]);
 /** Where a field's schema says why it is required or optional (formcast.schema.REASON_KEY). */
 export const REASON_KEY = "x-required-reason";
 /** Each problem status in words, as the review lists them. */
-const PROBLEM_LABELS = { missing: "Missing", failed_check: "Fails a check", unsure: "Unsure" };
+const PROBLEM_LABELS = { blank: "Blank", not_located: "Not located", missing: "Missing", failed_check: "Fails a check", unsure: "Doubtful" };
 
 const number = (n) => Number(n ?? 0).toLocaleString("en-US");
 const plural = (n, word, many = `${word}s`) => `${number(n)} ${n === 1 ? word : many}`;
@@ -207,15 +207,14 @@ export function groupFields(proof, schema) {
       if (repeated) known.items = known.paths.length;
       continue;
     }
-    let group = path.includes(".") ? path.split(".")[0] : "";
+    let group = path.includes(".") ? groupTitle(schema, path.split(".")[0]) : "";
     if (repeated) {
       const head = generic.slice(0, generic.indexOf("[]"));
       const max = firstArray(schema, generic).maxItems;
-      group = `${head}[ ] · up to ${Number.isInteger(max) && max > 0 ? max : DEFAULT_ITEMS}`;
+      group = `${groupTitle(schema, head)} · up to ${Number.isInteger(max) && max > 0 ? max : DEFAULT_ITEMS}`;
     }
     const { prop } = fieldSchema(schema, path);
-    const leaf = segments(generic).at(-1).key;
-    const row = { path, title: typeof prop.title === "string" && prop.title ? prop.title : leaf, generic, items: repeated ? 1 : null, paths: [path] };
+    const row = { path, title: fieldTitle(typeof prop.title === "string" ? prop.title : "", path), generic, items: repeated ? 1 : null, paths: [path] };
     rows.set(generic, row);
     if (!groups.has(group)) groups.set(group, []);
     groups.get(group).push(row);
@@ -225,6 +224,52 @@ export function groupFields(proof, schema) {
 
 /** A sample's outcomes from worst to best, for a folded row: the one shown is the first an item has. */
 const WORST_FIRST = ["disagree", "failed_check", "agree", "missing"];
+
+/** A schema name in words: `tax_id` -> "Tax id". */
+const inWords = (name) => {
+  const words = name.replace(/[_-]+/g, " ").trim();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+};
+
+/** What a person calls the group of `schema` at `path` (`investor`, or `investor.owners` inside it). */
+function groupTitle(schema, path) {
+  let node = schema;
+  for (const key of path.split(".")) node = node?.properties?.[key] ?? node?.items?.properties?.[key];
+  const title = node?.title;
+  return typeof title === "string" && title ? title : inWords(path.split(".").at(-1));
+}
+
+/**
+ * The category of a field: its top-level group's title, "" for a field with none.
+ * @param {object} schema
+ * @param {string} path
+ * @returns {string}
+ */
+export function categoryOf(schema, path) {
+  const head = path.split(/[.[]/)[0];
+  return head === path ? "" : groupTitle(schema, head);
+}
+
+/**
+ * What a person calls a field: its title, or its own name in words when it has none.
+ * @param {string | undefined} title
+ * @param {string} path
+ * @returns {string}
+ */
+export function fieldTitle(title, path) {
+  return title && title !== path ? title : inWords(segments(genericOf(path)).at(-1).key);
+}
+
+/**
+ * What a person calls a problem's field: its title, and which item of a repeated group (`owners[2].name` is item 3).
+ * @param {{path: string, title?: string}} problem
+ * @returns {string}
+ */
+export function problemName(problem) {
+  const item = problem.path.match(/\[(\d+)\]/);
+  const name = fieldTitle(problem.title, problem.path);
+  return item === null ? name : `${name}, item ${Number(item[1]) + 1}`;
+}
 
 /**
  * The FieldProof a row of the field list (`groupFields`) stands for: a plain row's own; for a repeated group's
@@ -277,12 +322,24 @@ export function unusedName(name, taken) {
   }
 }
 
-/** The counts the review's By field table shows, in its column order. */
-export const FIELD_COUNTS = ["found", "missing", "failed_check", "unsure", "reviewed"];
+/** The counts of a field `fieldTable` adds up. */
+export const FIELD_COUNTS = ["found", "blank", "not_located", "missing", "failed_check", "unsure", "not_on_form", "absent", "reviewed"];
+/** The problems' counts of a `fieldTable` row. */
+const PROBLEM_COUNTS = ["blank", "not_located", "missing", "failed_check", "unsure"];
+/** How a value can end, as See details draws and counts them, in order. Missing is only in a run made before Blank and Not located were told apart. */
+const VALUE_PARTS = [
+  { key: "found", label: "Found" },
+  { key: "blank", label: "Blank" },
+  { key: "not_located", label: "Not located" },
+  { key: "missing", label: "Missing" },
+  { key: "unsure", label: "Doubtful" },
+  { key: "failed_check", label: "Fails a check" },
+  { key: "not_applicable", label: "Not applicable" },
+];
 
 /**
- * The review's By field rows from a Run's `fields` ({path, title, required, required_reason, found, missing,
- * failed_check, unsure, reviewed}): one per field, a repeated group's items (`owners[0].name`, `owners[1].name` ...)
+ * A review's rows of its fields from a Run's `fields` ({path, title, required, required_reason, found, blank,
+ * not_located, missing, failed_check, unsure, not_on_form, absent, reviewed}): one per field, a repeated group's items (`owners[0].name`, `owners[1].name` ...)
  * folded into one row as the setup's field list folds them, its counts the items' summed; the required fields first,
  * then the optional ones, each in the run's order. A row is `{path, title, items, required, reason, ...counts}`:
  * `path` the field's path, with `[]` for a folded row (`owners[].name`, which the review's field filter takes for
@@ -291,7 +348,8 @@ export const FIELD_COUNTS = ["found", "missing", "failed_check", "unsure", "revi
  * made before the levels were kept, is) and `reason` why, as the template says it ("" when it does not).
  * @param {{path: string, title: string, required?: boolean, required_reason?: string}[]} fields
  * @returns {{path: string, title: string, items: number | null, required: boolean, reason: string, found: number,
- *   missing: number, failed_check: number, unsure: number, reviewed: number}[]}
+ *   blank: number, not_located: number, missing: number, failed_check: number, unsure: number, not_on_form: number,
+ *   absent: number, reviewed: number}[]}
  */
 export function fieldTable(fields) {
   const rows = new Map();
@@ -300,7 +358,7 @@ export function fieldTable(fields) {
     const required = f.required !== false;
     let row = rows.get(path);
     if (row === undefined) {
-      const title = f.title && f.title !== f.path ? f.title : path;
+      const title = fieldTitle(f.title, f.path);
       row = { path, title, items: path === f.path ? null : 0, required, reason: f.required_reason ?? "", ...Object.fromEntries(FIELD_COUNTS.map((k) => [k, 0])) };
       rows.set(path, row);
     } else if (required && !row.required) {
@@ -313,18 +371,75 @@ export function fieldTable(fields) {
   return [...all.filter((r) => r.required), ...all.filter((r) => !r.required)];
 }
 
+/** `n` of `of` as a percentage, 100% only when it is all of them and 0% only when it is none; "–" of nothing. */
+function percentOf(n, of) {
+  if (of === 0) return "–";
+  const whole = Math.round((n / of) * 100);
+  return `${n === of ? 100 : n === 0 ? 0 : Math.min(99, Math.max(1, whole))}%`;
+}
+
+/**
+ * What See details shows of a Run's `fields`: `tiles`, the run's totals of fields and of values (a value is one field
+ * on one document), and `sections`, the required fields then the optional ones (a level with none left out), each
+ * with the most problems first. A row is a `fieldTable` row with `parts`, its values by how they ended, `foundText`,
+ * the share found of the values that should be there, and `problems`. `key` is how values can end in this run: every
+ * row's `parts`, in order.
+ * @param {Parameters<typeof fieldTable>[0]} fields
+ * @returns {{tiles: {key: string, value: string, label: string}[], key: {key: string, label: string}[],
+ *   sections: {level: string, label: string, rows: object[]}[]}}
+ */
+export function fieldBreakdown(fields) {
+  const table = fieldTable(fields);
+  const key = VALUE_PARTS.filter((part) => part.key !== "missing" || table.some((row) => row.missing > 0));
+  const rows = table.map((row) => {
+    const counts = { ...row, not_applicable: row.not_on_form + row.absent };
+    const problems = PROBLEM_COUNTS.reduce((total, k) => total + row[k], 0);
+    return {
+      ...row,
+      problems,
+      foundText: percentOf(row.found, row.found + problems),
+      parts: key.map((part) => ({ ...part, n: counts[part.key] })),
+    };
+  });
+  const level = (required) => rows.filter((r) => r.required === required).sort((a, b) => b.problems - a.problems);
+  const sum = (list, pick) => list.reduce((total, row) => total + pick(row), 0);
+  const [required, optional] = [level(true), level(false)];
+  const found = sum(rows, (r) => r.found);
+  return {
+    key,
+    tiles: [
+      { key: "fields", value: number(rows.length), label: "Fields" },
+      { key: "required", value: number(required.length), label: "Required" },
+      { key: "optional", value: number(optional.length), label: "Optional" },
+      { key: "found", value: percentOf(found, found + sum(rows, (r) => r.problems)), label: "Values found" },
+      { key: "required_problems", value: number(sum(required, (r) => r.problems)), label: "Required problems" },
+      { key: "optional_problems", value: number(sum(optional, (r) => r.problems)), label: "Optional problems" },
+      { key: "reviewed", value: number(sum(rows, (r) => r.reviewed)), label: "Reviewed" },
+    ],
+    sections: [
+      { level: "required", label: "Required fields", rows: required },
+      { level: "optional", label: "Optional fields", rows: optional },
+    ].filter((s) => s.rows.length > 0),
+  };
+}
+
 /**
  * A review problem's status in words.
- * @param {string} status `missing`, `failed_check` or `unsure`
+ * @param {string} status a problem's status: `blank`, `not_located`, `missing`, `failed_check` or `unsure`
  * @returns {string}
  */
 export function problemLabel(status) {
   return PROBLEM_LABELS[status] ?? status;
 }
 
-/** What the tag on a picked problem's place says: where a missing field should be, or the problem with what was read. */
+/** Whether a problem has no value: a blank or unlocated field (or, in an older run, a missing one). */
+export function noValue(status) {
+  return status === "blank" || status === "not_located" || status === "missing";
+}
+
+/** What the tag on a picked problem's place says: where a field with no value should be, or the problem with what was read. */
 export function markTag(status) {
-  return status === "missing" ? "Should be here" : problemLabel(status);
+  return noValue(status) ? "Should be here" : problemLabel(status);
 }
 
 /** What the reprocess question says about the `decisions` made in the review of the earlier run. */
@@ -376,14 +491,14 @@ export function levelSwitch(summary) {
 }
 
 /**
- * A listed document's line: its problems not yet settled, two by path and more as the first and a count; or "all
+ * A listed document's line: its problems not yet settled, two by name and more as the first and a count; or "all
  * settled".
- * @param {{path: string}[]} problems the document's problems
+ * @param {{path: string, title?: string}[]} problems the document's problems
  * @param {Set<string>} [settled] the paths decided in this review
  * @returns {string}
  */
 export function docLine(problems, settled = new Set()) {
-  const open = problems.filter((p) => !settled.has(p.path)).map((p) => p.path);
+  const open = problems.filter((p) => !settled.has(p.path)).map(problemName);
   if (open.length === 0) return "all settled";
   const which = open.length > 2 ? `${open[0]} +${open.length - 1} others` : open.join(", ");
   return `${plural(open.length, "problem")}: ${which}`;

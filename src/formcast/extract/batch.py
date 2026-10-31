@@ -72,7 +72,7 @@ line, and never writes (a run may be appending). ``documents()`` parses them one
 the order is the same however many workers wrote them. Review decisions are kept apart in ``reviews.jsonl`` and
 apply by ``doc_id`` and path, the latest one per path winning, so a rerun keeps them. So are the AI pass's answers
 in ``ai.jsonl`` (read the same way: a torn last line ignored, the latest answer per ``doc_id`` and path winning): an
-answer with a value is put on a field that is ``missing`` or ``failed_check`` as ``unsure`` by strategy ``"ai"``,
+answer with a value is put on a field with no value or that is ``failed_check`` as ``unsure`` by strategy ``"ai"``,
 with the reason :data:`AI_REASON`, before any review decision is applied, so a decision always wins over it, and an
 ``accept`` is checked against the field with the answer on it, and an ``accept`` of an AI answer is recorded as a
 ``value`` decision carrying the value the person saw, so it stands whatever ``ai.jsonl`` holds later. An answer
@@ -83,10 +83,11 @@ field as read, never ``found`` with no value. ``rows()`` and
 -> ``owners_1_name``; ``investor.tax_id`` stays), after ``doc_id``, ``file``, ``template``, ``matched`` and
 ``extracted_at``; failed documents are never rows.
 
-**Problems and their levels.** A field still ``missing``, ``failed_check`` or ``unsure`` once the AI's answers and
+**Problems and their levels.** A field still ``blank``, ``not_located``, ``failed_check`` or ``unsure`` (or ``missing``,
+in a run made before ``blank`` and ``not_located`` were told apart) once the AI's answers and
 the decisions are applied is a problem (the statuses themselves never change); its level is its field's in the
 document's template, ``"required"`` or ``"optional"`` (:meth:`Results.is_required`), so a blank optional field is an
-optional problem of status ``missing``. The levels are the template's, kept in ``run.json`` when the run starts (a
+optional problem of status ``blank``. The levels are the template's, kept in ``run.json`` when the run starts (a
 template cannot change under a run); a run made before they were kept has no ``"required"``, and every field of it
 counts as required, as it always did. :class:`RunSummary` counts the whole ``out_dir``: ``complete`` (read, no
 required problem left; it may have optional ones), ``with_problems`` (read, a required problem left),
@@ -96,7 +97,7 @@ the file) and ``unreadable`` (every other error), which add up to ``total``; and
 
 **For a screen over a run** (meant for ~100k documents). The pass of ``load`` that indexes the lines also counts
 them, so nothing below reads the whole file again. ``summary()`` is those counts. ``field_counts()`` gives, for each
-concrete path (``owners[0].name`` is its own path), how many documents read ended ``found``, ``missing``,
+concrete path (``owners[0].name`` is its own path), how many documents read ended ``found``, ``blank``, ``not_located``, ``missing``,
 ``failed_check``, ``unsure``, ``absent`` and ``not_on_form`` after the AI's answers and the decisions are applied (so
 it is what ``rows`` would show), ``reviewed``, how many of them have a decision on that path, and ``required``,
 whether the path is required in any template that has it; a failed document has no fields and is counted nowhere.
@@ -138,7 +139,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from formcast.errors import FormcastError
 from formcast.extract.layout import LAYOUT_MATCH, layout_score
 from formcast.extract.levels import LEVELS, Level, required_paths
-from formcast.extract.model import _DOC_COLUMNS, _HAS_VALUE, DocumentResult, ExtractionTemplate, FieldResult, Status
+from formcast.extract.model import _DOC_COLUMNS, _HAS_VALUE, _NO_VALUE, DocumentResult, ExtractionTemplate, FieldResult, Status
 from formcast.extract.page import DocText
 from formcast.extract.read import _extract_open, _failed, error_text, now
 from formcast.match import PdfFeatures
@@ -150,7 +151,7 @@ AI = "ai.jsonl"
 #: Why a field the AI read is ``unsure``: its value is not settled until a person has looked at it.
 AI_REASON = "read by the AI; check it"
 #: The statuses review settles.
-PROBLEMS: tuple[Status, ...] = ("missing", "failed_check", "unsure")
+PROBLEMS: tuple[Status, ...] = (*_NO_VALUE, "failed_check", "unsure")
 #: The start of the error of a document no template fits.
 NO_TEMPLATE = "no template fits"
 _NO_TEMPLATE = re.compile(r"no template fits \(closest: (.*), (\d+\.\d+)\)", re.DOTALL)
@@ -870,7 +871,7 @@ class Results:
                 yield DocumentResult.model_validate_json(f.read(length))
 
     def _with_ai(self, doc: DocumentResult, decided: Iterable[str] = ()) -> DocumentResult:
-        """``doc`` with each AI answer that has a value on its field, when that field is ``missing`` or
+        """``doc`` with each AI answer that has a value on its field, when that field has no value or is
         ``failed_check`` and has no decision (``decided`` are the paths that have one)."""
         answers = self._ai.get(doc.doc_id)
         if not answers:
@@ -878,7 +879,7 @@ class Results:
         answers = {path: a for path, a in answers.items() if path not in set(decided)}
         fields = [
             _from_ai(f, answers[f.path])
-            if f.path in answers and answers[f.path].value is not None and f.status in ("missing", "failed_check")
+            if f.path in answers and answers[f.path].value is not None and f.status in (*_NO_VALUE, "failed_check")
             else f
             for f in doc.fields
         ]
@@ -898,7 +899,7 @@ class Results:
     def _problem_documents(
         self, path: str | None, status: Status | None, level: Level | None, ids: Iterable[str] | None = None
     ) -> Iterator[tuple[DocumentResult, list[FieldResult]]]:
-        """Each document (of ``ids``, else of all) with its fields still ``missing``, ``failed_check`` or ``unsure``
+        """Each document (of ``ids``, else of all) with its fields still problems (:data:`PROBLEMS`)
         that match the filters; a document with none is left out. The document is :meth:`effective`."""
         _check_filters(status, level)
         for doc_id in list(self._with_problems(path, status, level)) if ids is None else ids:
@@ -917,9 +918,9 @@ class Results:
     def problems(
         self, *, path: str | None = None, status: Status | None = None, level: Level | None = None
     ) -> Iterator[tuple[DocumentResult, FieldResult]]:
-        """Each field still ``missing``, ``failed_check`` or ``unsure`` (no decision on it), with its document.
+        """Each field still a problem (:data:`PROBLEMS`; no decision on it), with its document.
         ``path`` is a concrete path (``owners[0].name``), or a path with ``[]`` for every item of a repeated group
-        (``owners[].name``); ``status`` one of the three; ``level`` ``"required"`` or ``"optional"``, the fields of
+        (``owners[].name``); ``status`` one of :data:`PROBLEMS`; ``level`` ``"required"`` or ``"optional"``, the fields of
         that level only (``None``: both).
 
         Raises:
@@ -957,7 +958,7 @@ class Results:
         return len(ids), list(self._problem_documents(path, status, level, ids[offset : offset + limit]))
 
     def field_counts(self) -> dict[str, dict[str, int | bool]]:
-        """For each path, how many documents read ended in each status (``found``, ``missing``, ``failed_check``,
+        """For each path, how many documents read ended in each status (``found``, ``blank``, ``not_located``, ``missing``, ``failed_check``,
         ``unsure``, ``absent``, ``not_on_form``) with the AI's answers and the decisions applied, ``reviewed``,
         how many have a decision on that path, and ``required``, whether the path is required in any template that
         has it (always, in a run made before the levels were kept). A failed document has no fields and is not
@@ -1030,7 +1031,7 @@ class Results:
         return self._rows(lambda f: f.status)
 
     def set_aside(self) -> Iterator[dict]:
-        """One row per failed document: ``doc_id``, ``file``, ``reason`` (``"no template fits"`` or the error),
+        """One row per failed document: ``document_id``, ``document_file``, ``reason`` (``"no template fits"`` or the error),
         ``closest_template`` and ``closest_score`` (``None`` for an unreadable document)."""
         for doc in self.documents():
             if doc.error is not None:
@@ -1053,7 +1054,7 @@ def _aside_row(doc: DocumentResult) -> dict:
     closest = parse_no_template(doc.error)
     reason = NO_TEMPLATE if (doc.error or "").startswith(NO_TEMPLATE) else doc.error
     return {
-        "doc_id": doc.doc_id, "file": doc.file, "reason": reason,
+        "document_id": doc.doc_id, "document_file": doc.file, "reason": reason,
         "closest_template": closest[0] if closest else None, "closest_score": closest[1] if closest else None,
     }  # fmt: skip
 

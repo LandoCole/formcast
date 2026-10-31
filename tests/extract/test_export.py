@@ -3,13 +3,14 @@
 import csv
 import sys
 from pathlib import Path
+from typing import get_args
 
 import pytest
 
 from formcast.errors import FormcastError
 from formcast.extract.batch import Results, run_batch
-from formcast.extract.export import FIELD_COLUMNS, SET_ASIDE_COLUMNS, _checks, _kind, check_columns, export
-from formcast.extract.model import ExtractionTemplate
+from formcast.extract.export import FIELD_COLUMNS, SET_ASIDE_COLUMNS, STATUS_WORDS, _checks, _kind, check_columns, export
+from formcast.extract.model import ExtractionTemplate, Status
 from formcast.schema import flatten_schema
 from tests.extract.conftest import write_corpus
 from tests.extract.corpus import OWNER_ROWS, clients, hand_template
@@ -46,8 +47,8 @@ class Stub:
 
 
 def doc_row(**cells):
-    return {"doc_id": "a.pdf", "file": "/x/a.pdf", "template": "client_information", "matched": "layout",
-            "extracted_at": "2026-10-28T00:00:00", **cells}  # fmt: skip
+    return {"document_id": "a.pdf", "document_file": "/x/a.pdf", "document_template": "client_information", "document_match": "layout",
+            "document_extracted_at": "2026-10-28T00:00:00", **cells}  # fmt: skip
 
 
 # ------------------------------------------------------------------------ xlsx
@@ -61,7 +62,7 @@ def test_xlsx_has_values_status_fields_and_set_aside_sheets(finished, tmp_path):
     assert book.sheetnames == ["values", "status", "fields", "set_aside"]
     values = list(book["values"].iter_rows(values_only=True))
     header = list(values[0])
-    assert header[:5] == ["doc_id", "file", "template", "matched", "extracted_at"]
+    assert header[:5] == ["document_id", "document_file", "document_template", "document_match", "document_extracted_at"]
     assert len(values) == 21  # header + 20 documents; the 2 other forms are not rows
     by_id = {row[0]: dict(zip(header, row)) for row in values[1:]}
     people = clients(20)
@@ -103,7 +104,7 @@ def test_parquet_round_trips_values(finished, tmp_path):
     assert pq.read_table(tmp_path / "pq" / "status.parquet").column_names == values.column_names
     assert pq.read_table(tmp_path / "pq" / "set_aside.parquet").num_rows == 2
     first = values.to_pylist()[0]
-    assert first["investor.tax_id"] == clients(20)[0].tax_id and first["doc_id"] == "client_00001.pdf"
+    assert first["investor.tax_id"] == clients(20)[0].tax_id and first["document_id"] == "client_00001.pdf"
     assert pq.read_table(tmp_path / "pq" / "fields.parquet").column_names == list(FIELD_COLUMNS)
 
 
@@ -119,24 +120,34 @@ def test_parquet_columns_that_mix_types_are_text(tmp_path):
 # --------------------------------------------------------------------------- csv
 
 
+def test_the_status_part_says_each_status_in_the_categories_words():
+    assert STATUS_WORDS == {
+        "found": "found", "blank": "blank", "not_located": "not_located", "missing": "missing",
+        "unsure": "doubtful", "failed_check": "fails_a_check", "absent": "not_applicable", "not_on_form": "not_applicable",
+    }  # fmt: skip
+    assert set(STATUS_WORDS) == set(get_args(Status))
+
+
 def test_csv_writes_four_files(finished, tmp_path):
     written = export(finished, [hand_template()], tmp_path / "csv", format="csv")
     assert [p.name for p in written] == ["values.csv", "status.csv", "fields.csv", "set_aside.csv"]
     assert all(p.parent == tmp_path / "csv" for p in written)
     values = read_csv(written[0])
-    assert len(values) == 20 and values[0]["doc_id"] == "client_00001.pdf"
+    assert len(values) == 20 and values[0]["document_id"] == "client_00001.pdf"
     people = clients(20)
     assert values[0]["owners_1_name"] == people[0].owners[0][0]
-    assert values[0][f"owners_{OWNER_ROWS}_name"] == ""  # no such owner: empty, and `absent` in the status file
+    assert values[0][f"owners_{OWNER_ROWS}_name"] == ""  # no such owner: empty, and not applicable in the status file
     status = read_csv(written[1])
-    assert len(status) == 20 and status[0][f"owners_{OWNER_ROWS}_name"] == "absent"
+    assert len(status) == 20 and status[0][f"owners_{OWNER_ROWS}_name"] == "not_applicable"
+    assert status[0]["document_id"] == values[0]["document_id"]
+    assert {cell for row in status for cell in row.values()} & set(STATUS_WORDS) - set(STATUS_WORDS.values()) == set()  # no old word
     assert list(values[0]) == list(status[0])
     aside = read_csv(written[3])
-    assert [(r["doc_id"], r["reason"], r["closest_template"], r["closest_score"]) for r in aside] == [
+    assert [(r["document_id"], r["reason"], r["closest_template"], r["closest_score"]) for r in aside] == [
         ("client_00021.pdf", "no template fits", "Client information", "0.0"),
         ("client_00022.pdf", "no template fits", "Client information", "0.0"),
     ]
-    names = {r["doc_id"] for r in values} | {r["doc_id"] for r in status}
+    names = {r["document_id"] for r in values} | {r["document_id"] for r in status}
     assert names.isdisjoint({"client_00021.pdf", "client_00022.pdf"})
 
 
@@ -148,14 +159,14 @@ def test_an_unreadable_file_is_set_aside_with_its_error(tmp_path):
     export(Results.load(tmp_path / "out"), [hand_template()], tmp_path / "csv", format="csv")
     assert read_csv(tmp_path / "csv" / "values.csv") == []
     [row] = read_csv(tmp_path / "csv" / "set_aside.csv")
-    assert row["doc_id"] == "broken.pdf" and row["reason"] == "cannot open PDF"
+    assert row["document_id"] == "broken.pdf" and row["reason"] == "cannot open PDF"
     assert (row["closest_template"], row["closest_score"]) == ("", "")
 
 
 def test_values_columns_follow_the_schema_with_repeated_items_in_order(tmp_path):
     export(Stub([]), [hand_template()], tmp_path / "csv", format="csv")
     header = (tmp_path / "csv" / "values.csv").read_text(encoding="utf-8").splitlines()[0].split(",")
-    assert header[:5] == ["doc_id", "file", "template", "matched", "extracted_at"]
+    assert header[:5] == ["document_id", "document_file", "document_template", "document_match", "document_extracted_at"]
     assert header[5:] == [
         "investor.legal_name", "investor.tax_id", "investor.dob", "investor.type", "investor.country",
         "address.street", "address.city_state_zip",
@@ -258,46 +269,50 @@ def template_with(schema: dict, template_id: str = "other") -> ExtractionTemplat
 def test_with_names_each_part_but_the_fields_has_a_name_column_after_doc_id_in_every_format(tmp_path):
     openpyxl = pytest.importorskip("openpyxl")
     run = Stub(
-        [doc_row(doc_id="0.pdf"), doc_row(doc_id="1.pdf")],
-        [doc_row(doc_id="0.pdf"), doc_row(doc_id="1.pdf")],
-        [{"doc_id": "2.pdf", "file": "/x/2.pdf", "reason": "no template fits", "closest_template": "C", "closest_score": 0.5}],
+        [doc_row(document_id="0.pdf"), doc_row(document_id="1.pdf")],
+        [doc_row(document_id="0.pdf"), doc_row(document_id="1.pdf")],
+        [{"document_id": "2.pdf", "document_file": "/x/2.pdf", "reason": "no template fits", "closest_template": "C", "closest_score": 0.5}],
     )
     names = {"0.pdf": "Acme W-9.pdf", "2.pdf": "scan.pdf"}  # 1.pdf has no name: it is named by its doc_id
     written = export(run, [hand_template()], tmp_path / "csv", format="csv", names=names)
     values, status, fields, aside = (read_csv(p) for p in written)
     for part in (values, status):
-        assert list(part[0])[:3] == ["doc_id", "name", "file"]
-        assert [(r["doc_id"], r["name"]) for r in part] == [("0.pdf", "Acme W-9.pdf"), ("1.pdf", "1.pdf")]
-    assert list(aside[0])[:3] == ["doc_id", "name", "file"] and aside[0]["name"] == "scan.pdf"
-    assert "name" not in [f["column"] for f in fields]
+        assert list(part[0])[:3] == ["document_id", "document_name", "document_file"]
+        assert [(r["document_id"], r["document_name"]) for r in part] == [("0.pdf", "Acme W-9.pdf"), ("1.pdf", "1.pdf")]
+    assert list(aside[0])[:3] == ["document_id", "document_name", "document_file"] and aside[0]["document_name"] == "scan.pdf"
+    assert "document_name" not in [f["column"] for f in fields]
     book = openpyxl.load_workbook(export(run, [hand_template()], tmp_path / "r.xlsx", format="xlsx", names=names)[0])
     for sheet in ("values", "status", "set_aside"):
-        assert list(next(book[sheet].iter_rows(values_only=True)))[:2] == ["doc_id", "name"]
+        assert list(next(book[sheet].iter_rows(values_only=True)))[:2] == ["document_id", "document_name"]
     assert [row[1] for row in book["values"].iter_rows(min_row=2, values_only=True)] == ["Acme W-9.pdf", "1.pdf"]
     without = read_csv(export(run, [hand_template()], tmp_path / "plain", format="csv")[0])
-    assert "name" not in without[0]  # no names, no column
+    assert "document_name" not in without[0]  # no names, no column
 
 
-def test_with_names_a_field_named_name_is_refused_as_a_document_column(tmp_path):
-    schema = {"type": "object", "properties": {"name": {"type": "string"}}}
-    with pytest.raises(FormcastError, match="'name'"):
+def test_with_names_a_field_named_document_name_is_refused_as_a_document_column(tmp_path):
+    schema = {"type": "object", "properties": {"document_name": {"type": "string"}}}
+    with pytest.raises(FormcastError, match="'document_name'"):
         export(Stub([]), [template_with(schema)], tmp_path / "csv", format="csv", names={})
     assert export(Stub([]), [template_with(schema)], tmp_path / "plain", format="csv")  # without names it is a field
 
 
+def test_a_field_called_name_or_file_has_its_own_column():
+    check_columns([template_with({"type": "object", "properties": {"name": {"type": "string"}, "file": {"type": "string"}}})], names=True)
+
+
 def test_the_column_check_export_makes_can_be_made_alone_before_a_run_naming_the_field_and_the_clash():
-    schema = {"type": "object", "properties": {"name": {"type": "string"}, "file": {"type": "string"}}}
+    named = template_with({"type": "object", "properties": {"document_name": {"type": "string"}}})
     with pytest.raises(FormcastError) as caught:
-        check_columns([template_with({"type": "object", "properties": {"name": {"type": "string"}}})], names=True)
-    assert str(caught.value) == "the field 'name' would share its column with the document's name; rename the field"
-    check_columns([template_with({"type": "object", "properties": {"name": {"type": "string"}}})])  # no names: a field
-    with pytest.raises(FormcastError, match="the field 'file' would share its column with the document's file"):
-        check_columns([template_with(schema)])
+        check_columns([named], names=True)
+    assert str(caught.value) == "the field 'document_name' would share the document column document_name; change its title"
+    check_columns([named])  # no names: a field
+    with pytest.raises(FormcastError, match="the field 'document_file' would share the document column document_file"):
+        check_columns([template_with({"type": "object", "properties": {"document_file": {"type": "string"}}})])
     check_columns([hand_template()], names=True)
 
 
 def test_a_field_named_like_a_document_column_is_refused_before_anything_is_written(tmp_path):
-    for name in ("doc_id", "file", "template", "matched", "extracted_at"):
+    for name in ("document_id", "document_file", "document_template", "document_match", "document_extracted_at"):
         schema = {"type": "object", "properties": {name: {"type": "string"}}}
         with pytest.raises(FormcastError, match=f"'{name}'"):
             export(Stub([]), [template_with(schema)], tmp_path / "csv", format="csv")
@@ -349,7 +364,7 @@ def test_parquet_columns_are_typed_from_the_values(tmp_path):
     assert types["investor.legal_name"] == "bool"
     assert types["address.street"] == "int64" and types["address.city_state_zip"] == "double"
     assert types["investor.tax_id"] == "string"  # all empty
-    assert types["doc_id"] == "string"
+    assert types["document_id"] == "string"
 
 
 def test_parquet_writes_a_whole_number_too_big_for_64_bits_as_text(tmp_path):

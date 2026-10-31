@@ -10,10 +10,11 @@ change to it, discriminated by ``op`` so the workbench can send them as plain JS
     {"op": "set_labels", "path": "investor.tax_id", "labels": ["TIN"], "side": "below"}
     {"op": "set_clean", "path": "investor.dob", "clean": [{"op": "date", "args": {"formats": ["%m/%d/%Y"]}}]}
     {"op": "rename_field", "path": "investor.tax_id", "name": "tin"}
+    {"op": "set_category", "path": "tax_id", "category": "Investor"}
     {"op": "mark_absent", "path": "wire.bank"}     (and "restore", "remove_field")
 
 :func:`apply_edit` gives back a validated copy and leaves the template it was given alone. The schema edits
-(``set_field``, ``rename_field``, ``remove_field``) go to the one property schema every item path of a repeated group shares, so
+(``set_field``, ``rename_field``, ``set_category``, ``remove_field``) go to the one property schema every item path of a repeated group shares, so
 editing ``owners[2].percent`` edits ``owners[0].percent`` ... ``owners[3].percent`` alike. The reader edits change
 one strategy of one path and keep the order of the others (a widget read, then boxes, then labels, as the template
 was built), because the first strategy that finds something wins.
@@ -50,6 +51,7 @@ from formcast.extract.model import (
     concrete_paths,
 )
 from formcast.extract.layout import page_fit
+from formcast.extract.names import field_key
 from formcast.extract.page import DocText
 from formcast.extract.proof import _check_samples
 from formcast.geometry import Rect
@@ -80,7 +82,9 @@ class SetField(_Edit):
 
     ``required`` adds the field to (or takes it out of) the ``required`` list of the object it is in, and records
     why on the field (:data:`~formcast.schema.REASON_KEY`): ``required_reason`` when given, else "Set by you".
-    Setting a ``type`` replaces the field's type and its ``format`` (only ``date`` has one).
+    Setting a ``type`` replaces the field's type and its ``format`` (only ``date`` has one). While the template's
+    names follow its titles (:attr:`~formcast.extract.model.SetupInfo.name_follows_title`), a new ``title`` also gives
+    the field a new name, as :class:`RenameField` does.
     """
 
     op: Literal["set_field"] = "set_field"
@@ -196,8 +200,20 @@ class RenameField(_Edit):
     name: str
 
 
+class SetCategory(_Edit):
+    """Move a field into ``category``, by the category's title or key, made when there is none; ``""`` moves it out.
+
+    The field keeps its name, level, readers and readings. A category left with no fields goes. A field of a repeated
+    group stays in its group, and only a template whose names still follow its titles can move a field.
+    """
+
+    op: Literal["set_category"] = "set_category"
+    path: str
+    category: str
+
+
 Edit = Annotated[
-    SetField | SetBox | SetOptionBox | SetLabels | SetClean | MarkAbsent | Restore | RemoveField | RenameField,
+    SetField | SetBox | SetOptionBox | SetLabels | SetClean | MarkAbsent | Restore | RemoveField | RenameField | SetCategory,
     Field(discriminator="op"),
 ]
 
@@ -212,9 +228,10 @@ def apply_edit(template: ExtractionTemplate, edit: Edit, *, pdfs: list[bytes] | 
 
     Raises:
         FormcastError: ``edit.path`` is not a field of the schema, a ``set_option_box`` answer is not one of the
-            field's answers, a ``rename_field`` name a path cannot hold, that is reserved
-            (:data:`~formcast.extract.model.RESERVED_NAMES`, at the top level) or that another field beside it has,
-            or the field's schema is built with ``$ref``/``anyOf`` and cannot be edited in place;
+            field's answers, a name a path cannot hold, that is reserved
+            (:data:`~formcast.extract.model.RESERVED_NAMES`, at the top level) or that another field beside it has, a
+            title with nothing to make a name from, a category that cannot take the field, or the field's schema is
+            built with ``$ref``/``anyOf`` and cannot be edited in place;
             for a box drawn on a sample, no ``pdfs``, ``pdfs`` that are not the template's samples, or a sample or
             page the template's samples do not have.
         pydantic.ValidationError: the edited template is not valid.
@@ -299,6 +316,11 @@ def _set_field(t: ExtractionTemplate, edit: SetField) -> None:
         node[REASON_KEY] = edit.required_reason
     elif edit.required is not None:
         node[REASON_KEY] = SET_BY_YOU
+    if edit.title is not None and t.setup is not None and t.setup.name_follows_title:
+        name = field_key(edit.title)
+        if not name:
+            raise FormcastError("a title needs a letter or number to make the field's name from")
+        _rename(t, edit.path, name)
 
 
 def _remove_field(t: ExtractionTemplate, edit: RemoveField) -> None:
@@ -322,33 +344,96 @@ def _remove_field(t: ExtractionTemplate, edit: RemoveField) -> None:
         t.setup = t.setup.model_copy(update={"line_paths": lines})
 
 
+def _check_free(name: str, parent: dict, top_level: bool) -> None:
+    """Refuse ``name`` where it cannot go: reserved at the top level, or taken in ``parent``."""
+    if top_level and name.lower() in RESERVED_NAMES:
+        reserved = ", ".join(RESERVED_NAMES)
+        raise FormcastError(f"{name!r} is reserved for the document's own columns; these names can't be used here: {reserved}")
+    if name in (parent.get("properties") or {}):
+        raise FormcastError(f"there is already a field named {name!r} here")
+
+
+def _repath(t: ExtractionTemplate, concrete: dict[str, str], generic: dict[str, str]) -> None:
+    """Put every part of ``t`` that names a path at its new one, given each old path's."""
+    t.readers = {concrete.get(p, p): r for p, r in t.readers.items()}
+    t.absent = [concrete.get(p, p) for p in t.absent]
+    for sample in t.samples:
+        sample.opinion = {concrete.get(p, p): v for p, v in sample.opinion.items()}
+    if t.setup is not None:
+        lines = {line: [generic.get(p, p) for p in paths] for line, paths in t.setup.line_paths.items()}
+        t.setup = t.setup.model_copy(update={"line_paths": lines})
+
+
+def _rename(t: ExtractionTemplate, path: str, name: str) -> None:
+    _, steps = _locate(t.schema_, path)
+    parent, old = steps[-1]
+    if name == old:
+        return
+    _check_free(name, parent, top_level=len(steps) == 1)
+    concrete = concrete_paths(t.schema_)
+    generic = [sp.path for sp in flatten_schema(t.schema_)]
+    parent["properties"] = {name if k == old else k: v for k, v in parent["properties"].items()}
+    if old in parent.get("required", []):
+        parent["required"] = [name if n == old else n for n in parent["required"]]
+    # the field kept its place, so the paths come out in the same order
+    _repath(
+        t,
+        dict(zip(concrete, concrete_paths(t.schema_), strict=True)),
+        dict(zip(generic, (sp.path for sp in flatten_schema(t.schema_)), strict=True)),
+    )
+
+
 def _rename_field(t: ExtractionTemplate, edit: RenameField) -> None:
     if not _FIELD_NAME.fullmatch(edit.name):
         raise FormcastError("a field's name is letters, numbers and underscores, with no spaces, dots or brackets")
-    _, steps = _locate(t.schema_, edit.path)
-    parent, old = steps[-1]
-    if edit.name == old:
+    _rename(t, edit.path, edit.name)
+
+
+def _category_key(schema: dict, category: str) -> str:
+    """The key of the category with this title or key, else the one a new category would have."""
+    wanted = category.strip().casefold()
+    for key, node in (schema.get("properties") or {}).items():
+        if key.casefold() == wanted or str(node.get("title") or "").strip().casefold() == wanted:
+            return key
+    key = field_key(category)
+    if not key:
+        raise FormcastError("a category needs a letter or number to make the field's name from")
+    return key
+
+
+def _set_category(t: ExtractionTemplate, edit: SetCategory) -> None:
+    if t.setup is None or not t.setup.name_follows_title:
+        raise FormcastError("a saved template's fields keep their category, because it is part of their export column")
+    if "[" in edit.path:
+        raise FormcastError("a field of a repeated group stays in its group")
+    node, steps = _locate(t.schema_, edit.path)
+    parent, name = steps[-1]
+    if not edit.category.strip():
+        target, key = t.schema_, ""
+    else:
+        key = _category_key(t.schema_, edit.category)
+        category = t.schema_.setdefault("properties", {}).get(key)
+        if category is None:
+            _check_free(key, t.schema_, top_level=True)
+            category = t.schema_["properties"][key] = {"type": "object", "title": edit.category.strip(), "properties": {}}
+        if category.get("type") != "object":
+            raise FormcastError(f"{key!r} is a field or a repeated group, so this field cannot move into it")
+        target = category
+    if target is parent:
         return
-    if len(steps) == 1 and edit.name.lower() in RESERVED_NAMES:
-        reserved = ", ".join(RESERVED_NAMES)
-        raise FormcastError(f"{edit.name!r} is reserved for the document's own columns; these names can't be used here: {reserved}")
-    if edit.name in parent["properties"]:
-        raise FormcastError(f"there is already a field named {edit.name!r} here")
-    concrete = concrete_paths(t.schema_)
-    generic = [sp.path for sp in flatten_schema(t.schema_)]
-    parent["properties"] = {edit.name if k == old else k: v for k, v in parent["properties"].items()}
-    if old in parent.get("required", []):
-        parent["required"] = [edit.name if n == old else n for n in parent["required"]]
-    # the field kept its place, so the paths come out in the same order
-    moved = dict(zip(concrete, concrete_paths(t.schema_), strict=True))
-    t.readers = {moved[p]: r for p, r in t.readers.items()}
-    t.absent = [moved[p] for p in t.absent]
-    for sample in t.samples:
-        sample.opinion = {moved.get(p, p): v for p, v in sample.opinion.items()}
-    if t.setup is not None:
-        renamed = dict(zip(generic, (sp.path for sp in flatten_schema(t.schema_)), strict=True))
-        lines = {line: [renamed.get(p, p) for p in paths] for line, paths in t.setup.line_paths.items()}
-        t.setup = t.setup.model_copy(update={"line_paths": lines})
+    _check_free(name, target, top_level=not key)
+    required = name in parent.get("required", [])
+    for i in range(len(steps) - 1, -1, -1):
+        holder, step = steps[i]
+        del holder["properties"][step]
+        _set_required(holder, step, False)
+        if holder["properties"] or i == 0 or holder is target:
+            break  # a category left with no fields goes too
+    target["properties"][name] = node
+    if required:
+        _set_required(target, name, True)
+    new = f"{key}.{name}" if key else name
+    _repath(t, {edit.path: new}, {edit.path: new})
 
 
 # ------------------------------------------------------------------- the readers
@@ -448,4 +533,5 @@ _HANDLERS = {
     Restore: _restore,
     RemoveField: _remove_field,
     RenameField: _rename_field,
+    SetCategory: _set_category,
 }

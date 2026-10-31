@@ -5,9 +5,9 @@
 
 The export has four parts, the same in every format:
 
-* ``values``: one row per document read, the document columns (``doc_id``, ``file``, ``template``, ``matched``,
+* ``values``: one row per document read, the document columns (``document_id``, ``document_file``, ``document_template``, ``document_match``,
   ``extracted_at``) then one column per schema path with the cleaned value (empty when there is none);
-* ``status``: the same rows and columns, each cell holding that field's status (``found``, ``unsure``,
+* ``status``: the same rows and columns, each cell holding that field's status in :data:`STATUS_WORDS`' words (``found``, ``doubtful``,
   ``failed_check`` ...), so a value and the doubt about it stay together;
 * ``fields``: one row per value column, ``column, path, title, definition, type, checks``, written from the
   template's schema, so a reader of the data (or the fill flow) knows what each column means and what it was
@@ -15,10 +15,10 @@ The export has four parts, the same in every format:
 * ``set_aside``: one row per failed document with ``reason`` (``no template fits`` or why it could not be read),
   ``closest_template`` and ``closest_score``. A failed document is never a row of ``values`` or ``status``.
 
-``export(..., names={doc_id: name})`` adds a ``name`` column after ``doc_id`` to ``values``, ``status`` and
+``export(..., names={doc_id: name})`` adds a ``document_name`` column after ``document_id`` to ``values``, ``status`` and
 ``set_aside``, in every format: the name a person knows each document by (the workbench's uploads are stored by
 number, so their ``doc_id`` is ``3.pdf``), or the ``doc_id`` itself for a document the map does not name. A field
-whose column would be ``name`` is then refused as a document column. :func:`check_columns` makes the same checks
+whose column would be ``document_name`` is then refused as a document column. :func:`check_columns` makes the same checks
 on the templates alone, so a template can be refused before a run rather than at its export.
 
 xlsx is one workbook with a sheet per part; Parquet and CSV are a folder with ``values``, ``status``, ``fields`` and
@@ -27,7 +27,7 @@ group item by item (``owners_1_name``, ``owners_1_percent``, ``owners_2_name`` .
 them. A group nested inside another is field by field within its outer item (``concrete_paths`` orders only the
 outermost group item by item). With several templates the value columns are the union of their columns, first
 template first; a document leaves empty the columns of the other templates, and a column two templates share is
-described once, by the first. A path whose column is a document column (``file``, ``doc_id`` ...), or one column
+described once, by the first. A path whose column is a document column (``document_file``, ``document_id`` ...), or one column
 made by two different paths or types, is refused: the template author renames the path.
 
 Cells hold what was read, not what a spreadsheet would make of it: a text value that starts with ``=`` is stored as
@@ -54,9 +54,21 @@ from formcast.schema import ARRAY_ITEM, SchemaPath, _enum_values, _normalize, fl
 
 ExportFormat = Literal["xlsx", "parquet", "csv"]
 
+#: What the ``status`` part calls each status.
+STATUS_WORDS = {
+    "found": "found",
+    "blank": "blank",
+    "not_located": "not_located",
+    "missing": "missing",  # a run made before blank and not_located were told apart
+    "unsure": "doubtful",
+    "failed_check": "fails_a_check",
+    "absent": "not_applicable",
+    "not_on_form": "not_applicable",
+}
+
 #: The columns of the ``fields`` part and of the ``set_aside`` part.
 FIELD_COLUMNS = ("column", "path", "title", "definition", "type", "checks")
-SET_ASIDE_COLUMNS = ("doc_id", "file", "reason", "closest_template", "closest_score")
+SET_ASIDE_COLUMNS = ("document_id", "document_file", "reason", "closest_template", "closest_score")
 
 _FORMATS = ("xlsx", "parquet", "csv")
 _PARTS = ("values", "status", "fields", "set_aside")
@@ -180,7 +192,7 @@ def _columns_and_fields(
     for template in templates:
         for column, path, sp in _template_columns(template):
             if column in doc_columns:
-                raise FormcastError(f"the field {path!r} would share its column with the document's {column}; rename the field")
+                raise FormcastError(f"the field {path!r} would share the document column {column}; change its title")
             if column in fields:
                 # a column two templates share is described by the first, if they agree on what it is
                 first = fields[column]
@@ -200,12 +212,12 @@ def _columns_and_fields(
 
 def check_columns(templates: Sequence[ExtractionTemplate], *, names: bool = False) -> None:
     """Refuse ``templates`` whose export would be refused for its columns, as :func:`export` checks them: a field
-    whose column is a document column (``name`` too when the export will have ``names``), or one column made by two
+    whose column is a document column (``document_name`` too when the export will have ``names``), or one column made by two
     different paths or types. A template can be checked so before a run, instead of failing at its export.
 
     Raises:
-        FormcastError: the clash, naming the field (``"the field 'name' would share its column with the document's
-            name; rename the field"``).
+        FormcastError: the clash, naming the field (``"the field 'document_name' would share the document column
+            document_name; change its title"``).
     """
     _columns_and_fields(templates, _named(_DOC_COLUMNS) if names else _DOC_COLUMNS)
 
@@ -214,16 +226,22 @@ def check_columns(templates: Sequence[ExtractionTemplate], *, names: bool = Fals
 
 
 def _named(columns: Sequence[str]) -> tuple[str, ...]:
-    """``columns`` with ``name`` after ``doc_id``."""
+    """``columns`` with ``document_name`` after ``document_id``."""
     return (columns[0], NAME_COLUMN, *columns[1:])
 
 
 def _with_names(rows: Iterable[dict], names: dict[str, str]) -> Iterator[dict]:
     """Each row with its document's name (its ``doc_id`` when ``names`` has none) after ``doc_id``."""
     for row in rows:
-        doc_id = row["doc_id"]
-        rest = {k: v for k, v in row.items() if k != "doc_id"}
-        yield {"doc_id": doc_id, NAME_COLUMN: names.get(doc_id, doc_id), **rest}
+        doc_id = row["document_id"]
+        rest = {k: v for k, v in row.items() if k != "document_id"}
+        yield {"document_id": doc_id, NAME_COLUMN: names.get(doc_id, doc_id), **rest}
+
+
+def _in_words(rows: Iterable[dict]) -> Iterator[dict]:
+    """Each ``status`` row with its fields' statuses in :data:`STATUS_WORDS`' words."""
+    for row in rows:
+        yield {k: v if k in _DOC_COLUMNS else STATUS_WORDS.get(v, v) for k, v in row.items()}
 
 
 def _checked(rows: Iterable[dict], columns: Sequence[str], part: str) -> Iterator[dict]:
@@ -233,7 +251,7 @@ def _checked(rows: Iterable[dict], columns: Sequence[str], part: str) -> Iterato
         extra = [name for name in row if name not in known]
         if extra:
             raise FormcastError(
-                f"{part}: document {row.get('doc_id')!r} has columns {', '.join(extra)} that no given template "
+                f"{part}: document {row.get('document_id')!r} has columns {', '.join(extra)} that no given template "
                 "has; pass every template the run used"
             )
         yield row
@@ -327,7 +345,7 @@ def export(
     """Write ``results`` to ``out`` (see the module): a workbook for ``"xlsx"``, a folder for ``"parquet"`` or
     ``"csv"``. Files already there are replaced. ``templates`` are the templates the run used; they give the
     column order and the field definitions. ``names`` (``doc_id`` -> the name a person knows the document by) adds
-    a ``name`` column after ``doc_id`` to ``values``, ``status`` and ``set_aside``. Returns the files written.
+    a ``document_name`` column after ``document_id`` to ``values``, ``status`` and ``set_aside``. Returns the files written.
 
     Raises:
         FormcastError: ``format`` is not one of the three, the extra it needs is not installed, a template's
@@ -346,7 +364,7 @@ def export(
     target = Path(out)
     doc_columns = _named(_DOC_COLUMNS) if names is not None else _DOC_COLUMNS
     columns, fields = _columns_and_fields(templates, doc_columns)
-    rows, status_rows, aside = results.rows(), results.status_rows(), results.set_aside()
+    rows, status_rows, aside = results.rows(), _in_words(results.status_rows()), results.set_aside()
     if names is not None:
         rows, status_rows, aside = (_with_names(part, names) for part in (rows, status_rows, aside))
     parts: dict[str, tuple[Sequence[str], Iterable[dict]]] = {

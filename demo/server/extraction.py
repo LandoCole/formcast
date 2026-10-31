@@ -129,16 +129,17 @@ from demo.server.documents import PYMUPDF_LOCK
 from demo.server.store import NAME_RE, StoredTemplateError, _write, check_name
 from formcast.data.table import MAX_ROWS, Table
 from formcast.errors import FormcastError
-from formcast.extract.batch import PROBLEMS, RUN, Results, ReviewDecision, RunSummary, template_sha256
+from formcast.extract.batch import _ITEM_NUMBER, PROBLEMS, RUN, Results, ReviewDecision, RunSummary, template_sha256
 from formcast.extract.edit import Edit, apply_edit
 from formcast.extract.export import ExportFormat, _node, _template_columns, _title, export  # _title: as the ``fields`` part
+from formcast.extract.names import field_key
 from formcast.extract.levels import REASON_KEY, Level, required_paths
-from formcast.extract.model import DocumentResult, ExtractionTemplate, FieldResult, concrete_paths
+from formcast.extract.model import RESERVED_NAMES, DocumentResult, ExtractionTemplate, FieldResult, concrete_paths
 from formcast.extract.proof import Mark, Proof, learn_maps, prove, sample_marks
 from formcast.extract.samples import SampleDoc, SamplePdf
 from formcast.extract.scan import ScanReport, sample, scan
 from formcast.extract.setup import MAX_SAMPLES, SetupResult
-from formcast.schema import parse_path
+from formcast.schema import ARRAY_ITEM, parse_path
 
 log = logging.getLogger("demo.server")
 
@@ -157,7 +158,7 @@ RUN_TEMPLATES = "templates.json"  #: the templates a workbench run reads with, a
 RUN_NAMES = "names.json"  #: the name shown for each document of a workbench run, by ``doc_id``
 RUN_ID = re.compile(r"[0-9a-f]{32}")  #: a run's id, and the name of its folder
 #: The counts of each field a run shows, in this order (``Results.field_counts`` gives these and more).
-FIELD_COUNTS = ("found", "missing", "failed_check", "unsure", "reviewed", "not_on_form")
+FIELD_COUNTS = ("found", "blank", "not_located", "missing", "failed_check", "unsure", "reviewed", "not_on_form", "absent")
 #: The summary of a run that has not begun reading.
 NOT_STARTED = RunSummary(total=0, complete=0, with_problems=0, no_template=0, unreadable=0, internal_errors=0, seconds=0.0)
 
@@ -569,14 +570,16 @@ class Setup:
     indexes: list[int] | None
     proof: Proof
     warnings: list[str]
+    renamed: dict[str, str] = field(default_factory=dict)  # the paths the last edit changed, each by its new one
     _line: bool = field(default=False, repr=False)  # an extract-line job is running on this setup
     _lock: threading.RLock = field(default_factory=threading.RLock, repr=False)
 
     def summary(self) -> dict:
-        """The setup as the API shows it: ``{id, batch, template, proof, warnings, samples: [{index, name, kind, pages}]}``.
+        """The setup as the API shows it: ``{id, batch, template, proof, warnings, renamed, name_updates, samples: [{index, name, kind, pages}]}``.
 
         A sample's ``index`` is its file's number in the batch (``None`` for a reopened setup), its ``kind``
         ``fillable`` (it has form fields) or ``flattened``, and ``pages`` its pages' ``[width, height]`` in points.
+        ``renamed`` is what the last edit moved, and ``name_updates`` the name a frozen field's title would give it.
         """
         with self._lock:
             return {
@@ -585,6 +588,8 @@ class Setup:
                 "template": self.template.model_dump(mode="json", by_alias=True),
                 "proof": self.proof.model_dump(mode="json"),
                 "warnings": list(self.warnings),
+                "renamed": dict(self.renamed),
+                "name_updates": _name_updates(self.template),
                 "samples": [
                     {
                         "index": self.indexes[n] if self.indexes is not None else None,
@@ -635,7 +640,15 @@ class Setup:
             self._free()
             pdfs = [doc.pdf for doc in self.samples]
             template = apply_edit(self.template, edit, pdfs=pdfs)
+            self.renamed = _renamed(self.template, template)
             self.template, self.proof = template, prove(template, pdfs)
+
+    def freeze_names(self) -> None:
+        """Stop names following titles, as a saved template's do not."""
+        with self._lock:
+            if self.template.setup is not None:
+                setup = self.template.setup.model_copy(update={"name_follows_title": False})
+                self.template = self.template.model_copy(update={"setup": setup})
 
     def learn(self, path: str) -> None:
         """Put the wordings the proof suggests for ``path`` into its reader's map and prove again. No model is called.
@@ -674,6 +687,31 @@ class Setup:
     def _free(self) -> None:
         if self._line:
             raise SetupBusy("A field is being added to this setup; wait for it to finish, or cancel it.")
+
+
+def _renamed(before: ExtractionTemplate, after: ExtractionTemplate) -> dict[str, str]:
+    """Each path of ``before`` that ``after`` has under another name, by its new one."""
+    old, new = concrete_paths(before.schema_), concrete_paths(after.schema_)
+    gone = [p for p in old if p not in set(new)]
+    added = [p for p in new if p not in set(old)]
+    return dict(zip(gone, added)) if len(gone) == len(added) else {}
+
+
+def _name_updates(template: ExtractionTemplate) -> dict[str, str]:
+    """The name each field of a template whose names no longer follow its titles would have from its title now."""
+    setup = template.setup
+    if setup is not None and (setup.name_follows_title or setup.start == "destination"):
+        return {}
+    updates: dict[str, str] = {}
+    for path in concrete_paths(template.schema_):
+        segments = parse_path(_ITEM_NUMBER.sub("[]", path))
+        if segments[-1] == ARRAY_ITEM:
+            continue
+        name = field_key(str(_node(template.schema_, segments).get("title") or ""))
+        free = name not in (_node(template.schema_, segments[:-1]).get("properties") or {})
+        if name and free and not (len(segments) == 1 and name in RESERVED_NAMES):
+            updates[path] = name
+    return updates
 
 
 class Setups:
@@ -918,7 +956,7 @@ class Run:
 
     def summary(self) -> dict:
         """The run as the API shows it: ``{id, name, extraction, summary, fields: [{path, title, required,
-        required_reason, found, missing, failed_check, unsure, reviewed, not_on_form}], seconds}``. It is made from
+        required_reason, found, blank, not_located, missing, failed_check, unsure, reviewed, not_on_form, absent}], seconds}``. It is made from
         the kept results' counts, again only when they have changed since. A field is ``required`` as the results
         count it (every field of a run made before the levels were kept), or, before the run has read anything, as
         its templates say."""
@@ -1041,7 +1079,7 @@ class Run:
         A column per path (``paths``) and a row per document, at most ``MAX_ROWS`` rows (``truncated`` when there were
         more). A cell holds the field's value only when it is ``found``, with the AI's answers and the decisions
         applied (a value typed or accepted in review is found; an AI answer not yet accepted is ``unsure``): a field
-        ``missing``, ``failed_check`` or ``unsure`` is left empty, so the fill reports it as a gap instead of filling
+        with a problem (``PROBLEMS``) is left empty, so the fill reports it as a gap instead of filling
         in a value nobody trusted. A row counts as having a problem only for a required field's (an optional blank
         leaves the document complete).
 
@@ -1124,8 +1162,8 @@ class _ShownFiles:
 
     def _shown(self, rows: Iterable[dict]) -> Iterator[dict]:
         for row in rows:
-            if Path(row["file"]).is_relative_to(self._stored):
-                row = {**row, "file": self._run.name_of(row["doc_id"])}
+            if Path(row["document_file"]).is_relative_to(self._stored):
+                row = {**row, "document_file": self._run.name_of(row["document_id"])}
             yield row
 
 

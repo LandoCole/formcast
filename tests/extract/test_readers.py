@@ -200,7 +200,7 @@ def test_a_check_box_option_with_a_wrong_state_keeps_its_place_and_both_answers_
         for answer in (True, False):
             got = extract(t, _yes_no_form(kind, answer)).fields[0]
             assert (got.status, got.value) == ("found", answer), (kind, answer, got)
-        assert extract(t, _yes_no_form(kind, None)).fields[0].status == "missing"
+        assert extract(t, _yes_no_form(kind, None)).fields[0].status == "blank"
 
 
 def test_a_box_from_a_shifted_sample_is_stored_in_the_layouts_place():

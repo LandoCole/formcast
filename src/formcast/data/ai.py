@@ -229,13 +229,15 @@ def derive_schema(
     instructions: str = "",
     classify_required: bool = False,
     reserved_names: Sequence[str] = (),
+    flat_fields: bool = False,
 ) -> SchemaResult:
     """A JSON Schema for the data ``pdf`` collects, designed by the model from the form itself.
 
     ``instructions`` adds the user's own words (say, "name the holder section 'buyer'"). With ``classify_required``
     the model also decides which fields are required (the ``required`` lists) and gives each property a one-line
     reason (:data:`~formcast.schema.REASON_KEY`). ``reserved_names`` are names no top-level property may have. With
-    neither, the prompt is :data:`DERIVE_SYSTEM` alone.
+    ``flat_fields`` every property gets a title and objects are at most one level deep, for a caller that makes names
+    from titles. With none of these, the prompt is :data:`DERIVE_SYSTEM` alone.
     The schema is checked with :func:`formcast.flatten_schema` and must have at least one field.
     """
     fm = form_map if form_map is not None else build_form_map(pdf)
@@ -268,9 +270,19 @@ def derive_schema(
         return schema
 
     required = _DERIVE_REQUIRED if classify_required else ""
-    system = _DERIVE_RULES + required + _reserved_rule(reserved_names) + _DERIVE_REPLY
+    flat = _DERIVE_FLAT if flat_fields else ""
+    system = _DERIVE_RULES + required + flat + _reserved_rule(reserved_names) + _DERIVE_REPLY
     schema, usage, raw = _ask(llm, [Message("system", system), Message("user", parts)], check, long=True)
     return SchemaResult(schema, usage, raw)
+
+
+#: What ``derive_schema`` adds with ``flat_fields``. It replaces the rules on nesting and titles above.
+_DERIVE_FLAT = """\
+Titles and grouping, which replace the rules above on nesting and titles:
+Give every property a short "title" a person would read, because the program makes each name from its title.
+Prefer flat fields: use an object only to group several fields of one topic, with its own "title", and never put an
+object inside an object.
+"""
 
 
 def _reserved_rule(names: Sequence[str]) -> str:

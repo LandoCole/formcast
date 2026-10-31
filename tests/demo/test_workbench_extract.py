@@ -23,6 +23,7 @@ import base64
 import dataclasses
 import importlib.util
 import io
+import json
 import re
 import threading
 import zipfile
@@ -615,7 +616,7 @@ def setup_on(base: str, files: list[tuple[str, bytes]] = FILES, samples: list[in
     status, _ = add_files(base, batch["id"], files)
     assert status == 200
     samples = list(range(len(files))) if samples is None else samples
-    status, out = start_job(base, {"kind": "extract-setup", "batch": batch["id"], "samples": samples, "spec": {"name": "Client forms", **spec}})
+    status, out = start_job(base, {"kind": "extract-setup", "batch": batch["id"], "samples": samples, "spec": {"name": "Client forms", "names_from_titles": False, **spec}})
     assert status == 200, out
     job = job_ended(base, out["id"])
     assert job["status"] == "done", job
@@ -670,6 +671,18 @@ def media_src(b: Bench) -> str:
     return b.page.locator("#setup-pv .fc-pv-media").get_attribute("src") or ""
 
 
+def keep_the_models_names(b: Bench) -> None:
+    """Builds started from the page keep the names the corpus model answers with, whatever its titles would make."""
+
+    def keep(route) -> None:
+        body = json.loads(route.request.post_data)
+        if body.get("kind") == "extract-setup":
+            body["spec"]["names_from_titles"] = False
+        route.continue_(post_data=json.dumps(body))
+
+    b.page.route("**/api/jobs", keep)
+
+
 def on_every_sample(setup: dict) -> list[str]:
     """The plain fields every sample agrees on: ruling P1 asserts ``● 5/5`` only of these."""
     return [
@@ -680,6 +693,7 @@ def on_every_sample(setup: dict) -> list[str]:
 
 def test_the_setup_screen_opens_after_the_build_with_each_fields_status_across_the_samples(start_demo_server, bench):
     b = bench(extract_server(start_demo_server), fill=False)
+    keep_the_models_names(b)
     open_extract(b)
     add_five(b)
     listen_for_setups(b)
@@ -696,9 +710,9 @@ def test_the_setup_screen_opens_after_the_build_with_each_fields_status_across_t
     for path in full:
         expect(row(b, path).locator(".fc-sl-st")).to_have_text("●")
         expect(row(b, path).locator(".fc-sl-ty")).to_have_text("5/5")
-    expect(row(b, "owners[0].name").locator(".fc-sl-name")).to_have_text("name")  # the group's items in one row
+    expect(row(b, "owners[0].name").locator(".fc-sl-name")).to_have_text("Owner name")  # the group's items in one row
     expect(row(b, "owners[1].name")).to_have_count(0)
-    expect(b.page.locator("#fields .fc-sl-grp")).to_have_text(["investor", "address", "owners[ ] · up to 4", "wire"])
+    expect(b.page.locator("#fields .fc-sl-grp")).to_have_text(["Investor", "Mailing address", "Beneficial owners · up to 4", "Wire instructions"])
     rows = b.page.locator("#fields .fc-sl-leaf").count()
     expect(b.page.locator("#fields-label")).to_have_text(f"Fields · {rows} · 0 need a look")
     expect(b.page.locator("#cap")).to_contain_text(f"{setup['proof']['ready']} of {setup['proof']['total']} fields ready")
@@ -716,12 +730,11 @@ def test_selecting_a_field_heavy_draws_its_box_with_its_path_and_the_inspector_s
     row(b, "investor.tax_id").click()
     expect(row(b, "investor.tax_id")).to_have_class("fc-sl-leaf is-picked")
     expect(picked(b)).to_have_count(1)
-    expect(picked(b).locator(".fc-tag")).to_have_text("investor.tax_id")
+    expect(picked(b).locator(".fc-tag")).to_have_text("Taxpayer ID")
     expect(picked(b).locator(".fc-tag")).to_be_visible()
     expect(b.page.locator("#setup-pv .fc-box.is-picked")).to_have_count(2)  # its box and its label, on a fillable copy
     ins = b.page.locator("#ins")
-    expect(ins.locator(".ins-group")).to_have_text("investor.")
-    expect(b.page.locator("#ins-name")).to_have_value("tax_id")
+    expect(b.page.locator("#ins-name")).to_have_text("investor.tax_id")
     expect(b.page.locator("#ins-title")).to_have_value("Taxpayer ID")
     expect(b.page.locator("#ins-type")).to_have_value("text")
     expect(ins.locator(".ro")).to_contain_text(["Form field tax_id", "A box on page 1", "Next to the label Taxpayer ID"])
@@ -738,7 +751,7 @@ def test_selecting_a_field_heavy_draws_its_box_with_its_path_and_the_inspector_s
     b.page.locator('#setup-pv .fc-box[data-field-id="investor.dob#box"]').click()  # a box on the page selects its field
     expect(row(b, "investor.dob")).to_have_class("fc-sl-leaf is-picked")
     expect(b.page.locator("#ins-title")).to_have_value("Date of birth or formation")
-    expect(picked(b).locator(".fc-tag")).to_have_text("investor.dob")
+    expect(picked(b).locator(".fc-tag")).to_have_text("Date of birth or formation")
 
     row(b, "investor.type").click()  # a checkbox group: its four boxes, and its answers
     expect(picked(b, "option")).to_have_count(4)
@@ -972,7 +985,7 @@ def test_save_shows_why_the_server_refuses_a_field_whose_column_clashes_with_the
     b.page.fill("#setup-save-name", "Clash")
     b.page.click("#setup-save-go")
     expect(b.page.locator("#setup-save-msg")).to_have_text(
-        "the field 'name' would share its column with the document's name; rename the field"
+        "the field 'document_name' would share the document column document_name; change its title"
     )
     expect(b.page.locator("#setup-save-box")).to_be_visible()
     assert get_json(base, "/api/extractions")[1] == {"extractions": []}
@@ -1039,69 +1052,148 @@ def test_an_edit_made_while_a_line_job_runs_waits_for_it_and_is_then_made(start_
     expect(b.page.locator("#notice")).to_be_hidden()
 
 
-def test_a_field_is_renamed_from_the_inspector_and_stays_selected(start_demo_server, bench):
+def names_following(server, setup: dict, base: str) -> dict:
+    """``setup`` as a new template's: its names follow its titles."""
+    kept = server.servers[-1].api.setups.get(setup["id"])
+    info = kept.template.setup.model_copy(update={"name_follows_title": True})
+    kept.template = kept.template.model_copy(update={"setup": info})
+    return get_json(base, f"/api/setups/{setup['id']}")[1]
+
+
+def test_a_title_gives_the_field_its_name_and_the_field_stays_selected(start_demo_server, bench):
     base = extract_server(start_demo_server)
-    setup = setup_on(base)
+    setup = names_following(start_demo_server, setup_on(base), base)
     b = bench(base, fill=False)
     show_setup(b, setup)
     row(b, "investor.tax_id").click()
-    expect(b.page.locator("#ins-name")).to_have_value("tax_id")
-    b.page.fill("#ins-name", "tin")
-    b.page.press("#ins-name", "Enter")
-    expect(row(b, "investor.tin")).to_have_class(re.compile("is-picked"))
+    expect(b.page.locator("#ins-category")).to_have_value("Investor")
+    expect(b.page.locator("#ins-name")).to_have_text("investor.tax_id")
+    b.page.fill("#ins-title", "TIN number")
+    b.page.press("#ins-title", "Enter")
+    expect(row(b, "investor.tin_number")).to_have_class(re.compile("is-picked"))
     expect(row(b, "investor.tax_id")).to_have_count(0)
-    expect(b.page.locator("#ins-name")).to_have_value("tin")
+    expect(b.page.locator("#ins-name")).to_have_text("investor.tin_number")
+
+
+def test_a_repeated_groups_field_moves_in_every_item_and_stays_on_its_item(start_demo_server, bench):
+    base = extract_server(start_demo_server)
+    setup = names_following(start_demo_server, setup_on(base), base)
+    b = bench(base, fill=False)
+    show_setup(b, setup)
+    row(b, "owners[0].name").click()
+    expect(b.page.locator("#ins-category")).to_have_js_property("readOnly", True)
+    b.page.select_option("#ins-item", "owners[1].name")
+    b.page.fill("#ins-title", "Holder")
+    b.page.press("#ins-title", "Enter")
+    expect(b.page.locator("#ins-item")).to_have_value("owners[1].holder")
+
+
+def test_an_edit_made_while_a_rename_is_on_its_way_reaches_the_renamed_field(start_demo_server, bench):
+    base = extract_server(start_demo_server)
+    setup = names_following(start_demo_server, setup_on(base), base)
+    b = bench(base, fill=False)
+    show_setup(b, setup)
+    row(b, "investor.country").click()
+    held = []
+    b.page.route("**/edit", lambda route: held.append(route), times=1)
+    b.page.fill("#ins-title", "Nation")
+    b.page.press("#ins-title", "Enter")
+    b.page.fill("#ins-def", "Where the investor lives.")
+    b.page.check("#ins-required")  # asked for on the old name
+    row(b, "investor.dob").click()  # and the person has moved on
+    for _ in range(200):  # the route handler runs while the page is driven
+        if held:
+            break
+        b.page.wait_for_timeout(50)
+    held[0].continue_()
+    expect(row(b, "investor.nation").locator(".fc-sl-req")).to_be_visible()
+    expect(row(b, "investor.dob")).to_have_class(re.compile("is-picked"))  # the selection stays where the person put it
+    expect(b.page.locator("#notice")).to_be_hidden()
+
+
+def test_a_category_moves_the_field_in_the_list(start_demo_server, bench):
+    base = extract_server(start_demo_server)
+    b = bench(base, fill=False)
+    show_setup(b, names_following(start_demo_server, setup_on(base), base))
+    row(b, "investor.country").click()
+    b.page.fill("#ins-category", "Mailing")
+    b.page.press("#ins-category", "Enter")
+    expect(row(b, "mailing.country")).to_have_class(re.compile("is-picked"))
+    expect(b.page.locator("#ins-name")).to_have_text("mailing.country")
+    b.page.fill("#ins-category", "")
+    b.page.press("#ins-category", "Enter")
+    expect(row(b, "country")).to_have_class(re.compile("is-picked"))
+
+
+def test_a_refused_title_says_why_and_puts_the_title_back(start_demo_server, bench):
+    base = extract_server(start_demo_server)
+    setup = names_following(start_demo_server, setup_on(base), base)
+    b = bench(base, fill=False)
+    show_setup(b, setup)
+    row(b, "investor.tax_id").click()
+    b.page.fill("#ins-title", "#")
+    b.page.press("#ins-title", "Enter")
+    expect(b.page.locator("#notice")).to_contain_text("letter or number")
     expect(b.page.locator("#ins-title")).to_have_value("Taxpayer ID")
 
 
-def test_a_refused_rename_says_why_and_puts_the_name_back(start_demo_server, bench):
+def test_a_reserved_title_is_refused_and_the_title_put_back(start_demo_server, bench):
+    from test_server_extract import with_a_field_named_name
+
     base = extract_server(start_demo_server)
     setup = setup_on(base)
+    kept = start_demo_server.servers[-1].api.setups.get(setup["id"])
+    kept.template = with_a_field_named_name(kept.template)
+    kept.edit(RenameField(op="rename_field", path="document_name", name="holder"))  # a top-level field, proven again
+    setup = names_following(start_demo_server, setup, base)
     b = bench(base, fill=False)
     show_setup(b, setup)
-    row(b, "investor.tax_id").click()
-    b.page.fill("#ins-name", "tax id")
-    b.page.press("#ins-name", "Enter")
-    expect(b.page.locator("#notice")).to_contain_text("letters, numbers")
-    expect(b.page.locator("#ins-name")).to_have_value("tax_id")
-
-
-def test_a_reserved_name_is_refused_in_the_name_box_and_the_name_put_back(start_demo_server, bench):
-    from test_server_extract import with_a_field_named_name
-
-    base = extract_server(start_demo_server)
-    setup = setup_on(base)
-    kept = start_demo_server.servers[-1].api.setups.get(setup["id"])
-    kept.template = with_a_field_named_name(kept.template)
-    kept.edit(RenameField(op="rename_field", path="name", name="holder"))  # a top-level field, proven again
-    b = bench(base, fill=False)
-    show_setup(b, get_json(base, f"/api/setups/{setup['id']}")[1])
     row(b, "holder").click()
-    b.page.fill("#ins-name", "name")
-    b.page.press("#ins-name", "Enter")
+    b.page.fill("#ins-title", "DOCUMENT NAME")
+    b.page.press("#ins-title", "Enter")
     expect(b.page.locator("#notice")).to_contain_text("reserved")
-    expect(b.page.locator("#ins-name")).to_have_value("holder")
-    expect(row(b, "name")).to_have_count(0)
+    expect(row(b, "document_name")).to_have_count(0)
 
 
-def test_the_field_the_save_refuses_can_be_renamed_and_then_saved(start_demo_server, bench):
+def test_once_saved_a_title_keeps_the_name_and_update_name_changes_it(start_demo_server, bench):
+    base = extract_server(start_demo_server)
+    setup = names_following(start_demo_server, setup_on(base), base)
+    b = bench(base, fill=False)
+    show_setup(b, setup)
+    b.page.click("#setup-save")
+    b.page.fill("#setup-save-name", "Kept")
+    b.page.click("#setup-save-go")
+    expect(b.page.locator("#setup-save-box")).to_be_hidden()
+    row(b, "investor.dob").click()
+    expect(b.page.locator("#ins-update-name")).to_be_visible()  # its title says date_of_birth_or_formation
+    expect(b.page.locator("#ins-category")).to_have_js_property("readOnly", True)  # part of the export column
+    b.page.fill("#ins-title", "Born on")
+    with b.page.expect_response("**/edit"):
+        b.page.press("#ins-title", "Enter")
+    expect(b.page.locator("#ins-name")).to_have_text("investor.dob")
+    b.page.click("#ins-update-name")
+    expect(row(b, "investor.born_on")).to_have_class(re.compile("is-picked"))
+    expect(b.page.locator("#ins-update-name")).to_have_count(0)
+
+
+def test_the_field_the_save_refuses_can_be_retitled_and_then_saved(start_demo_server, bench):
     from test_server_extract import with_a_field_named_name
 
     base = extract_server(start_demo_server)
     setup = setup_on(base)
     kept = start_demo_server.servers[-1].api.setups.get(setup["id"])
     kept.template = with_a_field_named_name(kept.template)
-    kept.edit(SetField(op="set_field", path="name", title="Name"))  # proven again, so the field is on the list
+    kept.edit(SetField(op="set_field", path="document_name", title="Document name"))  # proven again, so it is on the list
     b = bench(base, fill=False)
-    show_setup(b, get_json(base, f"/api/setups/{setup['id']}")[1])
+    show_setup(b, names_following(start_demo_server, setup, base))
     b.page.click("#setup-save")
     b.page.fill("#setup-save-name", "Clash")
     b.page.click("#setup-save-go")
-    expect(b.page.locator("#setup-save-msg")).to_contain_text("rename the field")
+    expect(b.page.locator("#setup-save-msg")).to_contain_text("change its title")
     b.page.click("#setup-save-cancel")
-    row(b, "name").click()
-    b.page.fill("#ins-name", "legal_name")
-    b.page.press("#ins-name", "Enter")
+    row(b, "document_name").click()
+    b.page.fill("#ins-title", "Legal name")
+    b.page.press("#ins-title", "Enter")
     expect(row(b, "legal_name")).to_be_visible()
     b.page.click("#setup-save")
     b.page.fill("#setup-save-name", "Clash")
@@ -1458,22 +1550,27 @@ def test_the_side_columns_grow_with_the_window_and_never_go_narrower_than_240_an
     assert widths(1920) == (320, 400)
 
 
-def test_the_by_field_table_gives_its_counts_room(start_demo_server, bench, run_files):
+def test_results_by_field_gives_its_columns_room(start_demo_server, bench, run_files):
     base = extract_server(start_demo_server)
     _, run_id = saved_run(base, run_files)
     b = bench(base, fill=False)
+    b.page.set_viewport_size({"width": 1440, "height": 900})
     show_review(b, run_id)
-    heads = b.page.locator("#field-table thead th")
-    widths = [heads.nth(i).bounding_box()["width"] for i in range(1, 7)]
-    assert min(widths) >= 90 and max(widths) - min(widths) < 2  # the count columns share the room evenly
-    text = b.page.evaluate("""() => {
-      const r = document.createRange();
-      return [...document.querySelectorAll('#field-table thead th')].slice(1).map((th) => {
-        r.selectNodeContents(th);
-        return th.getBoundingClientRect().right - r.getBoundingClientRect().right >= 0 ? th.clientWidth - r.getBoundingClientRect().width : -1;
-      });
+    b.page.click("#see-details")
+    sheet = b.page.locator("#field-details .sheet")
+    expect(sheet).to_be_visible()
+    assert sheet.bounding_box()["width"] > 1300  # it used to stop at 1040
+    gaps = b.page.evaluate("""() => {
+      const head = document.querySelector('#details-sections .field-table thead tr');
+      const range = document.createRange();
+      const right = (th) => { range.selectNodeContents(th); return range.getBoundingClientRect().right; };
+      const left = (th) => { range.selectNodeContents(th); return range.getBoundingClientRect().left; };
+      const cells = [...head.children].slice(3);
+      return cells.slice(1).map((th, i) => left(th) - right(cells[i]));
     }""")
-    assert min(text) >= 24  # a heading clears the one beside it
+    assert min(gaps) >= 16  # no heading runs up against the next
+    table = b.page.locator("#details-sections .field-table").first.bounding_box()
+    assert table["width"] <= sheet.bounding_box()["width"]  # it fits with no sideways scroll
 
 
 def test_run_on_all_of_a_saved_setup_asks_no_name_and_a_cancel_opens_what_was_read(start_demo_server, bench, run_files, monkeypatch):
@@ -1526,15 +1623,15 @@ def test_the_review_lists_the_documents_with_problems_and_filters_them_by_field_
     names = b.page.locator("#docs li .doc-name")
     expect(b.page.locator("#docs-label")).to_have_text("Documents with problems · 2")  # mars's country is optional
     expect(names).to_have_text(["bad_tin.pdf", "no_tin.pdf"])
-    expect(listed(b, "no_tin.pdf").locator("small")).to_have_text("1 problem: investor.tax_id")
+    expect(listed(b, "no_tin.pdf").locator("small")).to_have_text("1 problem: Taxpayer ID")
     expect(b.page.locator("#docs-legend")).to_have_text("2 of 2 still have problems")
     expect(b.page.locator("#filter-path option").first).to_have_text("Every field")
     expect(b.page.locator("#filter-path option[value='investor.tax_id']")).to_have_count(1)
 
-    b.page.select_option("#filter-status", "missing")
+    b.page.select_option("#filter-status", "blank")
     expect(names).to_have_text(["no_tin.pdf"])
     expect(b.page.locator("#docs-label")).to_have_text("Documents with problems · 1")
-    expect(card(b, "investor.tax_id")).to_contain_text("Missing")
+    expect(card(b, "investor.tax_id")).to_contain_text("Blank")
     b.page.select_option("#filter-status", "")
     b.page.select_option("#filter-path", "investor.tax_id")
     expect(names).to_have_text(["bad_tin.pdf", "no_tin.pdf"])
@@ -1550,57 +1647,77 @@ def test_the_review_lists_the_documents_with_problems_and_filters_them_by_field_
     page_loaded(b)
 
 
-def test_the_by_field_table_counts_each_field_folds_a_repeated_groups_items_and_filters_by_the_row_clicked(start_demo_server, bench, run_files):
+def test_see_details_opens_each_fields_results_to_read_and_close(start_demo_server, bench, run_files):
     base = extract_server(start_demo_server)
     _, run_id = saved_run(base, run_files)
     b = bench(base, fill=False)
     show_review(b, run_id)
     fields = get_json(base, f"/api/runs/{run_id}")[1]["fields"]
+    keys = ("found", "blank", "not_located", "failed_check", "unsure", "not_on_form", "absent", "reviewed")
     folded: dict[str, dict] = {}  # the run's fields folded as the table folds them
     for f in fields:
-        row = folded.setdefault(re.sub(r"\[\d+\]", "[]", f["path"]), {k: 0 for k in ("found", "missing", "failed_check", "unsure", "reviewed")})
-        for k in row:
+        row = folded.setdefault(re.sub(r"\[\d+\]", "[]", f["path"]), {k: 0 for k in keys})
+        for k in keys:
             row[k] += f[k]
-    rows = b.page.locator("#field-table tbody tr")
-    expect(b.page.locator("#by-field")).to_be_visible()
-    expect(b.page.locator("#field-table thead th")).to_have_text(["Field", "Required", "Found", "Missing", "Fails a check", "Unsure", "Reviewed"])
-    expect(rows).to_have_count(len(folded))
-    expect(b.page.locator("#by-field-sum")).to_have_text(f"{len(folded)} fields")
-    tax = b.page.locator('#field-table tr[data-path="investor.tax_id"]')
+    expect(b.page.locator("#by-field")).to_have_count(0)  # the results are in the modal, not on the page
+    expect(b.page.locator("#stats #see-details")).to_have_text("See details")
+    details = b.page.locator("#field-details")
+    expect(details).to_be_hidden()
+
+    b.page.click("#see-details")
+    expect(details).to_be_visible()
+    expect(b.page.locator("#details-close")).to_be_focused()
+    expect(b.page.locator("#details-sections .field-table")).to_have_count(2)
+    expect(b.page.locator("#details-key li")).to_have_text(["Found", "Blank", "Not located", "Doubtful", "Fails a check", "Not applicable"])
+    expect(b.page.locator("#details-sections .field-table").first.locator("thead th")).to_have_text(
+        ["Field", "Results", "Found %", "Found", "Blank", "Not located", "Doubtful", "Fails a check", "Not applicable", "Reviewed"]
+    )
+    expect(b.page.locator("#details-sections h3")).to_have_text(["Required fields · 1", "Optional fields · " + str(len(folded) - 1)])
+    expect(b.page.locator("#details-sections tbody tr")).to_have_count(len(folded))
+    tax = b.page.locator('#details-sections tr[data-path="investor.tax_id"]')
     counts = folded["investor.tax_id"]
-    expect(tax.locator("td")).to_have_text(["✓", *(str(counts[k]) for k in ("found", "missing", "failed_check", "unsure", "reviewed"))])
+    expect(tax.locator("td").nth(2)).to_have_text(str(counts["found"]))
+    expect(tax.locator("td").nth(3)).to_have_text(str(counts["blank"]))
+    expect(tax.locator("td").nth(4)).to_have_text(str(counts["not_located"]))
+    expect(tax.locator("td").nth(6)).to_have_text(str(counts["failed_check"]))
+    expect(tax.locator("td").nth(8)).to_have_text(str(counts["reviewed"]))
     expect(tax.locator("th")).to_contain_text("Taxpayer ID")
-    required = [re.sub(r"\[\d+\]", "[]", f["path"]) for f in fields if f["required"]]
-    assert required == ["investor.tax_id"]  # the corpus template requires its tax ID only: listed first
-    expect(rows.first).to_have_attribute("data-path", "investor.tax_id")
-    expect(b.page.locator('#field-table tr[data-path="investor.country"] td').first).to_have_text("")
+    expect(tax.locator(".value-bar")).to_have_attribute("aria-label", re.compile(rf"Found {counts['found']}"))
     repeated = next(path for path in folded if "[]" in path)  # the owners: a row for all their items
     items = sum(1 for f in fields if re.sub(r"\[\d+\]", "[]", f["path"]) == repeated)
     assert items > 1
-    expect(b.page.locator(f'#field-table tr[data-path="{repeated}"] th small')).to_have_text(f"{repeated} · {items} items")
+    expect(b.page.locator(f'#details-sections tr[data-path="{repeated}"] th small').first).to_have_text(f"{items} items")
+    expect(b.page.locator("#details-tiles .stat[data-stat='fields'] b")).to_have_text(str(len(folded)))
 
-    tax.click()  # the documents with a problem in that field
-    expect(b.page.locator("#filter-path")).to_have_value("investor.tax_id")
-    expect(b.page.locator("#docs li .doc-name")).to_have_text(["bad_tin.pdf", "no_tin.pdf"])
-    expect(tax).to_have_class(re.compile(r"\bon\b"))
-    b.page.select_option("#filter-status", "set_aside")
-    b.page.locator(f'#field-table tr[data-path="{repeated}"]').click()  # every item of the group, every problem again
-    expect(b.page.locator("#filter-status")).to_have_value("")
-    expect(b.page.locator("#filter-path")).to_have_value(repeated)
-    expect(b.page.locator("#filter-path")).to_be_enabled()
-    expect(section(b, "optional")).to_have_attribute("aria-pressed", "true")  # the owners are optional: their section
-    expect(b.page.locator("#docs-label")).to_have_text("Documents with optional problems · 0")
+    tax.click()  # only for reading: nothing is filtered, and the modal stays
+    expect(details).to_be_visible()
+    expect(b.page.locator("#filter-path")).to_have_value("")
+    b.page.click("#details-close")
+    expect(details).to_be_hidden()
+    expect(b.page.locator("#see-details")).to_be_focused()
+    b.page.click("#see-details")
+    b.page.keyboard.press("Escape")
+    expect(details).to_be_hidden()
+    b.page.click("#see-details")
+    details.click(position={"x": 2, "y": 2})  # outside the sheet
+    expect(details).to_be_hidden()
 
     listed_after = b.page.locator("#docs li .doc-name")
+    b.page.select_option("#filter-path", repeated)  # a field picked shows the section it is in
+    expect(section(b, "optional")).to_have_attribute("aria-pressed", "true")
     b.page.select_option("#filter-path", "")
     expect(listed_after).to_have_text(["mars.pdf"])
     section(b, "required").click()
     expect(listed_after).to_have_text(["bad_tin.pdf", "no_tin.pdf"])
     listed(b, "no_tin.pdf").click()
     card(b, "investor.tax_id").locator("input").fill("12-3456789")
-    card(b, "investor.tax_id").locator('[data-act="value"]').click()  # a decision: the table follows
-    expect(tax.locator("td").nth(5)).to_have_text(str(counts["reviewed"] + 1))
-    expect(tax.locator("td").nth(2)).to_have_text(str(counts["missing"] - 1))
+    card(b, "investor.tax_id").locator('[data-act="value"]').click()  # a decision: the modal follows
+    expect(card(b, "investor.tax_id")).to_contain_text("12-3456789")
+    b.page.click("#see-details")
+    expect(tax.locator("td").nth(8)).to_have_text(str(counts["reviewed"] + 1))
+    expect(tax.locator("td").nth(3)).to_have_text(str(counts["blank"] - 1))
+    b.page.click("#details-close")
+    expect(b.page.locator("#filter-missing")).to_be_hidden()  # only a run made before Blank and Not located has it
 
 
 def test_a_page_image_that_fails_past_the_first_page_stops_the_pages_only_when_it_is_not_there(start_demo_server, bench, run_files):
@@ -1719,7 +1836,7 @@ def test_each_decision_settles_its_card_and_updates_the_stats_and_the_list(start
     assert run["summary"]["with_problems"] == 0 and run["summary"]["with_optional"] == 0
     assert next(f for f in run["fields"] if f["path"] == "investor.tax_id")["reviewed"] == 2
 
-    b.page.select_option("#filter-status", "missing")  # the list asked again: nothing is left to settle
+    b.page.select_option("#filter-status", "blank")  # the list asked again: nothing is left to settle
     expect(b.page.locator("#docs li")).to_have_text(["No document has a problem of this kind."])
 
 
@@ -1750,7 +1867,7 @@ def test_review_shows_required_problems_first_and_optional_ones_in_their_own_sec
     expect(b.page.locator("#problems .problem")).to_have_count(1)  # only this section's cards
     expect(card(b, "investor.country").locator(".why")).to_have_text("Optional: a copy may leave it empty")
 
-    b.page.select_option("#filter-status", "missing")  # the filters apply inside the section
+    b.page.select_option("#filter-status", "blank")  # the filters apply inside the section
     expect(b.page.locator("#docs li")).to_have_text(["No document has a problem of this kind."])
     b.page.select_option("#filter-status", "failed_check")
     expect(names).to_have_text(["mars.pdf"])
@@ -1765,7 +1882,7 @@ def test_review_shows_required_problems_first_and_optional_ones_in_their_own_sec
     expect(section(b, "required")).to_have_attribute("aria-pressed", "true")
     expect(names).to_have_text(["bad_tin.pdf", "no_tin.pdf"])
     b.page.select_option("#filter-path", "")
-    b.page.select_option("#filter-status", "missing")
+    b.page.select_option("#filter-status", "blank")
     expect(names).to_have_text(["no_tin.pdf"])
     expect(card(b, "investor.tax_id").locator(".why")).to_have_count(0)  # a required card gives no reason
     b.page.select_option("#filter-status", "")

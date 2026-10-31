@@ -723,10 +723,10 @@ called per document unless you ask for it.
    per document* in the modal's settings also asks the model about the documents whose required fields fail; its
    answers are marked and still reviewed. A run cancelled keeps what it read, and *Run on all* again carries on.
 4. **Review.** The run's numbers (documents, complete, with problems, set aside, run time), the documents that still
-   have a problem (filter by field and by *Missing*, *Fails a check* or *Unsure*; *Set aside* lists the documents
+   have a problem (filter by field and by *Blank*, *Not located*, *Doubtful* or *Fails a check*; *Set aside* lists the documents
    no template fits or that could not be read, with the closest template), the chosen document's page with the
    problem's place outlined, and a card per problem: *Use this value* (type it), *Accept as read* or *Not in this
-   document*. Picking a card goes to its field's page and highlights it: where a missing field should be (from the
+   document*. Picking a card goes to its field's page and highlights it: where a field with no value should be (from the
    template, when its label or box can be found on that document), or the doubtful value and what is wrong with it.
    *← Go back to setup* returns to the setup screen; *Go to review →* comes back, straight away if nothing changed,
    or after asking, since changes take effect only when every document is read again as a new run (decisions made

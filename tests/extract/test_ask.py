@@ -249,6 +249,13 @@ def test_lines_are_compared_by_their_words_and_may_be_named_by_number(sample_doc
     assert "2. second line" in text and "First" not in text
 
 
+def test_fields_prompt_asks_for_titles_and_flat_fields():
+    from formcast.extract.prompts import FIELDS_SYSTEM
+
+    words = " ".join(FIELDS_SYSTEM.split())
+    assert "makes each name from its title" in words and "never put an object inside an object" in words
+
+
 def test_fields_prompt_lists_the_reserved_names():
     from formcast.extract.model import RESERVED_NAMES
     from formcast.extract.prompts import FIELDS_SYSTEM

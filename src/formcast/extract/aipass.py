@@ -4,7 +4,7 @@
 
 Off unless called: ``run_batch`` and ``extract`` never call a model (a model is called only while a template is built
 from samples, and here). For each document of the run that was read (no ``error``) with a *required* field
-(:func:`~formcast.extract.levels.required_paths`) still ``missing`` or ``failed_check`` once the review decisions are
+(:func:`~formcast.extract.levels.required_paths`) still with no value or ``failed_check`` once the review decisions are
 applied, the pass opens the document, shows it to the model as :func:`~formcast.extract.ask.read_values` does a
 sample, and asks only for those fields: a document whose required fields were read, a document that was set aside,
 and a field that is not required are never sent. Every other field of the document keeps what the template read.
@@ -36,7 +36,7 @@ from formcast.errors import FormcastError
 from formcast.extract.ask import Llm, read_values
 from formcast.extract.batch import AI, AI_REASON, AiAnswer, Results, _cut, _whole_lines
 from formcast.extract.levels import required_paths
-from formcast.extract.model import ExtractionTemplate
+from formcast.extract.model import _NO_VALUE, ExtractionTemplate
 from formcast.extract.samples import SamplePdf, read_samples
 from formcast.extract.setup import _shared
 from formcast.llm import Provider, Usage
@@ -44,7 +44,7 @@ from formcast.llm import Provider, Usage
 __all__ = ["AI", "AI_REASON", "AiPassSummary", "ai_pass", "required_paths"]
 
 #: A field the pass can ask about: the statuses of a read that found no usable value.
-_FAILED = ("missing", "failed_check")
+_FAILED = (*_NO_VALUE, "failed_check")
 
 
 @dataclass(frozen=True)

@@ -52,8 +52,8 @@ a mark is in that sample page's frame, so a box drawn on it is sent back as a ``
 
 ``PUT /api/extractions/{name}`` saves the setup's template under ``name`` (its ``name`` field becomes ``name``, its
 ``template_id`` is kept) with the setup's sample PDFs. A template whose run could not be exported is refused, 400
-``bad_template`` naming the field: a field whose export column is a document column (``name``, ``file``,
-``doc_id`` ...; ``formcast.extract.export.check_columns``, the check the export makes), so it is renamed before a
+``bad_template`` naming the field: a field whose export column is a document column (``document_name``,
+``document_file`` ...; ``formcast.extract.export.check_columns``, the check the export makes), so it is renamed before a
 run rather than found at the export after one; ``POST /api/setups {extraction}`` reads those samples again
 (no field detection) and proves the template on them.
 
@@ -81,7 +81,7 @@ Runs (``api.runs``):
     POST /api/runs/{r}/to-data                                      -> {dataset: Dataset.summary(), truncated, with_problems}
 
     Run     = {id, name, extraction, summary: RunSummary, fields: [{path, title, required, required_reason, found,
-               missing, failed_check, unsure, reviewed, not_on_form}], seconds}
+               blank, not_located, missing, failed_check, unsure, reviewed, not_on_form, absent}], seconds}
     Problem = {path, title, required, required_reason, status, raw, value, reasons, page, rect}
 
 An ``extract-run`` job reads every file of the batch with the saved template (``run_batch``, with
@@ -94,12 +94,12 @@ the model, and its answers are problems to review. It is the only model call of 
 needs no model. A run takes one job at a time: another ``extract-run`` of it meanwhile is 409 ``busy_run``. A saved extraction whose
 run could not be exported (as its save checks) is 400 ``bad_template`` before anything starts.
 
-``places`` says where a document's problems with no place in its results are, or should be (a field left missing,
+``places`` says where a document's problems with no place in its results are, or should be (a field with no value,
 a value read from a form field): each path the template can point at on that document (``read.places``), from its
 file, so asked for one document at a time, as the review shows it. A path it can't point at is left out.
 
 ``problems`` and ``set-aside`` are paged as the batch files are (``limit`` 1 to 200, default 50); ``status`` is one
-of ``missing``, ``failed_check`` and ``unsure``, ``level`` ``required`` or ``optional`` (absent: both; another value
+of ``blank``, ``not_located``, ``missing``, ``failed_check`` and ``unsure``, ``level`` ``required`` or ``optional`` (absent: both; another value
 400 ``bad_request``): the documents with a problem of that level, each with that level's problems only, and ``path`` a concrete path or, with ``[]`` (``owners[].name``),
 every item of a repeated group's field, as the review's field table folds them. A document's ``name`` is its file's name in the batch (a command
 line run's: its path in its folder), a problem's ``title`` its field's title in the schema. A decision is a
@@ -112,7 +112,7 @@ paths in the folder the person named. It is written to a temporary folder in ``<
 installed (Parquet needs ``pyarrow``) is 400 ``not_supported`` with the library's message. ``to-data`` makes the
 read documents a dataset (``api.datasets``): a column per schema path the template reads, a row per document, the
 first ``MAX_ROWS`` when there are more (``truncated``). A cell holds only a ``found`` value (AI answers and
-decisions applied: a value typed or accepted in review is found), so a field still ``missing``, ``failed_check``
+decisions applied: a value typed or accepted in review is found), so a field still ``blank``, ``not_located``, ``missing``, ``failed_check``
 or ``unsure`` is a gap the fill reports, never a value nobody trusted; ``with_problems`` counts the rows that still
 have such a field that is required (a row with only optional blanks is complete). Columns named by schema path let the fill flow map it to a destination of those paths directly.
 
@@ -616,10 +616,12 @@ def save_extraction(api: Api, req: Request) -> dict:
     name = _checked(req.match["name"])
     setup = _setup_of(api, _object(req).get("setup"))
     template, samples = setup.snapshot()
-    saved = template.model_copy(update={"name": name})
+    frozen = template.setup.model_copy(update={"name_follows_title": False}) if template.setup is not None else None
+    saved = template.model_copy(update={"name": name, "setup": frozen})
     _exportable(saved)
     api.extractions.put(name, saved, [SamplePdf(doc.file, doc.pdf) for doc in samples])
-    return {"name": name, "template_id": saved.template_id}
+    setup.freeze_names()
+    return {"name": name, "template_id": saved.template_id, "setup": setup.summary()}
 
 
 def _exportable(template: ExtractionTemplate) -> None:
@@ -811,7 +813,7 @@ def run_set_aside(api: Api, req: Request) -> dict:
         raise ApiError(409, "not_started", str(exc)) from None
     documents = [
         {
-            "doc_id": row["doc_id"], "name": run.name_of(row["doc_id"]), "reason": _reason(row["reason"]),
+            "doc_id": row["document_id"], "name": run.name_of(row["document_id"]), "reason": _reason(row["reason"]),
             "closest_template": row["closest_template"], "closest_score": row["closest_score"],
         }  # fmt: skip
         for row in rows

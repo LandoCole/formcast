@@ -250,6 +250,10 @@ class DocText:
                 return str(value)
         return None
 
+    def has_widget(self, name: str) -> bool:
+        """Whether the document has a form field ``name``, whatever it holds."""
+        return bool(self._widgets().get(name))
+
     def widget_on(self, name: str, state: str | None = None) -> bool | None:
         """Whether the check box or radio button ``name`` is on; ``None`` when there is no such check widget.
 

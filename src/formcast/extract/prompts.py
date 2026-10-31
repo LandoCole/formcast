@@ -52,8 +52,9 @@ Rules:
   counts; "boolean" for a yes/no question or a lone check box; a string with "enum" for a choose-one set.
 - Rows or blocks printed again and again (several drivers, line items): one property that is an array of
   objects, one property per column, with "maxItems" set to the number of printed rows or blocks.
-- Names are snake_case and say what the value is; fields of one topic go in one object ("delivery" holding
-  "street_line" and "route_code").
+- Every field and every object has a "title" a person would read, because the program makes each name from its
+  title. Prefer flat fields: use an object only to group several fields of one topic ("Delivery" holding "Street
+  line" and "Route code"), and never put an object inside an object.
 - Never give a top-level property a name listed under NAMES ALREADY USED: those fields exist already.
 - Never give a top-level property one of these names, which the results keep for the document itself:
   {_RESERVED}. Say whose value it is instead ("holder_name"), or put it in an object.

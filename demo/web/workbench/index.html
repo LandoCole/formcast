@@ -165,11 +165,7 @@
 
   <!-- the review of a run (extract-review.js) -->
   <div class="view" data-only="review" hidden>
-    <div class="stats" id="stats"></div>
-    <details class="by-field" id="by-field" open hidden>
-      <summary class="label">By field · <span id="by-field-sum"></span></summary>
-      <div class="by-field-scroll"><table class="field-table" id="field-table" aria-label="Each field's documents"></table></div>
-    </details>
+    <div class="stats" id="stats"><button type="button" class="btn quiet small" id="see-details" hidden>See details</button></div>
     <div class="bench">
       <aside class="col col-schema pane" aria-label="Documents with problems">
         <p class="label" id="docs-label">Documents with problems</p>
@@ -182,9 +178,11 @@
           <select class="fc-in" id="filter-path" aria-label="Field"><option value="">Every field</option></select>
           <select class="fc-in" id="filter-status" aria-label="Problem">
             <option value="">Every problem</option>
-            <option value="missing">Missing</option>
+            <option value="blank">Blank</option>
+            <option value="not_located">Not located</option>
+            <option value="missing" id="filter-missing" hidden disabled>Missing</option>
+            <option value="unsure">Doubtful</option>
             <option value="failed_check">Fails a check</option>
-            <option value="unsure">Unsure</option>
             <option value="set_aside">Set aside</option>
           </select>
         </div>
@@ -461,6 +459,20 @@
     <div class="row">
       <button type="button" class="btn quiet" id="save-cancel">Cancel</button>
       <button type="button" class="btn dark" id="save-go">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- a run's results by field, to read and close (extract-review.js) -->
+<div class="overlay" id="field-details" role="dialog" aria-modal="true" aria-labelledby="details-title" hidden>
+  <div class="sheet details">
+    <h2 id="details-title">Results by field</h2>
+    <p class="hint" id="details-what"></p>
+    <div class="stats" id="details-tiles"></div>
+    <ul class="details-key" id="details-key" aria-label="What the bars show"></ul>
+    <div id="details-sections"></div>
+    <div class="row">
+      <button type="button" class="btn dark" id="details-close">Close</button>
     </div>
   </div>
 </div>

@@ -55,6 +55,7 @@ _LAZY = {
     "SampleProof": "formcast.extract.proof",
     "SampleRecord": "formcast.extract.model",
     "SetBox": "formcast.extract.edit",
+    "SetCategory": "formcast.extract.edit",
     "SetClean": "formcast.extract.edit",
     "SetField": "formcast.extract.edit",
     "SetLabels": "formcast.extract.edit",
@@ -94,7 +95,7 @@ if TYPE_CHECKING:
     from formcast.extract.aipass import AiPassSummary, ai_pass
     from formcast.extract.ask import FieldsAnswer, fields_from_lines, fields_on_form, propose_readers, read_values
     from formcast.extract.edit import (
-        Edit, MarkAbsent, RemoveField, RenameField, Restore, SetBox, SetClean, SetField, SetLabels, SetOptionBox, apply_edit,
+        Edit, MarkAbsent, RemoveField, RenameField, Restore, SetBox, SetCategory, SetClean, SetField, SetLabels, SetOptionBox, apply_edit,
     )  # fmt: skip
     from formcast.extract.levels import required_paths
     from formcast.extract.model import (

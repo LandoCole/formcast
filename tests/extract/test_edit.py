@@ -13,6 +13,7 @@ from formcast.extract.edit import (
     RemoveField,
     RenameField,
     Restore,
+    SetCategory,
     SetBox,
     SetClean,
     SetField,
@@ -275,7 +276,7 @@ def test_rename_field_refuses_a_name_a_path_cannot_hold(name):
         apply_edit(hand_template(), RenameField(op="rename_field", path="investor.tax_id", name=name))
 
 
-@pytest.mark.parametrize("name", [*RESERVED_NAMES, "Name", "FILE"])
+@pytest.mark.parametrize("name", [*RESERVED_NAMES, "Document_Name"])
 def test_rename_field_refuses_a_reserved_name_at_the_top_level_and_lists_them(name):
     base = with_top_level_field(hand_template(), "holder")
     with pytest.raises(FormcastError, match="reserved") as refused:
@@ -288,6 +289,88 @@ def test_a_reserved_name_is_allowed_inside_a_group_and_a_field_can_be_renamed_aw
     assert "investor.name" in t.readers  # its column is investor.name, not the document's
     t = apply_edit(with_top_level_field(hand_template(), "name"), RenameField(op="rename_field", path="name", name="legal_name"))
     assert "legal_name" in t.schema_["properties"] and "name" not in t.schema_["properties"]
+
+
+def following(template=None):
+    """A template whose names follow its titles."""
+    base = template or hand_template()
+    return base.model_copy(update={"setup": SetupInfo(start="ai", name_follows_title=True)})
+
+
+def test_while_names_follow_titles_a_title_gives_the_field_its_name_and_it_keeps_everything_else():
+    base = following(hand_template().model_copy(update={
+        "samples": [SampleRecord(file="a", sha256="0" * 64, opinion={"investor.tax_id": "1"})]}))
+    t = apply_edit(base, SetField(op="set_field", path="investor.tax_id", title="Taxpayer number"))
+    assert _prop(t, "investor", "taxpayer_number")["title"] == "Taxpayer number"
+    assert _prop(t, "investor")["required"] == ["taxpayer_number"]
+    assert t.readers["investor.taxpayer_number"] == base.readers["investor.tax_id"]
+    assert t.samples[0].opinion == {"investor.taxpayer_number": "1"}
+
+
+def test_while_names_follow_titles_a_repeated_groups_field_moves_in_every_item():
+    t = apply_edit(following(), SetField(op="set_field", path="owners[2].name", title="Owner"))
+    assert "owners[3].owner" in t.readers and not any(p.endswith(".name") for p in t.readers)
+
+
+@pytest.mark.parametrize("title", ["", "#", "名前"])
+def test_while_names_follow_titles_a_title_needs_something_to_make_a_name_from(title):
+    with pytest.raises(FormcastError, match="letter or number"):
+        apply_edit(following(), SetField(op="set_field", path="investor.tax_id", title=title))
+
+
+def test_while_names_follow_titles_a_taken_or_reserved_name_is_refused():
+    with pytest.raises(FormcastError, match="already a field named 'dob'"):
+        apply_edit(following(), SetField(op="set_field", path="investor.tax_id", title="DOB"))
+    with pytest.raises(FormcastError, match="reserved"):
+        apply_edit(following(with_top_level_field(hand_template(), "holder")), SetField(op="set_field", path="holder", title="Document name"))
+
+
+def test_once_saved_a_title_leaves_the_name_alone():
+    base = hand_template().model_copy(update={"setup": SetupInfo(start="ai", name_follows_title=False)})
+    t = apply_edit(base, SetField(op="set_field", path="investor.tax_id", title="Taxpayer number"))
+    assert _prop(t, "investor", "tax_id")["title"] == "Taxpayer number"
+
+
+def test_set_category_moves_a_field_with_its_level_and_reader_and_an_emptied_category_goes():
+    base = following(with_top_level_field(hand_template(), "holder"))
+    t = apply_edit(base, SetCategory(op="set_category", path="holder", category="Tax details"))
+    assert _prop(t, "tax_details")["title"] == "Tax details" and "holder" not in t.schema_["properties"]
+    t = apply_edit(t, SetCategory(op="set_category", path="tax_details.holder", category=""))
+    assert "holder" in t.schema_["properties"] and "tax_details" not in t.schema_["properties"]
+    t = apply_edit(following(), SetCategory(op="set_category", path="investor.tax_id", category=""))
+    assert "tax_id" in t.schema_["required"] and "required" not in _prop(t, "investor")
+    assert t.readers["tax_id"] == hand_template().readers["investor.tax_id"]
+
+
+def test_set_category_refuses_a_saved_template():
+    with pytest.raises(FormcastError, match="keep their category"):
+        apply_edit(hand_template(), SetCategory(op="set_category", path="investor.country", category=""))
+
+
+def test_moving_a_nested_field_up_into_its_own_category_keeps_the_category():
+    base = following(hand_template())
+    wire = base.schema_["properties"].pop("wire")
+    base.schema_["properties"]["outer"] = {"type": "object", "properties": {"wire": wire}}
+    base = base.model_copy(update={"readers": {
+        p.replace("wire.", "outer.wire."): r for p, r in base.readers.items()}})
+    t = apply_edit(base, SetCategory(op="set_category", path="outer.wire.bank", category="outer"))
+    assert "bank" in _prop(t, "outer")["properties"]
+
+
+def test_set_category_finds_a_category_by_its_title():
+    template = following()
+    title = _prop(template, "wire").setdefault("title", "Wire instructions")
+    t = apply_edit(template, SetCategory(op="set_category", path="investor.country", category=title.upper()))
+    assert "country" in _prop(t, "wire")["properties"]
+
+
+def test_set_category_refuses_what_cannot_move():
+    with pytest.raises(FormcastError, match="repeated group stays"):
+        apply_edit(following(), SetCategory(op="set_category", path="owners[1].name", category="Investor"))
+    with pytest.raises(FormcastError, match="repeated group, so"):
+        apply_edit(following(), SetCategory(op="set_category", path="investor.country", category="owners"))
+    with pytest.raises(FormcastError, match="letter or number"):
+        apply_edit(following(), SetCategory(op="set_category", path="investor.country", category="#"))
 
 
 def test_rename_field_refuses_the_name_of_another_field_beside_it():

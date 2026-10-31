@@ -360,7 +360,7 @@ export class PageView {
 
     const tag = document.createElement("span");
     tag.className = "fc-tag";
-    tag.textContent = linked ? paths.join(", ") : "not linked";
+    tag.textContent = field.tag ?? (linked ? paths.join(", ") : "not linked");
     el.append(tag);
 
     const marks = [];

@@ -123,7 +123,7 @@ def test_an_answer_of_null_is_recorded_so_the_next_pass_skips_the_document(tmp_p
     assert (summary.documents, summary.answered) == (len(bad), 0)
     answers = [json.loads(line) for line in (out / AI).read_text().splitlines()]
     assert sorted(a["doc_id"] for a in answers) == sorted(bad) and all(a["value"] is None for a in answers)
-    assert field(out, sorted(bad)[0]).status in ("missing", "failed_check")  # nothing was made up
+    assert field(out, sorted(bad)[0]).status in ("blank", "failed_check")  # nothing was made up
     assert ai_pass([hand_template()], out, Scripted(), vision=False).documents == 0
 
 
@@ -134,7 +134,7 @@ def test_a_model_failure_on_one_document_is_counted_and_the_pass_goes_on(tmp_pat
     model = Scripted("not json", "still not json", *[ANSWER] * (len(bad) - 1))
     summary = ai_pass([hand_template()], out, model, max_parallel=1, vision=False)
     assert (summary.documents, summary.answered, summary.failed) == (len(bad), len(bad) - 1, 1)
-    assert field(out, bad[0]).status in ("missing", "failed_check")
+    assert field(out, bad[0]).status in ("blank", "failed_check")
     assert all(field(out, d).status == "unsure" for d in bad[1:])
     again = Scripted(ANSWER)  # the failed document is asked again by the next pass, the answered ones are not
     assert ai_pass([hand_template()], out, again, vision=False).documents == 1
@@ -179,7 +179,7 @@ def test_the_ai_answer_stays_a_problem_until_reviewed(tmp_path):
     assert results.summary().with_problems == before  # an answer from the model settles nothing
     unsure = [(d.doc_id, f.value) for d, f in results.problems(path=TAX_ID, status="unsure")]
     assert unsure == [(doc_id, "12-3456789") for doc_id in bad]
-    assert {r[TAX_ID] for r in results.status_rows() if r["doc_id"] in bad} == {"unsure"}
+    assert {r[TAX_ID] for r in results.status_rows() if r["document_id"] in bad} == {"unsure"}
     results.decide(ReviewDecision(doc_id=bad[0], path=TAX_ID, decision="accept"))
     assert Results.load(out).summary().with_problems == before - 1
     assert (out / REVIEWS).is_file()
@@ -248,7 +248,7 @@ def test_an_accept_of_a_field_that_has_no_value_now_is_not_shown_as_found(tmp_pa
     doc_id = sorted(failing(out))[0]  # its tax ID is missing, with no value
     append_line(out / REVIEWS, {"doc_id": doc_id, "path": TAX_ID, "decision": "accept", "value": None, "at": "then"})
     f = field(out, doc_id)
-    assert (f.status, f.value) == ("missing", None)
+    assert (f.status, f.value) == ("blank", None)
     assert Results.load(out).summary().with_problems == len(failing(out))
 
 

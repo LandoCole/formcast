@@ -48,7 +48,7 @@ import { createBus } from "../core/bus.js";
 import { makeView, viewSize } from "../core/geometry.js";
 import { PageView } from "../core/pageview.js";
 import { DETECT_SUM } from "./extract.js";
-import { REASON_KEY, checksOf, fieldSchema, fieldState, groupFields, outcomeLine, readFrom, rowProof, unusedName } from "./extract-model.js";
+import { categoryOf, REASON_KEY, checksOf, fieldSchema, fieldState, groupFields, outcomeLine, readFrom, rowProof, unusedName } from "./extract-model.js";
 
 /** What the screen says when the server no longer has the setup. */
 export const GONE = "This setup is no longer on the server; start again.";
@@ -61,8 +61,6 @@ const ZOOMS = [0.5, 0.67, 0.75, 0.9, 1, 1.1, 1.25, 1.5, 1.75, 2, 2.5, 3];
 /** The page images' resolution bounds (the server's). */
 const MIN_DPI = 36;
 const MAX_DPI = 200;
-/** The field's own name in a path: the last name, before any item numbers (`tax_id`, `name` of `owners[2].name`). */
-const LAST_NAME = /[^.[\]]+(?=(?:\[\d*\])*$)/;
 /** Where the fields started, as the strip names it. */
 const START_NAMES = { ai: "AI suggests", lines: "I'll list them", destination: "Destination" };
 /** The types a person can give a field (the edit's names) and how the inspector says them. */
@@ -211,6 +209,7 @@ export function mountSetup(app) {
   let redrawLater = false;
   let adding = false; // a line job is running
   let inspected = null; // the path the inspector was last drawn for
+  const renames = new Map(); // a path an edit renamed -> the field's path now
   /** @type {Map<string, {path: string, kind: string, answer: string | null, page: number, rect: number[], primary: boolean}>} */
   const shown = new Map(); // the page's box ids -> their marks
 
@@ -233,6 +232,7 @@ export function mountSetup(app) {
     app.extract.setMode("extract");
     marksToken += 1;
     Object.assign(state, { setup, batch: null, sample: 0, page: 0, marks: [], savedName, changed: false });
+    renames.clear();
     state.selected = firstPath();
     app.extract.showView("setup");
     loadBatch();
@@ -296,7 +296,8 @@ export function mountSetup(app) {
     return run;
   }
 
-  const edit = (op, opts) => change((id) => calls.edit(id, op), opts);
+  /** An edit, of the field `op.path` was when it was asked for: one before it on the way may have renamed it. */
+  const edit = (op, opts) => change((id) => calls.edit(id, { ...op, path: renames.get(op.path) ?? op.path }), opts);
 
   /** The Setup `next` in place of the screen's, the selection kept (or `select`, when it has that field). */
   function replace(next, select = null) {
@@ -304,6 +305,13 @@ export function mountSetup(app) {
     state.changed = true;
     state.revision += 1;
     app.notice("");
+    for (const [old, now] of Object.entries(next.renamed ?? {})) {
+      for (const [from, to] of renames) if (to === old) renames.set(from, now);
+      renames.delete(now);
+      renames.set(old, now);
+      if (state.selected === old) state.selected = now;
+      if (inspected === old) inspected = now; // the same field: what is typed in the inspector stays
+    }
     const paths = new Set(next.proof.fields.map((f) => f.path));
     if (select !== null && paths.has(select)) state.selected = select;
     else if (!paths.has(state.selected)) state.selected = firstPath();
@@ -411,12 +419,11 @@ export function mountSetup(app) {
         const st = fieldState(rowProof(r, proof));
         count += 1;
         if (st.state === "weak") weak += 1;
-        const name = r.generic.split(".").slice(1).join(".") || r.generic;
         const li = make(
           "li",
           { className: "fc-sl-leaf", tabIndex: 0, title: r.title },
           make("span", { className: "fc-sl-st", textContent: st.glyph }),
-          make("span", { className: "fc-sl-name", textContent: name }),
+          make("span", { className: "fc-sl-name", textContent: r.title }),
         );
         if (fieldSchema(schema(), r.path).required) li.append(make("span", { className: "fc-sl-req", textContent: "*", title: "Required" }));
         li.append(make("span", { className: "fc-sl-ty", textContent: st.text }));
@@ -505,18 +512,26 @@ export function mountSetup(app) {
 
     const dl = make("dl", { className: "fc-ins-dl" });
     const item = (label, control) => dl.append(make("dt", { textContent: label }), make("dd", {}, control));
-    const shownPath = row?.items ? row.generic : path;
-    const fieldName = shownPath.match(LAST_NAME)[0];
-    const name = make("input", { type: "text", className: "fc-in", id: "ins-name", value: fieldName, ariaLabel: "Name" });
-    commitOnChange(name, () => {
-      const renamed = name.value.trim();
-      return renamed !== fieldName && edit({ op: "rename_field", path, name: renamed }, { control: name.id, select: path.replace(LAST_NAME, () => renamed) });
-    });
-    const group = shownPath.slice(0, shownPath.lastIndexOf(fieldName));
-    item("Name", group ? make("div", {}, make("span", { className: "ins-group", textContent: group }), name) : name);
+    const follows = t.setup?.name_follows_title === true;
+    const movable = follows && !row?.items;
+    const category = make("input", { type: "text", className: "fc-in", id: "ins-category", value: categoryOf(schema(), path), ariaLabel: "Category", readOnly: !movable });
+    category.setAttribute("list", "ins-categories");
+    if (movable) commitOnChange(category, () => category.value.trim() !== categoryOf(schema(), path) && edit({ op: "set_category", path, category: category.value.trim() }, { control: category.id }));
+    else category.title = follows ? "A repeated group's field stays in its group." : "A saved template's fields keep their category, because it is part of their export column.";
+    const known = make("datalist", { id: "ins-categories" }, ...groups().filter((g) => g.group && !g.items[0].items).map((g) => new Option(g.group)));
+    item("Category", make("div", {}, category, known));
     const title = make("input", { type: "text", className: "fc-in", id: "ins-title", value: prop.title ?? "", ariaLabel: "Title" });
     commitOnChange(title, () => title.value.trim() !== (prop.title ?? "") && edit({ op: "set_field", path, title: title.value.trim() }, { control: title.id }));
     item("Title", title);
+    const name = make("span", { className: "ins-name", id: "ins-name", textContent: row?.items ? row.generic : path });
+    const update = state.setup.name_updates?.[path];
+    if (update === undefined) {
+      item("Name", name);
+    } else {
+      const button = make("button", { type: "button", className: "btn quiet small", id: "ins-update-name", textContent: "Update name" });
+      button.addEventListener("click", () => edit({ op: "rename_field", path, name: update }));
+      item("Name", make("div", {}, name, button, hint("Changing the Name changes the export column.")));
+    }
     item("Type", typeSelect(path, prop));
     if (row?.items) {
       const pickItem = make("select", { className: "fc-in", id: "ins-item", ariaLabel: "Item" });
@@ -830,7 +845,8 @@ export function mountSetup(app) {
       for (let k = 2; shown.has(id); k++) id = `${base}~${k}`;
       shown.set(id, { path: m.path, kind: m.kind, answer: m.answer ?? null, page: m.page, rect: m.rect, primary: primaries.has(m) });
       const words = m.kind === "option" ? `the ${m.answer} checkbox` : KIND_WORDS[m.kind];
-      fields.push({ id, type: "text", page: m.page, rect: m.rect, label: `${m.path}, ${words}`, source: { paths: [m.path] }, origin: "human" });
+      const title = rowOf(m.path)?.title ?? m.path;
+      fields.push({ id, type: "text", page: m.page, rect: m.rect, label: `${title}, ${words}`, tag: title, source: { paths: [m.path] }, origin: "human" });
     }
     view.setTemplate({ fields });
     view.select(primaryOf(state.selected));
@@ -1031,9 +1047,11 @@ export function mountSetup(app) {
       await queue; // the changes on their way are part of what is saved
       const s = state.setup;
       if (s === null) return;
-      await calls.save(name, s.id);
+      const saved = await calls.save(name, s.id);
+      if (state.setup?.id === s.id && saved?.setup) state.setup = saved.setup; // its names no longer follow its titles
       state.savedName = name;
       state.changed = false;
+      renderInspector();
       saveBox.hidden = true;
       app.notice(`Saved “${name}”, with its ${plural(s.samples.length, "sample")}.`);
       settlePrompt(name);

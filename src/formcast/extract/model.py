@@ -43,9 +43,9 @@ from formcast.schema import ARRAY_ITEM, _normalize, flatten_schema, format_path,
 from formcast.template.model import FormInfo
 
 #: The columns every exported row starts with.
-_DOC_COLUMNS = ("doc_id", "file", "template", "matched", "extracted_at")
-#: The column ``export(names=...)`` adds after ``doc_id``: the name a person knows each document by.
-NAME_COLUMN = "name"
+_DOC_COLUMNS = ("document_id", "document_file", "document_template", "document_match", "document_extracted_at")
+#: The column ``export(names=...)`` adds after ``document_id``: the name a person knows each document by.
+NAME_COLUMN = "document_name"
 #: The names a top-level field cannot have: its export column would be one of the document's own.
 RESERVED_NAMES = (*_DOC_COLUMNS, NAME_COLUMN)
 
@@ -241,6 +241,7 @@ class SetupInfo(_Model):
     ocr: Literal["auto", "never"] = "auto"
     vision: bool = True
     sample_how: str = ""
+    name_follows_title: bool = False  # a field's name is remade when its title changes, until the template is saved
 
 
 class SampleRecord(_Model):
@@ -290,10 +291,14 @@ class ExtractionTemplate(_Model):
 
 # --------------------------------------------------------------------- results
 
-Status = Literal["found", "unsure", "failed_check", "missing", "absent", "not_on_form"]
+#: How a field ended. ``blank``: its label, box or form field is on the document, with nothing in it. ``not_located``:
+#: none of them could be found. ``missing``: no value, in a run made before those two were told apart.
+Status = Literal["found", "unsure", "failed_check", "blank", "not_located", "missing", "absent", "not_on_form"]
 
 #: Statuses whose value is part of the document's record.
 _HAS_VALUE = ("found", "unsure", "failed_check")
+#: Statuses of a field the form should have answered and that has no value.
+_NO_VALUE = ("blank", "not_located", "missing")
 
 
 class FieldResult(_Model):

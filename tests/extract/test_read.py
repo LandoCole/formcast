@@ -18,6 +18,7 @@ from formcast.extract.model import (
     ExtractionTemplate,
     Layout,
     Reader,
+    WidgetRead,
     concrete_paths,
 )
 from formcast.extract.page import DocText
@@ -172,7 +173,7 @@ def test_a_fillable_copy_whose_widget_disagrees_with_its_drawn_text_is_unsure(te
 def test_a_missing_required_field_is_missing_with_a_reason(template, kind):
     client = dataclasses.replace(CLIENT, tax_id="")
     tax_id = fields(extract(template, make_form(client, kind=kind)))["investor.tax_id"]
-    assert tax_id.status == "missing" and tax_id.raw is None and tax_id.value is None
+    assert tax_id.status == "blank" and tax_id.raw is None and tax_id.value is None
     assert tax_id.reasons == ["'tax_id' is a required property"]
 
 
@@ -211,9 +212,9 @@ def test_a_blank_form_reports_the_required_tax_id_missing(template):
     result = extract(template, make_form(None, kind="fillable"))
     assert result.matched == "fingerprint"  # the template's form is the blank's
     got = fields(result)
-    assert got["investor.tax_id"].status == "missing"
+    assert got["investor.tax_id"].status == "blank"
     assert got["investor.tax_id"].reasons == ["'tax_id' is a required property"]
-    assert got["investor.legal_name"].status == "missing" and got["investor.legal_name"].reasons == []
+    assert got["investor.legal_name"].status == "blank" and got["investor.legal_name"].reasons == []
     assert all(got[f"owners[{i}].name"].status == "absent" for i in range(OWNER_ROWS))
 
 
@@ -229,7 +230,7 @@ def test_two_checked_type_boxes_fail_the_enum_check(template, kind):
 
 def test_no_checked_type_box_reads_nothing(template):
     kind_of = fields(extract(template, make_form(CLIENT, kind="flattened", checked=())))["investor.type"]
-    assert (kind_of.status, kind_of.raw) == ("missing", None)
+    assert (kind_of.status, kind_of.raw) == ("blank", None)
 
 
 def test_a_label_found_twice_makes_the_anchor_read_unsure(template):
@@ -256,6 +257,23 @@ def test_a_copy_that_words_the_label_differently_reads_by_its_other_wording(temp
     assert (tax_id.status, tax_id.strategy, tax_id.value) == ("found", "anchor", "84-2219037")
 
 
+def test_no_value_is_blank_where_the_place_was_found_and_not_located_where_it_was_not(template):
+    readers = dict(template.readers)
+    anchored = {
+        "investor.legal_name": Reader(strategies=[AnchorRead(labels=["Investor legal name"])]),  # on the form, unanswered
+        "investor.dob": Reader(strategies=[AnchorRead(labels=["No such printed words"])]),
+        "address.street": Reader(strategies=[WidgetRead(names=["no_such_form_field"])]),
+    }
+    del readers["investor.country"]
+    edited = template.model_copy(update={"readers": {**readers, **anchored}})
+    got = fields(extract(edited, make_form(dataclasses.replace(CLIENT, legal_name=""), kind="flattened")))
+    assert got["investor.legal_name"].status == "blank"
+    assert got["investor.dob"].status == "not_located"
+    assert got["address.street"].status == "not_located"
+    assert got["investor.country"].status == "not_located"  # a field no reader reads has no place on the document
+    assert got["investor.country"].reasons == ["the template has no reader for this field"]
+
+
 def test_on_an_unmatched_layout_label_reads_are_unsure_and_boxes_do_not_run(template):
     unmatched = template.model_copy(update={"layout": Layout(lines=[], page_sizes=[])})
     result = extract(unmatched, make_form(CLIENT, kind="flattened"))
@@ -265,7 +283,7 @@ def test_on_an_unmatched_layout_label_reads_are_unsure_and_boxes_do_not_run(temp
     assert got["investor.tax_id"].reasons == ["layout not matched"]
     assert got["wire.account"].status == "unsure" and got["wire.account"].reasons == ["layout not matched"]
     assert got["owners[0].name"].status == "absent"  # read by widget or box only: neither runs here
-    assert got["investor.type"].status == "missing"  # drawn boxes are places on a matching layout only
+    assert got["investor.type"].status == "not_located"  # drawn boxes are places on a matching layout only
     assert not any(f.status == "found" for f in result.fields)
 
 
@@ -301,7 +319,7 @@ def test_a_check_on_a_later_owner_row_lands_on_that_row(template):
     assert got["owners[1].name"].status == "found"
     assert got["owners[1].percent"].status == "failed_check" and got["owners[1].percent"].raw == "4O%"
     assert any("does not match" in r for r in got["owners[1].percent"].reasons)
-    assert got["owners[2].name"].status == "missing"
+    assert got["owners[2].name"].status == "blank"
     assert got["owners[2].name"].reasons == ["'name' is a required property"]
     assert got["owners[2].percent"].status == "found" and got["owners[2].percent"].reasons == []
     assert got["owners[3].name"].status == "absent"
@@ -435,7 +453,7 @@ def test_the_doc_id_defaults_to_the_blind_fingerprint(template):
 def test_a_blank_street_does_not_read_the_city_line_under_it(template, kind):
     client = dataclasses.replace(clients(3)[0], street="")
     got = fields(extract(template, make_form(client, kind=kind)))
-    assert (got["address.street"].status, got["address.street"].raw) == ("missing", None)
+    assert (got["address.street"].status, got["address.street"].raw) == ("blank", None)
     assert (got["address.city_state_zip"].status, got["address.city_state_zip"].value) == (
         "found", client.city_state_zip,
     )  # fmt: skip
@@ -445,7 +463,7 @@ def test_an_anchor_read_never_takes_the_forms_printed_words(template):
     # right of "Investor type:" there are only the printed option labels: on a matched layout nothing is read
     reads_type_row = with_reader(template, "investor.legal_name", AnchorRead(labels=["Investor type"], page=0))
     got = fields(extract(reads_type_row, make_form(CLIENT, kind="flattened", checked=())))["investor.legal_name"]
-    assert (got.status, got.raw) == ("missing", None)
+    assert (got.status, got.raw) == ("blank", None)
     # on an unmatched layout the form's printed words are not known, and the read is unsure, never found
     unmatched = reads_type_row.model_copy(update={"layout": Layout(lines=[], page_sizes=[])})
     got = fields(extract(unmatched, make_form(CLIENT, kind="flattened", checked=())))["investor.legal_name"]
@@ -480,8 +498,8 @@ def test_a_blank_answer_before_a_printed_label_reads_nothing_on_a_matched_layout
     result = extract(contact, filled)
     got = fields(result)
     assert result.matched == "layout"
-    assert (got["phone"].status, got["phone"].raw) == ("missing", None)  # not "Fax 555 0100"
-    assert (got["street"].status, got["street"].raw) == ("missing", None)  # not "City, state and ZIP"
+    assert (got["phone"].status, got["phone"].raw) == ("blank", None)  # not "Fax 555 0100"
+    assert (got["street"].status, got["street"].raw) == ("blank", None)  # not "City, state and ZIP"
     assert (got["fax"].status, got["fax"].value) == ("found", "555 0100")
 
 
@@ -519,7 +537,7 @@ def test_two_labels_printed_as_one_line_each_read_their_own_answer(template, col
     if "fax" in paths:
         assert (got["fax"].status, got["fax"].value) == ("found", "555 0100")
     got = fields(extract(contact, _joined_contact_form("", "555 0100", colon=colon)))
-    assert (got["phone"].status, got["phone"].raw) == ("missing", None)  # a blank phone does not read the fax
+    assert (got["phone"].status, got["phone"].raw) == ("blank", None)  # a blank phone does not read the fax
 
 
 def test_an_anchor_read_that_another_field_also_read_is_unsure_and_so_is_the_other(template):
@@ -564,7 +582,7 @@ def test_a_box_whose_neighbourhood_moved_gives_way_to_the_label_read(template, e
     # with no label to fall back on, the field is missing and says why
     box_only = with_reader(template, "investor.tax_id", template.readers["investor.tax_id"].strategies[1])
     tax_id = fields(extract(box_only, pdf))["investor.tax_id"]
-    assert (tax_id.status, tax_id.raw) == ("missing", None)
+    assert (tax_id.status, tax_id.raw) == ("not_located", None)
     assert "layout differs near this box" in tax_id.reasons
     # a fillable copy of the same edition still reads its widgets, all found
     assert_reads(extract(template, make_form(client, kind="fillable", edition=edition)), client)
@@ -579,7 +597,7 @@ def test_an_answer_that_runs_into_the_next_label_is_missing_and_says_so(template
         readers={"name": Reader(strategies=[AnchorRead(labels=["Name"], page=0)])},
     )  # fmt: skip
     got = fields(extract(named, doc.tobytes()))["name"]
-    assert (got.status, got.raw, got.reasons) == ("missing", None, ["answer runs into the next label"])
+    assert (got.status, got.raw, got.reasons) == ("blank", None, ["answer runs into the next label"])
 
 
 def edge_copies() -> list[tuple[str, bytes, Client]]:
@@ -622,7 +640,7 @@ def test_the_corpus_reads_with_no_wrong_found_value(template, corpus_dir):
             if field.status == "found":
                 assert field.value == want.get(field.path), (name, field)
             if field.path not in want:
-                assert field.status in ("missing", "absent"), (name, field)
+                assert field.status in ("blank", "absent"), (name, field)
         if name.startswith(tuple(edition_scores)):
             with DocText(pdf) as doc:
                 edition_scores[name.split("_")[0]].append(layout_score(template.layout, doc))
@@ -710,13 +728,13 @@ def test_a_lone_check_box_on_a_yes_no_path_reads_true_when_marked_and_false_when
 def test_a_lone_check_box_on_a_text_path_still_reads_its_key_or_nothing(template):
     consent = _consent_template(template, "string", ChoiceRead(options={"yes": ChoiceMark(page=0, rect=CONSENT_BOX)}))
     assert fields(extract(consent, _consent_form("flattened", True)))["consent"].value == "yes"
-    assert fields(extract(consent, _consent_form("flattened", False)))["consent"].status == "missing"
+    assert fields(extract(consent, _consent_form("flattened", False)))["consent"].status == "blank"
 
 
 def test_a_lone_check_box_the_document_lacks_reads_nothing_not_false(template):
     consent = _consent_template(template, "boolean", ChoiceRead(options={"yes": ChoiceMark(widget="consent")}))
     got = fields(extract(consent, _consent_form("flattened", True)))["consent"]  # a flattened copy has no widget
-    assert (got.status, got.raw) == ("missing", None)
+    assert (got.status, got.raw) == ("not_located", None)
 
 
 @pytest.mark.parametrize("key", ["false", "No"])
@@ -734,7 +752,7 @@ def test_a_lone_box_whose_key_is_not_yes_or_no_reads_its_key_or_nothing_on_a_yes
     got = fields(extract(consent, _consent_form("flattened", True)))["consent"]
     assert (got.raw, got.status) == ("accept", "failed_check")  # the key, which is not a yes or no
     got = fields(extract(consent, _consent_form("flattened", False)))["consent"]
-    assert (got.status, got.raw) == ("missing", None)
+    assert (got.status, got.raw) == ("blank", None)
 
 
 #: The rows of :func:`_rows_form`: each a name box and a check box, one row under another.
@@ -783,5 +801,5 @@ def test_an_empty_row_with_an_unmarked_lone_box_is_absent_and_a_row_with_only_it
     assert (got["holders[1].signer"].value, got["holders[1].signer"].raw) == (None, None)
     # only the box marked: the row is there, its name missing
     assert (got["holders[2].signer"].status, got["holders[2].signer"].value) == ("found", True)
-    assert got["holders[2].name"].status == "missing"
+    assert got["holders[2].name"].status == "blank"
     assert result.record() == {"holders": [{"name": "Dana Keller", "signer": False}, {"signer": True}]}

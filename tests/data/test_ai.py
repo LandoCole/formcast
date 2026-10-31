@@ -68,6 +68,17 @@ def test_derive_schema_is_told_the_reserved_names_only_when_given_them(form):
     assert system.rstrip().endswith(reply)  # the reply format is last
 
 
+def test_derive_schema_asks_for_titles_and_flat_fields_only_when_asked(form):
+    pdf, fm = form
+    reply = '{"schema": {"type": "object", "properties": {"holder": {"type": "string"}}}}'
+    plain, asked = Scripted(reply), Scripted(reply)
+    derive_schema(pdf, plain, form_map=fm)
+    derive_schema(pdf, asked, form_map=fm, flat_fields=True)
+    assert plain.calls[0][0].content == DERIVE_SYSTEM
+    words = " ".join(asked.calls[0][0].content.split())
+    assert 'Give every property a short "title"' in words and "never put an object inside an object" in words
+
+
 def test_derive_schema_asks_for_required_levels_only_when_asked(form):
     pdf, fm = form
     reply = '{"schema": {"type": "object", "properties": {"name": {"type": "string"}}}}'

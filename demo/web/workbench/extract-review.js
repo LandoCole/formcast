@@ -24,24 +24,24 @@
 //
 // The review, as the mockup lays it out. Its numbers (#stats: the documents, the complete ones, the ones with a
 // required problem, the complete ones with an optional problem only, the ones set aside and the run time, `runStats`)
-// are the Run's summary, updated by every decision. Under them the By field table (#field-table, `fieldTable`): a row
-// per field, the required ones first and marked, a repeated group's items folded into one, with how many documents
-// found it, have it missing, failing a check or unsure, and how many were reviewed; a row clicked sets the field
-// filter to that field (a folded row's `owners[].name` filters every item). On the left the documents that still
+// are the Run's summary, updated by every decision. See details beside them opens #field-details, only to read and
+// close (`fieldBreakdown`): the run's totals, then a row per field, required ones first, the most problems first in
+// each level, a repeated group's items folded into one, with a bar of how its values ended, the share found and how
+// many were found, blank, not located, doubtful, failing a check, not applicable and reviewed. On the left the documents that still
 // have problems (#docs, `engine.extract.problems`, 50 at a time, More for the next 50) in two sections, switched above
 // the list (#level-pick, `levelSwitch`, with how many documents each lists): Required, first, lists the documents with
 // a required problem and shows only their required problems; Optional the documents with an optional problem
 // (complete or not), only those, each card with why the field is optional, under a note (#optional-note) that they
 // never stop a document from being complete. The field and problem filters apply inside the section; a field picked
-// (in the filter or the By field table) shows the section it is in. The problem filter's "Set aside" lists the
+// in the filter shows the section it is in. The problem filter's "Set aside" lists the
 // documents not read instead (`engine.extract.setAside`), each with why and the closest template, and the sections
 // wait meanwhile. The middle column is the chosen document's
 // page (`runPageUrl`, ‹ › through its pages, the setup screen's zoom: `mountZoom`) with the place each problem field was
-// read, or looked for, outlined (`rect`, in points from the page's top left). The results have no place for a field left
-// missing or read from a form field, so choosing a document asks the server where the template says they should be
+// read, or looked for, outlined (`rect`, in points from the page's top left). The results have no place for a field with
+// no value or read from a form field, so choosing a document asks the server where the template says they should be
 // (`engine.extract.places`, `locate`). Picking a card goes to its field's page and scrolls to it, highlighted with a
-// tag: "Should be here" for a missing field, otherwise the problem ("Unsure", "Fails a check"). A field with no place at
-// all (its label isn't on the document, say) has nothing to point at; the caption says so. A page image that
+// tag: "Should be here" for a field with no value, otherwise the problem ("Doubtful", "Fails a check"). A field with no
+// place at all (its label isn't on the document, say) has nothing to point at; the caption says so. A page image that
 // fails is asked for again through the engine (`runPage`) to learn why: a 404 past page 1 is past the document's last
 // page, so › stops there; anything else says so under the page with Try again. On the right a card
 // per problem (#problems): the field's title, the problem, what was read and why it is a problem, and the decisions:
@@ -64,7 +64,7 @@
 // back once they can), and opens a command line run's folder on the server's machine by its path (#run-folder).
 
 import { downloadBytes } from "../core/store.js";
-import { FIELD_COUNTS, asideLine, decisionText, docLine, fieldTable, levelSwitch, markTag, problemLabel, reprocessNote, runLine, runStats, sendNotice } from "./extract-model.js";
+import { asideLine, decisionText, docLine, fieldBreakdown, fieldTable, levelSwitch, markTag, noValue, problemLabel, problemName, reprocessNote, runLine, runStats, sendNotice } from "./extract-model.js";
 import { mountZoom } from "./extract-setup.js";
 import { showStages } from "./jobs.js";
 
@@ -82,8 +82,6 @@ const number = (n) => Number(n ?? 0).toLocaleString("en-US");
 const plural = (n, word, many = `${word}s`) => `${number(n)} ${n === 1 ? word : many}`;
 const pct = (fraction) => `${fraction * 100}%`;
 const keyOf = (docId, path) => `${docId}\n${path}`;
-/** The By field table's column headings, for FIELD_COUNTS. */
-const COUNT_HEADS = { found: "Found", missing: "Missing", failed_check: "Fails a check", unsure: "Unsure", reviewed: "Reviewed" };
 
 /** An element with `props` set and `children` appended. */
 function make(tag, props = {}, ...children) {
@@ -152,6 +150,7 @@ export function mountReview(app) {
   const hideOverlays = () => {
     for (const o of document.querySelectorAll(".overlay")) o.hidden = true;
   };
+  const seeDetails = $("see-details");
   const isAside = () => state.status === "set_aside";
   const isOptional = () => !isAside() && state.level === "optional";
   const docOf = (docId) => state.docs.find((d) => d.doc_id === docId) ?? null;
@@ -273,10 +272,12 @@ export function mountReview(app) {
     const fieldPick = $("filter-path");
     fieldPick.replaceChildren(
       new Option("Every field", ""),
-      ...fieldTable(run.fields).map((row) => Object.assign(new Option(row.path, row.path), { title: row.title })),
+      ...fieldOptions(fieldTable(run.fields)),
     );
     fieldPick.disabled = false;
     $("filter-status").value = "";
+    const missing = $("filter-missing"); // only a run made before Blank and Not located were told apart has it
+    missing.hidden = missing.disabled = !state.run.fields.some((f) => f.missing > 0);
     app.notice("");
     app.extract.showView("review");
     renderToolbar();
@@ -286,21 +287,30 @@ export function mountReview(app) {
     list();
   }
 
+  /** The field filter's options for `rows`: each field's title, with its path when another field has the same title. */
+  function fieldOptions(rows) {
+    const taken = (title) => rows.filter((r) => r.title === title).length > 1;
+    return rows.map((row) => new Option(taken(row.title) ? `${row.title} (${row.path})` : row.title, row.path));
+  }
+
+  /** The numbers `stats` ({key, value, label}), as the review's tiles. */
+  function statTiles(stats) {
+    return stats.map((s) => {
+      const el = make("div", { className: "stat" }, make("b", { textContent: s.value }), make("span", { textContent: s.label }));
+      el.dataset.stat = s.key;
+      return el;
+    });
+  }
+
   function renderToolbar() {
     const run = state.run;
     $("doc-pick").textContent = [run.name, plural(run.summary.total, "document"), run.extraction].join(" · ");
   }
 
   function renderStats() {
-    $("stats").replaceChildren(
-      ...runStats(state.run.summary).map((s) => {
-        const el = make("div", { className: "stat" }, make("b", { textContent: s.value }), make("span", { textContent: s.label }));
-        el.dataset.stat = s.key;
-        return el;
-      }),
-    );
+    $("stats").replaceChildren(...statTiles(runStats(state.run.summary)), seeDetails);
+    seeDetails.hidden = state.run.fields.length === 0;
     renderLevels();
-    renderFieldTable();
   }
 
   /** The section switch, with how many documents each section lists, and the Optional section's note. */
@@ -329,45 +339,71 @@ export function mountReview(app) {
     return row.required ? "required" : "optional";
   }
 
-  /** The By field table: a row per field (folded as the field filter is), its counts; a click filters by it. */
-  function renderFieldTable() {
-    const rows = fieldTable(state.run.fields);
-    $("by-field").hidden = rows.length === 0;
-    $("by-field-sum").textContent = plural(rows.length, "field");
-    const heads = ["Field", "Required", ...FIELD_COUNTS.map((k) => COUNT_HEADS[k])];
-    const head = make("tr", {}, ...heads.map((text) => make("th", { scope: "col", textContent: text })));
-    const body = rows.map((row) => {
-      const where = row.items === null ? row.path : `${row.path} · ${plural(row.items, "item")}`;
-      const name = make("th", { scope: "row", textContent: row.title }, make("small", { textContent: where }));
-      const tr = make("tr", { tabIndex: 0, className: row.path === state.path ? "on" : "", title: "Show the documents with a problem in this field" }, name);
-      const mark = make("td", { textContent: row.required ? "✓" : "", title: row.reason });
-      tr.append(mark, ...FIELD_COUNTS.map((k) => make("td", { textContent: number(row[k]) })));
-      tr.dataset.path = row.path;
-      tr.addEventListener("click", () => filterBy(row.path));
-      tr.addEventListener("keydown", (e) => {
-        if (e.key !== "Enter" && e.key !== " ") return;
-        e.preventDefault();
-        filterBy(row.path);
-      });
-      return tr;
-    });
-    $("field-table").replaceChildren(make("thead", {}, head), make("tbody", {}, ...body));
+  /** See details: the run's totals and each field's results, to read and close. */
+  function renderDetails() {
+    const { tiles, key, sections } = fieldBreakdown(state.run.fields);
+    const { complete, with_problems: withProblems } = state.run.summary;
+    $("details-what").textContent = `${plural(sections.reduce((n, s) => n + s.rows.length, 0), "field")} read from ${plural(complete + withProblems, "document")}. A value is one field on one document.`;
+    $("details-tiles").replaceChildren(...statTiles(tiles));
+    $("details-key").replaceChildren(
+      ...key.map((part) => {
+        const item = make("li", { textContent: part.label });
+        item.dataset.part = part.key;
+        return item;
+      }),
+    );
+    $("details-sections").replaceChildren(...sections.map(detailsSection));
   }
 
-  /** Set the field filter to `path` (a row of the By field table), every problem of it in its section, and list again. */
-  function filterBy(path) {
-    if (state.status === "set_aside") {
-      state.status = "";
-      $("filter-status").value = "";
-      $("filter-path").disabled = false;
-    }
-    state.path = path;
-    state.level = levelOf(path);
-    $("filter-path").value = path;
-    renderLevels();
-    renderFieldTable();
-    list();
+  /** A section of See details: its heading and its table. */
+  function detailsSection(section) {
+    const heads = ["Field", "Results", "Found %", ...section.rows[0].parts.map((p) => p.label), "Reviewed"];
+    const head = make("tr", {}, ...heads.map((text) => make("th", { scope: "col", textContent: text })));
+    const table = make("table", { className: "field-table" }, make("thead", {}, head), make("tbody", {}, ...section.rows.map(detailsRow)));
+    table.ariaLabel = section.label;
+    return make("div", { className: "details-section" }, make("h3", { className: "label", textContent: `${section.label} · ${section.rows.length}` }), table);
   }
+
+  /** A row of See details: the field, why it has its level, a bar of how its values ended and their counts. */
+  function detailsRow(row) {
+    const name = make("th", { scope: "row", textContent: row.title });
+    if (row.items !== null) name.append(make("small", { textContent: plural(row.items, "item") }));
+    if (row.reason) name.append(make("small", { textContent: row.reason }));
+    const counted = row.parts.filter((p) => p.n > 0);
+    const total = counted.reduce((sum, p) => sum + p.n, 0);
+    const bar = make("div", { className: "value-bar", role: "img" });
+    bar.ariaLabel = counted.map((p) => `${p.label} ${number(p.n)}`).join(", ") || "No values";
+    for (const part of counted) {
+      const piece = make("span", { title: `${part.label}: ${number(part.n)} of ${number(total)}` });
+      piece.dataset.part = part.key;
+      piece.style.flexGrow = String(part.n);
+      bar.append(piece);
+    }
+    const counts = [...row.parts.map((p) => p.n), row.reviewed].map((n) => make("td", { textContent: number(n) }));
+    const tr = make("tr", {}, name, make("td", {}, bar), make("td", { textContent: row.foundText }), ...counts);
+    tr.dataset.path = row.path;
+    return tr;
+  }
+
+  function openDetails() {
+    renderDetails();
+    $("field-details").hidden = false;
+    $("details-close").focus();
+  }
+
+  function closeDetails() {
+    $("field-details").hidden = true;
+    seeDetails.focus();
+  }
+
+  seeDetails.addEventListener("click", openDetails);
+  $("details-close").addEventListener("click", closeDetails);
+  $("field-details").addEventListener("click", (e) => {
+    if (e.target === e.currentTarget) closeDetails();
+  });
+  $("field-details").addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeDetails();
+  });
 
   // ------------------------------------------------------------------ back to the setup, and to the review
 
@@ -540,7 +576,6 @@ export function mountReview(app) {
     state.path = $("filter-path").value;
     state.level = levelOf(state.path);
     renderLevels();
-    renderFieldTable();
     list();
   });
   $("filter-status").addEventListener("change", () => {
@@ -626,7 +661,7 @@ export function mountReview(app) {
       if (p.page !== state.page || !p.rect) continue;
       const [x0, y0, x1, y1] = p.rect;
       const picked = p.path === state.problem;
-      const mark = make("div", { className: `rmark${p.status === "missing" ? " is-missing" : ""}${picked ? " is-picked" : ""}`, title: p.title });
+      const mark = make("div", { className: `rmark${noValue(p.status) ? " is-missing" : ""}${picked ? " is-picked" : ""}`, title: p.title });
       mark.dataset.path = p.path;
       Object.assign(mark.style, { left: pct(x0 / width), top: pct(y0 / height), width: pct((x1 - x0) / width), height: pct((y1 - y0) / height) });
       if (picked) mark.append(make("span", { className: "rtag", textContent: markTag(p.status) }));
@@ -716,8 +751,7 @@ export function mountReview(app) {
     const el = make(
       "div",
       { className: `problem${p.path === state.problem ? " on" : ""}` },
-      make("div", { className: "head" }, make("b", { textContent: p.title }), ` · ${problemLabel(p.status)}`),
-      make("p", { className: "fc-ins-hint", textContent: p.path }),
+      make("div", { className: "head" }, make("b", { textContent: problemName(p) }), ` · ${problemLabel(p.status)}`),
       make("p", { className: "fc-ins-hint" }, "Read: ", make("code", { textContent: p.raw || "nothing" }), reasons),
     );
     if (p.required === false) {

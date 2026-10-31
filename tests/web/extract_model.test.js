@@ -11,6 +11,8 @@ import {
   docLine,
   fieldSchema,
   fieldState,
+  categoryOf,
+  fieldBreakdown,
   fieldTable,
   groupFields,
   levelSwitch,
@@ -164,15 +166,15 @@ const PROOF = { fields: PATHS.map((path) => proof(times(5, () => sample("agree")
 
 test("groupFields groups by the top-level key and folds a repeated group's items into one row each", () => {
   const groups = groupFields(PROOF, SCHEMA);
-  assert.deepEqual(groups.map((g) => g.group), ["investor", "owners[ ] · up to 4", "wire", ""]);
+  assert.deepEqual(groups.map((g) => g.group), ["Investor", "Owners · up to 4", "Wire", ""]);
   assert.deepEqual(groups[0].items, [
     { path: "investor.legal_name", title: "Investor legal name", generic: "investor.legal_name", items: null, paths: ["investor.legal_name"] },
     { path: "investor.tax_id", title: "Taxpayer ID", generic: "investor.tax_id", items: null, paths: ["investor.tax_id"] },
-    { path: "investor.type", title: "type", generic: "investor.type", items: null, paths: ["investor.type"] },
+    { path: "investor.type", title: "Type", generic: "investor.type", items: null, paths: ["investor.type"] },
   ]);
   assert.deepEqual(groups[1].items, [
     { path: "owners[0].name", title: "Beneficial owner name", generic: "owners[].name", items: 4, paths: ["owners[0].name", "owners[1].name", "owners[2].name", "owners[3].name"] },
-    { path: "owners[0].percent", title: "percent", generic: "owners[].percent", items: 4, paths: ["owners[0].percent", "owners[1].percent", "owners[2].percent", "owners[3].percent"] },
+    { path: "owners[0].percent", title: "Percent", generic: "owners[].percent", items: 4, paths: ["owners[0].percent", "owners[1].percent", "owners[2].percent", "owners[3].percent"] },
   ]);
   assert.deepEqual(groups[3].items.map((r) => r.path), ["note"]);
 });
@@ -181,7 +183,7 @@ test("a repeated group without maxItems has 4 items, as the library gives it", (
   const schema = { type: "object", properties: { refs: { type: "array", items: { type: "object", properties: { phone: { type: "string" } } } } } };
   const paths = [0, 1, 2, 3].map((i) => `refs[${i}].phone`);
   const groups = groupFields({ fields: paths.map((path) => proof([], { path })) }, schema);
-  assert.deepEqual(groups.map((g) => [g.group, g.items.length, g.items[0].items]), [["refs[ ] · up to 4", 1, 4]]);
+  assert.deepEqual(groups.map((g) => [g.group, g.items.length, g.items[0].items]), [["Refs · up to 4", 1, 4]]);
 });
 
 test("rowProof is a plain row's own FieldProof", () => {
@@ -222,7 +224,9 @@ test("fieldSchema finds a concrete path's schema and whether it is required", ()
 test("problemLabel names each problem status", () => {
   assert.equal(problemLabel("missing"), "Missing");
   assert.equal(problemLabel("failed_check"), "Fails a check");
-  assert.equal(problemLabel("unsure"), "Unsure");
+  assert.equal(problemLabel("unsure"), "Doubtful");
+  assert.equal(problemLabel("blank"), "Blank");
+  assert.equal(problemLabel("not_located"), "Not located");
 });
 
 const BATCH = {
@@ -345,10 +349,11 @@ test("runTime is minutes and seconds, with hours past the hour", () => {
 
 test("docLine names a document's open problems, two by name and more as the first and a count, or all settled", () => {
   const problems = [{ path: "investor.tax_id" }, { path: "wire.account" }, { path: "investor.type" }];
-  assert.equal(docLine(problems.slice(0, 1)), "1 problem: investor.tax_id");
-  assert.equal(docLine(problems.slice(0, 2)), "2 problems: investor.tax_id, wire.account");
-  assert.equal(docLine(problems), "3 problems: investor.tax_id +2 others");
-  assert.equal(docLine(problems, new Set(["investor.tax_id", "investor.type"])), "1 problem: wire.account");
+  assert.equal(docLine(problems.slice(0, 1)), "1 problem: Tax id");
+  assert.equal(docLine(problems.slice(0, 2)), "2 problems: Tax id, Account");
+  assert.equal(docLine(problems), "3 problems: Tax id +2 others");
+  assert.equal(docLine(problems, new Set(["investor.tax_id", "investor.type"])), "1 problem: Account");
+  assert.equal(docLine([{ path: "investor.tax_id", title: "Taxpayer ID" }, { path: "owners[2].name", title: "Owner name" }]), "2 problems: Taxpayer ID, Owner name, item 3");
   assert.equal(docLine(problems, new Set(problems.map((p) => p.path))), "all settled");
 });
 
@@ -398,11 +403,85 @@ test("fieldTable gives the review's By field rows, a repeated group's items fold
     { path: "owners[1].percent", title: "owners[1].percent", required: true, required_reason: "", ...counts(5, 1) },
   ];
   assert.deepEqual(fieldTable(fields), [
-    { path: "investor.tax_id", title: "Taxpayer ID", items: null, required: true, reason: "the form says so", found: 20, missing: 2, failed_check: 1, unsure: 0, reviewed: 1 },
-    { path: "owners[].name", title: "Owner name", items: 2, required: true, reason: "", found: 13, missing: 4, failed_check: 0, unsure: 2, reviewed: 2 },
-    { path: "owners[].percent", title: "owners[].percent", items: 2, required: true, reason: "", found: 15, missing: 1, failed_check: 0, unsure: 0, reviewed: 0 },
-  ]); // a title that is only the path is the folded path
+    { path: "investor.tax_id", title: "Taxpayer ID", items: null, required: true, reason: "the form says so", found: 20, blank: 0, not_located: 0, missing: 2, failed_check: 1, unsure: 0, not_on_form: 0, absent: 0, reviewed: 1 },
+    { path: "owners[].name", title: "Owner name", items: 2, required: true, reason: "", found: 13, blank: 0, not_located: 0, missing: 4, failed_check: 0, unsure: 2, not_on_form: 0, absent: 0, reviewed: 2 },
+    { path: "owners[].percent", title: "Percent", items: 2, required: true, reason: "", found: 15, blank: 0, not_located: 0, missing: 1, failed_check: 0, unsure: 0, not_on_form: 0, absent: 0, reviewed: 0 },
+  ]); // a title that is only the path is the field's own name in words
   assert.deepEqual(fieldTable([]), []);
+});
+
+test("fieldBreakdown sections the fields by level, the most problems first, with each field's results and the run's totals", () => {
+  const field = (path, required, counts, reason = "") => ({ path, title: path, required, required_reason: reason, found: 0, blank: 0, not_located: 0, missing: 0, failed_check: 0, unsure: 0, not_on_form: 0, absent: 0, reviewed: 0, ...counts });
+  const b = fieldBreakdown([
+    field("a", true, { found: 20 }),
+    field("b", true, { found: 16, blank: 1, not_located: 1, unsure: 1, failed_check: 1, reviewed: 1 }, "the form says so"),
+    field("c", false, { found: 5, blank: 15 }),
+    field("d[0].x", false, { found: 1, unsure: 1 }),
+    field("d[1].x", false, { found: 1, not_located: 1 }),
+    field("e", false, { not_on_form: 15, absent: 5 }),
+  ]);
+  assert.deepEqual(b.sections.map((s) => [s.level, s.label, s.rows.map((r) => r.path)]), [
+    ["required", "Required fields", ["b", "a"]],
+    ["optional", "Optional fields", ["c", "d[].x", "e"]],
+  ]);
+  const [b_row] = b.sections[0].rows;
+  assert.equal(b_row.reason, "the form says so");
+  assert.equal(b_row.foundText, "80%");
+  assert.deepEqual(b_row.parts, [
+    { key: "found", label: "Found", n: 16 },
+    { key: "blank", label: "Blank", n: 1 },
+    { key: "not_located", label: "Not located", n: 1 },
+    { key: "unsure", label: "Doubtful", n: 1 },
+    { key: "failed_check", label: "Fails a check", n: 1 },
+    { key: "not_applicable", label: "Not applicable", n: 0 },
+  ]);
+  assert.deepEqual(b.key.map((k) => k.label), ["Found", "Blank", "Not located", "Doubtful", "Fails a check", "Not applicable"]);
+  const e_row = b.sections[1].rows[2];
+  assert.equal(e_row.foundText, "–"); // no value should be there
+  assert.equal(e_row.parts[5].n, 20); // marked not on the form, not in this document, or a row left unused
+  assert.deepEqual(b.tiles, [
+    { key: "fields", value: "5", label: "Fields" },
+    { key: "required", value: "2", label: "Required" },
+    { key: "optional", value: "3", label: "Optional" },
+    { key: "found", value: "67%", label: "Values found" },
+    { key: "required_problems", value: "4", label: "Required problems" },
+    { key: "optional_problems", value: "17", label: "Optional problems" },
+    { key: "reviewed", value: "1", label: "Reviewed" },
+  ]);
+  assert.deepEqual(fieldBreakdown([]).sections, []);
+});
+
+test("fieldBreakdown shows Missing only for a run made before Blank and Not located were told apart", () => {
+  const old = fieldBreakdown([{ path: "a", title: "A", required: true, found: 3, missing: 1 }]);
+  assert.deepEqual(old.key.map((k) => k.label), ["Found", "Blank", "Not located", "Missing", "Doubtful", "Fails a check", "Not applicable"]);
+  assert.equal(old.sections[0].rows[0].parts[3].n, 1);
+  assert.equal(old.sections[0].rows[0].problems, 1);
+});
+
+test("groupFields titles a repeated group inside a category, and categoryOf says a field's category", () => {
+  const schema = {
+    properties: {
+      name: { type: "string" },
+      investor: {
+        type: "object",
+        title: "Investor details",
+        properties: {
+          owners: { type: "array", title: "Beneficial owners", maxItems: 2, items: { type: "object", properties: { x: { type: "string", title: "Owner" } } } },
+        },
+      },
+    },
+  };
+  const groups = groupFields({ fields: [{ path: "investor.owners[0].x" }, { path: "investor.owners[1].x" }] }, schema);
+  assert.deepEqual(groups.map((g) => g.group), ["Beneficial owners · up to 2"]);
+  assert.equal(categoryOf(schema, "investor.owners[0].x"), "Investor details");
+  assert.equal(categoryOf(schema, "name"), "");
+});
+
+test("fieldBreakdown says 100% only when every value was found", () => {
+  const row = (found, missing) => fieldBreakdown([{ path: "a", title: "A", required: true, found, missing }]).sections[0].rows[0];
+  assert.equal(row(999, 1).foundText, "99%");
+  assert.equal(row(1, 999).foundText, "1%");
+  assert.equal(row(5, 0).foundText, "100%");
 });
 
 test("fieldTable lists the required fields first, each level in the run's order, a folded row required when any item is", () => {

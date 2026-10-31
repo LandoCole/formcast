@@ -73,7 +73,7 @@ def no_unreadable(warnings: list[str]) -> None:
 def test_ai_start_builds_a_ready_template_that_reads_the_corpus_with_no_wrong_value(corpus_dir, five_samples):
     model = CorpusModel(five_samples.clients)
     events: list[StageEvent] = []
-    spec = SetupSpec(name="Client info")
+    spec = SetupSpec(names_from_titles=False, name="Client info")
     result = build_setup(five_samples.pdfs, spec, model, on_stage=events.append, **NO_DETECTORS)
     assert [e.key for e in events if e.status == "done"] == [key for key, _ in STAGES]
     assert [e.status for e in events] == ["running", "done"] * len(STAGES)
@@ -95,7 +95,7 @@ def test_ai_start_builds_a_ready_template_that_reads_the_corpus_with_no_wrong_va
 
 def test_lines_start_records_which_paths_each_line_became(five_samples):
     model = CorpusModel(five_samples.clients)
-    spec = SetupSpec(name="x", template_id="wires", start="lines", lines=["tax ID", "wire details", "  "])
+    spec = SetupSpec(names_from_titles=False, name="x", template_id="wires", start="lines", lines=["tax ID", "wire details", "  "])
     r = build_setup(five_samples.pdfs, spec, model, **NO_DETECTORS)
     setup = r.template.setup
     assert setup.start == "lines" and setup.lines == ["tax ID", "wire details"]
@@ -121,7 +121,7 @@ def test_destination_start_marks_the_fields_this_form_lacks_absent(five_samples)
             "properties": {"amount": {"type": "number"}}}, "signers": {"type": "array", "maxItems": 2,
             "items": {"type": "object", "properties": {"name": {"type": "string"}}}}}}  # fmt: skip
     model = CorpusModel(five_samples.clients)
-    spec = SetupSpec(name="x", start="destination", destination=dest, destination_name="sub")
+    spec = SetupSpec(names_from_titles=False, name="x", start="destination", destination=dest, destination_name="sub")
     r = build_setup(five_samples.pdfs, spec, model, **NO_DETECTORS)
     assert set(r.template.absent) == {"subscription.amount", "signers[0].name", "signers[1].name"}
     assert _without_reasons(r.template.schema_) == dest and r.template.setup.destination == "sub"
@@ -135,7 +135,7 @@ def test_an_unreadable_sample_fails_before_any_model_call(five_samples):
     model = CorpusModel(five_samples.clients)
     with pytest.raises(FormcastError, match="broken.pdf"):
         build_setup(
-            [*five_samples.pdfs[:2], SamplePdf("broken.pdf", b"%PDF-1.7 nope")], SetupSpec(name="x"), model,
+            [*five_samples.pdfs[:2], SamplePdf("broken.pdf", b"%PDF-1.7 nope")], SetupSpec(names_from_titles=False, name="x"), model,
             **NO_DETECTORS,
         )  # fmt: skip
     assert model.calls == {}
@@ -145,7 +145,7 @@ def test_detect_off_skips_the_detect_stage(five_samples):
     events: list[StageEvent] = []
     model = CorpusModel(five_samples.clients)
     r = build_setup(
-        five_samples.pdfs, SetupSpec(name="x", detect="off"), model, on_stage=events.append, **NO_DETECTORS
+        five_samples.pdfs, SetupSpec(names_from_titles=False, name="x", detect="off"), model, on_stage=events.append, **NO_DETECTORS
     )
     detect = [e for e in events if e.key == "detect"]
     assert [e.status for e in detect] == ["skipped"]
@@ -160,7 +160,7 @@ def test_a_cancel_from_on_stage_stops_the_build(five_samples):
             raise SessionCancelled("cancelled")
 
     with pytest.raises(SessionCancelled):
-        build_setup(five_samples.pdfs, SetupSpec(name="x"), model, on_stage=on_stage, **NO_DETECTORS)
+        build_setup(five_samples.pdfs, SetupSpec(names_from_titles=False, name="x"), model, on_stage=on_stage, **NO_DETECTORS)
     assert model.calls == {}
 
 
@@ -171,27 +171,27 @@ def test_a_cancel_from_on_page_stops_the_build_as_a_cancel_before_any_model_call
         raise SessionCancelled("cancelled by the person")
 
     with pytest.raises(SessionCancelled, match="^cancelled by the person$"):
-        build_setup(five_samples.pdfs, SetupSpec(name="x"), model, on_page=on_page, **NO_DETECTORS)
+        build_setup(five_samples.pdfs, SetupSpec(names_from_titles=False, name="x"), model, on_page=on_page, **NO_DETECTORS)
     assert model.calls == {}
 
 
 def test_more_than_twenty_samples_or_none_are_refused():
     model = CorpusModel({})
     with pytest.raises(FormcastError, match="1 to 20 samples"):
-        build_setup([], SetupSpec(name="x"), model, **NO_DETECTORS)
+        build_setup([], SetupSpec(names_from_titles=False, name="x"), model, **NO_DETECTORS)
     too_many = [SamplePdf(f"{n}.pdf", b"") for n in range(MAX_SAMPLES + 1)]
     with pytest.raises(FormcastError, match="1 to 20 samples"):
-        build_setup(too_many, SetupSpec(name="x"), model, **NO_DETECTORS)
+        build_setup(too_many, SetupSpec(names_from_titles=False, name="x"), model, **NO_DETECTORS)
     assert model.calls == {}
 
 
 def test_a_spec_with_no_name_no_lines_or_no_destination_is_refused():
     with pytest.raises(ValueError, match="name"):
-        SetupSpec(name="  ")
+        SetupSpec(names_from_titles=False, name="  ")
     with pytest.raises(ValueError, match="line"):
-        SetupSpec(name="x", start="lines", lines=["", " "])
+        SetupSpec(names_from_titles=False, name="x", start="lines", lines=["", " "])
     with pytest.raises(ValueError, match="destination"):
-        SetupSpec(name="x", start="destination")
+        SetupSpec(names_from_titles=False, name="x", start="destination")
 
 
 class Forgetful(CorpusModel):
@@ -207,7 +207,7 @@ class Forgetful(CorpusModel):
 
 
 def test_a_path_the_model_proposes_nothing_for_is_warned_of_and_gets_no_reader(five_samples):
-    r = build_setup(five_samples.pdfs, SetupSpec(name="x"), Forgetful(five_samples.clients), **NO_DETECTORS)
+    r = build_setup(five_samples.pdfs, SetupSpec(names_from_titles=False, name="x"), Forgetful(five_samples.clients), **NO_DETECTORS)
     assert "wire.account: the model proposed no way to read it" in r.warnings
     assert "wire.account" not in r.template.readers
     account = next(f for f in r.proof.fields if f.path == "wire.account")
@@ -229,7 +229,7 @@ class Unmapped(CorpusModel):
 
 
 def test_a_build_only_suggests_the_wordings_it_saw_and_learn_maps_applies_them_when_accepted(five_samples):
-    r = build_setup(five_samples.pdfs, SetupSpec(name="x"), Unmapped(five_samples.clients), **NO_DETECTORS)
+    r = build_setup(five_samples.pdfs, SetupSpec(names_from_titles=False, name="x"), Unmapped(five_samples.clients), **NO_DETECTORS)
     assert r.template.readers["investor.country"].clean == []  # nothing learned behind the person's back
     country = next(f for f in r.proof.fields if f.path == "investor.country")
     assert not country.ready and country.suggested == {"Canada": "CA", "United States": "US"}
@@ -252,13 +252,13 @@ def test_a_model_config_opens_one_provider_for_the_whole_build_and_closes_it(mon
 
     monkeypatch.setattr(setup_mod, "make_provider", make)
     config = LLMConfig(base_url="https://example.test/v1/", api_key="sk-test", model="m-1")
-    build_setup(five_samples.pdfs, SetupSpec(name="x"), config, **NO_DETECTORS)
+    build_setup(five_samples.pdfs, SetupSpec(names_from_titles=False, name="x"), config, **NO_DETECTORS)
     assert len(made) == 1 and closed == [True] and made[0].calls["values"] == 5
 
 
 def test_add_line_adds_fields_their_readers_and_their_readings_then_reproves(five_samples):
     model = CorpusModel(five_samples.clients)
-    r = build_setup(five_samples.pdfs, SetupSpec(name="x", start="lines", lines=["tax ID"]), model, **NO_DETECTORS)
+    r = build_setup(five_samples.pdfs, SetupSpec(names_from_titles=False, name="x", start="lines", lines=["tax ID"]), model, **NO_DETECTORS)
     before = dict(model.calls)
     added = add_line(r.template, "wire details", r.samples, model)
     assert model.calls["fields"] == before["fields"] + 1 and model.calls["values"] == before["values"] + 5
@@ -277,7 +277,7 @@ def test_add_line_adds_fields_their_readers_and_their_readings_then_reproves(fiv
 
 def test_add_line_refuses_samples_that_are_not_the_templates_before_any_model_call(five_samples):
     model = CorpusModel(five_samples.clients)
-    r = build_setup(five_samples.pdfs, SetupSpec(name="x", start="lines", lines=["tax ID"]), model, **NO_DETECTORS)
+    r = build_setup(five_samples.pdfs, SetupSpec(names_from_titles=False, name="x", start="lines", lines=["tax ID"]), model, **NO_DETECTORS)
     before = dict(model.calls)
     with pytest.raises(FormcastError, match="not the template's samples"):
         add_line(r.template, "wire details", r.samples[:4], model)
@@ -292,7 +292,7 @@ def test_every_public_name_of_setup_is_a_public_name_of_the_package():
 
 
 def test_the_built_templates_form_has_the_blind_fingerprint_so_a_fillable_copy_routes_by_it(five_samples):
-    r = build_setup(five_samples.pdfs, SetupSpec(name="x"), CorpusModel(five_samples.clients), **NO_DETECTORS)
+    r = build_setup(five_samples.pdfs, SetupSpec(names_from_titles=False, name="x"), CorpusModel(five_samples.clients), **NO_DETECTORS)
     first = five_samples.clients["sample_1.pdf"]  # the first fillable sample, whose form the template records
     assert r.template.form.fingerprint == PdfFeatures(five_samples.pdfs[0].pdf).fingerprint_blind
     # another client's answers in the form fields (the wire paragraph is page text: the same bank and account)
@@ -307,7 +307,7 @@ def test_the_built_templates_form_has_the_blind_fingerprint_so_a_fillable_copy_r
 
 
 def test_the_setup_keeps_how_the_samples_were_read_and_shown(five_samples):
-    spec = SetupSpec(name="x", detect="manual", pages={3: [0]}, ocr="never", vision=False, sample_how="the first five")
+    spec = SetupSpec(names_from_titles=False, name="x", detect="manual", pages={3: [0]}, ocr="never", vision=False, sample_how="the first five")
     r = build_setup(five_samples.pdfs, spec, CorpusModel(five_samples.clients), **NO_DETECTORS)
     setup = r.template.setup
     assert (setup.detect, setup.pages, setup.ocr, setup.vision) == ("manual", {3: [0]}, "never", False)
@@ -317,7 +317,7 @@ def test_the_setup_keeps_how_the_samples_were_read_and_shown(five_samples):
 
 
 def test_a_box_drawn_where_a_shifted_samples_marks_show_it_reads_an_unshifted_copy(five_samples):
-    r = build_setup(five_samples.pdfs, SetupSpec(name="x"), CorpusModel(five_samples.clients), **NO_DETECTORS)
+    r = build_setup(five_samples.pdfs, SetupSpec(names_from_titles=False, name="x"), CorpusModel(five_samples.clients), **NO_DETECTORS)
     pdfs = [p.pdf for p in five_samples.pdfs]
     shifted = 4  # sample_5: flattened and pushed down the page by SHIFT
     marks = sample_marks(r.template, pdfs[shifted])
@@ -345,8 +345,49 @@ def test_the_ai_start_is_told_the_reserved_names(five_samples, monkeypatch):
         return real(*args, **kwargs)
 
     monkeypatch.setattr(setup_mod, "derive_schema", spy)
-    build_setup(five_samples.pdfs, SetupSpec(name="x"), CorpusModel(five_samples.clients), **NO_DETECTORS)
+    build_setup(five_samples.pdfs, SetupSpec(names_from_titles=False, name="x"), CorpusModel(five_samples.clients), **NO_DETECTORS)
     assert seen == [RESERVED_NAMES]
+
+
+def titled_schema():
+    """The corpus schema with titles that make the names it already has, so the corpus model still answers for them."""
+    schema = json.loads(json.dumps(CORPUS_SCHEMA))
+
+    def walk(node):
+        for key, child in node.get("properties", {}).items():
+            child["title"] = key.replace("_", " ")
+            walk(child.get("items", child))
+
+    walk(schema)
+    return schema
+
+
+def test_the_ai_start_makes_names_from_titles_and_they_then_follow_them(five_samples):
+    model = CorpusModel(five_samples.clients)
+    model.schema = titled_schema()
+    built = build_setup(five_samples.pdfs, SetupSpec(name="x"), model, **NO_DETECTORS).template
+    assert built.setup.name_follows_title is True
+    assert "tax_id" in built.schema_["properties"]["investor"]["properties"]
+
+
+def test_lines_are_kept_with_the_names_made_from_titles():
+    schema = {"type": "object", "properties": {"a": {"type": "string", "title": "Route code"}}}
+    assert setup_mod._titled(schema, {"the route": ["a"]}, True)[1] == {"the route": ["route_code"]}
+    assert setup_mod._titled(schema, {"the route": ["a"]}, False) == (schema, {"the route": ["a"]})
+
+
+def test_a_line_added_later_does_not_take_a_name_in_use():
+    schema = {"type": "object", "properties": {"a": {"type": "string", "title": "Route code"}}}
+    assert list(setup_mod._titled(schema, {}, True, taken=["route_code"])[0]["properties"]) == ["route_code_2"]
+
+
+def test_a_destinations_fields_keep_their_names(five_samples):
+    dest = {"type": "object", "properties": {"inv_tin": {"type": "string", "title": "Taxpayer ID"}}}
+    model = CorpusModel(five_samples.clients)
+    spec = SetupSpec(name="x", start="destination", destination=dest, destination_name="CRM")
+    built = build_setup(five_samples.pdfs, spec, model, **NO_DETECTORS).template
+    assert built.setup.name_follows_title is False
+    assert list(built.schema_["properties"]) == ["inv_tin"]
 
 
 def test_the_ai_start_classifies_required(five_samples, monkeypatch):
@@ -362,7 +403,7 @@ def test_the_ai_start_classifies_required(five_samples, monkeypatch):
     leveled["properties"]["investor"]["properties"]["tax_id"][REASON_KEY] = "the form says 'An entry is required'"
     model.schema = leveled
     monkeypatch.setattr(setup_mod, "derive_schema", spy)
-    r = build_setup(five_samples.pdfs, SetupSpec(name="x"), model, **NO_DETECTORS)
+    r = build_setup(five_samples.pdfs, SetupSpec(names_from_titles=False, name="x"), model, **NO_DETECTORS)
     assert seen == [True]
     investor = r.template.schema_["properties"]["investor"]
     assert "tax_id" in investor["required"]
@@ -376,7 +417,7 @@ def test_destination_fields_keep_their_levels_with_the_destination_reason(five_s
             "name": {"type": "string", REASON_KEY: "the destination says so"}}},
         "signers": {"type": "array", "maxItems": 2, "items": {"type": "object", "required": ["name"],
             "properties": {"name": {"type": "string"}}}}}}  # fmt: skip
-    spec = SetupSpec(name="x", start="destination", destination=dest, destination_name="sub")
+    spec = SetupSpec(names_from_titles=False, name="x", start="destination", destination=dest, destination_name="sub")
     r = build_setup(five_samples.pdfs, spec, CorpusModel(five_samples.clients), **NO_DETECTORS)
     schema = r.template.schema_
     investor = schema["properties"]["investor"]

@@ -26,7 +26,7 @@ def test_a_real_model_builds_a_template_that_reads_the_corpus_with_no_wrong_valu
     files = corpus_clients(write_corpus(tmp_path / "corpus"))
     samples = [SamplePdf(files[n][0].name, files[n][0].read_bytes()) for n in SAMPLE_INDEXES]
     result = build_setup(
-        samples, SetupSpec(name="Client info"), config, detectors={}, policy=DetectPolicy(digital=(), scanned=())
+        samples, SetupSpec(names_from_titles=False, name="Client info"), config, detectors={}, policy=DetectPolicy(digital=(), scanned=())
     )
     print(f"\n{result.proof.ready} of {result.proof.total} fields ready; usage {result.usage}")
     for warning in result.warnings:
