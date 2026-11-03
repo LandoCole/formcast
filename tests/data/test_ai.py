@@ -221,3 +221,10 @@ def test_a_reply_cut_off_at_the_output_limit_is_asked_for_again_shorter_not_rese
     derive_schema(pdf, llm, form_map=fm)
     retry = llm.calls[1]
     assert retry[-1].content == CUT_OFF_RETRY and retry[-2].content == "(cut off)"
+
+
+def test_the_models_rules_carry_no_marks():
+    table = Table(["Full Name"], [{"Full Name": "Ann"}])
+    answer = {"rules": [{"path": "name", "column": "Full Name", "confirmed": True, "manual": True}], "unmapped_columns": []}
+    rule = map_table(SCHEMA, table, Scripted(json.dumps(answer))).mapping.rules[0]
+    assert (rule.confirmed, rule.manual) == (None, None)

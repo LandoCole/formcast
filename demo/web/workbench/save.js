@@ -1,5 +1,6 @@
 // Save: put the template on screen in the server's template store under a name, with the PDF it was
-// made for and, when your data was mapped by the AI or a saved mapping, that data mapping. A saved
+// made for and, when your data was mapped by the AI or a saved mapping (or a person reviewed it in the Mapping view),
+// that data mapping, its confirmations and a person's own rules included. A saved
 // template opens from the start screen's Saved templates (no detection, no AI), is scored against every
 // PDF opened later (so the match prompt offers it), fills tables with the same columns without AI, and
 // takes records programmatically: POST /api/templates/<name>/fill.
@@ -13,6 +14,16 @@ function suggest(stem) {
   return name || "template";
 }
 
+/**
+ * The data mapping saved with the template: the one on hand, unless it is only columns named by schema path (which need
+ * no saving) and no person has changed it in the Mapping view.
+ */
+function mappingToSave(data) {
+  const mapping = data?.mapping;
+  if (!mapping || data.error) return null;
+  return data.mode !== "direct" || data.edited ? mapping : null; // `edited`: a person changed it (mapping.js)
+}
+
 /** @param {object} app see workbench.js */
 export function mountSave(app) {
   const { $, engine, session, state, say } = app;
@@ -23,7 +34,7 @@ export function mountSave(app) {
     if (app.template === null) return;
     $("save-what").textContent =
       "Saves the boxes and their links, the data schema and this PDF, so the form opens from Saved templates without detection or AI" +
-      (app.data?.mapping && app.data.mode !== "direct" ? ", and your data mapping, so a file with the same columns fills without AI." : ".");
+      (mappingToSave(app.data) ? ", and your data mapping with what you confirmed and changed, so a file with the same columns fills without AI." : ".");
     $("save-name").value = state.savedName ?? suggest(app.stem());
     say(msg, "");
     box.hidden = false;
@@ -46,7 +57,7 @@ export function mountSave(app) {
     say(msg, "Saving…");
     try {
       await app.track(session.idle()); // edits still on their way are part of what gets saved
-      const mapping = app.data?.mapping && app.data.mode !== "direct" ? app.data.mapping : null;
+      const mapping = mappingToSave(app.data);
       await engine.templates.put(name, session.template, { doc: session.doc, mapping });
       state.savedName = name;
       box.hidden = true;

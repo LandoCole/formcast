@@ -19,11 +19,16 @@
 // fills the first one. "Add data" sends another file or text and maps it for the template on screen;
 // data given on the start screen that is still waiting (`app.pendingData`) is mapped when the drawer
 // opens. "Data schema" saves the template's schema as a JSON file: what records for it must look like.
+//
+// A table's data mapping is triaged in the left column's Mapping view (mapping.js); the drawer has a line for it with
+// *Review the mapping*. When an edit there remakes the records, `app.dataChanged()` shows the record picked again
+// (with the values typed for it, `app.typed`) and fills it again; `app.fillRecord()` is that record and its index.
 
 import { renderReport } from "../core/report.js";
 import { placeholderRecord } from "../core/schema.js";
 import { downloadBytes } from "../core/store.js";
 import { describeData, mappingSummary, renderMapping, sendData } from "./data.js";
+import { withValues } from "./mapping-model.js";
 
 const SAMPLE = "__sample__";
 const DATA = "__data__";
@@ -92,12 +97,37 @@ export function mountFill(app) {
     $("fill-sample").value = JSON.stringify(record, null, 2);
   }
 
+  /** Your data's record at `index`, with the values typed for it in the Mapping view. */
+  function dataRecord(index) {
+    return withValues(app.data?.records?.[index] ?? {}, app.typed?.get(index));
+  }
+
   /** Your data's record now picked, as JSON in the box. */
   function showDataRecord() {
-    const record = app.data?.records?.[Number($("fill-record").value)] ?? {};
-    $("fill-sample").value = JSON.stringify(record, null, 2);
+    $("fill-sample").value = JSON.stringify(dataRecord(Number($("fill-record").value) || 0), null, 2);
     sampleFor = null; // the box no longer holds the sample
   }
+
+  /** The record of your data the Mapping view shows values from: the one picked in the drawer, else the first. */
+  app.fillRecord = () => {
+    const index = !drawer.hidden && fromData() ? Number($("fill-record").value) || 0 : 0;
+    return { index, record: app.data?.records?.length ? dataRecord(index) : null };
+  };
+
+  /** The Mapping view remade your data's records (or typed a value): show the record picked again and refill it. */
+  app.dataChanged = () => {
+    if (app.data === null) return;
+    $("mapping-line-sum").textContent = mappingSummary(app.data);
+    $("mapping-sum").textContent = mappingSummary(app.data);
+    if (drawer.hidden || !fromData()) return;
+    const select = $("fill-record");
+    const picked = select.value;
+    const titles = app.data.titles ?? [];
+    select.replaceChildren(...(titles.length ? titles.map((t, i) => new Option(t, String(i))) : [new Option("No records", "")]));
+    if ([...select.options].some((o) => o.value === picked)) select.value = picked;
+    showDataRecord();
+    refill();
+  };
 
   async function showRecords() {
     const name = $("fill-schema").value;
@@ -148,9 +178,13 @@ export function mountFill(app) {
     if (own !== null) options.push(new Option(`Stored records (${own})`, own));
     $("fill-schema").replaceChildren(...options, new Option("A sample record", SAMPLE));
     $("fill-schema").value = data ? DATA : own ?? SAMPLE;
-    $("mapping-box").hidden = app.data === null;
+    // a table's mapping is reviewed in the Mapping view; free text and an error keep the fold
+    const table = Boolean(app.data && !app.data.error && app.data.mapping && app.data.dataset?.kind === "table");
+    $("mapping-box").hidden = app.data === null || table;
+    $("mapping-line").hidden = !table;
     if (app.data !== null) {
       $("mapping-sum").textContent = mappingSummary(app.data);
+      $("mapping-line-sum").textContent = mappingSummary(app.data);
       renderMapping($("mapping"), app.data);
       $("mapping-box").open = Boolean(app.data.error);
     }
@@ -181,6 +215,7 @@ export function mountFill(app) {
   /** Your data's records are in: show them, open on the first one and fill it. */
   app.showData = (data) => {
     app.data = data;
+    app.mapping?.fresh(); // the edits and typed values of the data before are gone; a table's mapping is shown
     if (app.template === null) return;
     open();
     if (data.error) {
@@ -280,12 +315,15 @@ export function mountFill(app) {
   $("fill-schema").addEventListener("change", async () => {
     await showRecords();
     refill();
+    app.mapping?.render();
   });
   $("fill-record").addEventListener("change", () => {
     if (fromData()) showDataRecord();
     setBusy(busy);
     refill();
+    app.mapping?.render(); // its values are the record picked
   });
+  $("mapping-review").addEventListener("click", () => app.mapping?.show());
   $("add-data-file").addEventListener("change", () => {
     const file = $("add-data-file").files?.[0];
     $("add-data-label").textContent = file ? file.name : "Choose a CSV, Excel or JSON file";

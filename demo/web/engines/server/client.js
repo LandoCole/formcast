@@ -668,6 +668,10 @@ export async function createServerEngine({
       },
       /** Pasted text: a table when it is JSON records or a delimited table, else free text. */
       text: (text) => call("POST", "/api/data", { json: { text } }),
+      /** A dataset's summary again: its columns (name, type, samples), rows and preview. */
+      get: (id) => call("GET", `/api/data/${id}`),
+      /** A table's records by `mapping` as a person edited it (no model call); answers as a one-shot job's data. */
+      map: (id, schema, mapping, mode) => call("POST", `/api/data/${id}/map`, { json: { schema, mapping, mode } }),
     },
 
     /** Stored templates scored against `doc`, best first: `[{name, template_id, score, basis, explanation, action}]`. */

@@ -2,7 +2,8 @@
 // engine, the session (core/session.js: document, template, undo, the ordered edit queue) and the
 // shared parts, renders on the session's events, and hands the overlays to their modules: the
 // choice of Fill or Extract the page opens on and the page's mode (extract.js), the start screen and
-// match prompt (start.js), AI jobs and area revise (jobs.js), the fill drawer (fill.js), saving to
+// match prompt (start.js), AI jobs and area revise (jobs.js), the fill drawer (fill.js) and the left column's
+// Mapping view of your data (mapping.js), saving to
 // the store (save.js), extraction's setup screen (extract-setup.js) and its runs and their review
 // (extract-review.js), which call back through `app`.
 //
@@ -39,6 +40,7 @@ import { mountSetup } from "./extract-setup.js";
 import { mountExtract } from "./extract.js";
 import { mountFill } from "./fill.js";
 import { mountJobs } from "./jobs.js";
+import { mountMapping } from "./mapping.js";
 import { mountPages } from "./pages.js";
 import { mountSave } from "./save.js";
 import { mountStart } from "./start.js";
@@ -493,6 +495,7 @@ if (LOCAL) {
 $("engine-line").textContent = engine.capabilities.ai ? "Local server · AI on" : "Local server · AI off";
 app.jobs = mountJobs(app);
 mountFill(app);
+app.mapping = mountMapping(app);
 mountSave(app);
 app.start = mountStart(app);
 app.extract = mountExtract(app);

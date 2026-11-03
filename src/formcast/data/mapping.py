@@ -19,6 +19,9 @@ A rule takes its value from one ``column``, a ``template`` of ``{Column}`` place
 item of a list of records takes an index (``references[0].name``). After the transforms the value is
 coerced to the path's schema type where that is safe (``"yes"`` to true for a boolean, ``"12"`` to 12,
 an enum value matched without regard to case). An empty result sets nothing.
+
+A rule may also carry two marks a person's review leaves, which applying it ignores: ``confirmed`` (a person said it
+is right) and ``manual`` (a person made it). Each is absent unless true.
 """
 
 from __future__ import annotations
@@ -48,6 +51,8 @@ class Rule(BaseModel):
     template: str | None = None
     value: Any = None
     transforms: list[Transform] = Field(default_factory=list)
+    confirmed: bool | None = None  # a person said this rule is right
+    manual: bool | None = None  # a person made this rule
 
     @model_validator(mode="after")
     def _one_source(self) -> Rule:

@@ -218,6 +218,39 @@ details.more > select { margin-bottom: 4px; }
 .mismatch .row { margin-bottom: 0; }
 #report { min-width: 0; overflow-x: auto; }
 
+/* ---------- the Mapping view (mapping.js), in the left column ---------- */
+.mp-switch { justify-content: stretch; margin-bottom: 16px; }
+.mp-switch .btn { flex: 1 1 0; }
+.mp-counts { margin: 0 0 12px; }
+.mp-actions { margin-bottom: 16px; }
+.mp-notes { margin: 0 0 16px; font-size: 14px; line-height: 20px; }
+.mp-section { margin-bottom: 20px; }
+.mp-list { margin: 0; padding: 0; list-style: none; }
+.mp-none { margin: 0; font-style: italic; font-size: 14px; color: var(--graphite); }
+.mp-row { box-shadow: inset 0 -.5px 0 0 var(--rule); }
+.mp-head { display: flex; align-items: flex-start; gap: 4px; }
+.mp-main {
+  display: flex; flex-direction: column; align-items: flex-start; flex: 1 1 auto; min-width: 0; padding: 8px 4px;
+  background: none; border: 0; color: var(--ink); text-align: left; cursor: pointer; font: 12px/18px var(--mono);
+}
+.mp-main:hover { background: var(--panel); }
+.mp-main[aria-expanded="true"] { background: var(--panel); }
+.mp-title { font-family: var(--serif); font-size: 16px; line-height: 22px; overflow-wrap: anywhere; }
+.mp-path, .mp-value { color: var(--graphite); font-size: 10px; line-height: 16px; overflow-wrap: anywhere; }
+.mp-from { overflow-wrap: anywhere; }
+.mp-arrow { color: var(--graphite); }
+.mp-tag { margin-left: 6px; padding: 0 4px; outline: .5px solid var(--graphite); color: var(--graphite); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
+.mp-req { font-size: 9px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink); }
+.mp-tick {
+  flex: none; width: 32px; height: 32px; margin-top: 8px; padding: 0; background: var(--paper); color: var(--graphite);
+  border: 0; outline: 1px solid var(--rule); outline-offset: -.5px; cursor: pointer; font-size: 14px;
+}
+.mp-tick[aria-pressed="true"] { background: var(--ink); color: var(--paper); outline-color: var(--ink); }
+.mp-more { display: flex; flex-direction: column; gap: 8px; padding: 4px 4px 12px; }
+.mp-more .btn { align-self: flex-start; }
+.mp-buttons { justify-content: flex-start; }
+.mp-input { height: 36px; }
+
 /* ---------- narrower windows ---------- */
 @media (max-width: 1023px) {
   html, body { height: auto; }

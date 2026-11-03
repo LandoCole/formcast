@@ -143,6 +143,40 @@ def test_data_that_cannot_be_read_is_a_400(demo_server):
     assert post(demo_server, "/api/data", {"text": "  "})[0] == 400
 
 
+# ------------------------------------------------------------------ a mapping a person edited
+
+
+def test_an_edited_mapping_remakes_the_records_with_no_model_call(demo_server):
+    ds = send_csv(demo_server)
+    mapping = {"rules": [{"path": "name", "column": "Ref", "manual": True, "confirmed": True}], "unmapped_columns": []}
+    status, out = post(demo_server, f"/api/data/{ds['id']}/map", {"schema": DERIVED, "mapping": mapping, "mode": "model"})
+    assert status == 200, out
+    assert out["records"] == [{"name": "1"}, {"name": "2"}] and out["total"] == 2 and out["mode"] == "model"
+    assert out["mapping"]["rules"] == [{"path": "name", "column": "Ref", "transforms": [], "confirmed": True, "manual": True}]
+    assert out["mapping"]["unmapped_columns"] == ["Full Name"] and out["mapping"]["columns"] == ["Full Name", "Ref"]
+    assert out["dataset"]["id"] == ds["id"] and out["warnings"] == []
+
+
+def test_remapping_refuses_free_text_an_unknown_dataset_and_a_bad_mapping(demo_server):
+    good = {"schema": DERIVED, "mapping": {"rules": []}}
+    _, prose = post(demo_server, "/api/data", {"text": "My name is Ann and I want the job."})
+    status, out = post(demo_server, f"/api/data/{prose['id']}/map", good)
+    assert (status, out["error"]) == (400, "not_a_table")
+    assert post(demo_server, f"/api/data/{'0' * 32}/map", good)[0] == 404
+    ds = send_csv(demo_server)
+    status, out = post(demo_server, f"/api/data/{ds['id']}/map", {"schema": DERIVED, "mapping": {"rules": [{"path": "name"}]}})
+    assert (status, out["error"]) == (400, "bad_mapping")
+    assert post(demo_server, f"/api/data/{ds['id']}/map", {"schema": DERIVED})[1]["error"] == "bad_mapping"
+
+
+def test_a_rule_for_a_path_the_schema_lacks_is_dropped_with_a_warning(demo_server):
+    ds = send_csv(demo_server)
+    rules = [{"path": "name", "column": "Full Name"}, {"path": "nope", "column": "Ref"}]
+    status, out = post(demo_server, f"/api/data/{ds['id']}/map", {"schema": DERIVED, "mapping": {"rules": rules}})
+    assert status == 200 and [r["path"] for r in out["mapping"]["rules"]] == ["name"]
+    assert out["warnings"] == ["nope: not a field of the form's schema"] and out["mode"] == "model"
+
+
 # ------------------------------------------------------------------ the oneshot job
 
 
@@ -253,6 +287,19 @@ def test_a_saved_mapping_maps_the_same_columns_without_ai(demo_server):
     job = wait_ended(demo_server, post(demo_server, "/api/jobs", {"kind": "oneshot", "doc": doc, "template": template, "data": ds["id"], "saved": "Tiny"})[1]["id"])
     assert job["result"]["data"]["mode"] == "saved"
     assert [r["name"] for r in job["result"]["data"]["records"]] == ["Ann Lee", "Bo Chen"]
+
+
+def test_a_mapping_saved_for_these_very_columns_wins_over_columns_named_by_schema_path():
+    from demo.server.datasets import Dataset
+    from demo.server.oneshot import map_dataset
+    from formcast.data import DataMapping, Table
+
+    table = Table(["name"], [{"name": "Ann Lee"}])
+    ds = Dataset("0" * 32, "t.csv", "table", table)
+    assert map_dataset(DERIVED, ds, None).mode == "direct"
+    reviewed = DataMapping(columns=["name"], rules=[{"path": "name", "value": "Fixed", "manual": True}])
+    out = map_dataset(DERIVED, ds, None, [reviewed])
+    assert (out.mode, out.records, out.mapping.rules[0].manual) == ("saved", [{"name": "Fixed"}], True)
 
 
 def test_deleting_a_saved_template_deletes_its_files(demo_server):

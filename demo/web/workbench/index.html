@@ -59,9 +59,40 @@
 
 <main class="bench" id="bench" data-for="fill">
   <aside class="col col-schema" id="col-schema" aria-label="Schema">
-    <p class="label" id="schema-label">Schema</p>
-    <div id="schemalist"></div>
-    <p class="hint">Drag a field onto a box, or select a box and pick its data field on the right.</p>
+    <div class="row mp-switch" id="left-switch" role="group" aria-label="Show" hidden>
+      <button type="button" class="btn small quiet" id="show-fields" aria-pressed="true">Form fields</button>
+      <button type="button" class="btn small quiet" id="show-mapping" aria-pressed="false">Mapping</button>
+    </div>
+    <div id="fields-view">
+      <p class="label" id="schema-label">Schema</p>
+      <div id="schemalist"></div>
+      <p class="hint">Drag a field onto a box, or select a box and pick its data field on the right.</p>
+    </div>
+    <!-- your data matched to the form (mapping.js) -->
+    <div id="mapping-view" hidden>
+      <p class="readout mp-counts" id="map-counts" role="status" aria-live="polite"></p>
+      <div class="row mp-actions">
+        <button type="button" class="btn small quiet" id="map-undo" disabled>Undo</button>
+        <button type="button" class="btn small" id="map-confirm-all">Confirm all</button>
+      </div>
+      <p class="msg" id="map-msg" role="status" hidden></p>
+      <p class="hint mp-notes" id="map-notes" hidden></p>
+      <section class="mp-section" aria-labelledby="map-matched-label">
+        <p class="label" id="map-matched-label">Matched</p>
+        <ul class="mp-list" id="map-matched"></ul>
+        <p class="mp-none" id="map-matched-none" hidden>Nothing yet.</p>
+      </section>
+      <section class="mp-section" aria-labelledby="map-missing-label">
+        <p class="label" id="map-missing-label">Form fields with no data</p>
+        <ul class="mp-list" id="map-missing"></ul>
+        <p class="mp-none" id="map-missing-none" hidden>Every form field has data.</p>
+      </section>
+      <section class="mp-section" aria-labelledby="map-unused-label">
+        <p class="label" id="map-unused-label">Your data not used</p>
+        <ul class="mp-list" id="map-unused"></ul>
+        <p class="mp-none" id="map-unused-none" hidden>Every column is used.</p>
+      </section>
+    </div>
   </aside>
 
   <section class="col col-page" id="col-page" aria-label="Page">
@@ -528,6 +559,10 @@
     <summary class="label">Data mapping · <span id="mapping-sum"></span></summary>
     <div id="mapping"></div>
   </details>
+  <div class="group" id="mapping-line" hidden>
+    <p class="label">Data mapping · <span id="mapping-line-sum"></span></p>
+    <button type="button" class="btn small quiet" id="mapping-review">Review the mapping</button>
+  </div>
   <div class="group" id="fill-record-group">
     <p class="label"><label for="fill-record">Record</label></p>
     <select id="fill-record"></select>

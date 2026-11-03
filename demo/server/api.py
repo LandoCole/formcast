@@ -55,7 +55,7 @@ from demo.server.datasets import Dataset, Datasets
 from demo.server.documents import DETECT_MODES, MAX_DPI, MIN_DPI, PYMUPDF_LOCK, Doc, Documents
 from demo.server.extraction import Batches, ExtractionStore, Runs, Setups
 from demo.server.jobs import EXTRACT_KINDS, KINDS, Jobs, JobsBusy
-from demo.server.oneshot import OneShotSpec, map_dataset
+from demo.server.oneshot import OneShotSpec, map_dataset, remap
 from demo.server.records import MultiRecords, RecordSource, RecordSourceError
 from demo.server.settings import Settings
 from demo.server.store import (
@@ -242,6 +242,7 @@ class Api:
         self._add("POST", r"/api/smart-pdf", self.smart_pdf)
         self._add("POST", r"/api/data", self.create_dataset)
         self._add("GET", r"/api/data/(?P<data>[0-9a-f]{32})", self.get_dataset)
+        self._add("POST", r"/api/data/(?P<data>[0-9a-f]{32})/map", self.remap_dataset)
         self._add("GET", r"/api/templates", self.list_templates)
         self._add("GET", r"/api/templates/(?P<name>[^/]+)/schema", self.template_schema)
         self._add("GET", r"/api/templates/(?P<name>[^/]+)/mappings", self.template_mappings)
@@ -824,6 +825,26 @@ class Api:
     def get_dataset(self, req: Request) -> dict:
         with missing("data"):
             return self.datasets.get(req.match["data"]).summary()
+
+    def remap_dataset(self, req: Request) -> dict:
+        """``{schema, mapping, mode?}`` -> the table's records by ``mapping`` as a person edited it; no model call.
+
+        The answer is the one a one-shot job gives for its data. ``mode`` (``model``, the default, ``saved`` or
+        ``direct``) is how the mapping first came about, answered back as it is. Free text is 400 ``not_a_table``.
+        """
+        ds = self._dataset(req.match["data"])
+        payload = _object(req)
+        schema = self._schema(payload)
+        try:
+            mapping = DataMapping.model_validate(payload.get("mapping"))
+        except pydantic.ValidationError as exc:
+            raise ApiError(400, "bad_mapping", f"this is not a data mapping: {exc.errors()[0]['msg']}") from None
+        mode = payload.get("mode", "model")
+        if mode not in ("model", "saved", "direct"):
+            raise ApiError(400, "bad_request", "mode is model, saved or direct")
+        if ds.table is None:
+            raise ApiError(400, "not_a_table", "free text has no columns to map; edit the record instead")
+        return remap(schema, ds, mapping, mode).to_json(ds)
 
     def _dataset(self, ds_id: Any) -> Dataset:
         if not isinstance(ds_id, str):

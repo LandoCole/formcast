@@ -375,6 +375,8 @@ def map_table(schema: dict, table: Table, llm: LLMConfig | Provider, *, instruct
             raise ValueError('reply as {"rules": [...], "unmapped_columns": [...], "notes": "..."}')
         good = []
         for r in rules:
+            if isinstance(r, dict):
+                r = {k: v for k, v in r.items() if k not in ("confirmed", "manual")}  # a person's marks, not the model's
             try:
                 good.append(DataMapping.model_validate({"rules": [r]}).rules[0])
             except pydantic.ValidationError as exc:

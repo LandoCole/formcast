@@ -1004,8 +1004,8 @@ def test_one_shot_designs_the_schema_maps_the_data_and_opens_your_records_filled
     assert b.template()["schema"] == DERIVED
     expect(b.page.locator("#fill-schema")).to_have_value("__data__")
     expect(b.page.locator("#fill-record option")).to_have_text(["1. Ann Lee", "2. Bo Chen"])
-    expect(b.page.locator("#mapping-sum")).to_have_text("2 records · mapped by the AI")
-    expect(b.page.locator("#mapping .maptable td").first).to_have_text("name")
+    expect(b.page.locator("#mapping-line-sum")).to_have_text("2 records · mapped by the AI")
+    expect(b.page.locator("#map-matched .mp-row .mp-path")).to_have_text(["name"])  # the Mapping view opened on it
     expect(b.page.locator("#fill-msg")).to_contain_text("Filled 1 field")
     assert json.loads(b.page.input_value("#fill-sample")) == {"name": "Ann Lee"}
     assert model.calls == {"derive": 1, "page": 1, "map": 1}

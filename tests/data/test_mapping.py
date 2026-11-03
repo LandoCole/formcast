@@ -138,3 +138,13 @@ def test_a_mapping_fits_a_table_with_every_column_it_reads_and_survives_a_round_
     again = DataMapping.model_validate(m.dump())
     assert again == m
     assert "value" not in m.dump()["rules"][0]
+
+
+def test_a_rules_marks_round_trip_and_are_absent_unless_set():
+    marked = mapping({"path": "office", "column": "Office", "confirmed": True, "manual": True})
+    plain = mapping({"path": "office", "column": "Office"})
+    assert marked.dump()["rules"][0] == {"path": "office", "column": "Office", "transforms": [], "confirmed": True, "manual": True}
+    assert "confirmed" not in plain.dump()["rules"][0] and "manual" not in plain.dump()["rules"][0]
+    assert DataMapping.model_validate(marked.dump()) == marked
+    row = {"Office": "HR"}
+    assert apply_mapping(marked, SCHEMA, row) == apply_mapping(plain, SCHEMA, row) == {"office": "HR"}

@@ -2,6 +2,7 @@
 
     run_oneshot(job, doc, spec, provider_factory)   the ``oneshot`` job's body (see jobs.py)
     map_dataset(schema, dataset, provider, saved)   data -> records of ``schema``; also used by the fill route
+    remap(schema, dataset, mapping, mode)           a table -> records by a mapping a person edited; no model call
 
 Stages, each reported on the job as it starts and ends (``job.stages``):
 
@@ -12,6 +13,8 @@ Stages, each reported on the job as it starts and ends (``job.stages``):
     match    map the data onto the schema                                 (skipped without data)
 
 How data becomes records (``map_dataset``), cheapest first:
+  * ``saved``, exactly: a data mapping saved with the template for these very columns (a person's review of
+    it kept). No model call.
   * ``direct``: every column is named by a schema path (``applicant.name``, ``refs[0].phone``), as in a
     file exported from a saved template's schema. No model call.
   * ``saved``: a data mapping saved with the template reads columns this table has. No model call.
@@ -32,7 +35,16 @@ from typing import Any, Callable
 from demo.server.datasets import Dataset
 from demo.server.documents import Doc
 from formcast import FormcastError, SessionCancelled, Template, build_template
-from formcast.data import DataMapping, derive_schema, direct_mapping, extract_records, map_table, records_from, target_paths
+from formcast.data import (
+    DataMapping,
+    check_mapping,
+    derive_schema,
+    direct_mapping,
+    extract_records,
+    map_table,
+    records_from,
+    target_paths,
+)
 from formcast.llm import Provider, Usage
 
 log = logging.getLogger("demo.server")
@@ -125,26 +137,40 @@ def map_dataset(
     assert table is not None
     columns = table.columns
     direct = direct_mapping(schema, columns)
-    if direct.rules and not direct.unmapped_columns:
+    fits = [m for m in saved if m.fits(columns)]
+    exact = [m for m in fits if set(m.columns) == set(columns)]
+    if exact:
+        mapping, mode, usage, warnings = exact[0], "saved", Usage(), []
+    elif direct.rules and not direct.unmapped_columns:
         mapping, mode, usage, warnings = direct, "direct", Usage(), []
+    elif fits:
+        mapping, mode, usage, warnings = fits[0], "saved", Usage(), []
+    elif provider is not None:
+        made = map_table(schema, table, provider, instructions=instructions)
+        mapping, mode, usage, warnings = made.mapping, "model", made.usage, made.warnings
+    elif direct.rules:
+        mapping, mode, usage = direct, "direct", Usage()
+        warnings = [f"AI is off, so only the columns named by a schema path were used ({len(direct.rules)} of {len(columns)})"]
     else:
-        fits = [m for m in saved if m.fits(columns)]
-        exact = [m for m in fits if set(m.columns) == set(columns)]
-        if exact or fits:
-            mapping, mode, usage, warnings = (exact or fits)[0], "saved", Usage(), []
-        elif provider is not None:
-            made = map_table(schema, table, provider, instructions=instructions)
-            mapping, mode, usage, warnings = made.mapping, "model", made.usage, made.warnings
-        elif direct.rules:
-            mapping, mode, usage = direct, "direct", Usage()
-            warnings = [f"AI is off, so only the columns named by a schema path were used ({len(direct.rules)} of {len(columns)})"]
-        else:
-            raise FormcastError(
-                "AI is off and no column is named by one of the form's schema paths; download the schema and name "
-                "the columns by its paths, or turn AI on"
-            )
+        raise FormcastError(
+            "AI is off and no column is named by one of the form's schema paths; download the schema and name "
+            "the columns by its paths, or turn AI on"
+        )
     records = records_from(mapping, schema, table)
     return DataResult(mode, records, _titles(records), mapping, warnings, mapping.notes, usage)
+
+
+def remap(schema: dict, dataset: Dataset, mapping: DataMapping, mode: str) -> DataResult:
+    """Records of ``schema`` from the table ``dataset`` by ``mapping`` as a person edited it, with no model call.
+
+    The mapping is checked against the schema and the table's columns first: a rule that can't apply is dropped, with
+    a warning. ``mode`` is the mode the mapping first came with (``model``, ``saved`` or ``direct``), kept as it is.
+    """
+    if dataset.table is None:
+        raise FormcastError("free text has no columns to map")
+    checked, warnings = check_mapping(mapping, schema, dataset.table.columns)
+    records = records_from(checked, schema, dataset.table)
+    return DataResult(mode, records, _titles(records), checked, warnings, checked.notes)
 
 
 # ------------------------------------------------------------------ the job
