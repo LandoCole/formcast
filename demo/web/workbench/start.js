@@ -23,8 +23,14 @@
 // Open instead of a file or pasted text, and `form` (a saved template or demo form name) is picked. Opening a form
 // uses that data up.
 //
-// Reading the form. While the server reads a PDF (its form map: text, widgets, OCR, detected boxes) the
-// start screen shows what it is doing, page by page (reading.js), and asks for the seed once it is done.
+// Reading the form. The start screen closes as soon as the PDF is on the server and matched against the stored
+// templates (which needs only its fingerprint, not its reading), and the PDF opens on the page at once, its boxes
+// to come: the person can turn its pages and zoom while the server reads it (its form map: text, widgets, OCR,
+// detected boxes). The panel at the top of the right column (#read-progress) shows what the server is doing, page
+// by page (reading.js); once it is done the seed (the form's widgets and detected boxes) takes the page's place as
+// the template to start from (no undo step), and the one-shot job, when there is one, starts in its own panel
+// (jobs.js). Until then nothing on the page can be edited. A reading that fails says why in the panel, with Try
+// again (the server reads it afresh) and Choose another form (the start screen); nothing covers the page.
 // "I'll pick the form pages myself" reads it with no detection at all, which is quick even for a long
 // agreement; the PDF opens on its own widgets, and the person finds the blanks one page at a time as they
 // turn the pages (pages.js). With AI on, Build with AI then works from those pages.
@@ -37,10 +43,29 @@ const PASTE = "__paste__";
 const DERIVE = "__derive__";
 const NONE = "__none__"; // AI off: open the form's detected boxes with no schema yet
 const EMPTY_SCHEMA = { type: "object", properties: {} };
-// The server reads a PDF (its form map) once, starting when the document opens; the first time it also
-// downloads the detector weights. Matching and seeding wait for that reading.
-const FIRST_TIME = "the first time can take a minute while the detector downloads";
-const READING = `Reading the form (${FIRST_TIME})…`;
+/** Thrown from a reading's progress callback to stop following it: another form was opened meanwhile. */
+const DROPPED = Symbol("dropped");
+
+/**
+ * The template on screen while the server reads `doc`: no boxes yet, the schema chosen (or none), the PDF's
+ * pages. Nothing is sent to the server with it: the page can't be edited until the seed replaces it.
+ */
+export function readingTemplate(doc, schema) {
+  return {
+    formcast_version: "1",
+    template_id: "reading",
+    schema: schema ?? EMPTY_SCHEMA,
+    form: {
+      fingerprint: null,
+      page_count: doc.pageCount,
+      page_sizes: doc.pages.map((p) => [p.width, p.height]),
+      kinds: doc.kinds ?? [],
+      signature: null,
+    },
+    fields: [],
+    history: [],
+  };
+}
 
 /**
  * @param {object} app see workbench.js
@@ -56,6 +81,8 @@ export function mountStart(app) {
   const ai = engine.capabilities.ai && typeof engine.oneshot === "function";
   const canPick = typeof engine.detectPage === "function"; // the person may pick the pages to search
   const reading = $("start-reading");
+  const pane = $("read-progress");
+  let retry = null; // what Try again in the reading panel does, after a failure
   let forms = [];
   let saved = []; // stored templates that keep their PDF
   let pick = null; // what the match prompt is about: {doc, schema, schemaName, fits, dataset, check}
@@ -67,7 +94,6 @@ export function mountStart(app) {
   function showAgain(text = "") {
     match.hidden = true;
     start.hidden = false;
-    hideReading(reading);
     load(); // a template saved since the page opened is offered too
     say(msg, text);
     $("open").disabled = false;
@@ -286,14 +312,13 @@ export function mountStart(app) {
     const detect = manual() ? "manual" : "auto";
     try {
       doc = file ? await engine.open(file, { name: file.name, detect }) : await engine.open(value.slice(5), { detect });
-      await readForm(doc);
     } catch (e) {
       showAgain(e.message);
       return;
     }
     let fits = [];
     if (engine.capabilities.matches) {
-      say(msg, doc.reading ? "Comparing it with the stored templates…" : `Reading the form and comparing it with the stored templates (${FIRST_TIME})…`);
+      say(msg, "Comparing it with the stored templates…"); // its fingerprint only: no waiting for the reading
       try {
         fits = (await engine.matches(doc)).filter((m) => m.action === "reuse" || m.action === "adapt");
       } catch {
@@ -303,25 +328,12 @@ export function mountStart(app) {
     // picking the pages by hand, the AI waits for Build with AI: there are no boxes for it yet
     pick = { doc, ...chosen, fits, dataset, check: $("ai-mode").value === "check", ai: mapping() && detect === "auto" };
     if (fits.length === 0) {
-      await buildNew(pick);
+      say(msg, "");
+      buildNew(pick); // the form is on the page at once; its reading goes on in the panel beside it
       return;
     }
     showMatch(fits[0]);
   });
-
-  /**
-   * Wait for the server to read `doc`, showing what it does page by page; keeps the last report on the
-   * document (`doc.reading`) for the page bar. Without progress from the engine, the seed's own wait stands in.
-   */
-  async function readForm(doc) {
-    if (typeof engine.waitForReading !== "function") return;
-    say(msg, "");
-    try {
-      doc.reading = await engine.waitForReading(doc, (progress) => showReading(reading, progress));
-    } finally {
-      hideReading(reading);
-    }
-  }
 
   /** Open a saved template on its own PDF; with data, map just the data. */
   async function openSaved(name, dataset) {
@@ -430,29 +442,68 @@ export function mountStart(app) {
     app.jobs.adapt(s.template);
   });
 
-  $("build-new").addEventListener("click", async () => {
-    busy(true);
-    await buildNew(pick);
-    busy(false);
+  $("build-new").addEventListener("click", () => {
+    buildNew(pick);
   });
 
+  $("read-retry").addEventListener("click", () => retry?.());
+  $("read-other").addEventListener("click", () => showStart());
+
   /**
-   * Seed the document and put it on screen, then (with AI on, unless `ai` is false) start the one-shot
-   * job. Resolves false (with a message) when the seed fails.
+   * Put `doc` on the page at once, with no boxes yet (`readingTemplate`), then read it in the panel beside it
+   * (see the top). Resolves once the seed is on the page and the one-shot job (with AI on, unless `ai` is false)
+   * has started; false when the reading failed (the panel says why) or another form was opened meanwhile.
    */
-  async function buildNew({ doc, schema, schemaName, dataset = null, check = true, ai: runAi = ai }) {
-    const waitText = doc.reading ? "Opening…" : READING; // read already, or the seed waits for the reading
-    if (match.hidden) say(msg, waitText);
-    else $("match-hint").textContent = waitText; // asked from the match prompt, which stays up while it waits
+  function buildNew(opts) {
+    const { doc, schema, schemaName } = opts;
+    hideAll();
+    const shownSchema = schemaName ? app.schemas[schemaName] : schema;
+    app.setDocument({ doc, template: readingTemplate(doc, shownSchema), source: { kind: "reading", text: "Reading the form" }, schemaName });
+    return seedOnPage(opts);
+  }
+
+  /** Read the document on the page and put its seed in place (see `buildNew`). `again`: a reading that failed, read anew. */
+  async function seedOnPage(opts, { again = false } = {}) {
+    const { doc, schema, schemaName, dataset = null, check = true, ai: runAi = ai } = opts;
+    const generation = app.session.generation;
+    const mine = () => app.session.generation === generation;
+    retry = null;
+    app.setReading(true);
+    pane.hidden = false;
+    delete pane.dataset.state;
+    $("read-actions").hidden = true;
+    $("read-title").textContent = "Reading the form";
+    $("read-status").textContent = again ? "Reading the form again…" : "Opening the PDF…";
     let template;
     try {
-      template = await engine.seed(doc, schemaName ?? schema ?? EMPTY_SCHEMA);
+      if (!again && typeof engine.waitForReading === "function") {
+        doc.reading = await engine.waitForReading(doc, (progress) => {
+          if (!mine()) throw DROPPED;
+          showReading(reading, progress);
+          $("read-status").textContent = "";
+        });
+      }
+      if (!mine()) return false;
+      $("read-status").textContent = "Putting its boxes on the page…";
+      template = await engine.seed(doc, schemaName ?? schema ?? EMPTY_SCHEMA); // waits for a reading started again
+      if (again && typeof engine.readProgress === "function") doc.reading = await engine.readProgress(doc); // for the page bar
     } catch (e) {
-      showAgain(e.message);
+      if (e === DROPPED || !mine()) return false;
+      hideReading(reading);
+      pane.dataset.state = "error";
+      $("read-title").textContent = "The form couldn't be read";
+      $("read-status").textContent = e.message;
+      $("read-actions").hidden = false;
+      retry = () => seedOnPage(opts, { again: true });
+      $("read-retry").focus();
       return false;
     }
-    hideAll();
-    app.setDocument({ doc, template, source: { kind: "seed", text: "The form's own fields and detected boxes" }, schemaName });
+    if (!mine()) return false;
+    await app.track(app.session.replaceTemplate(template, { source: { kind: "seed", text: "The form's own fields and detected boxes" }, pushUndo: false }));
+    if (!mine()) return false;
+    hideReading(reading);
+    pane.hidden = true;
+    app.setReading(false);
     if (runAi) {
       app.jobs.oneshot({ schema: schemaName ?? schema, dataset, check });
       return true;

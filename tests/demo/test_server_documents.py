@@ -14,6 +14,7 @@ import subprocess
 import sys
 import threading
 import time
+import types
 import uuid
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -317,17 +318,14 @@ def test_adding_a_document_starts_one_form_map_build_in_the_background(demo_serv
     assert status == 200 and time.monotonic() - started < 5
     assert builder.started.wait(timeout=5)
     (name, holds_lock), = builder.calls
-    assert name.startswith("form-map-") and holds_lock  # its own thread, under the MuPDF lock (Ruling 12)
+    # its own thread, not under the MuPDF lock: the library takes it for each MuPDF step, not while it detects
+    assert name.startswith("form-map-") and not holds_lock
     assert builder.detectors == [None]  # a server made without a warm-up leaves the detectors to the library
-    # what blocks: a page image asked for during the build waits for the MuPDF lock and is served after it
-    got: list = []
-    t = threading.Thread(target=lambda: got.append(http_request(demo_server, "GET", f"/api/documents/{doc['id']}/pages/2.png")[0]))
-    t.start()
-    t.join(timeout=0.5)
-    assert got == []
-    builder.gate.set()
-    t.join(timeout=10)
-    assert got == [200]
+    # a page image asked for during the build is served at once: the build does not hold the MuPDF lock
+    try:
+        assert http_request(demo_server, "GET", f"/api/documents/{doc['id']}/pages/2.png")[0] == 200
+    finally:
+        builder.gate.set()
     assert len(builder.calls) == 1  # rendering never builds the form map
 
 
@@ -529,7 +527,7 @@ def test_a_build_that_needs_detection_waits_for_the_warmup_off_the_lock_then_use
         detector.gate.set()
     assert doc.form_map() == "map"
     (name, holds_lock), = builder.calls
-    assert name.startswith("form-map-") and holds_lock
+    assert name.startswith("form-map-") and not holds_lock
     assert builder.detectors == [warmup.detectors]  # the warm-up's own instances, loaded
     assert detector.calls == [("detector-warmup", (64, 64), False)]  # loaded once, by the warm-up
 
@@ -566,6 +564,69 @@ def test_a_failed_warmup_fails_the_build_waiting_on_it_and_the_next_build_tries_
     assert "Could not load the field detectors: OSError: cannot fetch the detection weights" in caplog.text
     assert doc.form_map() == "map"  # the next build warms up again, and this time the weights load
     assert builder.detectors == [warmup.detectors] and len(detector.calls) == 2
+
+
+def test_a_digital_pdf_waits_only_for_ffdnet_while_ffdetr_still_loads(monkeypatch):
+    ffdnet, ffdetr = GatedDetector("FFDNet-L"), GatedDetector("FFDetr")
+    warmup = DetectorWarmup(load=lambda: {"FFDNet-L": ffdnet, "FFDetr": ffdetr})
+    builder = GatedBuilder()
+    builder.gate.set()
+    monkeypatch.setattr(documents_mod, "build_form_map", builder)
+    warmup.start()
+    assert ffdnet.started.wait(timeout=5)
+    assert warmup.status()["state"] == "loading"
+    try:
+        doc = Documents(detectors=warmup).add(small_pdf(pages=2), "x.pdf")
+        assert doc.kinds == ["digital", "digital"]
+        assert not builder.started.wait(timeout=0.3)  # FFDNet is still loading
+        ffdnet.gate.set()
+        assert ffdetr.started.wait(timeout=5)
+        assert doc.form_map() == "map"  # built while FFDetr, which only scans need, still loads
+        rows = {r["name"]: r["state"] for r in warmup.status()["detectors"]}
+        assert rows == {"FFDNet-L": "ready", "FFDetr": "loading"}
+    finally:
+        ffdetr.gate.set()
+    assert warmup.ready() is warmup.detectors and warmup.status()["state"] == "ready"
+    assert ffdnet.calls == [("detector-warmup", (64, 64), False)] and len(ffdetr.calls) == 1  # each loaded once
+
+
+def test_a_failed_detector_is_reported_and_the_others_still_load(caplog):
+    good, bad = GatedDetector("FFDNet-L"), GatedDetector("FFDetr", fail_first=True)
+    good.gate.set()
+    bad.gate.set()
+    warmup = DetectorWarmup(load=lambda: {"FFDNet-L": good, "FFDetr": bad})
+    with caplog.at_level(logging.WARNING, logger="demo.server"):
+        assert warmup.ready(["FFDNet-L"]) is warmup.detectors
+        with pytest.raises(OSError):
+            warmup.ready()
+    status = warmup.status()
+    assert status["state"] == "error"
+    assert status["detectors"][1] == {"name": "FFDetr", "state": "error", "error": "OSError: cannot fetch the detection weights"}
+    assert warmup.ready() is warmup.detectors  # tried again, and loaded this time
+    assert warmup.status()["state"] == "ready" and len(bad.calls) == 2 and len(good.calls) == 1
+
+
+def test_opening_the_page_starts_the_warmup_and_a_build_waiting_on_it_reports_it(monkeypatch):
+    detector = GatedDetector("A")
+    warmup = DetectorWarmup(load=lambda: {"A": detector})
+    api = Api(Settings.from_env({}), documents=Documents(detectors=warmup))
+    assert warmup.status()["state"] == "idle"
+    builder = GatedBuilder()
+    builder.gate.set()
+    monkeypatch.setattr(documents_mod, "build_form_map", builder)
+    try:
+        api.capabilities(None)  # the page opening
+        assert detector.started.wait(timeout=5)
+        api.capabilities(None)  # a second visit shares the load under way
+        doc = api.documents.add(small_pdf(), "x.pdf")
+        deadline = time.monotonic() + 5
+        while doc.progress()["phase"] != "detectors" and time.monotonic() < deadline:
+            time.sleep(0.02)
+        progress = api.document_progress(types.SimpleNamespace(match={"doc": doc.id}))
+        assert progress["phase"] == "detectors" and progress["warmup"]["detectors"] == [{"name": "A", "state": "loading"}]
+    finally:
+        detector.gate.set()
+    assert doc.form_map() == "map" and len(detector.calls) == 1
 
 
 # ------------------------------------------------------------------ error shape and mapping
@@ -1019,13 +1080,14 @@ def test_mupdf_work_runs_under_the_process_wide_lock(monkeypatch):
     monkeypatch.setattr(documents_mod, "PYMUPDF_LOCK", Probe(documents_mod.PYMUPDF_LOCK))
     doc = Documents().add(small_pdf(), "x.pdf")
     doc.form_map()  # waits for the build that add started
-    assert held == ["enter", "exit"] * 4  # the light open, the match features (opened, then every part), the build
+    # the light open and the match features (opened, then every part); the build takes the library's lock itself
+    assert held == ["enter", "exit"] * 3
     doc.page_png(0, 72)
-    assert held == ["enter", "exit"] * 5  # the render
+    assert held == ["enter", "exit"] * 4  # the render
     doc.page_png(0, 72)
     doc.form_map()
     doc.match_features()
-    assert held == ["enter", "exit"] * 5  # a cache hit, a built form map and complete features need no MuPDF
+    assert held == ["enter", "exit"] * 4  # a cache hit, a built form map and complete features need no MuPDF
     assert hasattr(documents_mod.PYMUPDF_LOCK.real, "acquire")
 
 

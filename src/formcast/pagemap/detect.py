@@ -6,11 +6,18 @@ policy names for that kind of page. Detectors speak in boxes normalized to the
 image they were given; ``detect_page`` rotates those boxes back through the
 deskew and maps them into unrotated crop-box points, then merges the detectors'
 output and numbers the candidates in reading order.
+
+Threads. Only the render and the mapping of boxes into page points touch MuPDF, and ``detect_page``
+holds :data:`~formcast.pagemap.extract.PDF_LOCK` for just those: the detectors run without it, so other
+threads' MuPDF work (a page image, another PDF opening) goes on meanwhile. Each stock detector loads its
+model once, on its first ``detect``: a second thread that calls it meanwhile waits for that load and
+uses it, rather than loading the model again.
 """
 
 from __future__ import annotations
 
 import functools
+import threading
 from dataclasses import dataclass
 from typing import Literal, NamedTuple, Protocol
 
@@ -20,7 +27,7 @@ from PIL import Image
 
 from formcast.errors import FormcastError
 from formcast.geometry import Rect, iou
-from formcast.pagemap.extract import image_norm_to_points
+from formcast.pagemap.extract import PDF_LOCK, image_norm_to_points
 from formcast.pagemap.model import Candidate
 from formcast.pagemap.ocr import render, straighten, unrotate_box
 
@@ -65,21 +72,31 @@ class FFDNetDetector:
         self.confidence = confidence
         self.image_size = image_size
         self._detector = None
+        self._load_lock = threading.Lock()  # one load, however many threads detect at once
+
+    @property
+    def loaded(self) -> bool:
+        return self._detector is not None
+
+    def _model(self):
+        with self._load_lock:
+            if self._detector is None:
+                from commonforms.inference import FFDNetDetector as _FFDNet
+
+                self._detector = _FFDNet(self.name)
+            return self._detector
 
     def detect(self, image: Image.Image) -> list[Detection]:
-        from commonforms.inference import FFDNetDetector as _FFDNet
-
-        if self._detector is None:
-            self._detector = _FFDNet(self.name)
+        detector = self._model()
         # commonforms' extract_widgets drops the confidences, which the merge
         # needs, so call the YOLO model with the arguments it would use.
-        results = self._detector.model.predict(
+        results = detector.model.predict(
             image,
             iou=DETECTOR_NMS_IOU,
             conf=self.confidence,
             augment=True,
             imgsz=self.image_size,
-            device=self._detector.device,
+            device=detector.device,
             verbose=False,
         )
         result = results[0] if isinstance(results, list) else results
@@ -194,6 +211,11 @@ class FFDNetOnnxDetector:
         self.name = f"{model}-onnx"
         self.confidence = confidence
         self._session = None
+        self._load_lock = threading.Lock()
+
+    @property
+    def loaded(self) -> bool:
+        return self._session is not None
 
     def _load(self):
         import onnxruntime
@@ -205,10 +227,12 @@ class FFDNetOnnxDetector:
         return onnxruntime.InferenceSession(path, providers=["CPUExecutionProvider"])
 
     def detect(self, image: Image.Image) -> list[Detection]:
-        if self._session is None:
-            self._session = self._load()
+        with self._load_lock:
+            if self._session is None:
+                self._session = self._load()
+            session = self._session
         tensor, letterbox = _letterbox(image)
-        (raw,) = self._session.run(None, {self._session.get_inputs()[0].name: tensor})
+        (raw,) = session.run(None, {session.get_inputs()[0].name: tensor})
         return _decode(raw, self.confidence, DETECTOR_NMS_IOU, letterbox)
 
 
@@ -224,13 +248,20 @@ class FFDetrDetector:
     def __init__(self, confidence: float = 0.3):
         self.confidence = confidence
         self._detector = None
+        self._load_lock = threading.Lock()
+
+    @property
+    def loaded(self) -> bool:
+        return self._detector is not None
 
     def detect(self, image: Image.Image) -> list[Detection]:
-        from commonforms.inference import FFDetrDetector as _FFDetr
+        with self._load_lock:
+            if self._detector is None:
+                from commonforms.inference import FFDetrDetector as _FFDetr
 
-        if self._detector is None:
-            self._detector = _FFDetr("FFDetr")
-        result = self._detector.model.predict(image, threshold=self.confidence)
+                self._detector = _FFDetr("FFDetr")
+            detector = self._detector
+        result = detector.model.predict(image, threshold=self.confidence)
         detections = result[0] if isinstance(result, list) else result
         detections = detections.with_nms(threshold=DETECTOR_NMS_IOU, class_agnostic=True)
         width, height = image.size
@@ -311,7 +342,8 @@ def detect_page(
     """Field candidates on ``page`` in unrotated crop-box points, ids ``c{page}_{n}`` in reading order.
 
     ``page_kind`` "scanned" runs ``policy.scanned`` (on the deskewed render when
-    ``policy.deskew_scanned``); any other kind runs ``policy.digital``.
+    ``policy.deskew_scanned``); any other kind runs ``policy.digital``. Holds ``PDF_LOCK``
+    for the render and the mapping only, not while the detectors run.
 
     Raises:
         FormcastError: when the policy names a detector that is not in ``detectors``.
@@ -322,15 +354,16 @@ def detect_page(
     if missing:
         raise FormcastError(f"detector {missing[0]!r} is not available; have {sorted(detectors)}")
 
-    image = render(page, policy.dpi)
+    with PDF_LOCK:
+        image = render(page, policy.dpi)
+        number, height = page.number, page.cropbox.height
     angle = 0.0
     if scanned and policy.deskew_scanned:
         image, angle = straighten(image)
 
-    per_detector: list[list[Candidate]] = []
-    for name in names:
-        detector = detectors[name]
-        per_detector.append(
+    found = [(detectors[name], detectors[name].detect(image)) for name in names]  # no MuPDF, so not under our lock
+    with PDF_LOCK:
+        per_detector = [
             [
                 Candidate(
                     id="",
@@ -339,10 +372,11 @@ def detect_page(
                     conf=conf,
                     detector=detector.name,
                 )
-                for kind, box, conf in detector.detect(image)
+                for kind, box, conf in boxes
             ]
-        )
+            for detector, boxes in found
+        ]
 
     merged = merge_detections(per_detector, policy.merge_iou)
-    ordered = _reading_order(merged, page.cropbox.height)
-    return [c.model_copy(update={"id": f"c{page.number}_{n}"}) for n, c in enumerate(ordered)]
+    ordered = _reading_order(merged, height)
+    return [c.model_copy(update={"id": f"c{number}_{n}"}) for n, c in enumerate(ordered)]

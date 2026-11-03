@@ -190,3 +190,59 @@ def test_constructing_a_detector_does_not_load_weights():
     detector = FFDNetDetector()
     assert detector.name == "FFDNet-L"
     assert detector._detector is None
+
+
+def test_the_detectors_run_without_the_pdf_lock_so_other_mupdf_work_goes_on(flat_form_pdf):
+    import threading
+
+    from formcast.pagemap.build import build_form_map
+    from formcast.pagemap.extract import PDF_LOCK
+
+    owned: list[bool] = []
+    others: list[bool] = []
+
+    class Watching(FakeDetector):
+        def detect(self, image):
+            owned.append(PDF_LOCK._is_owned())
+            # another thread (a page image, say) gets the lock while the detector runs
+            t = threading.Thread(target=lambda: others.append(PDF_LOCK.acquire(timeout=2) and (PDF_LOCK.release() or True)))
+            t.start()
+            t.join(timeout=5)
+            return super().detect(image)
+
+    build_form_map(flat_form_pdf, detectors={"fake": Watching("fake", [])}, policy=_policy())
+    assert owned == [False] and others == [True]
+
+
+def test_threads_that_detect_at_once_share_one_model_load(monkeypatch):
+    import sys
+    import threading
+    import time
+    import types
+
+    from formcast.pagemap import detect as detect_mod
+
+    loads: list[str] = []
+
+    class Model:
+        device = "cpu"
+
+        def predict(self, image, **kw):
+            return [types.SimpleNamespace(boxes=None)]
+
+    class FakeFFDNet:
+        def __init__(self, name):
+            loads.append(name)
+            time.sleep(0.2)  # a slow load: the other threads arrive meanwhile
+            self.model = Model()
+            self.device = "cpu"
+
+    monkeypatch.setitem(sys.modules, "commonforms.inference", types.SimpleNamespace(FFDNetDetector=FakeFFDNet))
+    detector = detect_mod.FFDNetDetector()
+    image = Image.new("RGB", (8, 8), "white")
+    threads = [threading.Thread(target=detector.detect, args=(image,)) for _ in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=5)
+    assert loads == ["FFDNet-L"] and detector.loaded

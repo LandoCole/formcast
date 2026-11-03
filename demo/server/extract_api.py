@@ -177,6 +177,7 @@ from formcast.extract.proof import prove
 from formcast.extract.read import places
 from formcast.extract.samples import SamplePdf, read_samples
 from formcast.extract.setup import FIELDS_LABELS, MAX_SAMPLES, STAGES, SetupSpec, add_line, build_setup
+from formcast.pagemap.extract import open_pdf
 
 BATCH = r"/api/batches/(?P<batch>[0-9a-f]{32})"
 SETUP = r"/api/setups/(?P<setup>[0-9a-f]{32})"
@@ -321,7 +322,8 @@ def list_batch_files(api: Api, req: Request) -> dict:
 
 
 def pick_sample(api: Api, req: Request) -> dict:
-    """``{n, how, picked?}`` -> the documents to build a template from (see ``Batches.pick``)."""
+    """``{n, how, picked?}`` -> the documents to build a template from (see ``Batches.pick``), each with its pages'
+    ``[width, height]`` in points (``[]`` for one that can't be opened), so the page can show them while it builds."""
     batch = _batch(api, req)
     payload = _object(req)
     try:
@@ -331,7 +333,21 @@ def pick_sample(api: Api, req: Request) -> dict:
     except FormcastError as exc:
         raise ApiError(400, "bad_sample", str(exc)) from None
     files = [batch.file(i) for i in indexes]
-    return {"samples": [{"index": f.index, "name": f.name, "group": batch.group_of(f.index)} for f in files]}
+    return {"samples": [{"index": f.index, "name": f.name, "group": batch.group_of(f.index), "pages": _page_sizes(f.path)} for f in files]}
+
+
+def _page_sizes(path: Path) -> list[list[float]]:
+    """The ``[width, height]`` of each page of the PDF at ``path``, as its page images show them; ``[]`` when it can't be read."""
+    try:
+        data = path.read_bytes()
+        with PYMUPDF_LOCK:
+            pdf = open_pdf(data)
+            try:
+                return [[p.rect.width, p.rect.height] for p in pdf]  # /Rotate applied, as page_png renders it
+            finally:
+                pdf.close()
+    except (OSError, FormcastError):
+        return []
 
 
 def batch_page_image(api: Api, req: Request) -> Response:

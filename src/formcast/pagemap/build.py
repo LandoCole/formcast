@@ -25,6 +25,11 @@ Detection off (``detect=False``): no page is run through detection, for a person
 themselves. Each page that would have been says so in its notes; :func:`detect_on_page` runs detection on
 one page later (it also takes a page skipped as prose).
 
+Threads: the build takes :data:`~formcast.pagemap.extract.PDF_LOCK` itself, for each MuPDF step (opening,
+a page's text and widgets, a render, the fingerprint), and lets it go while a detector or Tesseract runs, so
+on another thread a page image or another PDF need not wait for the whole build. A caller that holds the lock
+around the build (it is re-entrant) keeps it held throughout, as before.
+
 Progress (``on_progress``): called as each page starts a step (``text``, ``ocr``, ``detect``) and when the
 page is done, with a :class:`PageProgress`. Raising from it stops the build.
 
@@ -44,7 +49,7 @@ import pymupdf
 
 from formcast.match import compute_signature, fingerprint_document
 from formcast.pagemap.detect import DetectPolicy, Detector, detect_page, load_default_detectors
-from formcast.pagemap.extract import extract_page, is_image_dominated, needs_ocr, open_pdf
+from formcast.pagemap.extract import PDF_LOCK, extract_page, is_image_dominated, needs_ocr, open_pdf
 from formcast.pagemap.model import FormMap, PageMap, TextLine, Word
 from formcast.pagemap.ocr import ocr_available, ocr_page
 from formcast.pagemap.query import find_label
@@ -113,19 +118,26 @@ def build_form_map(
     """
     if ocr not in ("auto", "never", "always"):
         raise ValueError(f"ocr must be 'auto', 'never' or 'always', not {ocr!r}")
-    doc = open_pdf(pdf)
-    try:
+    with PDF_LOCK:
+        doc = open_pdf(pdf)
         total = doc.page_count
+    try:
 
         def report(index: int, step: str, **more) -> None:
             if on_progress is not None:
                 on_progress(PageProgress(index, total, step, **more))  # type: ignore[arg-type]
 
-        pages = [_build_page(page, detectors, policy, ocr, skip_prose, detect, report) for page in doc]
-        fp = fingerprint_document(doc)
-        signature = compute_signature(doc)
+        pages = []
+        for index in range(total):
+            with PDF_LOCK:
+                page = doc[index]
+            pages.append(_build_page(page, detectors, policy, ocr, skip_prose, detect, report))
+        with PDF_LOCK:
+            fp = fingerprint_document(doc)
+            signature = compute_signature(doc)
     finally:
-        doc.close()
+        with PDF_LOCK:
+            doc.close()
     source_name = "" if isinstance(pdf, (bytes, bytearray, memoryview)) else Path(pdf).name
     return FormMap(pages=pages, fingerprint=fp, signature=signature, source_name=source_name)
 
@@ -139,20 +151,23 @@ def _build_page(
     detect: bool = True,
     report: Callable[..., None] = lambda index, step, **more: None,
 ) -> PageMap:
-    report(page.number, "text")
-    pm = extract_page(page)
-    if pm.widgets:
-        kind = "fillable"
-        wants_ocr = needs_ocr(page)
-    else:
-        kind = "scanned" if is_image_dominated(page) else "digital"
-        # extract_page marks a widget-free page "scanned" exactly when it needs OCR.
-        wants_ocr = pm.kind == "scanned"
+    with PDF_LOCK:
+        number = page.number
+    report(number, "text")
+    with PDF_LOCK:
+        pm = extract_page(page)
+        if pm.widgets:
+            kind = "fillable"
+            wants_ocr = needs_ocr(page)
+        else:
+            kind = "scanned" if is_image_dominated(page) else "digital"
+            # extract_page marks a widget-free page "scanned" exactly when it needs OCR.
+            wants_ocr = pm.kind == "scanned"
 
     words, lines, text_source, notes = pm.words, pm.lines, "pdf", []
     if ocr == "always" or (ocr == "auto" and wants_ocr and ocr_available()):
-        report(page.number, "ocr")
-        words, lines = ocr_page(page)
+        report(number, "ocr")
+        words, lines = ocr_page(page)  # holds PDF_LOCK for its render and mapping only
         text_source = "ocr"
     elif wants_ocr:
         notes.append(NOTE_OCR_OFF if ocr == "never" else NOTE_OCR_MISSING)
@@ -168,8 +183,8 @@ def _build_page(
     else:
         if detectors is None:
             detectors = load_default_detectors()
-        report(page.number, "detect", detectors=policy.scanned if kind == "scanned" else policy.digital)
-        candidates = detect_page(page, kind, detectors, policy)
+        report(number, "detect", detectors=policy.scanned if kind == "scanned" else policy.digital)
+        candidates = detect_page(page, kind, detectors, policy)  # holds PDF_LOCK for its render and mapping only
 
     pm = pm.model_copy(
         update={
@@ -182,7 +197,7 @@ def _build_page(
         }
     )
     link_labels(pm)
-    report(page.number, "done", page=pm)
+    report(number, "done", page=pm)
     return pm
 
 

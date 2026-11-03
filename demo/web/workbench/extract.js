@@ -30,12 +30,16 @@
 // the pages named for every sample: "1, 3-4"), OCR, the unsure rule (always on in this version: plan 1's reader has
 // no switch for it) and AI per document (read by a run, later).
 //
-// Read the sample → (disabled from the click until the building panel opens or the choices are refused, so a double
-// click starts one build) picks the sample (`pickSample`) and starts the `extract-setup` job; the building panel
-// (#building) shows its stages live (`showStages`). When it is done the panel closes, the bus hears `extract:setup`
-// ({setup, rebuilt}: `rebuilt` when it came from "Change the setup") and `openSetup(setup)` of this module's API opens it, once the setup screen sets it. A job that fails, or
-// can't start, goes back to the modal with its message; Cancel asks the job to stop and goes back at once, the job's
-// end ignored. `openModal(setupInfo)` opens the modal again with a template's choices (a SetupInfo: start, lines,
+// Read the sample → (disabled from the click until the build starts or the choices are refused, so a double click
+// starts one build) picks the sample (`pickSample`), closes the modal and starts the `extract-setup` job. The setup
+// screen opens at once on the samples picked (`openBuilding({batch, samples})`, extract-setup.js), so the person can
+// look through them while they are read, and the building panel (#building) at the top of its right column shows the
+// job's stages live (`showStages`). When it is done the panel closes, the bus hears `extract:setup` ({setup, rebuilt}:
+// `rebuilt` when it came from "Change the setup") and `openSetup(setup)` of this module's API opens it, once the setup
+// screen sets it. A job that fails, or can't start, says why in the panel, with Try again (the same build afresh) and
+// Change the setup (the modal, with the choices as they were); nothing covers the samples. Cancel asks the job to stop
+// and goes back to the modal at once, the job's end ignored, and the setup screen shows what it showed before the
+// build (`unbuild`). `openModal(setupInfo)` opens the modal again with a template's choices (a SetupInfo: start, lines,
 // destination, detect, pages, ocr, sample_how), for the setup screen's "Change the setup".
 //
 // Run on a batch. `openRunOn(name, start)` opens the modal for a saved extraction template that has no batch (one
@@ -72,7 +76,9 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  * @param {object} app see workbench.js
  * @returns {{show: () => void, setMode: (mode: "fill" | "extract") => void, showView: (name: string | null) => void,
  *   openModal: (setupInfo?: object) => void, openRunOn: (name: string, start: (batch: string) => unknown) => void,
- *   openSetup?: (setup: object, opts?: object) => void, onShow: () => void, linked: () => boolean}} `onShow` and
+ *   openSetup?: (setup: object, opts?: object) => void, openBuilding?: (opts: object) => void, unbuild?: () => void,
+ *   onShow: () => void, linked: () => boolean}} `openSetup`, `openBuilding` and `unbuild` are the setup screen's
+ *   (extract-setup.js); `onShow` and
  *   `linked` are set by the review (extract-review.js): what the choice lists each time it is shown, and whether the
  *   setup and the run on screen belong together
  */
@@ -155,6 +161,7 @@ function mountModal(app, api) {
   let watching = 0; // the scan watch running (a newer one ends an older)
   let previewing = 0; // the sample preview asked for last
   let build = null; // the build running: {handle, cancelled}
+  let lastBuild = null; // the last build's [batch, picked samples, spec], as Try again starts it afresh
   let destinations = null; // the destination list's loading, once
 
   const say = (text) => app.say($("extract-msg"), text);
@@ -623,9 +630,9 @@ function mountModal(app, api) {
     try {
       ready = await prepareBuild();
     } finally {
-      button.disabled = false; // the building panel opens at once below, over the modal
+      button.disabled = false; // the build starts at once below, beside its samples
     }
-    if (ready) await runBuild(ready.batch, ready.samples, ready.spec);
+    if (ready) await runBuild(ready.batch, ready.picked, ready.spec);
   }
 
   /** The batch, the sample picked and the spec to build with, or null with the reason shown. */
@@ -643,24 +650,47 @@ function mountModal(app, api) {
       say(choices.error);
       return null;
     }
-    let samples;
+    let picked;
     try {
-      samples = (await calls.pickSample(batch.id, sample.body)).map((s) => s.index);
+      picked = await calls.pickSample(batch.id, sample.body);
     } catch (e) {
       say(batchGone(e) ? BATCH_GONE : e.message);
       return null;
     }
-    return { batch, samples, spec: { ...choices.spec, pages: pagesFor(samples.length, choices.searched) } };
+    return { batch, picked, spec: { ...choices.spec, pages: pagesFor(picked.length, choices.searched) } };
   }
 
-  /** Start the extract-setup job and follow it in the building panel (see the top). */
-  async function runBuild(batch, samples, spec) {
+  /** Show the building panel for a build starting, or for one that failed (`failed`: why) with its way on. */
+  function showBuilding(failed = null) {
+    building.hidden = false;
+    building.dataset.state = failed === null ? "" : "error";
+    $("building-title").textContent = failed === null ? "Building the template" : "The template couldn't be built";
+    $("build-cancel").hidden = failed !== null;
+    $("build-retry").hidden = $("build-change").hidden = failed === null;
+    if (failed === null) {
+      $("build-stages").replaceChildren();
+      $("build-readout").textContent = "Starting…";
+    } else {
+      $("build-readout").textContent = failed;
+    }
+  }
+
+  /**
+   * Start the extract-setup job on the batch's samples `picked` (as `pickSample` gave them) and follow it in the
+   * building panel, beside the samples (see the top).
+   */
+  async function runBuild(batch, picked, spec) {
+    if (build !== null) {
+      build.cancelled = true;
+      build.handle?.cancel().catch(() => {}); // a build still running is replaced: its end is ignored
+    }
     const run = { handle: null, cancelled: false };
     build = run;
+    lastBuild = [batch, picked, spec];
     sheet.hidden = true;
-    $("build-stages").replaceChildren();
-    $("build-readout").textContent = "Starting…";
-    building.hidden = false;
+    api.openBuilding?.({ batch, samples: picked });
+    showBuilding();
+    const samples = picked.map((s) => s.index);
     try {
       run.handle = await calls.startSetup({ batch: batch.id, samples, spec });
     } catch (e) {
@@ -704,13 +734,12 @@ function mountModal(app, api) {
     $("build-readout").textContent = text;
   }
 
-  /** Back to the modal from the build `run` (unless it was cancelled), with `message`. */
+  /** The build `run` failed (unless it was cancelled): the panel says why, with Try again and Change the setup. */
   function backFrom(run, message) {
     if (build !== run) return;
     build = null;
-    building.hidden = true;
-    sheet.hidden = false;
-    say(message);
+    showBuilding(message);
+    $("build-retry").focus();
   }
 
   $("read-sample").addEventListener("click", readSample);
@@ -721,7 +750,18 @@ function mountModal(app, api) {
     run.cancelled = true;
     run.handle?.cancel().catch(() => {}); // it stops after the stage running now; its end is ignored
     building.hidden = true;
+    api.unbuild?.();
     sheet.hidden = false;
+    say("");
+  });
+  $("build-retry").addEventListener("click", () => {
+    if (build !== null || lastBuild === null) return;
+    runBuild(...lastBuild);
+  });
+  $("build-change").addEventListener("click", () => {
+    if (build !== null) return;
+    building.hidden = true;
+    sheet.hidden = false; // the choices as they were
     say("");
   });
   $("extract-back").addEventListener("click", () => {

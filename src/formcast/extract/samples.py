@@ -193,11 +193,15 @@ def _detect_pages(
     pages = list(form_map.pages)
     with PDF_LOCK:
         doc = open_pdf(pdf)
-        try:
-            for n, page_map in enumerate(pages):
-                if page_map.index in wanted:
-                    pages[n] = detect_on_page(doc[page_map.index], page_map, detectors=detectors, policy=policy)
-        finally:
+    try:
+        for n, page_map in enumerate(pages):
+            if page_map.index in wanted:
+                with PDF_LOCK:
+                    page = doc[page_map.index]
+                # takes PDF_LOCK for the render and the mapping, not while the detector runs
+                pages[n] = detect_on_page(page, page_map, detectors=detectors, policy=policy)
+    finally:
+        with PDF_LOCK:
             doc.close()
     return form_map.model_copy(update={"pages": pages})
 

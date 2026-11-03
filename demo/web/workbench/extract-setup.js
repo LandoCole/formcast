@@ -46,6 +46,13 @@
 // (it restarted, or dropped it) answers any call with 404 "no such setup": the screen closes and the choice opens with
 // "This setup is no longer on the server; start again."
 //
+// While the template is built. The Extract modal's Read the sample → shows this screen at once with the samples it
+// picked (`building({batch, samples})`, each with its pages' sizes): their pages, as the batch has them, can be turned
+// through and zoomed while the server reads them, and the building panel (#building, extract.js) at the top of the
+// right column says how far it has got. Nothing can be edited, saved or run yet: the field list says the fields
+// come once the sample is read. The setup built opens in its place (`open`). A build cancelled puts back the setup
+// that was on screen before it, if any (`unbuild`), as "Change the setup" leaves it.
+//
 // The page view here is a PageView of its own, on a bus of its own, so the fill editor's handlers never hear it. Its
 // zoom (`mountZoom`) is the review's document page's too.
 
@@ -212,6 +219,9 @@ export function mountSetup(app) {
     savedName: null, // the name it was last saved as
     changed: false, // edited since it was opened or saved
     revision: 0, // edits made on this screen, ever: saving doesn't reset it, so the review can tell what a run read
+    /** The sample being read while its template is built, or null: {batch, name, samples: [{index, name, pages}]} */
+    pending: null,
+    before: null, // the setup screen as it was when a build started (its setup and save state), put back on cancel
   };
   let queue = Promise.resolve(); // the changes, one after another
   let pending = 0; // changes and mark loads under way
@@ -243,7 +253,10 @@ export function mountSetup(app) {
     for (const o of document.querySelectorAll(".overlay")) o.hidden = true;
     app.extract.setMode("extract");
     marksToken += 1;
-    Object.assign(state, { setup, batch: null, sample: 0, page: 0, marks: [], savedName, changed: false, answer: null, many: new Set() });
+    Object.assign(state, { setup, batch: null, sample: 0, page: 0, marks: [], savedName, changed: false, answer: null, many: new Set(), pending: null, before: null });
+    showParts(true);
+    $("building").hidden = true; // its build is done
+    if ($("running").dataset.state === "error") $("running").hidden = true; // another setup's failed run
     renames.clear();
     state.selected = firstPath();
     app.extract.showView("setup");
@@ -252,6 +265,63 @@ export function mountSetup(app) {
     showPage();
     loadMarks();
   }
+
+  /** The field's groups on the right (the inspector, the lines per sample): hidden while the template is built. */
+  function showParts(on) {
+    for (const el of document.querySelectorAll('[data-only="setup"] [data-part="field"]')) el.hidden = !on;
+  }
+
+  /**
+   * Show the samples `samples` of the batch `batch` ({id, name}) while their template is built (see the top); the
+   * building panel is the caller's.
+   */
+  function building({ batch, samples }) {
+    for (const o of document.querySelectorAll(".overlay")) o.hidden = true;
+    app.extract.setMode("extract");
+    marksToken += 1;
+    const before = state.setup !== null
+      ? { setup: state.setup, batch: state.batch, savedName: state.savedName, changed: state.changed }
+      : state.before;
+    Object.assign(state, { setup: null, pending: { batch: batch.id, name: batch.name, samples }, before, sample: 0, page: 0, marks: [], selected: null, answer: null, many: new Set() });
+    showParts(false);
+    app.extract.showView("setup");
+    renderPending();
+    showPage();
+  }
+
+  /** A build cancelled: the setup on screen before it comes back, or the screen closes when there was none. */
+  function unbuild() {
+    if (state.pending === null) return;
+    const before = state.before;
+    state.pending = null;
+    state.before = null;
+    if (before === null) {
+      app.extract.showView(null);
+      $("doc-pick").textContent = "No extraction open";
+      return;
+    }
+    const { setup, batch, savedName, changed } = before;
+    open(setup, { savedName });
+    Object.assign(state, { batch, changed });
+    renderToolbar();
+  }
+
+  /** The screen while the sample is read: its toolbar, strip, empty field list and samples. */
+  function renderPending() {
+    const p = state.pending;
+    $("doc-pick").textContent = `${p.name} · ${plural(p.samples.length, "sample")}`;
+    $("run").disabled = $("setup-save").disabled = $("add").disabled = $("add-go").disabled = true;
+    $("run").title = "The template is still being built";
+    const head = make("span", { className: "label", textContent: `Reading the sample · ${plural(p.samples.length, "document")}` });
+    $("strip").replaceChildren(make("p", {}, head, make("br"), "The fields come once the sample is read: see the panel on the right. Meanwhile, look through the samples."));
+    $("fields").replaceChildren();
+    $("fields-label").textContent = "Fields";
+    $("cap").textContent = "The fields and where each one is read appear here once the sample is read";
+    renderPager();
+  }
+
+  /** The samples on show: the setup's, or those being read while it is built. */
+  const shownSamples = () => state.setup?.samples ?? state.pending?.samples ?? [];
 
   /** The setup is gone from the server: close the screen and open the choice with the reason. */
   function lost() {
@@ -376,6 +446,8 @@ export function mountSetup(app) {
     if (state.batch) parts.push(plural(state.batch.count, "PDF"));
     parts.push(plural(s.samples.length, "sample"));
     $("doc-pick").textContent = parts.join(" · ");
+    $("setup-save").disabled = $("add").disabled = false;
+    $("add-go").disabled = adding;
     const run = $("run");
     run.disabled = false;
     run.title = s.batch
@@ -901,45 +973,50 @@ export function mountSetup(app) {
 
   /** The shown page's [width, height] in points. */
   function pageSize() {
-    return state.setup?.samples[state.sample]?.pages[state.page] ?? [612, 792];
+    return shownSamples()[state.sample]?.pages[state.page] ?? [612, 792];
   }
 
   function renderPager() {
-    const s = state.setup;
-    if (s === null) return;
-    const smp = s.samples[state.sample];
-    const pages = smp.pages.length;
-    $("sample-no").textContent = `Sample ${state.sample + 1} / ${s.samples.length}`;
-    $("sample-kind").textContent = `${smp.name} · ${smp.kind}`;
+    const samples = shownSamples();
+    if (samples.length === 0) return;
+    const smp = samples[state.sample];
+    const pages = Math.max(1, smp.pages.length);
+    $("sample-no").textContent = `Sample ${state.sample + 1} / ${samples.length}`;
+    $("sample-kind").textContent = smp.kind ? `${smp.name} · ${smp.kind}` : smp.name;
     $("page-of").textContent = `Page ${state.page + 1} / ${pages}`;
-    $("prev-s").disabled = $("next-s").disabled = s.samples.length < 2;
+    $("prev-s").disabled = $("next-s").disabled = samples.length < 2;
     $("prev-p").disabled = state.page === 0;
     $("next-p").disabled = state.page >= pages - 1;
   }
 
   /** Show the sample `i` (round the samples), from its first page. */
   function showSample(i) {
-    const n = state.setup.samples.length;
+    const n = shownSamples().length;
+    if (n === 0) return;
     state.sample = (i + n) % n;
     state.page = 0;
     state.marks = [];
     showPage();
+    if (state.setup === null) return;
     renderSamples();
     loadMarks();
   }
 
-  /** Show the page `state.page` of the sample shown, with its marks. */
+  /** Show the page `state.page` of the sample shown, with its marks (none while the sample is read). */
   function showPage() {
     const s = state.setup;
+    const p = state.pending;
     const [width, height] = pageSize();
     const sample = state.sample;
     const page = state.page;
+    const dpi = (scale) => Math.min(MAX_DPI, Math.max(MIN_DPI, scale * 72));
+    const file = s === null ? p.samples[sample].index : null; // the sample's file in the batch, while it is read
     view.setPage({
       index: page,
       width,
       height,
       rotation: 0,
-      render: (_canvas, scale) => calls.samplePageUrl(s.id, sample, page, Math.min(MAX_DPI, Math.max(MIN_DPI, scale * 72))),
+      render: (_canvas, scale) => (s !== null ? calls.samplePageUrl(s.id, sample, page, dpi(scale)) : calls.pageUrl(p.batch, file, page, dpi(scale))),
     });
     applyZoom();
     drawMarks();
@@ -1094,7 +1171,7 @@ export function mountSetup(app) {
   $("next-p").addEventListener("click", () => turnPage(1));
 
   function turnPage(step) {
-    const pages = state.setup.samples[state.sample].pages.length;
+    const pages = shownSamples()[state.sample]?.pages.length ?? 0;
     const next = Math.max(0, Math.min(pages - 1, state.page + step));
     if (next === state.page) return;
     state.page = next;
@@ -1113,7 +1190,7 @@ export function mountSetup(app) {
     col: pvEl.closest(".col-page"),
     bar: $("setup-zoom"),
     below: $("cap"),
-    size: () => (state.setup === null ? null : pageSize()),
+    size: () => (shownSamples().length === 0 ? null : pageSize()),
     apply(scale, fit) {
       pvEl.style.width = fit === "width" ? "" : `${Math.floor(naturalWidth() * scale)}px`;
       view.setScale(scale);
@@ -1275,6 +1352,8 @@ export function mountSetup(app) {
 
   return {
     open,
+    building,
+    unbuild,
     show,
     promptSave,
     saveChanges,
