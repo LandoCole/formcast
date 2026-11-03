@@ -1,6 +1,6 @@
 // The formcast workbench (layout B) on the server engine. A thin wiring layer: it creates the
 // engine, the session (core/session.js: document, template, undo, the ordered edit queue) and the
-// shared parts, renders on the session's events, and hands the overlays to their modules: the
+// shared parts, renders on the session's events, and hands the overlays and progress panels to their modules: the
 // choice of Fill or Extract the page opens on and the page's mode (extract.js), the start screen and
 // match prompt (start.js), AI jobs and area revise (jobs.js), the fill drawer (fill.js), saving to
 // the store (save.js), extraction's setup screen (extract-setup.js) and its runs and their review
@@ -18,6 +18,7 @@
 //
 // Test hooks (localhost and 127.0.0.1 only): `?poll=<ms>` sets how often AI jobs and a batch's scan
 // are polled, and `window.__workbench` exposes the template on screen, whether the edit queue is idle,
+// whether the PDF on screen is still being read (`reading`),
 // the start screen's `showStart({dataset, form})` (as an extraction run's Send to fill calls it), the
 // Extract modal's `openExtract(setupInfo)` (as the setup screen's "Change the setup" calls it), the
 // setup screen's `openSetup(setup)` (as a build hands a setup on) and whether it has no change on its
@@ -83,6 +84,8 @@ const state = {
   savedName: null, // the store name this template was loaded from or saved as
   /** The filled PDF on show from the fill drawer: {doc, bytes, title}, or null (see fill.js). */
   preview: null,
+  /** The server is still reading the PDF on show (start.js): it can be looked at, not edited, until its seed is in. */
+  reading: false,
 };
 
 let pending = 0; // session calls queued or running
@@ -134,13 +137,20 @@ const app = {
    */
   setDocument({ doc, template, source, schemaName = null, savedName = null }) {
     dropPreview();
-    Object.assign(state, { page: 0, selected: null, schemaName, savedName });
+    Object.assign(state, { page: 0, selected: null, schemaName, savedName, reading: false });
     session.setDocument(doc, template, { source });
     app.notice("");
     view.select(null);
     view.setAddMode(false);
     for (const fn of resetHooks) fn();
     showPage(0);
+  },
+
+  /** Say whether the PDF on show is still being read (start.js): while it is, its template can't be edited. */
+  setReading(on) {
+    state.reading = on;
+    view.setAddMode(false);
+    render();
   },
 
   /**
@@ -313,7 +323,7 @@ function renderPanels() {
   $("next-page").disabled = !open || state.page >= doc.pageCount - 1;
   $("page-no").textContent = open ? `Page ${state.page + 1} / ${doc.pageCount}` : "No form open";
   app.pages?.render(); // finding the blanks on this page (pages.js)
-  for (const id of ["add-box", "save", "fill-open", "build-ai"]) $(id).disabled = !open;
+  for (const id of ["add-box", "save", "fill-open", "build-ai"]) $(id).disabled = !open || state.reading;
   $("undo").disabled = !session.canUndo;
   $("redo").disabled = !session.canRedo;
 
@@ -332,6 +342,10 @@ function renderPanels() {
   }
   if (state.preview !== null) {
     $("caption").textContent = `The filled PDF · ${state.preview.title} · Clear in the fill drawer goes back to the boxes`;
+    return;
+  }
+  if (state.reading) {
+    $("caption").textContent = "Reading the form · its boxes appear here once it is read (see the right)";
     return;
   }
   const linked = t.fields.filter((f) => (f.source?.paths ?? []).length > 0).length;
@@ -374,7 +388,7 @@ $("notice-close").addEventListener("click", () => app.notice(""));
 addEventListener("keydown", (e) => {
   if (!(e.ctrlKey || e.metaKey) || e.altKey || e.key.toLowerCase() !== "z") return;
   if (e.target.closest?.("input, textarea, select, [contenteditable]")) return;
-  if (document.body.dataset.mode !== "fill" || session.template === null || document.querySelector(".overlay:not([hidden])")) return;
+  if (document.body.dataset.mode !== "fill" || session.template === null || state.reading || document.querySelector(".overlay:not([hidden])")) return;
   e.preventDefault();
   if (e.shiftKey) redo();
   else undo();
@@ -390,7 +404,7 @@ addEventListener("resize", () => {
 
 // ------------------------------------------------------------------ overlays are modal
 
-// While an overlay (choose, start, match, job, save, extract, building, running) is open, everything else on
+// While an overlay (choose, start, match, save, extract, the setup's save, reprocess) is open, everything else on
 // the page is inert: no focus, no clicks, no keys reach the boxes behind it. Focus moves into the overlay, Tab cycles
 // inside it, and focus goes back to where it was when the last overlay closes.
 const overlays = [...document.querySelectorAll(".overlay")];
@@ -449,7 +463,9 @@ bus.on("pick", ({ path }) => {
     app.notice(`No box uses ${path} yet. Drag it onto a box, or pick it in the inspector.`);
   }
 });
-bus.on("op", ({ op }) => app.track(session.apply(op)));
+bus.on("op", ({ op }) => {
+  if (!state.reading) app.track(session.apply(op)); // nothing to edit until the seed is in
+});
 bus.on("undo", undo);
 bus.on("redo", redo);
 bus.on("addmode", ({ on }) => $("add-box").setAttribute("aria-pressed", String(on)));
@@ -476,6 +492,9 @@ if (LOCAL) {
     get idle() {
       return pending === 0;
     },
+    get reading() {
+      return state.reading;
+    },
     showStart: (opts) => app.start.showStart(opts),
     openExtract: (setupInfo) => app.extract.openModal(setupInfo),
     openSetup: (setup) => app.extract.openSetup(setup),
@@ -499,6 +518,8 @@ app.extract = mountExtract(app);
 if (engine.extract) {
   app.setup = mountSetup(app);
   app.extract.openSetup = app.setup.open; // a template built in the Extract modal opens here
+  app.extract.openBuilding = app.setup.building; // with its samples on show while it is built
+  app.extract.unbuild = app.setup.unbuild;
   app.review = mountReview(app);
 }
 app.pages = mountPages(app);

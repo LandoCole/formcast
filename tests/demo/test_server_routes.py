@@ -319,12 +319,12 @@ def test_the_action_follows_the_settings_thresholds(start_demo_server):
     assert get_json(base, f"/api/documents/{doc}/matches")[1][0]["action"] == "reuse"
 
 
-def test_matches_answer_while_the_form_map_build_holds_the_mupdf_lock(demo_server, monkeypatch):
+def test_matches_answer_while_the_form_map_build_runs(demo_server, monkeypatch):
     builder = GatedBuilder(result=documents_mod.build_form_map)  # the no-detector build, held at the gate
     monkeypatch.setattr(documents_mod, "build_form_map", builder)
     doc = open_doc(demo_server, "fw9_rev.pdf", FW9_EDITED)
     try:
-        assert builder.started.wait(timeout=5) and builder.calls[0][1]  # the build is under way, holding the lock
+        assert builder.started.wait(timeout=5)  # the build is under way
         got: list = []
         asking = threading.Thread(target=lambda: got.append(get_json(demo_server, f"/api/documents/{doc}/matches")))
         asking.start()
@@ -570,7 +570,7 @@ def test_smart_pdf_of_a_browser_template_adds_the_note(demo_server):
 # ------------------------------------------------------------------ MuPDF lock
 
 
-def test_fill_smart_pdf_rebind_form_map_and_features_run_under_the_mupdf_lock(demo_server, monkeypatch):
+def test_fill_smart_pdf_rebind_and_features_run_under_the_mupdf_lock_and_the_build_takes_it_per_step(demo_server, monkeypatch):
     lock = documents_mod.PYMUPDF_LOCK
     seen: dict[str, list[bool]] = {}
 
@@ -585,8 +585,11 @@ def test_fill_smart_pdf_rebind_form_map_and_features_run_under_the_mupdf_lock(de
 
     for name in ("fill", "to_smart_pdf", "rebind"):
         guard(api_mod, name)
-    for name in ("build_form_map", "pdf_features"):
-        guard(documents_mod, name)
+    guard(documents_mod, "pdf_features")
+    built: list[bool] = []
+    real_build = documents_mod.build_form_map
+    # the build runs outside the lock and takes it itself for each MuPDF step (its fingerprint and signature below)
+    monkeypatch.setattr(documents_mod, "build_form_map", lambda *a, **kw: built.append(lock._is_owned()) or real_build(*a, **kw))
     for name in ("fingerprint_document", "compute_signature"):  # the features compute these lazily
         guard(match_mod, name)
     doc = open_doc(demo_server, "fw9.pdf", FW9)
@@ -596,9 +599,10 @@ def test_fill_smart_pdf_rebind_form_map_and_features_run_under_the_mupdf_lock(de
     post(demo_server, "/api/fill", {"template": template, "doc": doc, "record": {}})
     post(demo_server, "/api/smart-pdf", {"template": template, "doc": doc})
     get_json(demo_server, f"/api/documents/{doc}/matches")
-    names = ["fill", "to_smart_pdf", "rebind", "build_form_map", "pdf_features", "fingerprint_document", "compute_signature"]
+    names = ["fill", "to_smart_pdf", "rebind", "pdf_features", "fingerprint_document", "compute_signature"]
     assert set(seen) == set(names)
     assert all(seen[n] and all(seen[n]) for n in names), seen  # every call, not just the last, held the lock
+    assert built == [False]
 
 
 # ------------------------------------------------------------------ template store

@@ -259,7 +259,14 @@ class Api:
     # ------------------------------------------------------------ routes
 
     def capabilities(self, req: Request) -> dict:
-        """Engine flags. Says only whether AI is configured, never how."""
+        """Engine flags. Says only whether AI is configured, never how.
+
+        The page asks for them as it opens, so this also starts the detector warm-up when none is running or
+        done (one that failed at startup, say): the detectors load while the person picks a PDF.
+        """
+        warmup = self.documents.detectors
+        if warmup is not None:
+            warmup.start()
         return {
             "ai": self.provider_factory is not None,
             "matches": True,
@@ -347,10 +354,18 @@ class Api:
         return Response(200, {"Content-Type": "image/png", "Cache-Control": "private, max-age=3600"}, png)
 
     def document_progress(self, req: Request) -> dict:
-        """``GET /api/documents/{id}/progress``: how reading the form is going (``Doc.progress``). Never waits."""
+        """``GET /api/documents/{id}/progress``: how reading the form is going (``Doc.progress``), with the detector
+        warm-up's ``status()`` as ``warmup`` while the build waits for it (only the detectors this PDF waits for). Never waits."""
         with missing("document"):
             doc = self.documents.get(req.match["doc"])
-        return doc.progress()
+        progress = doc.progress()
+        warmup = self.documents.detectors
+        if progress["phase"] == "detectors" and warmup is not None:
+            status = warmup.status()
+            needed = set(doc.needed_detectors())
+            status["detectors"] = [d for d in status["detectors"] if d["name"] in needed] or status["detectors"]
+            progress["warmup"] = status
+        return progress
 
     def detect_page(self, req: Request) -> dict:
         """``POST /api/documents/{id}/pages/{n}/detect`` -> ``{page, detected, fields, boxes}``: detection on page n alone.

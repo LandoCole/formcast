@@ -94,7 +94,29 @@
     </div>
   </section>
 
-  <aside class="col col-side" id="col-side" aria-label="Selected box and history">
+  <aside class="col col-side" id="col-side" aria-label="Progress, selected box and history">
+    <!-- the work still going on for the form on screen (start.js, jobs.js): it never covers the page -->
+    <section class="group progress" id="read-progress" aria-labelledby="read-title" hidden>
+      <p class="label" id="read-title">Reading the form</p>
+      <div class="reading" id="start-reading" aria-live="polite" hidden></div>
+      <p class="readout" id="read-status" aria-live="polite"></p>
+      <div class="row" id="read-actions" hidden>
+        <button type="button" class="btn quiet small" id="read-other">Choose another form</button>
+        <button type="button" class="btn small" id="read-retry">Try again</button>
+      </div>
+    </section>
+    <section class="group progress" id="job" aria-labelledby="job-title" hidden>
+      <p class="label" id="job-title">AI build</p>
+      <ol class="stages" id="job-stages" hidden></ol>
+      <ol class="steps" id="job-steps"></ol>
+      <p class="readout" id="job-status" aria-live="polite"></p>
+      <div class="row">
+        <button type="button" class="btn quiet small" id="job-cancel">Cancel</button>
+        <button type="button" class="btn quiet small" id="job-close" hidden>Hide</button>
+        <button type="button" class="btn small" id="job-retry" hidden>Try again</button>
+        <button type="button" class="btn dark small" id="job-load" hidden>Load result</button>
+      </div>
+    </section>
     <div class="group">
       <p class="label">Selected box</p>
       <div id="inspector"></div>
@@ -150,12 +172,33 @@
         <p class="cap" id="cap"></p>
       </section>
 
-      <aside class="col col-side" aria-label="Selected field">
-        <div class="group">
+      <aside class="col col-side" aria-label="Progress and selected field">
+        <!-- building the template from the sample (extract.js), with its samples on the page meanwhile -->
+        <section class="group progress" id="building" aria-labelledby="building-title" hidden>
+          <p class="label" id="building-title">Building the template</p>
+          <ol class="stages" id="build-stages"></ol>
+          <p class="readout" id="build-readout" aria-live="polite"></p>
+          <div class="row">
+            <button type="button" class="btn quiet small" id="build-cancel">Cancel</button>
+            <button type="button" class="btn quiet small" id="build-change" hidden>Change the setup</button>
+            <button type="button" class="btn small" id="build-retry" hidden>Try again</button>
+          </div>
+        </section>
+        <!-- reading every document of the batch with the saved template (extract-review.js) -->
+        <section class="group progress" id="running" aria-labelledby="running-title" hidden>
+          <p class="label" id="running-title">Reading every document</p>
+          <ol class="stages" id="run-stages"></ol>
+          <p class="readout" id="run-readout" aria-live="polite"></p>
+          <div class="row">
+            <button type="button" class="btn quiet small" id="run-cancel">Cancel</button>
+            <button type="button" class="btn small" id="run-retry" hidden>Try again</button>
+          </div>
+        </section>
+        <div class="group" data-part="field">
           <p class="label">Field</p>
           <div class="fc-inspector" id="ins"></div>
         </div>
-        <div class="group">
+        <div class="group" data-part="field">
           <p class="label">On the samples</p>
           <ul class="samples" id="per-sample"></ul>
         </div>
@@ -351,26 +394,6 @@
   </div>
 </div>
 
-<!-- building the template from the sample (extract.js) -->
-<div class="overlay" id="building" role="dialog" aria-modal="true" aria-labelledby="building-title" hidden>
-  <div class="sheet">
-    <h2 id="building-title">Building the template</h2>
-    <ol class="stages" id="build-stages"></ol>
-    <p class="readout" id="build-readout" aria-live="polite"></p>
-    <div class="row"><button type="button" class="btn quiet" id="build-cancel">Cancel</button></div>
-  </div>
-</div>
-
-<!-- reading every document of the batch with the saved template (extract-review.js) -->
-<div class="overlay" id="running" role="dialog" aria-modal="true" aria-labelledby="running-title" hidden>
-  <div class="sheet">
-    <h2 id="running-title">Reading every document</h2>
-    <ol class="stages" id="run-stages"></ol>
-    <p class="readout" id="run-readout" aria-live="polite"></p>
-    <div class="row"><button type="button" class="btn quiet" id="run-cancel">Cancel</button></div>
-  </div>
-</div>
-
 <!-- start screen -->
 <div class="overlay" id="start" role="dialog" aria-modal="true" aria-labelledby="start-title" hidden>
   <div class="sheet">
@@ -403,7 +426,6 @@
       </select>
     </details>
     <p class="msg" id="start-msg" role="alert" hidden></p>
-    <div class="reading" id="start-reading" aria-live="polite" hidden></div>
     <div class="row">
       <button type="button" class="btn quiet" id="start-close">Back</button>
       <button type="button" class="btn dark" id="open">Open</button>
@@ -425,21 +447,6 @@
       <button type="button" class="btn dark" id="reuse">Reuse</button>
       <button type="button" class="btn" id="adapt" hidden>Adapt with AI</button>
       <button type="button" class="btn quiet" id="build-new">Build new</button>
-    </div>
-  </div>
-</div>
-
-<!-- AI job progress -->
-<div class="overlay" id="job" role="dialog" aria-modal="true" aria-labelledby="job-title" hidden>
-  <div class="sheet">
-    <h2 id="job-title">AI build</h2>
-    <ol class="stages" id="job-stages" hidden></ol>
-    <ol class="steps" id="job-steps"></ol>
-    <p class="readout" id="job-status" aria-live="polite"></p>
-    <div class="row">
-      <button type="button" class="btn quiet" id="job-cancel">Cancel</button>
-      <button type="button" class="btn quiet" id="job-close" hidden>Close</button>
-      <button type="button" class="btn dark" id="job-load" hidden>Load result</button>
     </div>
   </div>
 </div>

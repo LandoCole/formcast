@@ -22,7 +22,7 @@ from PIL import Image
 
 from formcast.errors import FormcastError
 from formcast.geometry import Rect
-from formcast.pagemap.extract import image_norm_to_points
+from formcast.pagemap.extract import PDF_LOCK, image_norm_to_points
 from formcast.pagemap.model import TextLine, Word
 
 NOT_INSTALLED = (
@@ -166,7 +166,9 @@ def ocr_page(page: pymupdf.Page, dpi: int = 300) -> tuple[list[Word], list[TextL
         raise FormcastError(NOT_INSTALLED)
     import pytesseract
 
-    scan, angle = straighten(render(page, dpi))
+    with PDF_LOCK:  # held for the render and the mapping below; Tesseract runs without it
+        image = render(page, dpi)
+    scan, angle = straighten(image)
     try:
         data = pytesseract.image_to_data(scan, output_type=pytesseract.Output.DICT)
     except pytesseract.TesseractNotFoundError as exc:
@@ -176,17 +178,18 @@ def ocr_page(page: pymupdf.Page, dpi: int = 300) -> tuple[list[Word], list[TextL
         raise FormcastError(f"OCR failed: {str(detail).strip() or type(exc).__name__}") from exc
 
     groups: dict[tuple[int, int, int], list[tuple[str, Rect, float]]] = defaultdict(list)
-    for i, raw in enumerate(data["text"]):
-        text = str(raw).strip()
-        conf = float(data["conf"][i])
-        if not text or conf < 0:
-            continue
-        left, top = data["left"][i], data["top"][i]
-        norm = unrotate_box(
-            (left, top, left + data["width"][i], top + data["height"][i]), angle, scan.size
-        )
-        key = (data["block_num"][i], data["par_num"][i], data["line_num"][i])
-        groups[key].append((text, image_norm_to_points(page, norm), min(conf / 100.0, 1.0)))
+    with PDF_LOCK:
+        for i, raw in enumerate(data["text"]):
+            text = str(raw).strip()
+            conf = float(data["conf"][i])
+            if not text or conf < 0:
+                continue
+            left, top = data["left"][i], data["top"][i]
+            norm = unrotate_box(
+                (left, top, left + data["width"][i], top + data["height"][i]), angle, scan.size
+            )
+            key = (data["block_num"][i], data["par_num"][i], data["line_num"][i])
+            groups[key].append((text, image_norm_to_points(page, norm), min(conf / 100.0, 1.0)))
 
     words: list[Word] = []
     lines: list[TextLine] = []

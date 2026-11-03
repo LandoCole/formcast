@@ -3,11 +3,12 @@
 The page opens on "What would you like to do?" (``#choose``): *Fill a PDF* opens the existing start screen as it is,
 *Extract from PDFs* switches the page to its extraction mode (``body[data-mode]``), shown only when the server says
 it can extract. The Extract modal (``#extract``) takes the batch (files chosen or dropped, or a folder on the
-server's machine), the sample, what to extract and how to read it; *Read the sample* builds the template in the
-building panel (``#building``) and hands the setup on (``extract:setup`` on the bus) to the setup screen
+server's machine), the sample, what to extract and how to read it; *Read the sample* closes the modal, shows the
+samples on the setup screen at once and builds the template in the building panel (``#building``) beside them, then
+hands the setup on (``extract:setup`` on the bus) to the setup screen
 (``.view[data-only=setup]``: the fields and their status across the samples, a sample page with the readers' boxes, the
 field's inspector and its results on each sample), where every change is an edit of the setup on the server. *Run on
-all* saves the template and reads the batch in the run panel (``#running``), then opens the review
+all* saves the template and reads the batch in the run panel (``#running``, beside the samples), then opens the review
 (``.view[data-only=review]``: the run's numbers, its documents with problems or set aside, a document's page with the
 problem's place outlined, a card per problem with its decisions), which exports the run and sends it to fill; the
 choice lists the saved runs and extractions to open again. The server runs in-process over a throwaway copy of
@@ -388,6 +389,16 @@ def test_read_the_sample_builds_the_template_in_five_stages_shown_live_and_then_
         expect(b.page.locator("#extract")).to_be_hidden()
         expect(b.page.locator("#building-title")).to_have_text("Building the template")
         assert model.reached.wait(20)
+        # no overlay: the samples are on the setup screen while they are read, and can be looked through
+        assert b.page.locator("#building").evaluate("el => !el.closest('.overlay') && el.closest('[data-only=setup]') !== null")
+        expect(b.page.locator('#extract-views [data-only="setup"]')).to_be_visible()
+        expect(b.page.locator("#setup-pv .fc-pv-page")).to_be_visible()
+        expect(b.page.locator("#sample-no")).to_have_text("Sample 1 / 5")
+        b.page.click("#next-s")
+        expect(b.page.locator("#sample-no")).to_have_text("Sample 2 / 5")
+        expect(b.page.locator("#fields li")).to_have_count(0)  # the fields come once the sample is read
+        expect(b.page.locator("#run")).to_be_disabled()
+        expect(b.page.locator("#ins")).to_be_hidden()
         expect(stages).to_have_count(5)
         expect(stages.nth(2)).to_have_attribute("data-status", "running")  # designing the fields, held at the model
         expect(stages.nth(0)).to_have_attribute("data-status", "done")
@@ -441,6 +452,7 @@ def test_cancel_while_building_stops_the_job_and_returns_to_the_extract_modal(st
         b.page.click("#build-cancel")
         expect(b.page.locator("#building")).to_be_hidden()
         expect(b.page.locator("#extract")).to_be_visible()
+        expect(b.page.locator('#extract-views [data-only="setup"]')).to_be_hidden()  # no setup was on screen before
     finally:
         model.released.set()
     job = wait_for(lambda: (j := get_json(base, f"/api/jobs/{job_id}")[1])["status"] != "running" and j, timeout=30)
@@ -448,14 +460,25 @@ def test_cancel_while_building_stops_the_job_and_returns_to_the_extract_modal(st
     assert b.page.evaluate("window.__setups.length") == 0
 
 
-def test_a_build_that_cannot_start_returns_to_the_extract_modal_with_the_message(demo_server, bench):
+def test_a_build_that_cannot_start_says_why_beside_the_samples_with_try_again_and_change_the_setup(demo_server, bench):
     b = bench(demo_server, fill=False)  # no model: the server refuses an extract-setup job
     open_extract(b)
     add_five(b)
     b.page.click("#read-sample")
-    expect(b.page.locator("#extract-msg")).to_contain_text("AI is not configured")
-    expect(b.page.locator("#extract")).to_be_visible()
-    expect(b.page.locator("#building")).to_be_hidden()
+    building = b.page.locator("#building")
+    expect(building).to_have_attribute("data-state", "error")
+    expect(b.page.locator("#building-title")).to_have_text("The template couldn't be built")
+    expect(b.page.locator("#build-readout")).to_contain_text("AI is not configured")
+    expect(b.page.locator("#extract")).to_be_hidden()  # no modal: the samples stay on show
+    expect(b.page.locator("#setup-pv .fc-pv-page")).to_be_visible()
+    expect(b.page.locator("#build-cancel")).to_be_hidden()
+    with b.page.expect_response(lambda r: r.url.endswith("/api/jobs") and r.request.method == "POST") as again:
+        b.page.click("#build-retry")  # the same build afresh: refused again
+    assert again.value.status == 400
+    expect(b.page.locator("#build-readout")).to_contain_text("AI is not configured")
+    b.page.click("#build-change")
+    expect(b.page.locator("#extract")).to_be_visible()  # the choices as they were
+    expect(building).to_be_hidden()
 
 
 def test_the_folder_field_scans_a_folder_on_the_server(start_demo_server, bench, tmp_path):
@@ -1545,6 +1568,36 @@ def gate_at_three(monkeypatch) -> tuple[threading.Event, threading.Event]:
     return reached, go
 
 
+def test_a_run_that_fails_says_why_in_its_panel_and_try_again_runs_it_afresh(start_demo_server, bench, run_files, monkeypatch):
+    real = extract_api.run_batch
+    calls = []
+
+    def failing_once(*args, **kwargs):
+        calls.append(1)
+        if len(calls) == 1:
+            raise RuntimeError("the disk is full")
+        return real(*args, **kwargs)
+
+    monkeypatch.setattr(extract_api, "run_batch", failing_once)
+    base = extract_server(start_demo_server)
+    setup = setup_on(base, run_files, samples=list(range(5)))
+    b = bench(base, fill=False)
+    show_setup(b, setup)
+    b.page.click("#run")
+    b.page.fill("#setup-save-name", "Client info")
+    b.page.click("#setup-save-go")
+    running = b.page.locator("#running")
+    expect(running).to_have_attribute("data-state", "error")
+    expect(b.page.locator("#running-title")).to_have_text("The run stopped")
+    expect(b.page.locator("#run-retry")).to_be_visible()
+    expect(b.page.locator('#extract-views [data-only="setup"]')).to_be_visible()  # the setup stays on show
+    expect(b.page.locator("#run")).to_be_enabled()
+    b.page.click("#run-retry")
+    expect(b.page.locator('.view[data-only="review"]')).to_be_visible(timeout=60_000)
+    expect(running).to_be_hidden()
+    assert len(calls) == 2
+
+
 def test_run_on_all_saves_the_setup_first_reads_every_document_with_its_progress_and_opens_the_review(start_demo_server, bench, run_files, monkeypatch):
     reached, go = gate_at_three(monkeypatch)
     base = extract_server(start_demo_server)
@@ -1560,6 +1613,12 @@ def test_run_on_all_saves_the_setup_first_reads_every_document_with_its_progress
     b.page.click("#setup-save-go")
     expect(b.page.locator("#running")).to_be_visible()
     assert reached.wait(30)
+    # beside the samples, not over them: the setup can be looked through while the batch is read
+    assert b.page.locator("#running").evaluate("el => !el.closest('.overlay') && el.closest('[data-only=setup]') !== null")
+    expect(b.page.locator('#extract-views [data-only="setup"]')).to_be_visible()
+    b.page.click("#next-s")
+    expect(b.page.locator("#sample-no")).to_have_text("Sample 2 / 5")
+    expect(b.page.locator("#run")).to_be_disabled()  # one run at a time
     expect(b.page.locator("#run-stages li")).to_have_count(1)
     expect(b.page.locator("#run-stages li")).to_contain_text("Read every document")
     expect(b.page.locator("#run-stages li .detail")).to_have_text(f"3 of {RUN_TOTAL}")

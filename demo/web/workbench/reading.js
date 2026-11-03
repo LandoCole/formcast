@@ -1,7 +1,9 @@
 // What the server is doing while it reads a PDF (its form map): the page under way and its step, a strip
 // with a cell per page (waiting, being read, boxes found, skipped as prose, fillable, left for you to pick),
 // the counts so far and a rough time left. `showReading(el, progress)` draws one progress report from
-// `engine.readProgress` / `engine.waitForReading` (see engines/server/client.js) into `el`.
+// `engine.readProgress` / `engine.waitForReading` (see engines/server/client.js) into `el`. While the reading waits
+// for the field detectors to load (the server starts loading them when it starts, so this is only right after a
+// start), the line names the ones still loading, from the report's `warmup`.
 
 const STEPS = { text: "reading its text", ocr: "running OCR on it (a scanned page)", detect: "finding the blanks" };
 const PHASES = {
@@ -51,6 +53,8 @@ export function nowLine(progress) {
     return `Page ${current.page + 1} of ${total}: ${step}${by}`;
   }
   if (phase === "pages") return progress.pages_done >= total ? PHASES.finishing : `Page ${progress.pages_done + 1} of ${total}`;
+  const loading = (progress.warmup?.detectors ?? []).filter((d) => d.state === "loading").map((d) => d.name);
+  if (phase === "detectors" && loading.length) return `Loading the field detector${loading.length > 1 ? "s" : ""} ${loading.join(" and ")} (the first time downloads ${loading.length > 1 ? "them" : "it"}, which can take a few minutes)…`;
   return PHASES[phase] ?? "Reading the form…";
 }
 

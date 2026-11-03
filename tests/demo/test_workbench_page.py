@@ -135,12 +135,12 @@ class Bench:
         self.page.mouse.up()
 
     def build_new(self) -> None:
-        """Answer the match prompt with Build new (when it shows) and wait for the seed on screen."""
+        """Answer the match prompt with Build new (when it shows) and wait for the seed on screen (the form read)."""
         self.page.wait_for_function("document.querySelector('#match:not([hidden])') || window.__workbench.template")
         if self.page.locator("#match").is_visible():
             self.page.click("#build-new")
         expect(self.page.locator("#start")).to_be_hidden()
-        self.page.wait_for_function("window.__workbench.template !== null")
+        self.page.wait_for_function("window.__workbench.template !== null && !window.__workbench.reading")
 
     def download(self, button: str) -> bytes:
         with self.page.expect_download() as info:
@@ -251,26 +251,70 @@ def test_picking_fw9_offers_reuse_of_the_stored_template_and_reuse_loads_it(demo
     assert b.template()["template_id"] == stored["template_id"]
 
 
-def test_while_the_seed_waits_the_page_says_so(demo_server, bench, page):
-    """The reading itself shows as progress first (see the reading tests), so the seed's wait is only the opening."""
+def test_while_the_seed_waits_the_pdf_is_on_the_page_and_the_panel_beside_it_says_so(demo_server, bench, page):
+    """No overlay waits for the reading or the seed: the PDF opens at once, and the right column says what is left."""
     page.add_init_script(GATE_SEED)
     b = bench(demo_server)
     b.upload(widget_pdf())  # nothing stored fits: straight to the seed
     page.wait_for_function("window.__seedGates.length === 1")
-    expect(page.locator("#start-msg")).to_have_text("Opening…")
-    page.evaluate("window.__releaseSeed()")
     expect(page.locator("#start")).to_be_hidden()
-    page.wait_for_function("window.__workbench.template !== null")
+    expect(page.locator("#pageview .fc-pv-page")).to_be_visible()  # the PDF, its boxes still to come
+    expect(page.locator("#read-progress")).to_be_visible()
+    expect(page.locator("#read-status")).to_have_text("Putting its boxes on the page…")
+    expect(page.locator("#caption")).to_contain_text("Reading the form")
+    for control in ("#add-box", "#build-ai", "#save", "#fill-open"):
+        expect(page.locator(control)).to_be_disabled()  # nothing to edit until the seed is in
+    assert page.locator("#bench").evaluate("el => el.inert") is False
+    page.evaluate("window.__releaseSeed()")
+    expect(page.locator("#read-progress")).to_be_hidden()
+    page.wait_for_function("window.__workbench.template?.fields.length === 1 && !window.__workbench.reading")
+    expect(page.locator("#add-box")).to_be_enabled()
+    expect(page.locator("#undo")).to_be_disabled()  # the seed is where the history starts, not an undo step
 
-    b.start_again()  # Build new from the match prompt: the prompt says it while it waits
+    b.start_again()  # Build new from the match prompt: the prompt goes at once
     b.open_form("fw9")
     expect(page.locator("#match")).to_be_visible()
     page.click("#build-new")
-    page.wait_for_function("window.__seedGates.length === 1")
-    expect(page.locator("#match-hint")).to_have_text("Opening…")
-    page.evaluate("window.__releaseSeed()")
     expect(page.locator("#match")).to_be_hidden()
+    page.wait_for_function("window.__seedGates.length === 1")
+    expect(page.locator("#read-progress")).to_be_visible()
+    expect(page.locator("#page-no")).to_have_text("Page 1 / 6")
+    page.click("#next-page")  # the pages can be turned while it is read
+    expect(page.locator("#page-no")).to_have_text("Page 2 / 6")
+    page.evaluate("window.__releaseSeed()")
     page.wait_for_function("window.__workbench.template?.fields.length > 20")
+    expect(page.locator("#read-progress")).to_be_hidden()
+
+
+def test_a_reading_that_fails_says_why_beside_the_page_and_try_again_reads_it_afresh(demo_server, bench, page):
+    failed = {"n": 0}
+
+    def progress(route):
+        if failed["n"] == 0:
+            failed["n"] += 1
+            route.fulfill(json={"phase": "error", "error": "The detectors could not be loaded.", "page_count": 1, "pages": []})
+        else:
+            route.continue_()
+
+    page.route("**/api/documents/*/progress", progress)
+    b = bench(demo_server)
+    b.upload(widget_pdf())
+    pane = page.locator("#read-progress")
+    expect(pane).to_have_attribute("data-state", "error")
+    expect(page.locator("#read-title")).to_have_text("The form couldn't be read")
+    expect(page.locator("#read-status")).to_have_text("The detectors could not be loaded.")
+    expect(page.locator("#start")).to_be_hidden()  # no overlay: the PDF stays on the page
+    expect(page.locator("#pageview .fc-pv-page")).to_be_visible()
+    page.click("#read-retry")
+    page.wait_for_function("window.__workbench.template?.fields.length === 1 && !window.__workbench.reading")
+    expect(pane).to_be_hidden()
+
+    page.route("**/api/seed", lambda route: route.fulfill(status=500, json={"error": "internal", "detail": "boom"}))
+    b.start_again()
+    b.upload(widget_pdf(), "other.pdf")
+    expect(pane).to_have_attribute("data-state", "error")
+    page.click("#read-other")  # the start screen, to pick another form
+    expect(page.locator("#start")).to_be_visible()
 
 
 def test_a_pdf_that_is_not_a_pdf_gets_a_plain_message_and_the_start_screen_stays(demo_server, bench):
@@ -538,7 +582,7 @@ def test_a_cancel_the_server_refuses_can_be_retried_or_the_job_run_in_the_backgr
     b.page.click("#job-cancel")
     expect(b.page.locator("#job-status")).to_contain_text("couldn't be stopped")
     expect(b.page.locator("#job-cancel")).to_be_enabled()
-    expect(b.page.locator("#job-close")).to_contain_text("run in background", ignore_case=True)
+    expect(b.page.locator("#job-close")).to_have_text("Hide")
     b.page.click("#job-close")
     expect(b.page.locator("#job")).to_be_hidden()
     expect(b.page.locator("#notice")).to_contain_text("goes on running")
@@ -612,31 +656,43 @@ def test_a_result_on_offer_can_be_discarded(start_demo_server, bench):
     assert b.template() == before
 
 
-def test_the_job_panel_takes_and_keeps_focus_and_gives_it_back(start_demo_server, bench, page):
-    page.add_init_script(GATE_APPLY)  # counts edits: none may reach the boxes behind the panel
+def test_the_job_panel_sits_beside_the_page_which_stays_usable_while_the_job_runs(start_demo_server, bench, page):
     gate = Gate()
     both = [{"path": p, "reason": "test"} for p in ("name", "note")]
     b = bench(start_demo_server(provider_factory=Factory([gate, finish("nothing to add", both)])))
     b.upload(widget_pdf())
     b.build_new()
-    b.boxes().first.focus()
     b.page.click("#build-ai")
     assert gate.reached.wait(10)
-    inside = "document.activeElement && document.activeElement.closest('#job') !== null"
-    b.page.wait_for_function(inside)
-    for _ in range(6):
-        b.page.keyboard.press("Tab")
-        assert b.page.evaluate(inside)
-    for key in ("ArrowRight", "Delete", "Control+z"):
-        b.page.keyboard.press(key)
-    assert b.page.locator("#bench").evaluate("el => el.inert") is True
-    gate.release()
-    expect(b.page.locator("#job-load")).to_be_visible()
-    b.page.click("#job-load")
-    expect(b.page.locator("#job")).to_be_hidden()
-    b.page.wait_for_function("document.activeElement && document.activeElement.id === 'build-ai'")
-    assert b.page.evaluate("window.__applyCalls") == 0
+    panel = b.page.locator("#job")
+    expect(panel).to_be_visible()
+    assert panel.evaluate("el => el.closest('#col-side') !== null && !el.classList.contains('overlay')")
     assert b.page.locator("#bench").evaluate("el => el.inert") is False
+    b.page.click("#zoom-in")  # the page can be looked at meanwhile
+    expect(b.page.locator("#zoom-level")).not_to_have_text("Fit")
+    b.boxes().first.click()  # and a box selected
+    expect(b.page.locator('#inspector select[data-ctl="path"]')).to_be_visible()
+    gate.release()
+    expect(b.page.locator("#job-load")).to_be_visible()  # nothing was edited: the result is offered here
+    b.page.click("#job-load")
+    expect(panel).to_be_hidden()
+
+
+def test_a_job_that_fails_says_why_in_its_panel_and_try_again_runs_it_afresh(start_demo_server, bench):
+    both = [{"path": p, "reason": "test"} for p in ("name", "note")]
+    factory = Factory([RuntimeError("the model is down")], [finish("nothing to add", both)])
+    b = bench(start_demo_server(provider_factory=factory))
+    b.upload(widget_pdf())
+    b.build_new()
+    b.page.click("#build-ai")
+    panel = b.page.locator("#job")
+    expect(panel).to_have_attribute("data-state", "error")
+    expect(b.page.locator("#job-status")).to_contain_text("stopped")
+    expect(b.page.locator("#job-retry")).to_be_visible()
+    expect(b.page.locator("#job-cancel")).to_be_hidden()
+    b.page.click("#job-retry")
+    expect(b.page.locator("#job-load")).to_be_visible()
+    assert len(factory.providers) == 2
 
 
 def test_without_ai_configured_build_with_ai_is_hidden_and_a_note_says_how_to_turn_it_on(demo_server, bench):

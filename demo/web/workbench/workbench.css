@@ -201,7 +201,15 @@ details.more > select { margin-bottom: 4px; }
 .stages .detail { grid-column: 2; color: var(--graphite); font-size: 11px; line-height: 18px; overflow-wrap: anywhere; }
 .stages + .steps:empty { display: none; }
 .stages + .steps { margin: -4px 0 8px 26px; max-height: 24vh; }
-#job .readout { margin-bottom: 16px; }
+/* ---------- progress in a side column: the work still going on, beside the page, never over it ---------- */
+.progress { padding: 0 0 16px; box-shadow: inset 0 -.5px 0 0 var(--rule); }
+.progress .label { color: var(--ink); }
+.progress .readout { margin: 0 0 10px; overflow-wrap: anywhere; }
+.progress .readout:empty { display: none; }
+.progress .reading { margin-bottom: 10px; }
+.progress .steps { max-height: 24vh; }
+.progress .row { justify-content: flex-start; }
+.progress[data-state="error"] .readout { padding-left: 10px; box-shadow: inset 2px 0 0 0 var(--ink); font-style: italic; font-family: var(--serif); font-size: 15px; line-height: 22px; }
 
 /* ---------- fill drawer ---------- */
 .drawer {

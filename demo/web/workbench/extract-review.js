@@ -6,12 +6,14 @@
 // closing the prompt unsaved starts nothing. A setup with no batch (a saved extraction template reopened) opens the
 // Extract modal in its "Run on a batch" mode instead (`app.extract.openRunOn`): the person adds the documents there,
 // and its Run on these → starts the run on them, which then goes on as below. Then the `extract-run` job starts,
-// asking the AI about the failing documents only when the Extract modal's "AI per document" (#ai-fallback) is on, and the run panel (#running) shows
-// its stages live (`showStages`: "Read every document", with "N of M" under it) and "done / total documents" under
-// them. Cancel asks the job to stop once the documents being read are written; the run keeps what it read, so a
-// cancelled run opens its review of those, and Run on all again carries on where it stopped. A run that ends with an
-// error, or can't start (another run of it, every job slot taken, the AI asked for with none configured), says why in
-// the notice. A run done opens its review.
+// asking the AI about the failing documents only when the Extract modal's "AI per document" (#ai-fallback) is on, and the run panel (#running),
+// at the top of the setup screen's right column, beside the samples and never over them, shows its stages live
+// (`showStages`: "Read every document", with "N of M" under it) and "done / total documents" under them. The setup
+// can be looked through meanwhile; an edit made while the run reads counts as a change since the run (the review
+// asks to reprocess). Cancel asks the job to stop once the documents being read are written; the run keeps what it
+// read, so a cancelled run opens its review of those, and Run on all again carries on where it stopped. A run that
+// ends with an error, or can't start (another run of it, every job slot taken, the AI asked for with none
+// configured), says why in the panel, with Try again (the same run afresh). A run done opens its review.
 //
 // Back and forth. ← Go back to setup (#back-setup, on the review's toolbar) shows the setup the run came from, and
 // Go to review → (#go-review, on the setup's toolbar) comes back while that setup is on screen (`app.extract.linked`).
@@ -152,6 +154,7 @@ export function mountReview(app) {
   let listFailed = ""; // what #choose-msg said when the choice's lists last couldn't be read ("" when they could)
   let running = false; // Run on all is saving, starting or following its job
   let job = null; // the run job followed: {handle, stopping}
+  let again = null; // the last run started, as the run panel's Try again starts it afresh
 
   app.extract.linked = () => state.run !== null && state.setupId !== null && app.setup?.current?.id === state.setupId;
   app.extract.onShow = () => {
@@ -200,16 +203,34 @@ export function mountReview(app) {
     }
   }
 
+  /** The run panel for a run starting, or for one that failed (`failed`: why) with Try again. */
+  function showRunning(failed = null) {
+    const panel = $("running");
+    panel.hidden = false;
+    panel.dataset.state = failed === null ? "" : "error";
+    $("running-title").textContent = failed === null ? "Reading every document" : "The run stopped";
+    $("run-cancel").hidden = failed !== null;
+    $("run-cancel").disabled = false;
+    $("run-retry").hidden = failed === null;
+    if (failed === null) {
+      $("run-stages").replaceChildren();
+      $("run-readout").textContent = "Starting…";
+    } else {
+      $("run-readout").textContent = failed;
+    }
+  }
+
   /** Start the run job of the saved template `name` on the batch `batch` and follow it in the run panel. */
   async function follow(setup, batch, name) {
     const panel = $("running");
     const run = { handle: null, stopping: false };
     job = run;
+    again = () => follow(setup, batch, name);
     hideOverlays();
-    $("run-stages").replaceChildren();
-    $("run-readout").textContent = "Starting…";
-    $("run-cancel").disabled = false;
-    panel.hidden = false;
+    app.setup.show(); // the panel is on the setup screen, beside the samples
+    showRunning();
+    $("run").disabled = true;
+    const revision = app.setup.revision; // what this run reads: an edit made while it runs is a change since
     let ended;
     try {
       run.handle = await calls.startRun({ extraction: name, batch, ai: $("ai-fallback").checked });
@@ -217,20 +238,20 @@ export function mountReview(app) {
       run.handle.onUpdate = (j) => showJob(j, run);
       ended = await run.handle.done;
     } catch (e) {
-      panel.hidden = true;
-      app.notice(`The run couldn't be started: ${e.message}`);
+      showRunning(`The run couldn't be started: ${e.message}`);
       return;
     } finally {
       job = null;
+      if (app.setup.current !== null) $("run").disabled = false;
     }
     showJob(ended, run);
-    panel.hidden = true;
     const runId = ended.result?.run;
     if (ended.status === "error" || !runId) {
-      app.notice(`The run stopped: ${ended.error || "an unknown error"}`);
+      showRunning(`The run stopped: ${ended.error || "an unknown error"}`);
       return;
     }
-    if (!(await openRun(runId, { setupId: setup.id }))) return;
+    panel.hidden = true;
+    if (!(await openRun(runId, { setupId: setup.id, revision }))) return;
     if (ended.status === "cancelled") {
       const { done = 0, total = 0 } = ended.result;
       app.notice(`The run was stopped after ${number(done)} of ${plural(total, "document")}; Run on all again carries on from there.`);
@@ -248,6 +269,15 @@ export function mountReview(app) {
   }
 
   $("run").addEventListener("click", () => runOnAll());
+  $("run-retry").addEventListener("click", () => {
+    if (running || job !== null || again === null) return;
+    $("running").hidden = true;
+    const start = again;
+    running = true;
+    start().finally(() => {
+      running = false;
+    });
+  });
   $("run-cancel").addEventListener("click", () => {
     const run = job;
     if (run === null || run.stopping) return;
@@ -267,7 +297,7 @@ export function mountReview(app) {
    * Open the review of the run `id` (`setupId`: the setup it was run from); resolves whether it opened. A run that
    * can't be read says why in the notice.
    */
-  async function openRun(id, { setupId = null } = {}) {
+  async function openRun(id, { setupId = null, revision = undefined } = {}) {
     let run;
     try {
       run = await calls.run(id);
@@ -275,15 +305,19 @@ export function mountReview(app) {
       app.notice(`That run couldn't be opened: ${e.message}`);
       return false;
     }
-    show(run, setupId);
+    show(run, setupId, revision);
     return true;
   }
 
-  /** Show the review of `run`, from its first document with problems. */
-  function show(run, setupId) {
+  /**
+   * Show the review of `run`, from its first document with problems. `revision`: the setup screen's revision the run
+   * read (default: the one on screen now).
+   */
+  function show(run, setupId, revision = undefined) {
     hideOverlays();
     app.extract.setMode("extract");
-    const revision = setupId === null ? null : app.setup.revision;
+    $("running").hidden = true;
+    revision = setupId === null ? null : (revision ?? app.setup.revision);
     Object.assign(state, { run, setupId, revision, level: "required", path: "", status: "", docs: [], total: 0, listed: false, doc: null, problem: null, page: 0 });
     decided.clear();
     const fieldPick = $("filter-path");

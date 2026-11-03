@@ -1,10 +1,12 @@
 // AI jobs: the one-shot mapping (from the start screen and the fill drawer's "Add data"), Build with
 // AI, Adapt (from the match prompt) and area revise (drag on empty page space, then type an
-// instruction). One at a time. A job runs on the server; the panel lists its steps as
-// they come and offers Cancel, or Run in background (the job goes on). Cancel is seen between steps,
-// so the panel says it stops after the step running now. A finished job's template loads with one
-// undo step, so Undo returns to the template from before it. A cancelled or failed job closes the
-// panel and leaves the template alone.
+// instruction). One at a time. A job runs on the server; its panel (#job) sits at the top of the right
+// column, beside the page, never over it, so the person can look through the PDF, zoom and turn the
+// pages while it runs. It lists the job's steps as they come and offers Cancel, or Hide (the job goes
+// on). Cancel is seen between steps, so the panel says it stops after the step running now. A finished
+// job's template loads with one undo step, so Undo returns to the template from before it. A cancelled
+// job closes the panel and leaves the template alone; one that fails, or can't be started or followed,
+// keeps the panel open with why, Try again (the same job afresh) and Close.
 //
 // A result not loaded from the panel (a job run in the background, or the partial result of a
 // cancelled or failed one, which includes the step that was running) is kept here, with the job's
@@ -13,9 +15,11 @@
 //
 // A one-shot job lists its stages (read the form, design the schema, map the boxes, read and map the
 // data) with the agent's steps under them, and the tokens used so far. When it ends with the panel
-// open, its result loads at once (the panel is modal, so nothing was edited meanwhile): the template,
-// unless the job only mapped data for the template on screen, and the data's records, which open in
-// the fill drawer with the first one filled.
+// open and the template on screen as it was when the job started, its result loads at once: the
+// template, unless the job only mapped data for the template on screen, and the data's records, which
+// open in the fill drawer with the first one filled. Other jobs then offer Load result in the panel.
+// The template edited meanwhile, any job's result is offered under the toolbar instead, as a hidden
+// job's is, so it never replaces those edits unasked.
 
 const NOUNS = { build: "build", adapt: "adapt", revise: "revision", oneshot: "mapping" };
 const TITLES = { build: "AI build", adapt: "AI adapt", revise: "AI revision", oneshot: "One-shot mapping" };
@@ -95,11 +99,13 @@ export function mountJobs(app) {
   let handle = null;
   let stopping = false;
   let running = false; // a job is starting or running
-  let detached = false; // its panel was closed with "Run in background"
+  let detached = false; // its panel was closed with Hide
+  let token = 0; // counts up per job, and when a new form drops the job running: a dropped job's end is ignored
   let kind = "build"; // the running (or last) job's kind
   let refused = ""; // why the last cancel didn't go through, shown until the next one
   let offered = null; // the result on offer: {job, generation, partial}
   let region = null;
+  let again = null; // the last job asked for, as Try again starts it afresh: {jobKind, start, opts}
 
   $("build-ai").hidden = !ai;
   $("ai-note").hidden = ai;
@@ -119,12 +125,14 @@ export function mountJobs(app) {
     if (job.status === "running" && !stopping) status.textContent = `${refused}Working on ${next}…${used}`;
   }
 
-  function setButtons({ cancel = false, load = false, close = false, background = false }) {
+  function setButtons({ cancel = false, load = false, close = false, background = false, retry = false }) {
     $("job-cancel").hidden = !cancel;
     $("job-cancel").disabled = false;
     $("job-load").hidden = !load;
+    $("job-retry").hidden = !retry;
     $("job-close").hidden = !close;
-    $("job-close").textContent = background ? "Run in background" : "Close";
+    $("job-close").textContent = background ? "Hide" : "Close";
+    panel.dataset.state = retry ? "error" : "";
   }
 
   /**
@@ -173,7 +181,7 @@ export function mountJobs(app) {
   app.onReset(clearOffer);
 
   /**
-   * Run a job: `start` resolves a JobHandle. The panel is modal while it is open; "Run in background"
+   * Run a job: `start` resolves a JobHandle. The panel shows it beside the page (see the top); Hide
    * closes it and the job goes on, its result offered when it ends (loading it then replaces the
    * template on screen, edits made meanwhile included, as one undo step).
    */
@@ -185,7 +193,10 @@ export function mountJobs(app) {
     running = true;
     detached = false;
     kind = jobKind;
+    const mine = ++token;
+    again = { jobKind, start, opts };
     const generation = session.generation;
+    let before = null; // the template on screen when the job started: still there at its end, nothing was edited
     stopping = false;
     refused = "";
     $("job-title").textContent = TITLES[kind];
@@ -195,34 +206,48 @@ export function mountJobs(app) {
     status.textContent = "Starting…";
     setButtons({ cancel: true, close: true, background: true });
     panel.hidden = false;
-    $("job-cancel").focus();
+    panel.scrollIntoView?.({ block: "nearest" });
     let job;
     try {
       await app.track(session.idle());
+      before = session.template;
+      let started;
       try {
-        handle = await start();
+        started = await start();
       } catch (e) {
-        ended(e.message);
+        if (mine === token) ended(e.message);
         return;
       }
-      handle.onUpdate = showSteps;
+      if (mine !== token) {
+        started.cancel().catch(() => {}); // its form was closed while it was starting
+        return;
+      }
+      handle = started;
+      handle.onUpdate = (j) => {
+        if (mine === token) showSteps(j);
+      };
       if (stopping) cancel(); // Cancel was pressed while the job was starting
       try {
-        job = await handle.done;
+        job = await started.done;
       } catch (e) {
-        ended(e.message);
+        if (mine === token) ended(e.message);
         return;
       }
     } finally {
-      handle = null;
-      running = false;
+      if (mine === token) {
+        handle = null;
+        running = false;
+      }
     }
+    if (mine !== token) return;
     showSteps(job);
     if (job.status === "done") {
       const unplaced = (job.unplaceable ?? []).map((u) => u.path).filter(Boolean);
       const what = jobKind === "oneshot" ? `: ${oneshotSummary(job)}` : job.summary ? `: ${job.summary}` : ".";
       const summary = `${what}${unplaced.length ? ` Not placed: ${unplaced.join(", ")}.` : ""}`;
-      if (detached) {
+      const edited = session.generation === generation && session.template !== before && opts.replace !== false;
+      if (detached || edited) {
+        panel.hidden = true;
         app.notice("");
         offer(job, generation, false, `The AI ${NOUNS[jobKind]} finished${summary}`, opts);
         return;
@@ -242,28 +267,35 @@ export function mountJobs(app) {
       $("job-load").focus();
       return;
     }
-    panel.hidden = true;
     const n = plural(agentSteps(job), "step");
     const text =
       job.status === "cancelled"
         ? `The AI ${NOUNS[jobKind]} was cancelled after ${n}. The template is unchanged.`
         : `The AI ${NOUNS[jobKind]} stopped after ${n}: ${job.error ?? "an unknown error"} The template on screen is unchanged.`;
+    const failed = job.status !== "cancelled" && !detached && session.generation === generation;
+    if (failed) {
+      // the panel keeps saying why, with Try again; a partial result is offered under the toolbar too
+      status.textContent = text;
+      setButtons({ close: true, retry: true });
+    } else {
+      panel.hidden = true;
+    }
     if (job.template && opts.replace !== false) {
       app.notice("");
       offer(job, generation, true, text, opts);
-    } else {
+    } else if (!failed) {
       app.notice(text);
     }
   }
 
-  /** The job could not be started or followed: say why, with a way out. */
+  /** The job could not be started or followed: say why, with Try again and a way out. */
   function ended(message) {
     if (detached) {
       app.notice(message);
       return;
     }
     status.textContent = message;
-    setButtons({ close: true });
+    setButtons({ close: true, retry: true });
   }
 
   async function cancel() {
@@ -292,9 +324,23 @@ export function mountJobs(app) {
       app.notice(`The AI ${NOUNS[kind]} goes on running. Its result will be offered under the toolbar when it ends.`);
     }
   });
+  $("job-retry").addEventListener("click", () => {
+    if (running || again === null || app.template === null) return;
+    const { jobKind, start, opts } = again;
+    run(jobKind, start, opts);
+  });
+  app.onReset(() => {
+    // the panel and the job belong to the form they ran on: another form drops them (the job is asked to stop)
+    panel.hidden = true;
+    if (!running) return;
+    token += 1;
+    running = false;
+    handle?.cancel().catch(() => {});
+    handle = null;
+  });
 
   $("build-ai").addEventListener("click", () => {
-    if (app.template === null) return;
+    if (app.template === null || app.state.reading) return;
     // no schema yet (a PDF opened on its own): the one-shot job designs one, then links the boxes
     const props = session.template.schema?.properties;
     if (typeof engine.oneshot === "function" && !(props && Object.keys(props).length)) {
@@ -313,7 +359,7 @@ export function mountJobs(app) {
   }
 
   app.bus.on("region", (r) => {
-    if (!ai || app.template === null || running) {
+    if (!ai || app.template === null || running || app.state.reading) {
       view.clearRegion();
       return;
     }

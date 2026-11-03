@@ -15,10 +15,11 @@ The build thread does three things in order. (1) It computes every part of the d
 (``match_features()``, under ``PYMUPDF_LOCK`` briefly), so the match prompt never waits for detection:
 scoring complete features needs no MuPDF and no lock. (2) If a page needs detection and the documents were given
 a ``DetectorWarmup`` (``demo/server/detectors.py``; ``python -m demo.server`` starts one), it waits,
-holding no lock, until the detector weights are loaded; a fully fillable PDF does not wait. (3) It
-builds the form map under ``PYMUPDF_LOCK`` with the warm-up's detectors. Without a warm-up (``Documents()``,
-as in the tests) the library loads its stock detectors inside the build, so the first download happens
-under the lock.
+holding no lock, until the detectors its pages need are loaded (FFDNet for digital pages, FFDetr for
+scans); a fully fillable PDF does not wait. (3) It builds the form map with the warm-up's detectors. The
+library takes ``PYMUPDF_LOCK`` for each MuPDF step of the build and lets it go while a detector or
+Tesseract runs (``formcast.pagemap.build``). Without a warm-up (``Documents()``, as in the tests) the
+library loads its stock detectors inside the build, outside the lock too.
 
 Threads: ``Documents`` has one lock for its table; each ``Doc`` has its own locks for the form
 map and for filling its image cache. MuPDF is not safe to call from several threads at once
@@ -30,11 +31,12 @@ and the server's MuPDF work exclude each other. Every render also opens its own 
 the bytes. Lock order: a ``Doc``'s own lock first, ``PYMUPDF_LOCK`` second; code that holds
 ``PYMUPDF_LOCK`` must not call ``form_map()``, ``features()`` or ``match_features()``.
 
-What blocks: a form-map build holds ``PYMUPDF_LOCK`` from start to end (seconds of detection and OCR;
-with a warm-up, never the weight download). While it runs, every other MuPDF step in the server waits for
-it: page images, fills, smart PDFs and rebinds, for any document, and opening another PDF (its summary and
-features). Matching a document whose features are computed does not wait, nor do requests that only read
-memory (capabilities, templates, records, job status).
+What blocks: a form-map build holds ``PYMUPDF_LOCK`` only for its MuPDF steps (a page's text, a render,
+tens of milliseconds each), never while a detector runs (about two seconds a page) or Tesseract does. So
+while it runs, the other MuPDF steps in the server (page images, fills, smart PDFs and rebinds, for any
+document, and opening another PDF) wait at most for one such step: the page shows its PDF while its blanks
+are still being found. Matching a document whose features are computed does not wait, nor do requests that
+only read memory (capabilities, templates, records, job status).
 
 Progress. ``Doc.progress()`` says how the build is going, for the page to show while it waits: the phase
 (``features``, ``detectors`` while the weights load, ``pages``, ``finishing``, then ``done`` or ``error``), the
@@ -62,7 +64,7 @@ from demo.server.detectors import DetectorWarmup
 from formcast.errors import FormcastError
 from formcast.match import PdfFeatures, pdf_features
 from formcast.pagemap.build import NOTE_PROSE, PageProgress, build_form_map, detect_on_page, needs_detection
-from formcast.pagemap.detect import Detector
+from formcast.pagemap.detect import DetectPolicy, Detector
 from formcast.pagemap.extract import PDF_LOCK, is_image_dominated, open_pdf, page_size
 from formcast.pagemap.model import FormMap, PageMap
 
@@ -258,11 +260,11 @@ class Doc:
             self._phase("detectors")
             detectors = self._detectors_for_build()  # may wait for the weights, holding no lock
             self._phase("pages")
-            with PYMUPDF_LOCK:
-                # the prose of a long agreement is not searched for blanks (formcast.pagemap.build)
-                result = builder(
-                    self.bytes, detectors=detectors, skip_prose=True, detect=self.detect == "auto", on_progress=self._on_page
-                )
+            # The library takes PYMUPDF_LOCK for each MuPDF step, not while it detects. The prose of a long
+            # agreement is not searched for blanks (formcast.pagemap.build).
+            result = builder(
+                self.bytes, detectors=detectors, skip_prose=True, detect=self.detect == "auto", on_progress=self._on_page
+            )
             self._finish_progress(result)
         except BaseException as exc:  # handed to whoever waits; a background thread has nobody else to tell
             self._phase("error", str(exc) if isinstance(exc, FormcastError) else _BUILD_ERROR)
@@ -284,7 +286,14 @@ class Doc:
             return None
         if self.detect == "manual" or all(kind == "fillable" for kind in self.kinds):
             return self._detectors.detectors  # nothing to detect, so no need to wait for the weights
-        return self._detectors.ready()
+        return self._detectors.ready(self.needed_detectors())
+
+    def needed_detectors(self, kinds: list[str] | None = None) -> list[str]:
+        """The detectors pages of these kinds (default: every page's) run: a digital PDF needs no FFDetr."""
+        kinds = self.kinds if kinds is None else kinds
+        policy = DetectPolicy()
+        names = [*(policy.digital if "digital" in kinds else ()), *(policy.scanned if "scanned" in kinds else ())]
+        return list(dict.fromkeys(names))
 
     def detect_page(self, n: int) -> tuple[PageMap, bool]:
         """Run detection on page ``n`` (0-based) alone, once, and keep its boxes in the form map.
@@ -304,14 +313,16 @@ class Doc:
                 return page, False
             with self._progress_lock:
                 self._progress["current"] = {"page": n, "step": "detect", "detectors": []}
-            detectors = self._detectors.ready() if self._detectors is not None else None
+            detectors = self._detectors.ready(self.needed_detectors([page.kind])) if self._detectors is not None else None
             started = time.time()
             try:
                 with PYMUPDF_LOCK:
                     pdf = open_pdf(self.bytes)
-                    try:
-                        page = detect_on_page(pdf[n], page, detectors)
-                    finally:
+                    pdf_page = pdf[n]
+                try:
+                    page = detect_on_page(pdf_page, page, detectors)  # takes PYMUPDF_LOCK for its MuPDF steps only
+                finally:
+                    with PYMUPDF_LOCK:
                         pdf.close()
             finally:
                 with self._progress_lock:
