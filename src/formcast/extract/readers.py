@@ -12,14 +12,19 @@ with a warning, never kept, so a template never reads by something the model mad
     label   kept when ``DocText.find_label`` finds it on a sample
     phrase  kept when ``DocText.after_phrase`` finds text after it, up to the proposal's stop, on a sample
 
-A path's strategies come in the order plan 1's template has them: ``WidgetRead`` (the kept names), one ``BoxRead``
+A path's strategies come in the order plan 1's template has them (but a choice first, see below): ``WidgetRead`` (the kept names), one ``BoxRead``
 (the proposal's box, else the first kept widget's rectangle, so a flattened copy is read where the fillable one has
 the field), ``AnchorRead`` (the kept labels), ``PhraseRead`` (the kept phrases); then, for options, a ``ChoiceRead``
 of the options' form fields and a ``ChoiceRead`` of drawn boxes (each option's box, else its form field's rectangle).
+A proposal's ``places`` (the other places the same answer is written) become the reader's places: a form field named
+by name or form map id reads that field (on the id's page), any other box is read where it is; one no sample has is
+dropped with a warning, as a box is.
 An anchor or phrase read is kept to the page its first kept label or phrase is on, or searches every page when its
 labels or phrases are on different pages.
 
-A choice keeps the options the samples have, except on a ``boolean`` path proposed with more than one option: there
+A path with options is answered by its marks: its choices come first, and a widget read of only the options' own
+buttons is dropped (a radio group read raw gives its on-state, "2", which no check passes, and a failing first read
+makes every later answer unsure). A choice keeps the options the samples have, except on a ``boolean`` path proposed with more than one option: there
 a choice that lost one is left out (``read`` takes a one-option choice on a yes/no path for a lone check box, so a
 "false" box left alone would read every unmarked copy as true). When an answer's mark is on no sample at all no
 choice is kept; when only an answer's form field is missing (it was proposed by its box alone) the choice of the form
@@ -56,6 +61,7 @@ from formcast.extract.model import (
     ChoiceRead,
     Layout,
     PhraseRead,
+    Place,
     Reader,
     Strategy,
     WidgetRead,
@@ -108,6 +114,7 @@ class ReaderProposal(_Model):
     stop: Literal["comma", "sentence", "line", "digits"] = "comma"
     options: dict[str, OptionProposal] = Field(default_factory=dict)
     clean: list[Transform] = Field(default_factory=list)
+    places: list[BoxRef] = Field(default_factory=list)  # the other places the same answer is written
 
 
 #: A form map's widget id, ``w<page>_<index>``, as a proposal may name a form field by.
@@ -154,6 +161,10 @@ class _Samples:
             if page < len(doc.form_map.pages) and index < len(widgets := doc.form_map.pages[page].widgets):
                 return widgets[index].name, page
         return ref, None
+
+    def read_only(self, name: str) -> bool:
+        """Whether a sample has the form field ``name`` as read-only: the form's own printing, not an answer."""
+        return any(text.has_widget(name) and text.read_only(name) for text in self.texts)
 
     def reused(self, name: str) -> bool:
         """Whether a sample has the form field ``name`` on several pages holding different values."""
@@ -260,6 +271,9 @@ def _reader(proposal: ReaderProposal, found: _Samples, warnings: list[str], *, y
     widget_box: _Place | None = None
     for ref in dict.fromkeys(proposal.widgets):
         name, page = found.widget_ref(ref)
+        if found.read_only(name):
+            warnings.append(f"{proposal.path}: the form field {name!r} is read-only, the form's own printing; left out")
+            continue
         if page is None and hint is not None and found.reused(name) and found.widget(name, page=hint) is not None:
             page = hint
         place = found.widget(name, page=page)
@@ -285,8 +299,35 @@ def _reader(proposal: ReaderProposal, found: _Samples, warnings: list[str], *, y
         )  # fmt: skip
     if phrases:
         strategies.append(PhraseRead(phrases=list(phrases), page=_one_page(phrases), stop=proposal.stop))
-    strategies += _choices(proposal, found, dropped, warnings, yes_no=yes_no)
-    return Reader(strategies=strategies, clean=proposal.clean) if strategies else None
+    choices = _choices(proposal, found, dropped, warnings, yes_no=yes_no)
+    if choices:
+        # a choice is answered by its marks: they are read first, and a raw read of the same buttons (a radio group's
+        # on-state, "2") is dropped, so it never stands first and makes every copy's answer unsure
+        marked = {m.widget for c in choices if isinstance(c, ChoiceRead) for m in c.options.values() if m.widget}
+        strategies = [s for s in strategies if not (isinstance(s, WidgetRead) and set(s.names) <= marked)]
+        strategies = choices + strategies
+    if not strategies:
+        return None
+    return Reader(strategies=strategies, clean=proposal.clean, places=_places(proposal.places, found, dropped))
+
+
+def _places(refs: list[BoxRef], found: _Samples, dropped: _Dropped) -> list[Place]:
+    """The proposal's other places that a sample has: a form field (by name, or by id on its page) or a box."""
+    places: list[Place] = []
+    for ref in refs:
+        if 0 <= ref.sample < len(found.docs) and not any(c.id == ref.id for p in found.docs[ref.sample].form_map.pages for c in p.candidates):
+            name, page = found.widget_ref(ref.id)
+            if found.widget(name, page=page) is not None:
+                place: Place = WidgetRead(names=[name], page=page if found.reused(name) else None)
+                if place not in places:
+                    places.append(place)
+                continue
+        box = found.box(ref)
+        if box is None:
+            dropped("place", ref.id)
+        elif (place := BoxRead(page=box[0], rect=box[1])) not in places:
+            places.append(place)
+    return places
 
 
 def _kept(

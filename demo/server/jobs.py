@@ -110,6 +110,7 @@ class Job:
         self.ended: float | None = None
         self.stages: list[dict] = [{"key": k, "label": label, "status": "pending", "detail": ""} for k, label in STAGES] if kind == "oneshot" else []
         self.result: dict = {}
+        self.reading: dict | None = None  # a build's search for blanks, page by page, as the reading strip draws it
         self.usage = Usage()
         self._partial: dict | None = None  # a oneshot job's template so far
         self._cancel = threading.Event()
@@ -131,6 +132,7 @@ class Job:
                 "stages": [dict(st) for st in self.stages],
                 "result": dict(self.result),
                 "usage": {"input_tokens": self.usage.input_tokens, "output_tokens": self.usage.output_tokens},
+                "reading": None if self.reading is None else {**self.reading, "pages": [dict(p) for p in self.reading["pages"]]},
             }
 
     # the oneshot job's progress (demo/server/oneshot.py), set from its thread
@@ -145,6 +147,10 @@ class Job:
         dumped = template.model_dump(by_alias=True, mode="json")
         with self._lock:
             self._partial = dumped
+
+    def set_reading(self, reading: dict | None) -> None:
+        with self._lock:
+            self.reading = reading
 
     def set_result(self, **parts) -> None:
         with self._lock:

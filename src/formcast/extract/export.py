@@ -13,7 +13,10 @@ The export has four parts, the same in every format:
   template's schema, so a reader of the data (or the fill flow) knows what each column means and what it was
   checked against;
 * ``set_aside``: one row per failed document with ``reason`` (``no template fits`` or why it could not be read),
-  ``closest_template`` and ``closest_score``. A failed document is never a row of ``values`` or ``status``.
+  ``closest_template`` and ``closest_score``. A failed document is never a row of ``values`` or ``status``;
+* ``places``: one row per place a field is written on a document read, ``document_id``, ``document_file``,
+  ``column``, ``page`` (from 1), ``instance`` (its number among the field's places on that page), ``value`` and
+  ``same_as_field`` (whether it holds the field's value), so every copy of a repeated answer can be found and checked.
 
 ``export(..., names={doc_id: name})`` adds a ``document_name`` column after ``document_id`` to ``values``, ``status`` and
 ``set_aside``, in every format: the name a person knows each document by (the workbench's uploads are stored by
@@ -21,8 +24,8 @@ number, so their ``doc_id`` is ``3.pdf``), or the ``doc_id`` itself for a docume
 whose column would be ``document_name`` is then refused as a document column. :func:`check_columns` makes the same checks
 on the templates alone, so a template can be refused before a run rather than at its export.
 
-xlsx is one workbook with a sheet per part; Parquet and CSV are a folder with ``values``, ``status``, ``fields`` and
-``set_aside`` files. Column order follows the schema: top-level fields in schema order, and the outermost repeated
+xlsx is one workbook with a sheet per part; Parquet and CSV are a folder with ``values``, ``status``, ``fields``,
+``set_aside`` and ``places`` files. Column order follows the schema: top-level fields in schema order, and the outermost repeated
 group item by item (``owners_1_name``, ``owners_1_percent``, ``owners_2_name`` ...), as ``concrete_paths`` gives
 them. A group nested inside another is field by field within its outer item (``concrete_paths`` orders only the
 outermost group item by item). With several templates the value columns are the union of their columns, first
@@ -69,9 +72,10 @@ STATUS_WORDS = {
 #: The columns of the ``fields`` part and of the ``set_aside`` part.
 FIELD_COLUMNS = ("column", "path", "title", "definition", "type", "checks")
 SET_ASIDE_COLUMNS = ("document_id", "document_file", "reason", "closest_template", "closest_score")
+PLACE_COLUMNS = ("document_id", "document_file", "column", "page", "instance", "value", "same_as_field")
 
 _FORMATS = ("xlsx", "parquet", "csv")
-_PARTS = ("values", "status", "fields", "set_aside")
+_PARTS = ("values", "status", "fields", "set_aside", "places")
 _INT64 = 2**63
 _EXACT_FLOAT = 2**53
 
@@ -365,13 +369,15 @@ def export(
     doc_columns = _named(_DOC_COLUMNS) if names is not None else _DOC_COLUMNS
     columns, fields = _columns_and_fields(templates, doc_columns)
     rows, status_rows, aside = results.rows(), _in_words(results.status_rows()), results.set_aside()
+    places = results.places_rows()
     if names is not None:
-        rows, status_rows, aside = (_with_names(part, names) for part in (rows, status_rows, aside))
+        rows, status_rows, aside, places = (_with_names(part, names) for part in (rows, status_rows, aside, places))
     parts: dict[str, tuple[Sequence[str], Iterable[dict]]] = {
         "values": (columns, _checked(rows, columns, "values")),
         "status": (columns, _checked(status_rows, columns, "status")),
         "fields": (FIELD_COLUMNS, fields),
         "set_aside": (_named(SET_ASIDE_COLUMNS) if names is not None else SET_ASIDE_COLUMNS, aside),
+        "places": (_named(PLACE_COLUMNS) if names is not None else PLACE_COLUMNS, places),
     }
     if format == "xlsx":
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -387,7 +393,7 @@ def export(
         if format == "csv":
             _write_csv(path, part_columns, rows)
         else:
-            kinds = {"closest_score": "float"} if name == "set_aside" else None
+            kinds = {"closest_score": "float"} if name == "set_aside" else {"page": "int", "instance": "int", "same_as_field": "bool", "value": "string"} if name == "places" else None
             _write_parquet(pa, pq, path, part_columns, rows, kinds)
         written.append(path)
     return written

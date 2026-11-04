@@ -51,6 +51,7 @@
 import { POLL_MS } from "../engines/server/client.js";
 import { batchLine, batchNote, pagesText, parsePages, stripCells } from "./extract-model.js";
 import { showStages } from "./jobs.js";
+import { hideReading, showReading } from "./reading.js";
 
 /** The fewest and most documents a sample has (the server's own bounds). */
 const MIN_SAMPLE = 1;
@@ -206,6 +207,8 @@ function mountModal(app, api) {
     state.destination = info.destination ?? null;
     if (state.destination !== null) $("dest-pick").value = state.destination;
     setSelect("detect", info.detect);
+    $("find-all").checked = info.find_blanks === "all";
+    renderDetect();
     setSelect("ocr", info.ocr);
     $("detect-pages").value = pagesText(searchedOf(info.pages ?? {}));
     if (setSelect("sample-how", info.sample_how)) sampleHowChanged();
@@ -566,6 +569,7 @@ function mountModal(app, api) {
   function renderDetect() {
     $("settings-sum").textContent = DETECT_SUM[$("detect").value];
     $("pages-row").hidden = $("detect").value !== "manual";
+    $("find-all").disabled = $("detect").value === "off"; // no detection: form fields and page text only
   }
   $("detect").addEventListener("change", renderDetect);
 
@@ -592,6 +596,7 @@ function mountModal(app, api) {
         lines: start === "lines" ? lines : [],
         destination,
         detect,
+        find_blanks: $("find-all").checked && detect !== "off" ? "all" : "form_fields",
         pages: {},
         ocr: $("ocr").value,
         sample_how: how(),
@@ -666,6 +671,7 @@ function mountModal(app, api) {
     $("building-title").textContent = failed === null ? "Building the template" : "The template couldn't be built";
     $("build-cancel").hidden = failed !== null;
     $("build-retry").hidden = $("build-change").hidden = failed === null;
+    hideReading($("build-reading"));
     if (failed === null) {
       $("build-stages").replaceChildren();
       $("build-readout").textContent = "Starting…";
@@ -718,6 +724,7 @@ function mountModal(app, api) {
     }
     build = null;
     building.hidden = true;
+    hideReading($("build-reading"));
     bus.emit("extract:setup", { setup, rebuilt: state.rebuilding });
     api.openSetup?.(setup);
   }
@@ -725,6 +732,9 @@ function mountModal(app, api) {
   /** The build's stages, and how far it has got. */
   function showJob(job) {
     const current = showStages($("build-stages"), job);
+    // while the blanks are searched for, the page strip the Fill flow shows while it reads a PDF
+    if (job.reading && job.status === "running") showReading($("build-reading"), job.reading);
+    else hideReading($("build-reading"));
     const stages = job.stages ?? [];
     const ended = stages.filter((st) => st.status === "done" || st.status === "skipped").length;
     let text = `${ended} of ${stages.length}`;

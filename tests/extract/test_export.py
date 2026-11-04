@@ -33,8 +33,8 @@ def read_csv(path: Path) -> list[dict]:
 class Stub:
     """A finished run with hand-made rows, for the cells a PDF cannot easily produce."""
 
-    def __init__(self, rows, status_rows=None, set_aside=()):
-        self._rows, self._status, self._aside = rows, status_rows or [], set_aside
+    def __init__(self, rows, status_rows=None, set_aside=(), places=()):
+        self._rows, self._status, self._aside, self._places = rows, status_rows or [], set_aside, places
 
     def rows(self):
         return iter(self._rows)
@@ -44,6 +44,9 @@ class Stub:
 
     def set_aside(self):
         return iter(self._aside)
+
+    def places_rows(self):
+        return iter(self._places)
 
 
 def doc_row(**cells):
@@ -59,7 +62,7 @@ def test_xlsx_has_values_status_fields_and_set_aside_sheets(finished, tmp_path):
     written = export(finished, [hand_template()], tmp_path / "result.xlsx", format="xlsx")
     assert written == [tmp_path / "result.xlsx"]
     book = openpyxl.load_workbook(written[0])
-    assert book.sheetnames == ["values", "status", "fields", "set_aside"]
+    assert book.sheetnames == ["values", "status", "fields", "set_aside", "places"]
     values = list(book["values"].iter_rows(values_only=True))
     header = list(values[0])
     assert header[:5] == ["document_id", "document_file", "document_template", "document_match", "document_extracted_at"]
@@ -130,7 +133,7 @@ def test_the_status_part_says_each_status_in_the_categories_words():
 
 def test_csv_writes_four_files(finished, tmp_path):
     written = export(finished, [hand_template()], tmp_path / "csv", format="csv")
-    assert [p.name for p in written] == ["values.csv", "status.csv", "fields.csv", "set_aside.csv"]
+    assert [p.name for p in written] == ["values.csv", "status.csv", "fields.csv", "set_aside.csv", "places.csv"]
     assert all(p.parent == tmp_path / "csv" for p in written)
     values = read_csv(written[0])
     assert len(values) == 20 and values[0]["document_id"] == "client_00001.pdf"
@@ -275,7 +278,7 @@ def test_with_names_each_part_but_the_fields_has_a_name_column_after_doc_id_in_e
     )
     names = {"0.pdf": "Acme W-9.pdf", "2.pdf": "scan.pdf"}  # 1.pdf has no name: it is named by its doc_id
     written = export(run, [hand_template()], tmp_path / "csv", format="csv", names=names)
-    values, status, fields, aside = (read_csv(p) for p in written)
+    values, status, fields, aside, _places = (read_csv(p) for p in written)
     for part in (values, status):
         assert list(part[0])[:3] == ["document_id", "document_name", "document_file"]
         assert [(r["document_id"], r["document_name"]) for r in part] == [("0.pdf", "Acme W-9.pdf"), ("1.pdf", "1.pdf")]

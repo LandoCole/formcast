@@ -182,6 +182,7 @@ class DocText:
             self.page_count: int = self._doc.page_count
         self._texts: dict[int, _Text] = {}
         self._fields: dict[str, list[tuple[str, object, int]]] | None = None  # name -> [(kind, value, page)] per widget
+        self._read_only: set[str] = set()  # the fields every widget of which is read-only
         self._places: dict[str, list[tuple[int, Rect, str | None]]] | None = None  # name -> [(page, rect, on-state)]
 
     def close(self) -> None:
@@ -208,9 +209,12 @@ class DocText:
         """
         if self._fields is None:
             fields: dict[str, list[tuple[str, object, int]]] = {}
+            writable: set[str] = set()
             with PDF_LOCK:
                 for number, page in enumerate(self._doc):
                     for w in page.widgets() or []:
+                        if not (w.field_flags or 0) & 1 or self._calculated(w):
+                            writable.add(w.field_name)  # a calculated field (a total) is an answer, read-only or not
                         if w.field_type in (pymupdf.PDF_WIDGET_TYPE_CHECKBOX, pymupdf.PDF_WIDGET_TYPE_RADIOBUTTON):
                             on_state = w.on_state()
                             on_name = on_state if isinstance(on_state, str) else None
@@ -231,8 +235,28 @@ class DocText:
                                 value = ", ".join(str(v) for v in value)
                             text = "" if value is None else str(value)
                             fields.setdefault(w.field_name, []).append(("text", text if text.strip() else None, number))
+            self._read_only = set(fields) - writable
             self._fields = fields
         return self._fields
+
+    def _calculated(self, w: pymupdf.Widget) -> bool:
+        """Whether the widget's field (it or its parent) has actions (``/AA``), such as a calculation."""
+        xref = w.xref
+        for _ in range(2):
+            if self._doc.xref_get_key(xref, "AA")[0] != "null":
+                return True
+            kind, parent = self._doc.xref_get_key(xref, "Parent")
+            if kind != "xref":
+                return False
+            xref = int(parent.split()[0])
+        return False
+
+    def read_only(self, name: str) -> bool:
+        """Whether the form field ``name`` is read-only with no actions: the form's own printing kept in a field (the
+        "/" between a date's boxes, a printed "20" before the year), never an answer someone wrote. A read-only
+        field the form calculates (a total) is not."""
+        self._widgets()
+        return name in self._read_only
 
     def _field_value(self, w: pymupdf.Widget) -> object:
         """A text, list or combo widget's value: its field's ``/V`` (the widget itself when it carries the field's

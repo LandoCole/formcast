@@ -1152,7 +1152,7 @@ class Run:
 
 
 class _ShownFiles:
-    """A run's results as its export reads them (``rows``, ``status_rows``, ``set_aside``), with the ``file`` of a
+    """A run's results as its export reads them (``rows``, ``status_rows``, ``set_aside``, ``places_rows``), with the ``file`` of a
     document under ``stored`` replaced by its shown name: an uploaded file's path is the server's numbered copy."""
 
     def __init__(self, results: Results, run: Run, stored: Path) -> None:
@@ -1166,6 +1166,9 @@ class _ShownFiles:
 
     def set_aside(self) -> Iterator[dict]:
         return self._shown(self._results.set_aside())
+
+    def places_rows(self) -> Iterator[dict]:
+        return self._shown(self._results.places_rows())
 
     def _shown(self, rows: Iterable[dict]) -> Iterator[dict]:
         for row in rows:

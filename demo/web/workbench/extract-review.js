@@ -591,6 +591,9 @@ export function mountReview(app) {
 
   /** Ask where the document's problems with no place should be, and point at them (see the top; once per listing). */
   async function locate(d) {
+    for (const p of d.problems ?? []) {
+      if (!p.rect && p.places?.length) Object.assign(p, { page: p.places[0].page, rect: p.places[0].rect }); // its first place
+    }
     if (isAside() || d.located || !d.problems?.some((p) => !p.rect)) return;
     d.located = true;
     const run = state.run;
@@ -793,6 +796,37 @@ export function mountReview(app) {
   }
 
   /**
+   * The places a problem's field is written on the document, when it has several: a button per place (its page, and
+   * its instance where the page has several) that turns to it and puts what it holds in the value box, the ones that
+   * read otherwise than the first marked with what they hold. Null for a field written in one place.
+   */
+  function placesOf(p, input) {
+    const places = p.places ?? [];
+    if (places.length < 2) return null;
+    const norm = (v) => (v === null || v === undefined || String(v).trim() === "" ? "" : String(v).split(/\s+/).join(" ").toLowerCase());
+    const first = norm(places[0].value);
+    const ord = (n) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ({ 1: "st", 2: "nd", 3: "rd" })[n % 10] ?? "th"}`;
+    const list = make("div", { className: "places" });
+    for (const pl of places) {
+      const several = places.filter((o) => o.page === pl.page).length > 1;
+      const odd = norm(pl.value) !== first;
+      const shown = pl.raw ? `“${String(pl.raw).split(/\s+/).join(" ")}”` : "nothing";
+      const b = make("button", { type: "button", className: `btn quiet small${odd ? " is-odd" : ""}`, textContent: `p. ${pl.page + 1}${several ? ` (${ord(pl.instance)})` : ""}${odd ? ` ${shown}` : ""}` });
+      b.title = `Page ${pl.page + 1} reads ${shown}; click to show it and use it`;
+      b.addEventListener("click", () => {
+        input.value = pl.raw ?? "";
+        state.turned = true;
+        if (state.page !== pl.page) {
+          state.page = pl.page;
+          showPage();
+        }
+      });
+      list.append(b);
+    }
+    return list;
+  }
+
+  /**
    * A problem's card, compact: the field and the problem with an info icon, then the value box and the decisions as
    * icons named by their tooltips (or the decision made). What was read, why it is a problem and why the field is
    * optional stay behind the info icon: hovering shows them, a click or Enter keeps them open on the card.
@@ -851,6 +885,8 @@ export function mountReview(app) {
       b.addEventListener("click", () => decide(d, p, decision, input));
       return b;
     };
+    const placesRow = placesOf(p, input);
+    if (placesRow !== null) el.append(placesRow);
     const row = make("div", { className: "row" }, input, act("value", true));
     if (p.value !== null && p.value !== undefined) row.append(act("accept")); // a value was read
     row.append(act("not_in_document"));

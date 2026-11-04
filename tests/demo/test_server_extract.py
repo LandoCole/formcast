@@ -1005,7 +1005,7 @@ def test_a_samples_marks_have_a_kind_and_a_place_and_its_pages_are_images(bench)
     status, out = get_json(bench.base, f"/api/setups/{setup['id']}/samples/0/marks")
     assert status == 200 and out["marks"]
     for mark in out["marks"]:
-        assert mark["kind"] in ("read", "box", "label", "option") and len(mark["rect"]) == 4
+        assert mark["kind"] in ("read", "box", "label", "option", "place") and len(mark["rect"]) == 4
     status, headers, png = http_request(bench.base, "GET", f"/api/setups/{setup['id']}/samples/0/pages/0.png?dpi=50")
     assert status == 200 and headers["content-type"] == "image/png" and png_size(png)[0] == round(612 * 50 / 72)
     assert get_json(bench.base, f"/api/setups/{setup['id']}/samples/9/marks")[0] == 404
@@ -1403,7 +1403,7 @@ def test_the_problems_are_paged_by_document_each_with_its_problems_titled_and_na
     for doc in page["documents"]:
         assert set(doc) == {"doc_id", "name", "problems"} and doc["name"] in PROBLEM_FILES and doc["problems"]
         for problem in doc["problems"]:
-            assert set(problem) == {"path", "title", "required", "required_reason", "status", "raw", "value", "reasons", "page", "rect"}
+            assert set(problem) == {"path", "title", "required", "required_reason", "status", "raw", "value", "reasons", "page", "rect", "places"}
             assert problem["status"] in ("blank", "failed_check", "unsure") and problem["title"] == titles[problem["path"]]
     rest = problems_of(r, run_id, "?offset=2&limit=2")[1]
     assert rest["total"] == 3 and len(rest["documents"]) == 1
@@ -1655,7 +1655,7 @@ def test_a_run_exports_as_a_workbook_or_a_zip_of_csv_files(reviewed):
     assert status == 200 and headers["content-type"] == "application/zip"
     assert headers["content-disposition"] == 'attachment; filename="Client forms-results.zip"'
     with zipfile.ZipFile(io.BytesIO(body)) as z:
-        assert sorted(z.namelist()) == ["fields.csv", "set_aside.csv", "status.csv", "values.csv"]
+        assert sorted(z.namelist()) == ["fields.csv", "places.csv", "set_aside.csv", "status.csv", "values.csv"]
         assert len(z.read("values.csv").decode("utf-8").splitlines()) == 1 + 23
     status, _, body = http_request(r.base, "GET", f"/api/runs/{run_id}/export?format=pdf")
     assert (status, json.loads(body)["error"]) == (400, "bad_request")
@@ -1891,3 +1891,19 @@ def test_a_saved_extraction_makes_the_fill_template_of_a_blank_copy_with_no_mode
     assert runner.model.calls == calls  # no model call
     status, out = get_json(runner.base, "/api/extractions/Nope/fill-template", "POST", {"doc": doc["id"]})
     assert status == 404
+
+
+def test_a_builds_search_for_blanks_is_drawn_page_by_page_as_the_reading_strip_draws_it():
+    from demo.server.extract_api import _ScanView
+    from formcast.extract.samples import ScanProgress
+
+    view = _ScanView("auto", samples=1)
+    kinds = ("fillable", "digital", "digital")
+    start = view.update(ScanProgress(0, -1, "start", (0, 2), kinds))
+    assert [(p["state"], p["skipped"]) for p in start["pages"]] == [("pending", None), ("done", "prose"), ("pending", None)]
+    assert start["page_count"] == 3 and start["pages_done"] == 1
+    working = view.update(ScanProgress(0, 2, "detect", (0, 2), kinds))
+    assert working["current"] == {"page": 2, "step": "detect", "detectors": []} and working["pages"][2]["state"] == "working"
+    done = view.update(ScanProgress(0, 2, "done", (0, 2), kinds, found=4))
+    assert done["pages"][2]["state"] == "done" and done["pages"][2]["boxes"] == 4 and done["pages_done"] == 2
+    assert done["current"] is None

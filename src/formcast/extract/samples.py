@@ -46,6 +46,23 @@ __all__ = [
 ]
 
 Detect = Literal["auto", "all", "manual", "off"]
+#: Which blanks are looked for: the form fields alone, or also the blanks beside them (detection on fillable pages).
+FindBlanks = Literal["form_fields", "all"]
+
+
+@dataclass(frozen=True)
+class ScanProgress:
+    """Detection on one sample (``sample``, its position from 0) reaching page ``page`` (from 0): it ``starts`` (the
+    first event of a sample, with no page: ``page`` is -1), a page is being searched (``detect``) or is ``done``
+    (``found``: the blanks kept on it). ``wanted`` are the pages searched, in order, and ``kinds`` every page's kind,
+    so a reader of the events can draw all the pages."""
+
+    sample: int
+    page: int
+    step: Literal["start", "detect", "done"]
+    wanted: tuple[int, ...]
+    kinds: tuple[str, ...]
+    found: int = 0
 
 #: The most characters of one sample's view that go to a model.
 SAMPLE_CHARS = 20_000
@@ -146,10 +163,14 @@ def _detect(
     pages: dict[int, list[int]] | None = None,
     detectors: dict[str, Detector] | None = None,
     policy: DetectPolicy | None = None,
+    find: FindBlanks = "form_fields",
+    on_scan: Callable[[ScanProgress], None] | None = None,
 ) -> list[SampleDoc]:
     """``docs`` (as :func:`_read` gives them) with their blanks found on the pages ``detect`` picks, as new docs.
 
-    The stock detectors are loaded once, and only when some page is searched.
+    With ``find="all"`` the pages that have form fields are searched too, and a blank over a form field is dropped
+    (:func:`~formcast.pagemap.build.over_widget`). ``on_scan`` hears of each page (:class:`ScanProgress`); raising
+    from it stops the search. The stock detectors are loaded once, and only when some page is searched.
 
     Raises:
         FormcastError: a sample cannot be read, naming its file.
@@ -159,13 +180,20 @@ def _detect(
     policy = policy or DetectPolicy()
     out = []
     for i, doc in enumerate(docs):
-        wanted = _pages_to_detect(doc.form_map, detect, (pages or {}).get(i, []))
+        wanted = _pages_to_detect(doc.form_map, detect, (pages or {}).get(i, []), beside_fields=find == "all")
         form_map = doc.form_map
         if wanted:
             if detectors is None:
                 detectors = load_default_detectors()
+            kinds = tuple(p.kind for p in form_map.pages)
+
+            def report(page: int, step: str, found: int = 0, i: int = i, wanted: tuple[int, ...] = tuple(wanted)) -> None:
+                if on_scan is not None:
+                    on_scan(ScanProgress(i, page, step, wanted, kinds, found))  # type: ignore[arg-type]
+
+            report(-1, "start")
             try:
-                form_map = _detect_pages(doc.pdf, form_map, wanted, detectors, policy)
+                form_map = _detect_pages(doc.pdf, form_map, wanted, detectors, policy, report)
             except SessionCancelled:
                 raise
             except FormcastError as exc:
@@ -174,9 +202,9 @@ def _detect(
     return out
 
 
-def _pages_to_detect(form_map: FormMap, detect: Detect, named: list[int]) -> list[int]:
-    """The pages (from 0, in order) ``detect`` searches: never a fillable page."""
-    searchable = [p for p in form_map.pages if p.kind != "fillable"]
+def _pages_to_detect(form_map: FormMap, detect: Detect, named: list[int], *, beside_fields: bool = False) -> list[int]:
+    """The pages (from 0, in order) ``detect`` searches: a fillable page only ``beside_fields``."""
+    searchable = [p for p in form_map.pages if beside_fields or p.kind != "fillable"]
     if detect == "auto":
         return [p.index for p in searchable if not looks_like_prose(p)]
     if detect == "all":
@@ -187,19 +215,27 @@ def _pages_to_detect(form_map: FormMap, detect: Detect, named: list[int]) -> lis
 
 
 def _detect_pages(
-    pdf: bytes, form_map: FormMap, wanted: list[int], detectors: dict[str, Detector], policy: DetectPolicy
+    pdf: bytes,
+    form_map: FormMap,
+    wanted: list[int],
+    detectors: dict[str, Detector],
+    policy: DetectPolicy,
+    report: Callable[..., None] = lambda *a, **k: None,
 ) -> FormMap:
-    """``form_map`` with detection run on the pages ``wanted``."""
+    """``form_map`` with detection run on the pages ``wanted`` (beside the form fields on a fillable one), each page
+    reported as it starts and ends."""
     pages = list(form_map.pages)
     with PDF_LOCK:
         doc = open_pdf(pdf)
     try:
         for n, page_map in enumerate(pages):
             if page_map.index in wanted:
+                report(page_map.index, "detect")
                 with PDF_LOCK:
                     page = doc[page_map.index]
                 # takes PDF_LOCK for the render and the mapping, not while the detector runs
-                pages[n] = detect_on_page(page, page_map, detectors=detectors, policy=policy)
+                pages[n] = detect_on_page(page, page_map, detectors=detectors, policy=policy, beside_widgets=True)
+                report(page_map.index, "done", len(pages[n].candidates))
     finally:
         with PDF_LOCK:
             doc.close()
@@ -214,6 +250,8 @@ def _values(form_map: FormMap, text: DocText) -> dict[str, str | bool]:
     first: dict[str, object] = {}
     for page in form_map.pages:
         for i, widget in enumerate(page.widgets):
+            if text.read_only(widget.name):
+                continue  # the form's own printing ("/", a printed "20"), not an answer
             pages = text.widget_pages(widget.name)
             value = text.widget_value(widget.name, page.index if len(pages) > 1 else None)
             if value is None or value is False or value == "":

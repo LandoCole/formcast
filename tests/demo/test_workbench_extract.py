@@ -763,7 +763,8 @@ def test_selecting_a_field_heavy_draws_its_box_with_its_path_and_the_inspector_s
     expect(picked(b)).to_have_count(1)
     expect(picked(b).locator(".fc-tag")).to_have_text("Taxpayer ID")
     expect(picked(b).locator(".fc-tag")).to_be_visible()
-    expect(b.page.locator("#setup-pv .fc-box.is-picked")).to_have_count(2)  # its box and its label, on a fillable copy
+    expect(b.page.locator("#setup-pv .fc-box.is-picked")).to_have_count(3)  # its box, its label and its place, on a fillable copy
+    expect(b.page.locator('#setup-pv .fc-box.is-picked[data-kind="place"]')).to_have_count(1)
     ins = b.page.locator("#ins")
     expect(b.page.locator("#ins-name")).to_have_text("investor.tax_id")
     expect(b.page.locator("#ins-title")).to_have_value("Taxpayer ID")

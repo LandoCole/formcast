@@ -90,8 +90,8 @@ def fill_template_for(
 
     def widgets(name: str, page: int | None, path: str) -> list[Field]:
         on = by_name.get(name, [])
-        if page is not None:
-            return [f for f in on if f.page == page]
+        if page is not None and (sample is None or _differs(shown, name)):
+            return [f for f in on if f.page == page]  # kept to its page: the name holds other answers elsewhere
         taken = {p for other, pages in claimed.get(name, {}).items() if other != path for p in pages}
         return [f for f in on if f.page not in taken and _shows(f, path)]
 
@@ -112,11 +112,11 @@ def fill_template_for(
             continue
         sp = types.get(_generic(path))
         is_date = (_node(schema, _generic(path)) or {}).get("format") == "date"
-        placed = False
-        choice = next((s for s in reader.strategies if isinstance(s, ChoiceRead) and _of_widgets(s)), None)
-        read = next((s for s in reader.strategies if isinstance(s, WidgetRead)), None)
-        if choice is not None:
-            yes_no = sp is not None and sp.type == "boolean"
+        yes_no = sp is not None and sp.type == "boolean"
+        formats = _formats(reader.clean) if is_date else []
+
+        def map_choice(choice: ChoiceRead, path: str = path, yes_no: bool = yes_no) -> bool:
+            placed = False
             for key, mark in choice.options.items():
                 if mark.widget is None:
                     continue
@@ -128,9 +128,10 @@ def fill_template_for(
                     when = None if lone and answer is True else Transform(op="equals", args={"value": answer})
                     give(f.id, path, Source(paths=[path], when=when))
                     placed = True
-        elif read is not None:
-            formats = _formats(reader.clean) if is_date else []
-            raw = raws.get(path)
+            return placed
+
+        def map_read(read: WidgetRead, raw: str | None, path: str = path, is_date: bool = is_date) -> bool:
+            placed = False
             if len(read.names) == 1:
                 fmt = _date_format(raw, formats) if is_date else None
                 transforms = [Transform(op="date_format", args={"format": fmt})] if fmt else []
@@ -155,6 +156,19 @@ def fill_template_for(
                         for f in widgets(name, read.page, path):
                             give(f.id, path, Source(paths=[path], transforms=[Transform(op="slice", args=args), Transform(op="strip")]))
                             placed = True
+            return placed
+
+        choice = next((s for s in reader.strategies if isinstance(s, ChoiceRead) and _of_widgets(s)), None)
+        read = next((s for s in reader.strategies if isinstance(s, WidgetRead)), None)
+        placed = map_choice(choice) if choice is not None else map_read(read, raws.get(path)) if read is not None else False
+        # the field's other places: each form field it is written in again, filled as the place shows it on the sample
+        for place in reader.places:
+            if isinstance(place, ChoiceRead) and _of_widgets(place):
+                placed = map_choice(place) or placed
+            elif isinstance(place, WidgetRead):
+                shows = [_shown_on(shown, name, place.page) for name in place.names]
+                raw = " ".join(v for v in shows if v) or raws.get(path)
+                placed = map_read(place, raw) or placed
         if not placed and reader.strategies:
             warnings.append(f"{path}: read from no form field of this copy, so the fill leaves it out")
 
@@ -194,6 +208,11 @@ def _node(schema: dict, path: str) -> dict | None:
     return node
 
 
+def _differs(shown: dict[tuple[str, int], str], name: str) -> bool:
+    """Whether the sample's widgets named ``name`` hold different answers on different pages."""
+    return len({v for (n, _), v in shown.items() if n == name}) > 1
+
+
 def _shown_on(shown: dict[tuple[str, int], str], name: str, page: int | None) -> str | None:
     """What the sample's widget ``name`` holds (on ``page``, else on the first page where it holds anything)."""
     if page is not None:
@@ -222,7 +241,7 @@ def _readers_of(extraction: ExtractionTemplate) -> dict[str, list[str]]:
     """Form field name -> the paths whose widget reads name it, in path order."""
     out: dict[str, list[str]] = {}
     for path, reader in extraction.readers.items():
-        for s in reader.strategies:
+        for s in [*reader.strategies, *reader.places]:
             if isinstance(s, WidgetRead) and len(s.names) == 1:
                 out.setdefault(s.names[0], []).append(path)
     return out
@@ -232,7 +251,7 @@ def _claimed_pages(extraction: ExtractionTemplate) -> dict[str, dict[str, set[in
     """Form field name -> path -> the pages that path's page-bound reads of the name read it on."""
     out: dict[str, dict[str, set[int]]] = {}
     for path, reader in extraction.readers.items():
-        for s in reader.strategies:
+        for s in [*reader.strategies, *reader.places]:
             if isinstance(s, WidgetRead) and s.page is not None:
                 for name in s.names:
                     out.setdefault(name, {}).setdefault(path, set()).add(s.page)

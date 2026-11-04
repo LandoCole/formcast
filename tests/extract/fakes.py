@@ -10,6 +10,7 @@ answers every call setup makes by its system prompt, the way a model that reads 
                      options by form field, clean steps); its boxes are left to resolve, which puts one at each
                      widget's place
     VALUES_SYSTEM    ``truth(client)`` of the sample the message names, for the asked paths (``None`` elsewhere)
+    UNREAD_SYSTEM    every filled form field the readers leave unread skipped (the hand template reads what it means to)
 
 It is thread-safe, counts its calls by kind (``model.calls == {}``: no call was made) and is its own provider
 factory (``model()`` returns it), for the workbench server's tests.
@@ -25,7 +26,7 @@ from typing import Any
 from formcast.data.ai import DERIVE_SYSTEM
 from formcast.extract.ask import _DESTINATION_HEADING, _LINES_HEADING, _PATHS_HEADING, _leaves
 from formcast.extract.model import AnchorRead, ChoiceRead, PhraseRead, Reader, WidgetRead
-from formcast.extract.prompts import FIELDS_SYSTEM, ON_FORM_SYSTEM, READERS_SYSTEM, VALUES_SYSTEM
+from formcast.extract.prompts import FIELDS_SYSTEM, ON_FORM_SYSTEM, READERS_SYSTEM, UNREAD_SYSTEM, VALUES_SYSTEM
 from formcast.llm import LLMResponse, Message, TextPart, Usage
 from tests.extract.corpus import Client, hand_template, truth
 
@@ -141,6 +142,9 @@ class CorpusModel:
             kind, answer = "readers", {"readers": [self._reader(p) for p in asked_paths(text)]}
         elif system == VALUES_SYSTEM:
             kind, answer = "values", self._values(text)
+        elif system == UNREAD_SYSTEM:
+            ids = re.findall(r"^- (w\d+_\d+) ", text, re.M)
+            kind, answer = "unread", {"answers": [{"id": i, "skip": "not asked of this corpus"} for i in ids]}
         else:
             raise AssertionError(f"CorpusModel was sent a system prompt it does not know: {str(system)[:80]!r}")
         with self._lock:

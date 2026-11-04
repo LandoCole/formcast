@@ -209,6 +209,7 @@
         <section class="group progress" id="building" aria-labelledby="building-title" hidden>
           <p class="label" id="building-title">Building the template</p>
           <ol class="stages" id="build-stages"></ol>
+          <div class="reading" id="build-reading" hidden></div>
           <p class="readout" id="build-readout" aria-live="polite"></p>
           <div class="row">
             <button type="button" class="btn quiet small" id="build-cancel">Cancel</button>
@@ -389,6 +390,10 @@
           <p>The fields the destination needs become the checklist. Any this form never asks for are flagged before anything runs.</p>
         </div>
       </div>
+    </div>
+
+    <div class="group" data-part="build">
+      <label class="check" id="find-all-row"><input type="checkbox" id="find-all"><span>Also find blanks that aren't form fields <span class="opt">Off: a fillable PDF is read from its own form fields. On: the field detector also searches the pages that have form fields, for printed blanks beside them. A blank over a form field is left out, so nothing is read twice. It takes longer: each page is searched.</span></span></label>
     </div>
 
     <details class="group more" id="extract-settings" data-part="build">

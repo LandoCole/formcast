@@ -323,7 +323,8 @@ def _counted_from_zero(proposal: ReaderProposal) -> ReaderProposal:
         return None if box is None else box.model_copy(update={"sample": box.sample - 1})
 
     options = {key: option.model_copy(update={"box": moved(option.box)}) for key, option in proposal.options.items()}
-    return proposal.model_copy(update={"box": moved(proposal.box), "options": options})
+    places = [moved(place) for place in proposal.places]
+    return proposal.model_copy(update={"box": moved(proposal.box), "options": options, "places": places})
 
 
 # ---------------------------------------------------------------- one document's values

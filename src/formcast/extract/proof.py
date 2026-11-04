@@ -339,17 +339,19 @@ def learn_maps(template: ExtractionTemplate, proof: Proof) -> ExtractionTemplate
 
 class Mark(_Model):
     """A place on a sample to show beside a path: where its value was ``read``, a ``box`` or ``label`` its readers
-    look at, or an ``option`` of a choice (``answer`` is the option's key).
+    look at, an ``option`` of a choice (``answer`` is the option's key), or a ``place`` its datum is written
+    (``instance``: its number among the path's places on that page, from 1).
 
     ``rect`` is where the mark is on that sample's page (a box already moved down by the page's offset), not in the
     layout's place: a box a person moves there is sent back as an edit naming the sample (``SetBox(sample=...)``).
     """
 
     path: str
-    kind: Literal["read", "box", "label", "option"]
+    kind: Literal["read", "box", "label", "option", "place"]
     page: int
     rect: Rect
     answer: str | None = None
+    instance: int | None = None
 
 
 def _moved(rect: Rect, dy: float) -> Rect:
@@ -359,7 +361,8 @@ def _moved(rect: Rect, dy: float) -> Rect:
 def sample_marks(template: ExtractionTemplate, pdf: bytes) -> list[Mark]:
     """The marks of every path read on one sample, path by path in schema order; absent paths have none.
 
-    Per path: where its value was read (when its read has a place: a widget read has none), each ``box`` strategy's
+    Per path: where its value was read (when its read has a place: a widget read has none), every place its datum is
+    written (``FieldResult.places``: each copy of its form field, and the reader's other places), each ``box`` strategy's
     rectangle moved down by its page's offset (:func:`~formcast.extract.layout.page_fit`; 0 on a page the layout has
     no lines on), the first place each ``anchor`` strategy's label is found, and each ``choice`` option: its drawn
     box moved by the offset, or its widget's rectangle. Every mark is in the sample page's own frame, so an edit made
@@ -388,6 +391,8 @@ def sample_marks(template: ExtractionTemplate, pdf: bytes) -> list[Mark]:
             read = reads.get(path)
             if read is not None and read.page is not None and read.rect is not None:
                 marks.append(Mark(path=path, kind="read", page=read.page, rect=read.rect))
+            for place in read.places if read is not None else []:
+                marks.append(Mark(path=path, kind="place", page=place.page, rect=place.rect, instance=place.instance))
             for strategy in reader.strategies if reader else []:
                 if isinstance(strategy, BoxRead) and on_page(strategy.page):
                     rect = _moved(strategy.rect, offsets.get(strategy.page, 0.0))

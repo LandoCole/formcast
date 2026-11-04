@@ -84,14 +84,18 @@ const TYPES = [
   ["yes/no", "yes or no"],
 ];
 /** A mark's kinds in the order they are drawn: a read place and a label under the boxes, so a box is on top. */
-const LAYER = { read: 0, label: 1, box: 2, option: 3 };
+const LAYER = { read: 0, place: 0, label: 1, box: 2, option: 3 };
 /** A path's first mark of these kinds, in this order, is the one selected and tagged with its path. */
-const PRIMARY = { box: 0, option: 1, read: 2, label: 3 };
+const PRIMARY = { box: 0, option: 1, read: 2, place: 3, label: 4 };
 /** Each kind of mark in words, for the box's accessible name. */
-const KIND_WORDS = { read: "where it was read", label: "its label", box: "its box", option: "a checkbox" };
+const KIND_WORDS = { read: "where it was read", label: "its label", box: "its box", option: "a checkbox", place: "a place it is written" };
 
 const plural = (n, word, many = `${word}s`) => `${n.toLocaleString("en-US")} ${n === 1 ? word : many}`;
 const generic = (path) => path.replace(/\[\d+\]/g, "[]");
+/** A place's value as places are compared: case and spacing aside, blank as null. */
+const norm = (v) => (v === null || v === undefined || (typeof v === "string" && !v.trim()) ? null : typeof v === "string" ? v.split(/\s+/).join(" ").toLowerCase() : JSON.stringify(v));
+const shownValue = (v) => (norm(v) === null ? "nothing" : `“${typeof v === "string" ? v.split(/\s+/).join(" ") : JSON.stringify(v)}”`);
+const ordinal = (n) => `${n}${n % 100 >= 11 && n % 100 <= 13 ? "th" : ({ 1: "st", 2: "nd", 3: "rd" })[n % 10] ?? "th"}`;
 const leafWords = (path) => generic(path).split(".").at(-1).replace(/\[\]/g, "").replaceAll("_", " ");
 const andList = (words) => (words.length < 2 ? words.join("") : `${words.slice(0, -1).join(", ")} and ${words.at(-1)}`);
 /** Whether a press or a key adds to the selection, Ctrl on any system and ⌘ on a Mac. */
@@ -705,6 +709,7 @@ export function mountSetup(app) {
     }
 
     out.push(...answersParts(path, prop, reader));
+    out.push(...placesParts(fp));
     out.push(...wordingsParts(path, fp));
 
     if (!absent) {
@@ -735,6 +740,34 @@ export function mountSetup(app) {
     remove.addEventListener("click", () => edit({ op: "remove_field", path }));
     out.push(make("div", { className: "ins-acts" }, away, remove));
     return out;
+  }
+
+  /**
+   * Where the field is written on the sample shown: a button per place (its page, and its instance where the page
+   * has several), turning to it; a place whose value differs from the first's says what it holds.
+   */
+  function placesParts(fp) {
+    const places = fp?.samples?.[state.sample]?.read?.places ?? [];
+    if (places.length < 2) return [];
+    const first = norm(places[0].value);
+    const differ = places.filter((pl) => norm(pl.value) !== first).length;
+    const list = make("ul", { className: "ins-places" });
+    for (const pl of places) {
+      const several = places.filter((other) => other.page === pl.page).length > 1;
+      const where = `page ${pl.page + 1}${several ? ` (${ordinal(pl.instance)})` : ""}`;
+      const odd = norm(pl.value) !== first;
+      const go = make("button", { type: "button", className: `btn quiet small${odd ? " is-odd" : ""}`, textContent: where });
+      go.title = odd ? `Reads ${shownValue(pl.value)} here` : "Show this place";
+      go.addEventListener("click", () => {
+        if (state.page !== pl.page) {
+          state.page = pl.page;
+          showPage();
+        }
+      });
+      list.append(make("li", {}, go, ...(odd ? [make("span", { className: "ins-odd", textContent: shownValue(pl.value) })] : [])));
+    }
+    const said = differ ? `Written in ${places.length} places; ${plural(differ, "place")} ${differ === 1 ? "reads" : "read"} otherwise.` : `Written in ${places.length} places on this sample, all the same.`;
+    return [make("p", { className: "fc-ins-lab", textContent: "Places" }), make("p", { className: differ ? "fc-ins-warn" : "fc-ins-hint", textContent: said }), list];
   }
 
   /** Commit `el`'s value with `commit` when it changes; Enter in a one-line box commits it too. */
@@ -1134,7 +1167,7 @@ export function mountSetup(app) {
   bus.on("op", ({ op }) => {
     const mark = shown.get(op.id);
     if (mark === undefined || (op.op !== "move" && op.op !== "resize")) return; // a box is not added or deleted here
-    if (mark.kind === "read" || mark.kind === "label") {
+    if (mark.kind === "read" || mark.kind === "label" || mark.kind === "place") {
       drawMarks(); // these only show where the readers look: put it back
       return;
     }

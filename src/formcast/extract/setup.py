@@ -3,18 +3,25 @@
     build_setup(samples, spec, llm) -> SetupResult          a template made from 1 to 20 samples, proven on them
     add_line(template, line, samples, llm) -> SetupResult   the fields of one more line added to such a template
 
-:func:`build_setup` runs five stages (:data:`STAGES`) and tells ``on_stage`` as each one starts (``running``) and
-ends (``done``, or ``skipped``):
+:func:`build_setup` runs five stages (:data:`STAGES`) and tells ``on_stage`` as each one starts (``running``, told
+again with a new detail while it works) and ends (``done``, or ``skipped``):
 
     read      each sample's form map, with no field detection, and the values its form fields hold
-    detect    the blanks the field detectors find on the pages the ``detect`` mode picks (skipped for ``off``)
+    detect    the blanks the field detectors find on the pages the ``detect`` mode picks (skipped for ``off``); with
+              ``find_blanks="all"`` the pages that have form fields too, a blank over a form field dropped. The
+              stage's detail says the page being searched ("sample 1 of 2 · page 18 · 5 of 30 pages searched")
     fields    the schema, by where the field list starts (``spec.start``; its label is :data:`FIELDS_LABELS`'s):
                 ai           ``derive_schema`` on the sample with the most boxes (form fields and blanks)
                 lines        ``fields_from_lines``: each of the person's lines made into the fields it asks for
                 destination  the destination's schema; ``fields_on_form`` says which of its fields the form has,
                              and every other path is marked absent ("not on this form")
     readers   the layout learned from the samples; the model proposes how to read every path that is not
-              absent, and ``resolve`` keeps only what the samples have
+              absent (and the other places each answer is written), and ``resolve`` keeps only what the samples
+              have; fields that read the same form field are merged (``repeats.merge_repeats``, not for a
+              destination), and the model places each filled form field that no field reads: as a place of a
+              field, a new field (not for a destination) or not data (``repeats.place_unread``)
+    check     ... and, once proven, a field that failed and repeats a ready field's answer in one of its places is
+              folded into it (``repeats.fold_repeats``, not for a destination), and the template proven again
     check     the model reads every sample (its opinion, kept in the template's samples) and the readers are
               proven against those readings once; the wordings of an enum's answers the proof suggests
               (``FieldProof.suggested``) are left for the person to accept with ``learn_maps``
@@ -51,7 +58,8 @@ from formcast.extract.model import RESERVED_NAMES, ExtractionTemplate, SampleRec
 from formcast.extract.names import normalized
 from formcast.extract.proof import Proof, _check_samples, prove
 from formcast.extract.readers import ReaderProposal, resolve
-from formcast.extract.samples import Detect, SampleDoc, SamplePdf, _detect, _read, reused_values
+from formcast.extract.repeats import apply_answers, fold_repeats, merge_repeats, place_unread, unread_widgets
+from formcast.extract.samples import Detect, FindBlanks, SampleDoc, SamplePdf, ScanProgress, _detect, _read, reused_values
 from formcast.llm import LLMConfig, Provider, Usage, make_provider
 from formcast.match import PdfFeatures
 from formcast.pagemap.build import DetectPolicy, PageProgress
@@ -120,6 +128,7 @@ class SetupSpec(BaseModel):
     destination: dict[str, Any] | None = None
     destination_name: str | None = None
     detect: Detect = "auto"
+    find_blanks: FindBlanks = "form_fields"  # "all": the blanks beside the form fields are looked for too
     pages: dict[int, list[int]] = Field(default_factory=dict)
     ocr: Literal["auto", "never"] = "auto"
     vision: bool = True
@@ -161,12 +170,14 @@ def build_setup(
     policy: DetectPolicy | None = None,
     on_stage: Callable[[StageEvent], None] | None = None,
     on_page: Callable[[int, PageProgress], None] | None = None,
+    on_scan: Callable[[ScanProgress], None] | None = None,
     max_parallel: int = 4,
 ) -> SetupResult:
     """A template built from ``samples`` in the stages of the module docstring, proven on them.
 
     ``detectors`` and ``policy`` are as for :func:`~formcast.extract.samples.read_samples`, and ``on_page(i,
-    progress)`` hears of each page read in sample ``i``. ``on_stage`` is called before and after each stage; an
+    progress)`` hears of each page read in sample ``i``, and ``on_scan`` of each page searched for blanks
+    (:class:`~formcast.extract.samples.ScanProgress`). ``on_stage`` is called before and after each stage; an
     exception it or ``on_page`` raises (such as :class:`~formcast.errors.SessionCancelled`) stops the build and
     propagates unchanged. The samples are read before the first model call, so a sample that cannot be read costs
     none. The template's ``form`` is the first fillable sample's (else the first sample's) with its blind fingerprint.
@@ -190,7 +201,23 @@ def build_setup(
             emit("detect", "skipped", "field detection is off")
         else:
             emit("detect", "running", _label("detect"))
-            docs = _detect(docs, detect=spec.detect, pages=spec.pages, detectors=detectors, policy=policy)
+            searched = [0]
+
+            def scanned(event: ScanProgress) -> None:
+                if event.step == "start":
+                    searched[0] = 0
+                elif event.step == "detect":
+                    of = f"sample {event.sample + 1} of {len(docs)} · " if len(docs) > 1 else ""
+                    emit("detect", "running", f"{of}page {event.page + 1} · {searched[0] + 1} of {len(event.wanted)} pages searched")
+                else:
+                    searched[0] += 1
+                if on_scan is not None:
+                    on_scan(event)
+
+            docs = _detect(
+                docs, detect=spec.detect, pages=spec.pages, detectors=detectors, policy=policy, find=spec.find_blanks,
+                on_scan=scanned,
+            )  # fmt: skip
             found = sum(len(p.candidates) for d in docs for p in d.form_map.pages)
             emit("detect", "done", _count(found, "blank") + " found")
 
@@ -208,6 +235,21 @@ def build_setup(
         usage = _sum(usage, used)
         readers, dropped = resolve(proposals, docs, layout, schema)
         warnings += dropped + _unproposed(paths, proposals)
+        fixed = spec.start == "destination"  # a destination's fields are its own: none merged, none added
+        if not fixed:
+            merged = merge_repeats(schema, readers, line_paths, docs)
+            schema, readers, line_paths = merged.schema, merged.readers, merged.line_paths
+            warnings += merged.warnings
+        unread = unread_widgets(docs, readers)
+        if unread:
+            emit("readers", "running", f"placing {_count(len(unread), 'filled form field')} no field reads")
+            paths = [p for p in concrete_paths(schema) if p not in not_on_form]
+            answers, used = place_unread(schema, paths, unread, provider)
+            usage = _sum(usage, used)
+            placed = apply_answers(schema, readers, unread, answers, new_fields=not fixed)
+            schema, readers = placed.schema, placed.readers
+            warnings += placed.warnings
+        paths = [p for p in concrete_paths(schema) if p not in not_on_form]
         emit("readers", "done", f"readers for {len(readers)} of {_count(len(paths), 'field')}")
 
         emit("check", "running", _label("check"))
@@ -216,7 +258,7 @@ def build_setup(
         setup = SetupInfo(
             start=spec.start, lines=list(line_paths), line_paths=line_paths,
             destination=spec.destination_name if spec.start == "destination" else None, detect=spec.detect,
-            pages=spec.pages, ocr=spec.ocr, vision=spec.vision, sample_how=spec.sample_how,
+            find_blanks=spec.find_blanks, pages=spec.pages, ocr=spec.ocr, vision=spec.vision, sample_how=spec.sample_how,
             name_follows_title=spec.names_from_titles and spec.start != "destination",
         )  # fmt: skip
         template = ExtractionTemplate(
@@ -224,6 +266,11 @@ def build_setup(
             layout=layout, readers=readers, absent=absent, setup=setup, samples=_records(docs, opinions),
         )  # fmt: skip
         proof = prove(template, [d.pdf for d in docs])
+        if spec.start != "destination":
+            template, folded = fold_repeats(template, proof)
+            if folded:
+                warnings += folded
+                proof = prove(template, [d.pdf for d in docs])
         emit("check", "done", f"{proof.ready} of {proof.total} fields ready")
     return SetupResult(template, proof, docs, usage, warnings)
 
@@ -236,7 +283,8 @@ def _fields(
         doc = max(docs, key=_boxes)  # the first of the samples with the most boxes
         derived = derive_schema(
             doc.pdf, llm, form_map=doc.form_map, vision=spec.vision, classify_required=True,
-            reserved_names=RESERVED_NAMES, flat_fields=spec.names_from_titles, instructions=_reused_note(doc),
+            reserved_names=RESERVED_NAMES, flat_fields=spec.names_from_titles,
+            instructions="\n\n".join(filter(None, (ONE_ANSWER_NOTE, _reused_note(doc)))),
         )  # fmt: skip
         schema, _ = _titled(derived.schema, {}, spec.names_from_titles)
         return schema, [], {}, derived.usage, []
@@ -255,6 +303,12 @@ def _fields(
     return schema, absent, {}, usage, warnings
 
 
+#: What the schema's designer is told of answers the form repeats.
+ONE_ANSWER_NOTE = (
+    "One answer the form writes in several places (a name or a date repeated on every signature page or form) is one "
+    "property: the program finds and reads the rest of its places. Never make a property per page or section for an "
+    "answer the form repeats."
+)
 #: The most reused form field names the schema's designer is told of.
 MAX_REUSED_NAMES = 40
 

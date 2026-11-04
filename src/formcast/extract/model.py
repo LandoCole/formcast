@@ -131,13 +131,21 @@ class ChoiceRead(_Model):
 
 
 Strategy = Annotated[WidgetRead | BoxRead | AnchorRead | PhraseRead | ChoiceRead, Field(discriminator="kind")]
+#: A further place a field's datum is written: a form field, a box or a set of check marks.
+Place = Annotated[WidgetRead | BoxRead | ChoiceRead, Field(discriminator="kind")]
 
 
 class Reader(_Model):
-    """How one schema path is read: strategies tried in order, then the transforms that clean the raw text."""
+    """How one schema path is read: strategies tried in order, then the transforms that clean the raw text.
+
+    ``places`` are the further places the form writes the same datum (a long agreement repeats a name on every
+    signature page). Each is read on its own and compared with the field's value; every copy of a form field the
+    reader reads is a place without being listed (``formcast.extract.read``).
+    """
 
     strategies: list[Strategy]
     clean: list[Transform] = Field(default_factory=list)
+    places: list[Place] = Field(default_factory=list)
 
 
 # ------------------------------------------------------------------- template
@@ -242,6 +250,7 @@ class SetupInfo(_Model):
     line_paths: dict[str, list[str]] = Field(default_factory=dict)
     destination: str | None = None
     detect: Literal["auto", "all", "manual", "off"] = "auto"
+    find_blanks: Literal["form_fields", "all"] = "form_fields"  # "all": blanks beside the form fields looked for too
     pages: dict[int, list[int]] = Field(default_factory=dict)
     ocr: Literal["auto", "never"] = "auto"
     vision: bool = True
@@ -306,8 +315,22 @@ _HAS_VALUE = ("found", "unsure", "failed_check")
 _NO_VALUE = ("blank", "not_located", "missing")
 
 
+class PlaceResult(_Model):
+    """One place a field's datum is written on a document: its page, its instance on that page (1 for the first in
+    reading order), where it is, and what it holds there."""
+
+    page: int
+    instance: int = 1
+    rect: Rect
+    raw: str | None = None
+    value: Any = None
+
+
 class FieldResult(_Model):
-    """One schema path read from one document: the raw text, the cleaned value, how it was found and why it is in doubt."""
+    """One schema path read from one document: the raw text, the cleaned value, how it was found and why it is in doubt.
+
+    ``places`` lists every place the datum is written, the field's own first; a place that disagrees makes it unsure.
+    """
 
     path: str
     status: Status
@@ -317,6 +340,7 @@ class FieldResult(_Model):
     page: int | None = None
     rect: Rect | None = None
     reasons: list[str] = Field(default_factory=list)
+    places: list[PlaceResult] = Field(default_factory=list)
 
 
 class DocumentResult(_Model):

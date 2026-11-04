@@ -75,6 +75,14 @@ A phrase's places are the most of its occurrences with text after them and its o
 read at the first of its places that has text on the reader's side. Widget reads have no place (page and rect are
 ``None``).
 
+6. **Places.** Every field that is read lists the places its datum is written (``FieldResult.places``): where the
+   strategy that read it reads (a form field: every copy of it, page by page; on one page the k-th widget of each
+   field it names is one place, so a date's month, day and year boxes are one), then the reader's further
+   ``places`` and their copies, each read on its own and cleaned as the field is. The field's own place comes first,
+   the others in page order; a place's instance counts the field's places on its page in reading order. A place whose
+   value differs from the first place's (a blank one too) makes the field ``unsure``: ``"places disagree: page 30
+   (2nd) reads '…'"``. The field's value stays the first place's.
+
 ``extract`` never raises. A document that cannot be opened (missing, not a PDF, encrypted, empty) or that MuPDF fails
 on while it is read gives ``matched="none"``, no fields and ``error`` set ("cannot open PDF", "encrypted PDF",
 "cannot read PDF: ..."), which the batch runner records as unreadable. Any other exception is a fault of the
@@ -108,6 +116,7 @@ from formcast.extract.model import (
     ExtractionTemplate,
     FieldResult,
     PhraseRead,
+    PlaceResult,
     Reader,
     Status,
     Strategy,
@@ -141,6 +150,7 @@ class _Read:
     reasons: list[str] = field(default_factory=list)  # failed checks: the value is in doubt
     doubts: list[str] = field(default_factory=list)  # why a value that passes is not certain (makes it unsure)
     unmarked: bool = False  # a lone yes/no box read unmarked: a value, but nothing was written on the document
+    source: Strategy | None = None  # the strategy that read it
 
 
 class _SchemaError(Exception):
@@ -371,8 +381,9 @@ def _field(path: str, read: _Read | None, absent: bool, ctx: _Context) -> FieldR
     status: Status
     if absent:
         return FieldResult(path=path, status="absent", raw=None)  # an unmarked box in an empty row is not False
+    reader = ctx.template.readers.get(path)
+    places = _field_places(path, reader, read, ctx) if reader is not None else []
     if read.value is None:
-        reader = ctx.template.readers.get(path)
         located = read.raw is not None or (reader is not None and any(_located(s, ctx) for s in reader.strategies))
         status = "blank" if located else "not_located"
     elif read.reasons:
@@ -383,8 +394,152 @@ def _field(path: str, read: _Read | None, absent: bool, ctx: _Context) -> FieldR
         status = "found"
     return FieldResult(
         path=path, status=status, raw=read.raw, value=read.value, strategy=read.strategy, page=read.page,
-        rect=read.rect, reasons=read.reasons + read.doubts,
+        rect=read.rect, reasons=read.reasons + read.doubts, places=places,
     )  # fmt: skip
+
+
+# ------------------------------------------------------------------- places
+
+
+def _field_places(path: str, reader: Reader, read: _Read, ctx: _Context) -> list[PlaceResult]:
+    """Every place the path's datum is written (see the module docstring, step 6), the field's own first; a place
+    that disagrees with the first adds its doubt to ``read``."""
+    sp = resolve(ctx.schema_paths, _generic(path)[0])
+    yes_no = sp.type == "boolean"
+    own = read.source or next((s for s in reader.strategies if _copies(s, ctx)), None)
+    found: list[tuple[int, Rect, str | None, Any]] = []
+    seen: set[tuple[int, tuple[int, ...]]] = set()
+
+    def add(page: int, rect: Rect, local: Strategy | None) -> None:
+        key = (page, tuple(round(v) for v in rect))
+        if key in seen:
+            return
+        seen.add(key)
+        got = read if local is None else _try(local, ctx, yes_no=yes_no)
+        if not isinstance(got, _Read):
+            found.append((page, rect, None, None))
+            return
+        if local is not None:
+            got.source = local
+            _clean(got, reader, sp)
+        found.append((page, rect, got.raw, got.value))
+
+    if own is not None and not isinstance(own, (WidgetRead, ChoiceRead)) and read.page is not None and read.rect:
+        add(read.page, read.rect, None)  # a box, label or phrase read: where it read
+    for strategy in ([own] if own is not None else []) + list(reader.places):
+        for page, rect, local in _copies(strategy, ctx):
+            add(page, rect, local)
+    if not found:
+        return []
+    first, rest = found[0], sorted(found[1:], key=lambda f: (f[0], _reading(f[1])))
+    ordered = [first, *rest]
+    instance = {
+        id(f): n
+        for page in {f[0] for f in ordered}
+        for n, f in enumerate(sorted((f for f in ordered if f[0] == page), key=lambda f: _reading(f[1])), 1)
+    }
+    places = [PlaceResult(page=p, instance=instance[id(f)], rect=r, raw=raw, value=v) for f in ordered for p, r, raw, v in [f]]
+    differ = [pl for pl in places[1:] if _norm(pl.value) != _norm(places[0].value)]
+    if differ:
+        shown = "; ".join(f"{_where(pl, places)} reads {_shown(pl.value)}" for pl in differ[:3])
+        more = f" (and {len(differ) - 3} more)" if len(differ) > 3 else ""
+        _doubt(read, f"places disagree: {_where(places[0], places)} reads {_shown(places[0].value)}; {shown}{more}")
+    return places
+
+
+def _copies(strategy: Strategy, ctx: _Context) -> list[tuple[int, Rect, Strategy]]:
+    """Where one strategy's datum is written on the document: ``(page, rect, the strategy kept to that page)``.
+
+    A form field's widgets, page by page (the k-th widget of each name on a page is one place; a read kept to one page
+    is kept there only when the field holds different answers on different pages); a choice's marks on
+    each page they are on, as one place; a box where it is. A label or phrase gives none: its place is where it read.
+    """
+    doc = ctx.doc
+    if isinstance(strategy, WidgetRead):
+        out: list[tuple[int, Rect, Strategy]] = []
+        everywhere = _pages(doc.widget_pages(n) for n in strategy.names)
+        pinned = strategy.page is not None and any(_differs(doc, n) for n in strategy.names)
+        pages = [strategy.page] if pinned else everywhere
+        for page in pages:
+            per_name = [sorted((r for _, r in doc.widget_places(n, page=page)), key=_reading) for n in strategy.names]
+            per_name = [rects for rects in per_name if rects]
+            local = strategy.model_copy(update={"page": page})
+            for k in range(max((len(rects) for rects in per_name), default=0)):
+                out.append((page, _union([rects[k] for rects in per_name if k < len(rects)]), local))
+        return out
+    if isinstance(strategy, ChoiceRead):
+        out = []
+        for page in _pages(_mark_pages(mark, ctx) for mark in strategy.options.values()):
+            options = {key: _kept_to(mark, page) for key, mark in strategy.options.items() if page in _mark_pages(mark, ctx)}
+            local = ChoiceRead(options=options)
+            rects = [r for mark in options.values() for r in _mark_rects(mark, ctx)]
+            if rects:
+                out.append((page, _union(rects), local))
+        return out
+    if isinstance(strategy, BoxRead):
+        place = _place(strategy, ctx)
+        return [(place[0], place[1], strategy)] if place is not None else []
+    return []
+
+
+def _differs(doc: DocText, name: str) -> bool:
+    """Whether the form field ``name`` holds different answers on different pages (a page-bound read means it)."""
+    pages = doc.widget_pages(name)
+    return len({repr(doc.widget_value(name, p)) for p in pages}) > 1
+
+
+def _mark_pages(mark: ChoiceMark, ctx: _Context) -> list[int]:
+    if mark.widget is not None:
+        return _pages([[page for page, _ in ctx.doc.widget_places(mark.widget, mark.state, mark.page)]])
+    return [mark.page] if ctx.matched != "none" and mark.page is not None else []
+
+
+def _mark_rects(mark: ChoiceMark, ctx: _Context) -> list[Rect]:
+    if mark.widget is not None:
+        return [rect for _, rect in ctx.doc.widget_places(mark.widget, mark.state, mark.page)]
+    place = _mark_place(mark, ctx)
+    return [place[1]] if place is not None else []
+
+
+def _kept_to(mark: ChoiceMark, page: int) -> ChoiceMark:
+    """A widget mark kept to its buttons on ``page``; a drawn mark is on one page already."""
+    return mark.model_copy(update={"page": page}) if mark.widget is not None else mark
+
+
+def _pages(lists: Iterable[Iterable[int]]) -> list[int]:
+    return sorted({page for pages in lists for page in pages})
+
+
+def _reading(rect: Rect) -> tuple[float, float]:
+    """A rectangle's place in reading order: by row (to 4 pt), then from the left."""
+    return round(rect[1] / 4), rect[0]
+
+
+def _union(rects: list[Rect]) -> Rect:
+    return min(r[0] for r in rects), min(r[1] for r in rects), max(r[2] for r in rects), max(r[3] for r in rects)
+
+
+def _norm(value: Any) -> Any:
+    """A value as places are compared: text without case or spacing differences; blank is ``None``."""
+    if value is None or (isinstance(value, str) and not value.strip()):
+        return None
+    if isinstance(value, str):
+        return " ".join(value.split()).casefold()
+    return value
+
+
+def _where(place: PlaceResult, places: list[PlaceResult]) -> str:
+    """"page 5", or "page 5 (2nd)" on a page the field has several places on (pages from 1)."""
+    several = sum(pl.page == place.page for pl in places) > 1
+    return f"page {place.page + 1}" + (f" ({_ordinal(place.instance)})" if several else "")
+
+
+def _ordinal(n: int) -> str:
+    return f"{n}{'th' if 10 <= n % 100 <= 20 else {1: 'st', 2: 'nd', 3: 'rd'}.get(n % 10, 'th')}"
+
+
+def _shown(value: Any) -> str:
+    return "nothing" if _norm(value) is None else repr(value if not isinstance(value, str) else " ".join(value.split()))
 
 
 # --------------------------------------------------------------------- one path
@@ -412,15 +567,21 @@ def _read_path(path: str, reader: Reader | None, ctx: _Context) -> Iterator[_Rea
         if read is None:
             continue
         read.doubts += [s.reason for s in skipped if s.doubt and s.reason not in read.doubts]
-        if read.strategy == "box" and not _splits_lines(reader):
-            read.raw = " ".join(read.raw.split())  # a wrapped answer is one answer
-        read.value = cleaned(reader, read.raw, sp)
+        read.source = strategy
+        _clean(read, reader, sp)
         if read.value is None:
             read.reasons.append(f"cleaning left nothing of {read.raw!r}")
         read_any = True
         yield read
     if not read_any and skipped:
         yield _Read(reasons=[s.reason for s in skipped])
+
+
+def _clean(read: _Read, reader: Reader, sp: SchemaPath) -> None:
+    """``read.value`` from its raw text, as the reader cleans it (a box's wrapped answer made one line first)."""
+    if read.strategy == "box" and not _splits_lines(reader):
+        read.raw = " ".join(read.raw.split())  # type: ignore[union-attr]  # a wrapped answer is one answer
+    read.value = cleaned(reader, read.raw, sp)  # type: ignore[arg-type]
 
 
 def _splits_lines(reader: Reader) -> bool:

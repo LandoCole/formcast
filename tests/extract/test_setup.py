@@ -76,7 +76,9 @@ def test_ai_start_builds_a_ready_template_that_reads_the_corpus_with_no_wrong_va
     spec = SetupSpec(names_from_titles=False, name="Client info")
     result = build_setup(five_samples.pdfs, spec, model, on_stage=events.append, **NO_DETECTORS)
     assert [e.key for e in events if e.status == "done"] == [key for key, _ in STAGES]
-    assert [e.status for e in events] == ["running", "done"] * len(STAGES)
+    # each stage runs (again, with a new detail, while it works: the page searched, the form fields placed), then ends
+    runs = [(e.key, e.status) for n, e in enumerate(events) if e.status == "done" or n == 0 or events[n - 1].key != e.key]
+    assert runs == [(key, status) for key, _ in STAGES for status in ("running", "done")]
     check = events[-1]
     assert check.detail == f"{result.proof.ready} of {result.proof.total} fields ready"
     assert_proven(result.proof)

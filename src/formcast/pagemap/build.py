@@ -211,20 +211,41 @@ def detect_on_page(
     page_map: PageMap,
     detectors: dict[str, Detector] | None = None,
     policy: DetectPolicy = DetectPolicy(),
+    *,
+    beside_widgets: bool = False,
 ) -> PageMap:
     """``page_map`` (of ``page``) with detection run: its candidates found afresh and their labels linked, and
-    the note that detection was skipped dropped. A fillable page comes back unchanged. ``detectors`` as for
-    :func:`build_form_map`.
+    the note that detection was skipped dropped. A fillable page comes back unchanged, unless ``beside_widgets``:
+    then its blanks are found too, and every one over a form field (:func:`over_widget`) is dropped, so a line is
+    never both. ``detectors`` as for :func:`build_form_map`.
     """
-    if page_map.kind == "fillable":
+    if page_map.kind == "fillable" and not beside_widgets:
         return page_map
     if detectors is None:
         detectors = load_default_detectors()
     candidates = detect_page(page, page_map.kind, detectors, policy)
+    if page_map.widgets:
+        kept = [c for c in candidates if not any(over_widget(c.rect, w.rect) for w in page_map.widgets)]
+        candidates = [c.model_copy(update={"id": f"c{page_map.index}_{n}"}) for n, c in enumerate(kept)]
     notes = [n for n in page_map.notes if n not in (NOTE_PROSE, NOTE_NOT_DETECTED)]
     pm = page_map.model_copy(update={"candidates": candidates, "notes": notes})
     link_labels(pm)
     return pm
+
+
+#: How much of the smaller of a blank and a form field they must share for the blank to be the form field's.
+OVER_WIDGET_SHARE = 0.5
+
+
+def over_widget(blank: Rect, widget: Rect) -> bool:
+    """Whether a detected blank is a form field already: they share at least half the smaller one's area (a blank
+    drawn around the field, or a field filling part of a long blank line)."""
+    w = min(blank[2], widget[2]) - max(blank[0], widget[0])
+    h = min(blank[3], widget[3]) - max(blank[1], widget[1])
+    if w <= 0 or h <= 0:
+        return False
+    smaller = min((blank[2] - blank[0]) * (blank[3] - blank[1]), (widget[2] - widget[0]) * (widget[3] - widget[1]))
+    return smaller > 0 and w * h >= OVER_WIDGET_SHARE * smaller
 
 
 NOTE_PROSE = "detection skipped: the page reads as running text (no blanks were looked for)"

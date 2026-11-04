@@ -151,6 +151,7 @@ import io
 import os
 import re
 import tempfile
+import time
 import uuid
 import zipfile
 from collections.abc import Callable
@@ -175,7 +176,7 @@ from formcast.extract.export import check_columns
 from formcast.extract.model import ExtractionTemplate, concrete_paths
 from formcast.extract.proof import prove
 from formcast.extract.read import places
-from formcast.extract.samples import SamplePdf, read_samples
+from formcast.extract.samples import SamplePdf, ScanProgress, read_samples
 from formcast.extract.setup import FIELDS_LABELS, MAX_SAMPLES, STAGES, SetupSpec, add_line, build_setup
 from formcast.extract.tofill import fill_template_for
 from formcast.pagemap.extract import open_pdf
@@ -421,17 +422,25 @@ def _start_setup(api: Api, payload: dict) -> dict:
     stages = [(key, FIELDS_LABELS[spec.start] if key == "fields" else label) for key, label in STAGES]
 
     def run(job: Job) -> None:
+        scan = _ScanView(spec.detect, len(samples))
+
         def on_stage(event) -> None:
             job.stage(event.key, event.status, event.detail)
             _stop_if_cancelled(job)
             if event.key == "detect" and event.status == "running" and warmup is not None:
                 warmup.ready()  # the weights load before the library takes the lock to detect
+            if event.key == "detect" and event.status != "running":
+                job.set_reading(None)
+
+        def on_scan(event: ScanProgress) -> None:
+            job.set_reading(scan.update(event))
+            _stop_if_cancelled(job)
 
         provider = api.provider_factory()
         try:
             result = build_setup(
                 samples, spec, provider, detectors=warmup.detectors if warmup is not None else None,
-                on_stage=on_stage, on_page=lambda i, progress: _stop_if_cancelled(job),
+                on_stage=on_stage, on_page=lambda i, progress: _stop_if_cancelled(job), on_scan=on_scan,
             )  # fmt: skip
         finally:
             provider.close()
@@ -440,6 +449,46 @@ def _start_setup(api: Api, payload: dict) -> dict:
         job.set_result(setup=api.setups.add(setup).summary())
 
     return _task(api, "extract-setup", run, stages)
+
+
+class _ScanView:
+    """A build's search for blanks as the reading strip draws a PDF's reading (``demo/web/workbench/reading.js``): a
+    cell per page of the sample being searched (the ones not searched done at once, as fillable or skipped), the page
+    under way, and the time so far."""
+
+    def __init__(self, detect: str, samples: int) -> None:
+        self.skipped = "prose" if detect == "auto" else "manual"
+        self.samples = samples
+        self.view: dict | None = None
+        self.started = time.time()
+        self.since = time.time()
+
+    def update(self, event: ScanProgress) -> dict:
+        if event.step == "start" or self.view is None:
+            self.started = time.time()
+            wanted = set(event.wanted)
+            pages = []
+            for i, kind in enumerate(event.kinds):
+                if i in wanted:
+                    pages.append({"state": "pending", "kind": "digital", "boxes": 0, "widgets": 0, "skipped": None})
+                else:
+                    fillable = kind == "fillable"
+                    pages.append({"state": "done", "kind": kind, "boxes": 0, "widgets": int(fillable), "skipped": None if fillable else self.skipped})
+            self.view = {
+                "phase": "pages", "page_count": len(event.kinds), "pages": pages, "current": None,
+                "pages_done": len(event.kinds) - len(wanted), "sample": event.sample, "samples": self.samples,
+            }  # fmt: skip
+        view = self.view
+        if event.step == "detect":
+            view["pages"][event.page]["state"] = "working"
+            view["current"] = {"page": event.page, "step": "detect", "detectors": []}
+            self.since = time.time()
+        elif event.step == "done":
+            view["pages"][event.page].update(state="done", boxes=event.found, seconds=round(time.time() - self.since, 2))
+            view["pages_done"] += 1
+            view["current"] = None
+        view["elapsed"] = round(time.time() - self.started, 1)
+        return view
 
 
 def _sample_indexes(batch: Batch, raw: Any) -> list[int]:
@@ -828,6 +877,7 @@ def run_problems(api: Api, req: Request) -> dict:
                     "path": f.path, "title": titles.get(f.path, f.path), "required": required, "required_reason": reason,
                     "status": f.status, "raw": f.raw, "value": f.value, "reasons": list(f.reasons), "page": f.page,
                     "rect": list(f.rect) if f.rect else None,
+                    "places": [p.model_dump(mode="json") for p in f.places] if len(f.places) > 1 else [],
                 }  # fmt: skip
                 for f, required, reason in fields
             ],

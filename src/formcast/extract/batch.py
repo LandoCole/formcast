@@ -1030,6 +1030,22 @@ class Results:
         """The same rows and columns as :meth:`rows`, each field's cell holding its status."""
         return self._rows(lambda f: f.status)
 
+    def places_rows(self) -> Iterator[dict]:
+        """One row per place a field is written on a document read: ``document_id``, ``document_file``, the field's
+        export ``column``, the ``page`` (from 1), its ``instance`` on that page, the ``value`` there, and whether it is
+        ``same_as_field``: the field's first place's value (case and spacing aside)."""
+        for doc in self.documents():
+            if doc.error is not None:
+                continue
+            for f in doc.fields:
+                first = _same_key(f.places[0].value) if f.places else None
+                for place in f.places:
+                    yield {
+                        "document_id": doc.doc_id, "document_file": doc.file, "column": column_name(f.path),
+                        "page": place.page + 1, "instance": place.instance, "value": place.value,
+                        "same_as_field": _same_key(place.value) == first,
+                    }  # fmt: skip
+
     def set_aside(self) -> Iterator[dict]:
         """One row per failed document: ``document_id``, ``document_file``, ``reason`` (``"no template fits"`` or the error),
         ``closest_template`` and ``closest_score`` (``None`` for an unreadable document)."""
@@ -1047,6 +1063,13 @@ class Results:
         if offset < 0 or limit < 0:
             raise FormcastError(f"the offset and the limit must not be negative, not {offset!r} and {limit!r}")
         return len(self._aside), [_aside_row(self.document(doc_id)) for doc_id in self._aside[offset : offset + limit]]
+
+
+def _same_key(value: Any) -> Any:
+    """A place's value as places are compared: text without case or spacing differences; blank is ``None``."""
+    if isinstance(value, str):
+        return " ".join(value.split()).casefold() or None
+    return value
 
 
 def _aside_row(doc: DocumentResult) -> dict:

@@ -4,6 +4,7 @@
     ON_FORM_SYSTEM   which of a destination's fields the samples' form has
     READERS_SYSTEM   how to read each field on copies of the form (form field names, boxes, labels, phrases, options)
     VALUES_SYSTEM    one document's answer to each field, as it is on the page
+    UNREAD_SYSTEM    for each filled form field no field reads: the field it repeats, a new field, or not data
 
 Every call sends the samples as :func:`~formcast.extract.samples.sample_view` writes them, numbered from 1
 (``SAMPLE 1``), with their pages numbered from 0 as in the form map, and, with vision, some page images each after a
@@ -50,6 +51,8 @@ Rules:
   required fields (see the rules below) in their object's "required".
 - Types: "string"; {{"type": "string", "format": "date"}} for a date; "number" or "integer" for amounts and
   counts; "boolean" for a yes/no question or a lone check box; a string with "enum" for a choose-one set.
+- One answer the form writes in several places (a name or date repeated on every signature page or form) is one
+  field: the program finds the rest of its places. Never make a field per section for an answer it repeats.
 - Rows or blocks printed again and again (several drivers, line items): one property that is an array of
   objects, one property per column, with "maxItems" set to the number of printed rows or blocks.
 - Every field and every object has a "title" a person would read, because the program makes each name from its
@@ -122,6 +125,10 @@ For each path give one reader, with what applies of:
   When the samples write an answer otherwise than as an allowed answer, give a "map" from each wording seen to the
   allowed answer ({{"op": "map", "args": {{"values": {{"Gold tier": "gold", "Silver": "silver"}}}}}}); for a date,
   a "date" step with the format the samples write it in.
+- "places": every further place the form writes this same answer again (a long agreement repeats a name or a date on
+  each signature page), each {{"sample": <its number>, "id": "<a found blank's id, or a form field's name or id>"}}.
+  Copies of a form field you named in "widgets" are found by the program: list only places held by different form
+  fields or by blanks. A different answer that only looks alike (a city and a province both "Springfield") is not a place.
 A path the form has no place for: {{"path": "<path>"}} alone.
 
 Reply with one JSON object and nothing else, one reader per path, each path written as listed:
@@ -147,4 +154,25 @@ Rules:
 - Never guess, and never take an answer from another field or from what is usual.
 
 Reply with one JSON object and nothing else: {{"values": {{"<path>": <answer or null>, ...}}}}
+"""
+
+UNREAD_SYSTEM = """\
+You finish a form's data schema. A program reads the fields listed under FIELDS off filled copies of the form; each
+answer the form writes in several places is one field, whose further places the program reads too. These form fields
+of a filled sample hold an answer that no field reads yet: UNREAD FORM FIELDS, each with its id, its name, its page
+(from 0), its value and the printed words nearest it.
+
+For each, say one of:
+- "path": the field (written as listed) whose answer this form field writes again, on another page or form. Only
+  the same answer counts: a province that holds the same word as the city is not the city.
+- "new": an answer of its own, {"name": "<snake_case>", "title": "<short name>", "type": "string" | "number" |
+  "integer", "description": "<what the value is>"}. Name it for what it is, not for its page ("native_city", not
+  "page_17_city"). Several form fields that are parts of one answer (a date's month, day and year) get the same
+  name, listed in the order their values read; one answer repeated on several pages gets one name too.
+- "skip": a short reason, for what is not data (a printed default, a page number, a decoration).
+
+Reply with one JSON object and nothing else, one answer per form field listed:
+{"answers": [{"id": "w17_3", "path": "holder.town"}, {"id": "w2_9", "new": {"name": "province", "title":
+"Province", "type": "string", "description": "The province of the home address"}}, {"id": "w5_1", "skip": "page
+number"}]}
 """
