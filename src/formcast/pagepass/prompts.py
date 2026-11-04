@@ -84,23 +84,46 @@ def transforms_ref() -> str:
     return "\n".join(lines)
 
 
+FILL_IN_NOTE = (
+    "FILL IN: this page has been worked on already. Only the boxes listed and outlined here still need something: "
+    "a data mapping, a label, or both; the rest of the page's boxes are done and are not shown. For every box listed, "
+    'give it in "mappings" with "label": the words printed for it, as a person would name the blank (a few '
+    'words, taken from the form), and a "source" only when a schema path fits it (leave "source" out '
+    "otherwise). A box that has a label or a mapping keeps it: what you give it adds only what it lacks. "
+    "Schema paths already mapped on this form (use one again only for a box that repeats the same value): {used}."
+)
+
+
+def _has(f) -> str:
+    """What a fill-in pass's box has already: its label, its mapping."""
+    label = f'label "{f.label.strip()}"' if f.label.strip() else "no label"
+    mapped = f"mapped to {', '.join(f.source.paths)}" if f.source and f.source.paths else "no mapping"
+    return f" ({label}; {mapped})"
+
+
 def page_messages(
-    template: Template, form_map: FormMap, page: int, image: bytes, marks: dict[str, str]
+    template: Template, form_map: FormMap, page: int, image: bytes, marks: dict[str, str], *, boxes: list | None = None
 ) -> list[Message]:
-    """The system and user messages for one page's call: image, note on the marks, then the page text."""
+    """The system and user messages for one page's call: image, note on the marks, then the page text.
+
+    ``boxes`` (a fill-in pass) lists only those boxes, with what each has already, and adds ``FILL_IN_NOTE``.
+    """
     from formcast.agent.prompts import _schema_line  # not at module top: formcast.agent will import this package
 
-    fields = [f for f in template.fields if f.page == page]
+    fields = [f for f in template.fields if f.page == page] if boxes is None else boxes
     first = next((f.id for f in fields if f.id in marks), None)
     example = f"a box marked {marks[first]} is {first}" if first else "no box has a mark"
     note = IMAGE_NOTE_FULL_IDS if first and marks[first] == first else IMAGE_NOTE
     paths = "\n".join(_schema_line(sp) for sp in flatten_schema(template.schema_))
-    boxes = "\n".join(f"- {f.id}: {f.type}" for f in fields)
+    listed = "\n".join(f"- {f.id}: {f.type}{_has(f) if boxes is not None else ''}" for f in fields)
     text = (
         f"SCHEMA PATHS:\n{paths}\n\nTRANSFORMS:\n{transforms_ref()}\n\n"
-        f"BOXES ON THIS PAGE ({len(fields)}; ids as in the page map):\n{boxes}\n\n"
+        f"BOXES ON THIS PAGE ({len(fields)}; ids as in the page map):\n{listed}\n\n"
         f"PAGE MAP (extracted text and geometry, page {page}):\n{summarize_page(form_map, page)}\n"
     )
+    if boxes is not None:
+        used = sorted({p for f in template.fields if f.source for p in f.source.paths})
+        text += "\n" + FILL_IN_NOTE.format(used=", ".join(used) or "none")
     return [
         Message("system", SYSTEM_PROMPT),
         Message("user", [ImagePart(image), TextPart(note.format(example=example)), TextPart(text)]),

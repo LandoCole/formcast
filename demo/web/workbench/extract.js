@@ -24,7 +24,7 @@
 // #extract-msg (engine.extract.addFiles skips it). The batch's line, strip and note (extract-model.js) follow its
 // scan, polled until it ends: until the scan is done every cell reads "not scanned yet", and then the strip marks the
 // documents the sample would take now (the marks go as soon as the scan starts again or the sample changes). 2 · the
-// sample: 3 to 20 documents spread across the batch or the first ones, or the ones checked in the batch's list (I'll
+// sample: 1 to 20 documents spread across the batch or the first ones, or the ones checked in the batch's list (I'll
 // pick them; 200 files a page, More for the next). 3 · what to extract: the AI's suggestion, the person's own lines, or
 // the fields of a saved fill template (the destination). 4 · detection and reading: finding the blanks (by hand, on
 // the pages named for every sample: "1, 3-4"), OCR, the unsure rule (always on in this version: plan 1's reader has
@@ -53,7 +53,7 @@ import { batchLine, batchNote, pagesText, parsePages, stripCells } from "./extra
 import { showStages } from "./jobs.js";
 
 /** The fewest and most documents a sample has (the server's own bounds). */
-const MIN_SAMPLE = 3;
+const MIN_SAMPLE = 1;
 const MAX_SAMPLE = 20;
 /** Files of the batch listed at a time for I'll pick them (the server's page limit). */
 const PICK_PAGE = 200;
@@ -411,7 +411,7 @@ function mountModal(app, api) {
 
   // ------------------------------------------------------------------ 2 · the sample
 
-  /** The sample size typed, or null (with the message shown) when it is not 3 to 20. */
+  /** The sample size typed, or null (with the message shown) when it is not 1 to 20. */
   function sampleSize() {
     const n = Number($("n-sample").value);
     if (Number.isInteger(n) && n >= MIN_SAMPLE && n <= MAX_SAMPLE) return n;
@@ -611,9 +611,8 @@ function mountModal(app, api) {
       const n = sampleSize();
       return n === null ? { error: $("extract-msg").textContent } : { body: { n, how: how() } };
     }
-    const fewest = Math.min(MIN_SAMPLE, batch.count);
-    if (state.picked.size < fewest || state.picked.size > MAX_SAMPLE) {
-      return { error: `Pick ${fewest} to ${MAX_SAMPLE} documents for the sample.` };
+    if (state.picked.size < MIN_SAMPLE || state.picked.size > MAX_SAMPLE) {
+      return { error: `Pick ${MIN_SAMPLE} to ${MAX_SAMPLE} documents for the sample.` };
     }
     return { body: { how: "pick", picked: [...state.picked].sort((x, y) => x - y) } };
   }

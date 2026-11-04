@@ -64,13 +64,16 @@ def step_report(
     template: Template,
     form_map: FormMap,
     budget: tuple[int, int] | None = None,
+    tokens: tuple[int, int] | None = None,
     max_stdout: int = MAX_STDOUT,
     stdout_note: str = "output truncated",
 ) -> str:
     """Plain-text report of one step plus the template's current coverage.
 
     ``budget`` is (steps used, step limit); when given, the report says how many
-    steps are left so the model can pace its work instead of stopping early.
+    steps are left so the model can pace its work instead of stopping early. ``tokens`` is
+    (input tokens used, input token limit): every step resends the whole context, so the token
+    limit can run out long before the steps do.
     Printed output beyond ``max_stdout`` characters is cut with ``stdout_note``.
     """
     ex = record.exec
@@ -78,6 +81,9 @@ def step_report(
     if budget is not None:
         used, limit = budget
         out[0] += f" (step {used} of {limit}; {max(0, limit - used)} steps left)"
+    if tokens is not None:
+        spent, cap = tokens
+        out[0] += f" (input tokens: {spent:,} of {cap:,} used; {max(0, cap - spent):,} left)"
 
     stdout = ex.stdout if ex is not None else ""
     if len(stdout) > max_stdout:

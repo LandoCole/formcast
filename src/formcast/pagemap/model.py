@@ -43,6 +43,7 @@ class Widget(BaseModel):
     rect: Rect
     options: list[str] = []
     tooltip: str | None = None
+    state: str | None = None  # a check box or radio button's on-state: tells apart buttons that share one name
 
 
 class Candidate(BaseModel):

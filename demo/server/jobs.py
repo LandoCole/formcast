@@ -23,9 +23,12 @@ the job ``done``; a ``SessionCancelled`` ends it ``cancelled``; a ``FormcastErro
 anything else ends it ``error`` with a generic message and the traceback goes to the log only. A task job takes one of
 the same ``max_running`` slots as every other job.
 
-``status`` is ``running``, then one of ``done`` (the model finished), ``cancelled`` (stopped by a cancel
-request) or ``error`` (the model call or the sandbox failed, the budget ran out, or something unexpected
-happened; ``error`` says so in plain words). ``steps`` has one ``StepEvent`` dict per model reply so far.
+``status`` is ``running``, then one of ``done`` (the model finished, or stopped after several replies in a row
+made no edit; a ``oneshot`` job's check is also ``done`` when its budget ran out, the data still mapped, and
+``summary`` says the check stopped early), ``cancelled`` (stopped by a cancel request) or ``error`` (the model call
+or the sandbox failed, the budget ran out, or something unexpected happened; ``error`` says so in plain words).
+``steps`` has one ``StepEvent`` dict per model reply so far, each with a ``note`` saying what the reply did
+(also written to the server log).
 ``template`` is ``null`` while the job runs (the library reports the template only when the session ends)
 and afterwards the final template, or for ``cancelled`` and ``error`` the partial one: whatever the agent
 had applied, including the step that was running when it stopped. It is ``null`` only when the session
@@ -63,7 +66,7 @@ from collections.abc import Callable, Iterable, Sequence
 from typing import Literal
 
 from demo.server.documents import Doc
-from demo.server.oneshot import STAGES, OneShotSpec, run_oneshot
+from demo.server.oneshot import EARLY_STOP, STAGES, OneShotSpec, run_oneshot
 from formcast import FormcastError, SessionCancelled, StepEvent, Template, build_template, revise
 from formcast.agent.session import SessionResult
 from formcast.geometry import Rect
@@ -163,6 +166,8 @@ class Job:
         """Record the step; stop the session if a cancel was requested, unless this step finished it."""
         with self._lock:
             self.steps.append(dataclasses.asdict(event))
+        if event.note:
+            log.info("job %s step %d: %s", self.id[:8], event.step, event.note)
         if self.cancel_requested and not event.finished:
             raise SessionCancelled("cancelled")
 
@@ -316,8 +321,9 @@ class Jobs:
     def _run_oneshot(self, job: Job, doc: Doc, spec: OneShotSpec, provider_factory) -> None:
         try:
             result = run_oneshot(job, doc, spec, provider_factory)
-            if result is None or result.stop_reason == "finish":
-                self._finish(job, "done", template=job._partial, summary=result.summary if result else "", unplaceable=list(result.unplaceable) if result else [])
+            if result is None or result.stop_reason in ("finish", *EARLY_STOP):
+                summary = EARLY_STOP.get(result.stop_reason, result.summary) if result else ""
+                self._finish(job, "done", template=job._partial, summary=summary, unplaceable=list(result.unplaceable) if result else [])
             else:
                 self._finish_from(job, result)
         except SessionCancelled:
@@ -336,6 +342,8 @@ class Jobs:
             self._finish(job, "done", template=dumped, summary=result.summary, unplaceable=unplaceable)
         elif result.stop_reason == "cancelled":
             self._finish(job, "cancelled", template=dumped, summary=result.summary, unplaceable=unplaceable)
+        elif result.stop_reason == "stalled":
+            self._finish(job, "done", template=dumped, summary=EARLY_STOP["stalled"], unplaceable=unplaceable)
         elif result.stop_reason == "budget":
             self._finish(job, "error", template=dumped, error=_BUDGET_ERROR)
         else:

@@ -35,13 +35,13 @@ Setups (``api.setups``) and saved extraction templates (``api.extractions``):
     GET  /api/setups/{s}/samples/{i}/pages/{p}.png?dpi=             -> image/png
     GET  /api/extractions                                           -> {extractions: [{name, template_id, fields, samples, updated}]}
     GET  /api/extractions/{name}                                    -> {template}
+    POST /api/extractions/{name}/fill-template {doc}                -> {template, warnings}  (a blank copy's fill template)
     PUT  /api/extractions/{name}     {setup}                        -> {name, template_id}
     DELETE /api/extractions/{name}                                  -> {name}
 
     Setup = {id, batch, template, proof, warnings, samples: [{index, name, kind, pages: [[w, h]]}]}
 
-An ``extract-setup`` job builds a template from the batch's files ``samples`` (``build_setup``; at least 3 of them,
-or every file of a smaller batch, and at most 20). ``spec`` is ``SetupSpec``'s fields, with ``destination`` the name
+An ``extract-setup`` job builds a template from the batch's files ``samples`` (``build_setup``; 1 to 20 of them). ``spec`` is ``SetupSpec``'s fields, with ``destination`` the name
 of a fill template in ``api.store`` whose schema the fields start from. Its stages are ``STAGES``, the ``fields``
 stage labelled by where the fields start (``FIELDS_LABELS``); a cancel takes effect when the stage or page being read
 ends. An ``extract-line`` job adds the fields of one more line to a setup (``add_line``); its result's ``paths`` are
@@ -177,6 +177,7 @@ from formcast.extract.proof import prove
 from formcast.extract.read import places
 from formcast.extract.samples import SamplePdf, read_samples
 from formcast.extract.setup import FIELDS_LABELS, MAX_SAMPLES, STAGES, SetupSpec, add_line, build_setup
+from formcast.extract.tofill import fill_template_for
 from formcast.pagemap.extract import open_pdf
 
 BATCH = r"/api/batches/(?P<batch>[0-9a-f]{32})"
@@ -215,6 +216,7 @@ def add_extract_routes(api: Api) -> None:
     route("GET", EXTRACTION, get_extraction)
     route("PUT", EXTRACTION, save_extraction)
     route("DELETE", EXTRACTION, delete_extraction)
+    route("POST", EXTRACTION + r"/fill-template", extraction_fill_template)
     route("GET", r"/api/runs", list_runs)
     route("POST", r"/api/runs", open_run_folder)
     route("GET", RUN, get_run)
@@ -441,13 +443,12 @@ def _start_setup(api: Api, payload: dict) -> dict:
 
 
 def _sample_indexes(batch: Batch, raw: Any) -> list[int]:
-    """``raw`` as the files of ``batch`` to build from: 3 to 20 of them (all of a smaller batch), each once; 400 ``bad_sample`` otherwise."""
+    """``raw`` as the files of ``batch`` to build from: 1 to 20 of them, each once; 400 ``bad_sample`` otherwise."""
     count = batch.summary()["count"]
-    fewest = max(1, min(MIN_SAMPLE, count))
     if not isinstance(raw, list) or not all(type(i) is int for i in raw):
         raise ApiError(400, "bad_sample", "Send samples as the numbers of the batch's files to build the template from.")
-    if not fewest <= len(raw) <= MAX_SAMPLES:
-        raise ApiError(400, "bad_sample", f"Build the template from {fewest} to {MAX_SAMPLES} of the batch's files.")
+    if not MIN_SAMPLE <= len(raw) <= MAX_SAMPLES:
+        raise ApiError(400, "bad_sample", f"Build the template from {MIN_SAMPLE} to {MAX_SAMPLES} of the batch's files.")
     for i in raw:
         if not 0 <= i < count:
             raise ApiError(400, "bad_sample", f"{i} is not a file of this batch (it has {count}).")
@@ -628,6 +629,20 @@ def get_extraction(api: Api, req: Request) -> dict:
     name = _checked(req.match["name"])
     with missing("extraction"):
         return {"template": api.extractions.get(name).model_dump(mode="json", by_alias=True)}
+
+
+def extraction_fill_template(api: Api, req: Request) -> dict:
+    """``{doc}`` -> ``{template, warnings}``: a fill template for the open document ``doc`` (a blank copy of the form
+    the saved extraction template ``name`` reads), made from that template's readers with no model call
+    (``formcast.extract.tofill``): each form field it reads takes its path, in the format its first sample writes it.
+    ``warnings`` name the paths it could not place (read from no form field of this copy)."""
+    name = _checked(req.match["name"])
+    with missing("extraction"):
+        template = api.extractions.get(name)
+        samples = api.extractions.samples(name)
+    doc = api._doc(_object(req))
+    fill, warnings = fill_template_for(template, doc.form_map(), samples[0].pdf if samples else None)
+    return {"template": fill.model_dump(mode="json", by_alias=True), "warnings": warnings}
 
 
 def save_extraction(api: Api, req: Request) -> dict:

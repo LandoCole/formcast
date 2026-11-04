@@ -15,7 +15,7 @@ import zipfile
 
 import pymupdf
 import pytest
-from test_server_documents import get_json, http_request, multipart
+from test_server_documents import get_json, http_request, multipart, small_pdf
 
 from demo.server import documents as documents_mod
 from formcast.data.ai import DERIVE_SYSTEM, EXTRACT_SYSTEM, MAP_SYSTEM
@@ -205,6 +205,29 @@ def test_a_oneshot_job_designs_the_schema_maps_the_boxes_and_maps_the_data(start
     assert job["usage"] == {"input_tokens": 300, "output_tokens": 30}
 
 
+@pytest.mark.parametrize("stop", ["budget", "stalled"])
+def test_a_check_that_stops_early_keeps_its_links_and_the_data_is_still_mapped(start_demo_server, monkeypatch, stop):
+    from demo.server import oneshot as oneshot_mod
+
+    real = oneshot_mod.build_template
+
+    def stopped_early(*args, **kwargs):
+        result = real(*args, **{**kwargs, "agent": False})  # the page pass's links; the check then stops
+        result.stop_reason, result.finished, result.summary = stop, False, ""
+        return result
+
+    monkeypatch.setattr(oneshot_mod, "build_template", stopped_early)
+    base = start_demo_server(provider_factory=Model())
+    ds = send_csv(base)
+    job = wait_ended(base, post(base, "/api/jobs", {"kind": "oneshot", "doc": open_pdf(base), "data": ds["id"], "check": True})[1]["id"])
+    assert job["status"] == "done" and job["error"] is None, job
+    assert job["summary"] == oneshot_mod.EARLY_STOP[stop]
+    boxes = next(st for st in job["stages"] if st["key"] == "boxes")
+    assert boxes["status"] == "done" and boxes["detail"] == f"1 of 1 boxes linked · {oneshot_mod.EARLY_STOP[stop]}"
+    assert [f["id"] for f in job["template"]["fields"] if (f.get("source") or {}).get("paths")] == ["w0_0"]
+    assert job["result"]["data"]["records"] == [{"name": "Ann Lee"}, {"name": "Bo Chen"}]
+
+
 def test_free_text_is_read_by_the_model(start_demo_server):
     model = Model()
     base = start_demo_server(provider_factory=model)
@@ -341,3 +364,39 @@ def test_the_fill_route_says_what_it_takes(demo_server):
     assert status == 400 and "record" in json.loads(out)["detail"]
     status, _, _ = http_request(demo_server, "POST", "/api/templates/nope/fill", b"{}", {"Content-Type": "application/json"})
     assert status == 404
+
+
+# ------------------------------------------------------------------ one page labelled and mapped
+
+
+def test_a_pages_fill_in_maps_its_unmapped_boxes_and_leaves_mapped_ones(start_demo_server):
+    model = Model()
+    base = start_demo_server(provider_factory=model)
+    doc = open_pdf(base)
+    status, out = post(base, "/api/seed", {"doc": doc, "schema": DERIVED})
+    assert status == 200
+    status, out = post(base, f"/api/documents/{doc}/pages/0/fill-in", {"template": out["template"]})
+    assert status == 200, out
+    assert (out["page"], out["status"], out["applied"], out["error"]) == (0, "ok", 1, None)
+    assert [(f["id"], f["source"]["paths"]) for f in out["template"]["fields"]] == [("w0_0", ["name"])]
+    assert model.calls == {"page": 1}
+    done = template_for(base, doc)
+    done["fields"] = [f | {"label": "Name"} for f in done["fields"]]
+    status, again = post(base, f"/api/documents/{doc}/pages/0/fill-in", {"template": done})
+    assert status == 200 and (again["status"], again["applied"]) == ("skipped", 0)  # nothing left to fill in
+    assert model.calls == {"page": 1}
+
+
+def test_a_pages_fill_in_needs_ai_this_pdfs_template_and_a_page_it_has(demo_server, start_demo_server):
+    doc = open_pdf(demo_server)
+    template = template_for(demo_server, doc)
+    status, out = post(demo_server, f"/api/documents/{doc}/pages/0/fill-in", {"template": template})
+    assert (status, out["error"]) == (400, "ai_not_configured")
+    base = start_demo_server(provider_factory=Model())
+    doc = open_pdf(base)
+    status, out = post(base, f"/api/documents/{doc}/pages/3/fill-in", {"template": template_for(base, doc)})
+    assert status == 404
+    body, headers = multipart("other.pdf", small_pdf(text="Another form"))
+    other = json.loads(http_request(base, "POST", "/api/documents", body, headers)[2])["id"]
+    status, out = post(base, f"/api/documents/{other}/pages/0/fill-in", {"template": template_for(base, doc)})
+    assert (status, out["error"]) == (400, "wrong_document")

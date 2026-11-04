@@ -31,7 +31,8 @@ function stepText(s) {
   const name = s.step === 0 ? "Page pass" : `Step ${s.step}`;
   if (s.finished) return `${name} · finished${s.summary ? `: ${s.summary}` : ""}`;
   const refused = s.ops_rejected ? `, ${s.ops_rejected} refused` : "";
-  return `${name} · ${plural(s.ops_applied, "edit")} made${refused} · ${plural(s.unmapped_paths, "data field")} not linked yet`;
+  const note = s.note && s.step > 0 ? ` · ${s.note}` : ""; // what the reply did: traces a step that made no edit
+  return `${name} · ${plural(s.ops_applied, "edit")} made${refused} · ${plural(s.unmapped_paths, "data field")} not linked yet${note}`;
 }
 
 /** The agent's steps so far (the page pass is not one). */

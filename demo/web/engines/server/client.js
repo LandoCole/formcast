@@ -60,6 +60,8 @@ import { assertEngine } from "../../core/engine.js";
 
 /** Milliseconds a request may take (a document upload gets {@link UPLOAD_TIMEOUT_MS}). */
 export const REQUEST_TIMEOUT_MS = 30_000;
+/** One page's fill-in call: the page pass's own limit (300 s) and some room. */
+const FILL_IN_TIMEOUT_MS = 330_000;
 export const UPLOAD_TIMEOUT_MS = 120_000;
 /** Milliseconds for a request that may wait for the server's first reading of the PDF (see the top). */
 export const FORM_MAP_TIMEOUT_MS = 120_000;
@@ -540,6 +542,15 @@ export async function createServerEngine({
      */
     detectPage: flag("detectPage")
       ? (doc, index) => call("POST", `/api/documents/${doc.id}/pages/${index}/detect`, { json: {}, timeout: formMapTimeoutMs })
+      : undefined,
+
+    /**
+     * Have the AI label and map page `index`'s boxes that have no label or no mapping yet, one model call:
+     * `{template, page, status, error, applied, rejected, usage}`. Boxes that have a mapping or a label keep it.
+     */
+    fillInPage: flag("fillInPage")
+      ? (template, doc, index) =>
+          call("POST", `/api/documents/${doc.id}/pages/${index}/fill-in`, { json: { template }, timeout: FILL_IN_TIMEOUT_MS })
       : undefined,
 
     /** The demo forms the server has: `[{name, size, schema}]`. */

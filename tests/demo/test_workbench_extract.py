@@ -300,21 +300,22 @@ def test_a_file_dropped_beside_the_drop_zone_while_the_modal_is_open_is_ignored(
     assert b.page.url == url
 
 
-def test_the_sample_size_must_be_3_to_20(start_demo_server, bench):
+def test_the_sample_size_must_be_1_to_20(start_demo_server, bench):
     b = bench(extract_server(start_demo_server), fill=False)
     open_extract(b)
     add_five(b)
-    b.page.fill("#n-sample", "2")
-    b.page.dispatch_event("#n-sample", "change")
-    expect(b.page.locator("#extract-msg")).to_be_visible()
-    expect(b.page.locator("#extract-msg")).to_contain_text("3 to 20")
+    for bad in ("0", "21"):
+        b.page.fill("#n-sample", bad)
+        b.page.dispatch_event("#n-sample", "change")
+        expect(b.page.locator("#extract-msg")).to_be_visible()
+        expect(b.page.locator("#extract-msg")).to_contain_text("1 to 20")
     b.page.click("#read-sample")
-    expect(b.page.locator("#extract-msg")).to_contain_text("3 to 20")
+    expect(b.page.locator("#extract-msg")).to_contain_text("1 to 20")
     expect(b.page.locator("#building")).to_be_hidden()
-    b.page.fill("#n-sample", "3")
+    b.page.fill("#n-sample", "1")  # one document is enough
     b.page.dispatch_event("#n-sample", "change")
     expect(b.page.locator("#extract-msg")).to_be_hidden()
-    expect(b.page.locator('#batch-strip li[data-state="sample"]')).to_have_count(3)
+    expect(b.page.locator('#batch-strip li[data-state="sample"]')).to_have_count(1)
 
 
 def test_ill_pick_them_lists_the_batchs_files_with_checkboxes(start_demo_server, bench):

@@ -162,8 +162,10 @@ def test_a_fillable_copy_whose_widget_disagrees_with_its_drawn_text_is_unsure(te
     # the widget's value was changed without redrawing it: the value fails, the drawn text passes
     doc = pymupdf.open(stream=make_form(CLIENT, kind="fillable"))
     for w in doc[0].widgets():
-        if w.field_name == "tax_id":
-            doc.xref_set_key(w.xref, "V", "(8422-19037)")
+        if w.field_name == "tax_id":  # the field's value: the widget itself when it carries the /T, else its parent
+            kind, parent = doc.xref_get_key(w.xref, "Parent")
+            field = int(parent.split()[0]) if doc.xref_get_key(w.xref, "T")[0] == "null" and kind == "xref" else w.xref
+            doc.xref_set_key(field, "V", "(8422-19037)")
     stale = doc.tobytes()
     doc.close()
     tax_id = fields(extract(template, stale))["investor.tax_id"]

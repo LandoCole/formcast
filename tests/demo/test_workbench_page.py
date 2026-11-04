@@ -20,6 +20,7 @@ from test_server_jobs import ADD_NAME, ADD_NOTE, Factory, Gate, code, finish
 from test_server_routes import FW9_EDITED
 
 from demo.server import documents as documents_mod
+from formcast.llm import LLMResponse, Usage
 from formcast.pagemap.build import DetectPolicy
 
 NO_NOTE = [{"path": "note", "reason": "this form has no notes line"}]
@@ -1191,4 +1192,70 @@ def test_a_page_skipped_as_prose_offers_to_be_searched_anyway(demo_server, bench
     b.page.click("#detect-page")
     expect(b.page.locator("#page-state")).to_have_text("1 blank found")
     assert sorted(f["id"] for f in b.template()["fields"]) == ["c0_0", "c1_0"]
+    assert b.errors == []
+
+
+# ------------------------------------------------------------------ closing an overlay
+
+
+def test_every_overlay_has_a_close_in_its_top_right(demo_server, bench):
+    b = bench(demo_server)
+    b.goto(fill=False)
+    for overlay in b.page.locator(".overlay").all():
+        assert overlay.locator(".sheet > .sheet-x").count() == 1, overlay.get_attribute("id")
+    x = b.page.locator("#choose .sheet-x").bounding_box()
+    sheet = b.page.locator("#choose .sheet").bounding_box()
+    assert x["x"] + x["width"] == pytest.approx(sheet["x"] + sheet["width"] - 12, abs=1)
+    assert x["y"] == pytest.approx(sheet["y"] + 12, abs=1)
+
+
+def test_the_choice_and_the_start_screen_close_onto_the_editor_and_open_a_form_brings_the_choice_back(demo_server, bench):
+    b = bench(demo_server)
+    b.goto(fill=False)
+    b.page.click("#choose .sheet-x")
+    expect(b.page.locator(".overlay:not([hidden])")).to_have_count(0)
+    expect(b.page.locator("#stage-empty")).to_be_visible()
+    b.page.click("#doc-name")  # the page is usable: nothing behind is inert any more
+    expect(b.page.locator("#choose")).to_be_visible()
+    b.choose_fill()
+    b.page.keyboard.press("Escape")  # the start screen's Escape: onto the editor, not back to the choice
+    expect(b.page.locator(".overlay:not([hidden])")).to_have_count(0)
+    assert b.errors == []
+
+
+def test_the_match_prompt_closes_and_the_save_box_close_is_its_cancel(demo_server, bench):
+    b = bench(demo_server)
+    b.open_form("fw9")
+    expect(b.page.locator("#match")).to_be_visible()
+    b.page.click("#match .sheet-x")
+    expect(b.page.locator("#match")).to_be_hidden()
+    b.start_again()
+    b.open_form("fw9")
+    b.page.click("#reuse")
+    expect(b.boxes(".is-linked").first).to_be_visible()
+    b.page.click("#save")
+    expect(b.page.locator("#save-box")).to_be_visible()
+    b.page.click("#save-box .sheet-x")
+    expect(b.page.locator("#save-box")).to_be_hidden()
+    assert b.errors == []
+
+
+# ------------------------------------------------------------------ a page labelled and mapped by the AI
+
+
+def test_with_ai_a_page_with_unmapped_boxes_offers_to_label_and_map_them_and_undo_goes_back(start_demo_server, bench):
+    labelled = json.dumps({"mappings": [{"id": "w0_0", "label": "Name", "source": {"paths": ["name"]}}], "tables": []})
+    answer = LLMResponse(text=labelled, tool_calls=[], usage=Usage(input_tokens=50, output_tokens=5), raw={})
+    b = bench(start_demo_server(provider_factory=Factory([], pages=[[answer]])))
+    b.upload(widget_pdf())
+    b.build_new()
+    button = b.page.locator("#fill-in-page")
+    expect(button).to_have_text("Label and map 1 box with AI")
+    button.click()
+    expect(button).to_be_hidden()  # nothing left without a label or a mapping
+    field = b.template()["fields"][0]
+    assert (field["label"], field["source"]["paths"]) == ("Name", ["name"])
+    expect(b.page.locator("#notice")).to_contain_text("Page 1: 2 edits by the AI")
+    b.page.click("#undo")
+    expect(button).to_have_text("Label and map 1 box with AI")
     assert b.errors == []

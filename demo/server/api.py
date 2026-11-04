@@ -66,6 +66,7 @@ from formcast import (
 )
 from formcast.data import DataMapping
 from formcast.llm import Provider
+from formcast.pagepass import map_pages
 from formcast.template.model import candidate_fields, new_template
 
 log = logging.getLogger("demo.server")
@@ -232,6 +233,7 @@ class Api:
         self._add("GET", r"/api/documents/(?P<doc>[0-9a-f]{32})/matches", self.matches)
         self._add("GET", r"/api/documents/(?P<doc>[0-9a-f]{32})/progress", self.document_progress)
         self._add("POST", r"/api/documents/(?P<doc>[0-9a-f]{32})/pages/(?P<n>\d{1,6})/detect", self.detect_page)
+        self._add("POST", r"/api/documents/(?P<doc>[0-9a-f]{32})/pages/(?P<n>\d{1,6})/fill-in", self.fill_in_page)
         self._add("POST", r"/api/seed", self.seed)
         self._add("POST", r"/api/apply", self.apply_op)
         self._add("POST", r"/api/rebind", self.rebind_template)
@@ -279,6 +281,7 @@ class Api:
             "xlsx": _has_openpyxl(),
             "progress": True,
             "detectPage": True,
+            "fillInPage": self.provider_factory is not None,
             "extract": True,
         }
 
@@ -383,6 +386,43 @@ class Api:
             raise ApiError(404, "not_found", f"this document has {doc.page_count} pages") from None
         fields = [f.model_dump(by_alias=True, mode="json") for f in candidate_fields(page)] if ran else []
         return {"page": n, "detected": ran, "fields": fields, "boxes": len(page.candidates)}
+
+    def fill_in_page(self, req: Request) -> dict:
+        """``{template}`` -> ``{template, page, status, applied, rejected, usage}``: the AI labels and maps page n's boxes
+        that have no label or no mapping yet (a fill-in page pass, ``map_pages(fill_in=True)``), one model call.
+
+        A box that has a mapping keeps it and a box that has a label keeps it. ``status`` is the page's outcome
+        (``ok``, ``skipped`` when no box needed anything, ``error`` or ``unparsed``, with ``error`` saying why).
+        Needs AI (400 ``ai_not_configured``) and a template made for this PDF (400 ``wrong_document``).
+        """
+        if self.provider_factory is None:
+            raise ApiError(400, "ai_not_configured", AI_NOT_CONFIGURED)
+        payload = _object(req)
+        template = _template(payload)
+        with missing("document"):
+            doc = self.documents.get(req.match["doc"])
+        n = int(req.match["n"])
+        if not 0 <= n < doc.page_count:
+            raise ApiError(404, "not_found", f"this document has {doc.page_count} pages")
+        if not doc.has_fingerprint(template.form.fingerprint):
+            raise ApiError(400, "wrong_document", "this template was made for another PDF")
+        provider = self.provider_factory()
+        try:
+            result = map_pages(template, doc.form_map(), doc.bytes, provider, pages=[n], fill_in=True)
+        finally:
+            provider.close()
+        outcome = result.pages[0]
+        if outcome.error:
+            log.warning("fill-in of page %d failed: %s", n, self.jobs._redact(outcome.error))
+        return {
+            "template": _dump(result.template),
+            "page": n,
+            "status": outcome.status,
+            "error": "the model call failed; the server log has the details" if outcome.status == "error" else None,
+            "applied": outcome.applied,
+            "rejected": len(outcome.rejected),
+            "usage": {"input_tokens": result.usage.input_tokens, "output_tokens": result.usage.output_tokens},
+        }
 
     # ---- templates: seed, edit, rebind, match
 

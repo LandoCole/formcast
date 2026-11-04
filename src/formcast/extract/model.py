@@ -61,10 +61,14 @@ class _Model(BaseModel):
 
 
 class WidgetRead(_Model):
-    """A form field's value. The first of ``names`` present in the document wins (versions of a form may rename a field)."""
+    """A form field's value. Of ``names``, the ones present in the document are read: one is the answer (versions of a
+    form may rename a field), and several holding values are the parts of one answer (a date's month, day and year
+    boxes), joined with a space in the order named. ``page`` reads the widgets on that page only, for a form that reuses
+    one name on several pages for different answers."""
 
     kind: Literal["widget"] = "widget"
     names: list[str] = Field(min_length=1)
+    page: int | None = None
 
 
 class BoxRead(_Model):
@@ -98,7 +102,8 @@ class PhraseRead(_Model):
 class ChoiceMark(_Model):
     """Where one option's check mark is: a form field (``widget``) or a rectangle on a page, never both.
 
-    ``state`` names one button of a radio group by its on-state ("joint"); it goes only with ``widget``.
+    ``state`` names one button of a radio group by its on-state ("joint"); it goes only with ``widget``. A ``widget``
+    with a ``page`` (and no ``rect``) is that field's buttons on that page only, for a form that reuses the name.
     """
 
     widget: str | None = None
@@ -111,7 +116,7 @@ class ChoiceMark(_Model):
         if self.state is not None and self.widget is None:
             raise ValueError("a choice mark takes a state only together with a widget")
         if self.widget is not None:
-            if self.page is not None or self.rect is not None:
+            if self.rect is not None:
                 raise ValueError("a choice mark takes a widget or a page and rect, not both")
         elif self.page is None or self.rect is None:
             raise ValueError("a choice mark takes a widget, or a page and a rect")

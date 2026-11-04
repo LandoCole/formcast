@@ -165,7 +165,7 @@ workbench's modal style:
    added, a summary: how many PDFs, their size, and a quick sort by layout (fillable and flattened copies of
    the main layout, and the documents that look different, set aside for a second template later), drawn as
    a strip of cells with the sample documents marked.
-2. **The sample.** How many documents (3 to 20, default 5) and how they are picked: *spread across the batch*
+2. **The sample.** How many documents (1 to 20, default 5) and how they are picked: *spread across the batch*
    (the default: fillable and flattened, early and late), *the first ones*, or *I'll pick them* (a list of
    the batch's files with checkboxes).
 3. **What to extract.** *AI suggests* / *I'll list them* (a text area, one item per line) / *Destination* (a

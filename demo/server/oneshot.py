@@ -8,7 +8,8 @@ Stages, each reported on the job as it starts and ends (``job.stages``):
 
     form     read the PDF (its form map: widgets, detected boxes, text)
     schema   the model designs the form's data schema from its pages     (skipped with a schema or template)
-    boxes    the page pass and, with ``check``, the agent map the boxes   (skipped with a template)
+    boxes    the page pass and, with ``check``, the agent map the boxes   (skipped with a template; a check
+             that runs out of budget or stops making edits ends the stage early, its links kept)
     data     read the data: a table, or free text                        (skipped without data)
     match    map the data onto the schema                                 (skipped without data)
 
@@ -50,6 +51,11 @@ from formcast.llm import Provider, Usage
 log = logging.getLogger("demo.server")
 
 MAX_RECORDS = 500  # records sent back to the browser; the fill route has no such limit
+#: what the boxes stage says when the agent's check stopped before it finished, its work kept
+EARLY_STOP = {
+    "budget": "the check stopped early: it used up its token, step or time budget",
+    "stalled": "the check stopped early: several steps in a row made no edit",
+}
 STAGES = (
     ("form", "Read the form"),
     ("schema", "Design the form's data schema"),
@@ -217,9 +223,11 @@ def run_oneshot(job, doc: Doc, spec: OneShotSpec, provider_factory: Callable[[],
             job.add_usage(session.usage)
             job.set_template(session.template)
             mapped = sum(1 for f in session.template.fields if f.source is not None and f.source.paths)
-            if session.stop_reason != "finish":
-                return session  # cancelled, out of budget or failed: Jobs reports it, the template so far kept
-            job.stage("boxes", "done", f"{mapped} of {len(session.template.fields)} boxes linked")
+            if session.stop_reason not in ("finish", *EARLY_STOP):
+                return session  # cancelled or failed: Jobs reports it, the template so far kept
+            # a check that stopped early keeps what it and the page pass linked, and the data is still mapped
+            early = f" · {EARLY_STOP[session.stop_reason]}" if session.stop_reason in EARLY_STOP else ""
+            job.stage("boxes", "done", f"{mapped} of {len(session.template.fields)} boxes linked{early}")
 
         if spec.dataset is None:
             job.stage("data", "skipped", "no data given")

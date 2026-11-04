@@ -558,7 +558,7 @@ def test_a_sample_is_picked_from_the_main_layout_or_as_the_person_picked_it(five
     assert [s["index"] for s in get_json(base, url, "POST", {"n": 3, "how": "first"})[1]["samples"]] == [0, 1, 2]
     assert [s["index"] for s in get_json(base, url, "POST", {"how": "pick", "picked": [4, 0]})[1]["samples"]] == [4, 0]
     bad = [
-        {"n": 2, "how": "spread"}, {"n": 21, "how": "first"}, {"n": "3", "how": "first"}, {"n": 3, "how": "best"},
+        {"n": 0, "how": "spread"}, {"n": 21, "how": "first"}, {"n": "3", "how": "first"}, {"n": 3, "how": "best"},
         {"how": "pick", "picked": [0, 4, 9]}, {"how": "pick", "picked": []}, {"how": "pick", "picked": [1, 1]},
     ]  # fmt: skip
     for body in bad:
@@ -871,7 +871,8 @@ def test_a_setup_job_is_refused_before_it_starts_for_a_bad_spec_batch_sample_or_
     assert refused(spec="x")[:2] == (400, "bad_spec")
     assert refused(batch="0" * 32)[:2] == (400, "bad_batch")
     assert refused(samples=[0, 9, 1])[:2] == (400, "bad_sample")
-    assert refused(samples=[0, 1])[:2] == (400, "bad_sample")  # fewer than 3 of a batch of 5
+    assert refused(samples=[])[:2] == (400, "bad_sample")  # none
+    assert refused(samples=list(range(21)))[:2] == (400, "bad_sample")  # more than 20 (and not files of the batch)
     assert refused(samples=[0, 0, 1])[:2] == (400, "bad_sample")
     assert refused(samples="all")[:2] == (400, "bad_sample")
     status, code, detail = refused(spec={"name": "x", "start": "destination", "destination": "no such form"})
@@ -1862,3 +1863,31 @@ def test_a_command_line_run_of_another_template_or_no_run_at_all_is_a_bad_run(ru
     closed = start_demo_server(folder_scan=False)
     status, body = get_json(closed, "/api/runs", "POST", {"folder": str(tmp_path / "edited")})
     assert (status, body["error"]) == (403, "not_allowed")
+
+
+# ------------------------------------------------------------------ a blank copy's fill template
+
+
+def test_a_saved_extraction_makes_the_fill_template_of_a_blank_copy_with_no_model_call(runner, setup_pdfs):
+    from test_server_documents import upload
+
+    fillable = next(data for name, data in setup_pdfs if pymupdf.open(stream=data)[0].widgets())
+    blank = pymupdf.open(stream=fillable)
+    for page in blank:
+        for w in page.widgets():
+            if w.field_type == pymupdf.PDF_WIDGET_TYPE_TEXT:
+                w.field_value = ""
+                w.update()
+    status, doc = upload(runner.base, "blank.pdf", blank.tobytes())
+    assert status == 200, doc
+    calls = dict(runner.model.calls)
+    status, out = get_json(runner.base, "/api/extractions/Client%20info/fill-template", "POST", {"doc": doc["id"]})
+    assert status == 200, out
+    mapped = {f["existing_widget"]: f["source"]["paths"] for f in out["template"]["fields"] if f.get("source")}
+    readers = runner.template["readers"]
+    read_by_widget = {s["names"][0]: path for path, r in readers.items() for s in r["strategies"] if s["kind"] == "widget" and len(s["names"]) == 1}
+    assert mapped and all(mapped[name] == [path] for name, path in read_by_widget.items() if name in mapped)
+    assert isinstance(out["warnings"], list)
+    assert runner.model.calls == calls  # no model call
+    status, out = get_json(runner.base, "/api/extractions/Nope/fill-template", "POST", {"doc": doc["id"]})
+    assert status == 404

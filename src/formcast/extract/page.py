@@ -181,7 +181,7 @@ class DocText:
             self._doc = open_pdf(pdf)
             self.page_count: int = self._doc.page_count
         self._texts: dict[int, _Text] = {}
-        self._fields: dict[str, list[tuple[str, object]]] | None = None  # name -> [(kind, value)] per widget
+        self._fields: dict[str, list[tuple[str, object, int]]] | None = None  # name -> [(kind, value, page)] per widget
         self._places: dict[str, list[tuple[int, Rect, str | None]]] | None = None  # name -> [(page, rect, on-state)]
 
     def close(self) -> None:
@@ -198,38 +198,73 @@ class DocText:
 
     # ------------------------------------------------------------ form fields
 
-    def _widgets(self) -> dict[str, list[tuple[str, object]]]:
-        """Each field's widgets as ``(kind, value)``: a text is ``str | None``; a check box or radio button is
-        ``(selected, on_state)``, ``selected`` being its on-state string when it is on and ``None`` when off."""
+    def _widgets(self) -> dict[str, list[tuple[str, object, int]]]:
+        """Each field's widgets as ``(kind, value, page)``: a text is ``str | None``; a check box or radio button is
+        ``(selected, on_state)``, ``selected`` being its on-state string when it is on and ``None`` when off.
+
+        A button is on when its own appearance state (``/AS``) is one of its on-states. The field's value alone is not
+        enough: buttons that share a name and a value (a Yes and a No box under one field, valued "2") are each on only
+        when the value is their own on-state, so the value decides only for a button with no appearance state.
+        """
         if self._fields is None:
-            fields: dict[str, list[tuple[str, object]]] = {}
+            fields: dict[str, list[tuple[str, object, int]]] = {}
             with PDF_LOCK:
-                for page in self._doc:
+                for number, page in enumerate(self._doc):
                     for w in page.widgets() or []:
                         if w.field_type in (pymupdf.PDF_WIDGET_TYPE_CHECKBOX, pymupdf.PDF_WIDGET_TYPE_RADIOBUTTON):
                             on_state = w.on_state()
-                            on = w.field_value == on_state or w.field_value not in _OFF
                             on_name = on_state if isinstance(on_state, str) else None
+                            kind, shown = self._doc.xref_get_key(w.xref, "AS")
+                            if kind == "name":
+                                on = shown.lstrip("/") not in _OFF
+                            elif on_name is not None:
+                                on = w.field_value == on_name
+                            else:
+                                on = w.field_value not in _OFF
                             selected = (on_name or str(w.field_value)) if on else None
-                            fields.setdefault(w.field_name, []).append(("check", (selected, on_name)))
+                            fields.setdefault(w.field_name, []).append(("check", (selected, on_name), number))
                         elif w.field_type in (pymupdf.PDF_WIDGET_TYPE_SIGNATURE, pymupdf.PDF_WIDGET_TYPE_BUTTON):
-                            fields.setdefault(w.field_name, []).append(("other", None))
+                            fields.setdefault(w.field_name, []).append(("other", None, number))
                         else:
-                            value = w.field_value
+                            value = self._field_value(w)
                             if isinstance(value, (list, tuple)):
                                 value = ", ".join(str(v) for v in value)
                             text = "" if value is None else str(value)
-                            fields.setdefault(w.field_name, []).append(("text", text if text.strip() else None))
+                            fields.setdefault(w.field_name, []).append(("text", text if text.strip() else None, number))
             self._fields = fields
         return self._fields
+
+    def _field_value(self, w: pymupdf.Widget) -> object:
+        """A text, list or combo widget's value: its field's ``/V`` (the widget itself when it carries the field's
+        ``/T``, else its parent), as a viewer shows it. A widget that is only a kid of its field holds no value of its
+        own; some forms leave a stray ``/V`` on one anyway, which MuPDF reports, but no viewer shows."""
+        xref = w.xref
+        while xref:
+            if self._doc.xref_get_key(xref, "T")[0] != "null":
+                kind, value = self._doc.xref_get_key(xref, "V")
+                if kind == "string":
+                    return value
+                if kind == "name":
+                    return value.lstrip("/")
+                if kind == "null":
+                    return None
+                break  # an array (a list box's choices): MuPDF reads it
+            kind, parent = self._doc.xref_get_key(xref, "Parent")
+            xref = int(parent.split()[0]) if kind == "xref" else 0
+        return w.field_value
+
+    def _entries(self, name: str, page: int | None) -> list[tuple[str, object]]:
+        """The ``(kind, value)`` of the field ``name``'s widgets, those on ``page`` only when it is given."""
+        return [(k, v) for k, v, n in self._widgets().get(name, []) if page is None or n == page]
 
     @staticmethod
     def _is_group(entries: list[tuple[str, object]]) -> bool:
         """True for a radio group: several buttons under one name that have different on-states."""
         return len({v[1] for k, v in entries if k == "check" and v[1] is not None}) > 1  # type: ignore[index]
 
-    def widget_value(self, name: str) -> str | bool | None:
-        """What the form field ``name`` holds.
+    def widget_value(self, name: str, page: int | None = None) -> str | bool | None:
+        """What the form field ``name`` holds (its widgets on ``page`` only, when given: a form may reuse a name on
+        several pages for different answers).
 
         A text (or list, or combo) field gives its value, ``None`` when empty or when there is no such field. A
         check box, or a lone radio button, gives ``True`` when on and ``False`` when off. A radio group (buttons
@@ -237,7 +272,7 @@ class DocText:
         none is selected; ask :meth:`widget_on` whether it is a given button. A name that is not a field of the
         document gives ``None``.
         """
-        entries = self._widgets().get(name)
+        entries = self._entries(name, page)
         if not entries:
             return None
         if entries[0][0] == "check":
@@ -250,17 +285,22 @@ class DocText:
                 return str(value)
         return None
 
-    def has_widget(self, name: str) -> bool:
-        """Whether the document has a form field ``name``, whatever it holds."""
-        return bool(self._widgets().get(name))
+    def has_widget(self, name: str, page: int | None = None) -> bool:
+        """Whether the document has a form field ``name`` (on ``page``, when given), whatever it holds."""
+        return bool(self._entries(name, page))
 
-    def widget_on(self, name: str, state: str | None = None) -> bool | None:
+    def widget_pages(self, name: str) -> list[int]:
+        """The pages the form field ``name`` has widgets on, in order, each once."""
+        return list(dict.fromkeys(n for _, _, n in self._widgets().get(name, [])))
+
+    def widget_on(self, name: str, state: str | None = None, page: int | None = None) -> bool | None:
         """Whether the check box or radio button ``name`` is on; ``None`` when there is no such check widget.
 
         For a radio group, ``state`` names one button by its on-state and the answer is whether the group's value
-        is that state; without ``state`` it is whether any button is on. A check box ignores ``state``.
+        is that state; without ``state`` it is whether any button is on. A check box ignores ``state``. ``page`` keeps
+        the buttons on that page only.
         """
-        entries = self._widgets().get(name)
+        entries = self._entries(name, page)
         if not entries or entries[0][0] != "check":
             return None
         selected = [v[0] for k, v in entries if k == "check" and v[0] is not None]  # type: ignore[index]
@@ -268,7 +308,7 @@ class DocText:
             return state in selected
         return bool(selected)
 
-    def widget_places(self, name: str, state: str | None = None) -> list[tuple[int, Rect]]:
+    def widget_places(self, name: str, state: str | None = None, page: int | None = None) -> list[tuple[int, Rect]]:
         """Where the form field ``name``'s widgets are, as ``(page, rect)`` in unrotated crop-box points.
 
         For a radio group (several buttons with different on-states), ``state`` keeps only the buttons whose on-state
@@ -278,8 +318,8 @@ class DocText:
         if self._places is None:
             places: dict[str, list[tuple[int, Rect, str | None]]] = {}
             with PDF_LOCK:
-                for number, page in enumerate(self._doc):
-                    for w in page.widgets() or []:
+                for number, pdf_page in enumerate(self._doc):
+                    for w in pdf_page.widgets() or []:
                         on_state = None
                         if w.field_type in (pymupdf.PDF_WIDGET_TYPE_CHECKBOX, pymupdf.PDF_WIDGET_TYPE_RADIOBUTTON):
                             on = w.on_state()
@@ -289,7 +329,7 @@ class DocText:
             self._places = places
         entries = self._places.get(name, [])
         group = len({on for _, _, on in entries if on is not None}) > 1
-        return [(page, rect) for page, rect, on in entries if state is None or not group or on == state]
+        return [(n, rect) for n, rect, on in entries if (state is None or not group or on == state) and page in (None, n)]
 
     @property
     def has_values(self) -> bool:
@@ -297,7 +337,7 @@ class DocText:
         return any(
             (kind == "check" and value[0] is not None) or (kind == "text" and value is not None)  # type: ignore[index]
             for entries in self._widgets().values()
-            for kind, value in entries
+            for kind, value, _ in entries
         )
 
     # ------------------------------------------------------------------ words

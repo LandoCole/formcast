@@ -399,7 +399,7 @@ def sample_marks(template: ExtractionTemplate, pdf: bytes) -> list[Mark]:
                 elif isinstance(strategy, ChoiceRead):
                     for key, mark in strategy.options.items():
                         if mark.widget is not None:
-                            for page, rect in doc.widget_places(mark.widget, mark.state):
+                            for page, rect in doc.widget_places(mark.widget, mark.state, mark.page):
                                 marks.append(Mark(path=path, kind="option", page=page, rect=rect, answer=key))
                         elif mark.page is not None and mark.rect is not None and on_page(mark.page):
                             rect = _moved(mark.rect, offsets.get(mark.page, 0.0))

@@ -317,6 +317,35 @@ def test_token_budget_stops_the_run():
     assert len(provider.calls) == 2  # 100 tokens after one step is under 150, 200 after two is over
 
 
+def test_with_idle_steps_a_run_of_replies_with_no_edit_stops_it_stalled_with_the_template_so_far():
+    responses = [code(ADD_NAME), code("x = 1"), code("print('looking')"), code("y = 2"), code("z = 3")]
+    result, provider = _run(responses, idle_steps=3)
+    assert result.stop_reason == "stalled" and result.finished is False
+    assert len(provider.calls) == 4  # the edit, then three replies with none
+    assert len(result.template.fields) == 1
+
+
+def test_without_idle_steps_replies_with_no_edit_go_on():
+    result, provider = _run([code("x = 1"), code("y = 2"), code("z = 3"), finish("done")])
+    assert result.stop_reason == "finish" and len(provider.calls) == 4
+
+
+def test_each_step_event_notes_what_the_reply_did():
+    events = []
+    _run([code("print('abc')"), code("raise ValueError('no such box')"), text_reply("thinking"), finish("done")], on_step=events.append)
+    notes = [e.note for e in events]
+    assert notes[0] == "ran code, printed 4 characters"
+    assert notes[1].startswith("ran code, printed 0 characters; the code raised ValueError: no such box")
+    assert notes[2] == "no tool call"
+    assert notes[3] == "finish"
+
+
+def test_each_step_report_shows_the_input_tokens_left():
+    _, provider = _run([code("x = 1"), finish("done")], budget=SessionBudget(max_input_tokens=1000))
+    report = provider.calls[1][-1].content  # the tool result of step 1, sent with step 2
+    assert "input tokens: 100 of 1,000 used; 900 left" in report
+
+
 def test_provider_error_ends_with_error_and_template_so_far():
     result, _ = _run([code(ADD_NAME), FormcastError("HTTP 500 after retries")])
     assert result.stop_reason == "error"

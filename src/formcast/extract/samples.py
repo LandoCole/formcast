@@ -207,13 +207,33 @@ def _detect_pages(
 
 
 def _values(form_map: FormMap, text: DocText) -> dict[str, str | bool]:
+    """What each form field holds, by name. A name the form reuses on several pages holding a different value on some
+    of them is listed by its name with its first page's value, then once for each page whose value differs, as
+    ``name (page n, id w<n>_<i>)``, so a model can tell the copies apart and name the one it means."""
     values: dict[str, str | bool] = {}
+    first: dict[str, object] = {}
     for page in form_map.pages:
-        for widget in page.widgets:
-            value = text.widget_value(widget.name)
-            if value is not None and value is not False and value != "":
+        for i, widget in enumerate(page.widgets):
+            pages = text.widget_pages(widget.name)
+            value = text.widget_value(widget.name, page.index if len(pages) > 1 else None)
+            if value is None or value is False or value == "":
+                continue
+            if widget.name not in first:
+                first[widget.name] = value
                 values[widget.name] = value
+            elif value != first[widget.name]:
+                values.setdefault(f"{widget.name} (page {page.index}, id w{page.index}_{i})", value)
     return values
+
+
+def reused_values(values: dict[str, str | bool]) -> dict[str, list[tuple[str, str | bool]]]:
+    """The names ``_values`` lists more than once: name -> [(where, value)], the first page's value first."""
+    out: dict[str, list[tuple[str, str | bool]]] = {}
+    for key, value in values.items():
+        name, _, where = key.partition(" (")
+        if where:
+            out.setdefault(name, [("first page", values[name])] if name in values else []).append((where.rstrip(")"), value))
+    return out
 
 
 def detected_pages(doc: SampleDoc) -> list[int]:

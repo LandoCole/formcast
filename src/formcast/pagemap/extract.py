@@ -416,6 +416,7 @@ def _extract_widgets(page: pymupdf.Page) -> list[Widget]:
         if kind is None:
             continue
         options = choice_options(w) if kind in ("combo", "list") else []
+        state = w.on_state() if kind in ("checkbox", "radio") else None
         r = w.rect
         widgets.append(
             Widget(
@@ -424,6 +425,7 @@ def _extract_widgets(page: pymupdf.Page) -> list[Widget]:
                 rect=(r.x0, r.y0, r.x1, r.y1),
                 options=options,
                 tooltip=w.field_label or None,
+                state=state if isinstance(state, str) and state not in ("Off", "") else None,
             )
         )
     return widgets

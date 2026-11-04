@@ -653,14 +653,18 @@ def test_a_cancel_during_the_form_map_build_ends_cancelled_without_a_model_call(
 # ------------------------------------------------------------------ the page pass in a build job
 
 
-def fillable_pdf() -> bytes:
+def fillable_pdf(*, second: bool = True) -> bytes:
+    """One page with a Name widget (w0_0) and, with ``second``, a Signature widget (w0_1) no answer links, so the
+    page pass leaves the agent's check something to do."""
     doc = pymupdf.open()
     page = doc.new_page(width=200, height=300)
     page.insert_text((20, 40), "Name")
-    widget = pymupdf.Widget()
-    widget.field_name, widget.field_type = "applicant", pymupdf.PDF_WIDGET_TYPE_TEXT
-    widget.rect = pymupdf.Rect(60, 30, 150, 45)
-    page.add_widget(widget)
+    boxes = [("applicant", (60, 30, 150, 45))] + ([("signature", (60, 80, 150, 95))] if second else [])
+    for name, rect in boxes:
+        widget = pymupdf.Widget()
+        widget.field_name, widget.field_type = name, pymupdf.PDF_WIDGET_TYPE_TEXT
+        widget.rect = pymupdf.Rect(rect)
+        page.add_widget(widget)
     out = doc.tobytes()
     doc.close()
     return out
@@ -685,8 +689,17 @@ def test_a_build_job_runs_a_page_pass_that_maps_the_boxes_before_the_agent(start
     first = provider.calls[1][1].content
     assert any("PAGE PASS:" in getattr(p, "text", "") for p in first)  # the agent is told the pass mapped the boxes
     template = Template.model_validate(body["template"])
-    assert [(f.id, f.source.paths) for f in template.fields] == [("w0_0", ["name"])]
+    assert [(f.id, f.source.paths if f.source else None) for f in template.fields] == [("w0_0", ["name"]), ("w0_1", None)]
     assert template.history[-1].note == "page pass p0"
+
+
+def test_a_page_pass_that_links_every_box_and_leaves_few_paths_skips_the_agents_check(start_demo_server):
+    factory = Factory([finish("never")], pages=[[page_answer()]])
+    base = start_demo_server(provider_factory=factory)
+    body = wait_ended(base, start(base, kind="build", doc=open_doc(base, fillable_pdf(second=False)), schema=SCHEMA))
+    assert body["status"] == "done" and body["summary"] == "page pass; the check was skipped", body
+    assert factory.providers[0].tools == [[]]  # the page pass alone: the agent was never asked
+    assert [(s["step"], s["finished"]) for s in body["steps"]] == [(0, True)]
 
 
 def test_a_cancel_during_the_page_pass_ends_cancelled_with_its_template_and_no_agent_call(start_demo_server):
@@ -701,5 +714,5 @@ def test_a_cancel_during_the_page_pass_ends_cancelled_with_its_template_and_no_a
     assert body["status"] == "cancelled" and body["summary"] == "cancelled" and body["error"] is None
     assert [s["step"] for s in body["steps"]] == [0]
     template = Template.model_validate(body["template"])
-    assert [(f.id, f.source.paths) for f in template.fields] == [("w0_0", ["name"])]
+    assert [(f.id, f.source.paths if f.source else None) for f in template.fields] == [("w0_0", ["name"]), ("w0_1", None)]
     assert factory.providers[0].tools == [[]] and factory.providers[0].closed  # the agent was never asked

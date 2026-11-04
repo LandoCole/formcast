@@ -11,7 +11,7 @@ from typing import Literal
 
 from formcast.llm import LLMConfig, Message, Provider, Usage, make_provider
 from formcast.pagemap.model import FormMap
-from formcast.pagepass.answers import TableSpec, apply_ops, mapping_ops, parse_answer, table_ops
+from formcast.pagepass.answers import TableSpec, _box_ids, apply_ops, mapping_ops, parse_answer, table_ops
 from formcast.pagepass.marks import marks_for, render_marked_page
 from formcast.pagepass.prompts import page_messages
 from formcast.schema import flatten_schema
@@ -23,6 +23,7 @@ PdfInput = str | Path | bytes
 # A dense page's reply can run past the agent's default output limit and 120 s.
 PAGE_PASS_MAX_OUTPUT_TOKENS = 32000
 PAGE_PASS_TIMEOUT_S = 300
+MAX_FILL_IN_LABEL = 80  # a label a fill-in pass gives a box: the printed words a person would call it by
 
 
 @dataclass
@@ -50,6 +51,33 @@ def _boxes(template: Template, page: int) -> list[Field]:
     return [f for f in template.fields if f.page == page and f.rect is not None]
 
 
+def _unmapped(f: Field) -> bool:
+    return not (f.source and f.source.paths)
+
+
+def fill_in_boxes(template: Template, page: int) -> list[Field]:
+    """The boxes of ``page`` a fill-in pass asks about: those with no data mapping or no label yet."""
+    return [f for f in _boxes(template, page) if _unmapped(f) or not f.label.strip()]
+
+
+def _fill_in_ops(template: Template, answer: dict, page: int, ops: list[dict], specs: list[TableSpec]):
+    """A fill-in pass's ops and tables: only what a box lacks. A mapping (and its type and required mark) only for a
+    box with none, a label only for a box with none, a table only of boxes with no mapping."""
+    boxes = {f.id: f for f in fill_in_boxes(template, page)}
+    unmapped = {fid for fid, f in boxes.items() if _unmapped(f)}
+    kept = [op for op in ops if op.get("id") in unmapped]
+    resolve = _box_ids(template, page)
+    labelled = set()
+    for m in answer.get("mappings") or []:
+        fid = resolve(m.get("id")) if isinstance(m, dict) else None
+        label = m.get("label") if fid is not None else None
+        if fid in boxes and fid not in labelled and isinstance(label, str) and label.strip() and not boxes[fid].label.strip():
+            labelled.add(fid)
+            kept.append({"op": "set_label", "id": fid, "label": " ".join(label.split())[:MAX_FILL_IN_LABEL]})
+    tables = [t for t in specs if all(fid in unmapped for row in t.rows for fid in row.values())]
+    return kept, tables
+
+
 def _call_limits(provider: Provider) -> dict[str, int]:
     """The page pass's output-token and timeout limits, as the keywords ``provider.complete`` accepts.
 
@@ -67,12 +95,12 @@ def _call_limits(provider: Provider) -> dict[str, int]:
     return {k: v for k, v in limits.items() if k in named}
 
 
-def _page_request(template: Template, form_map: FormMap, pdf: PdfInput, page: int) -> list[Message]:
-    """Render one page's marked image and build its messages."""
-    boxes = _boxes(template, page)
+def _page_request(template: Template, form_map: FormMap, pdf: PdfInput, page: int, fill_in: bool = False) -> list[Message]:
+    """Render one page's marked image (a fill-in pass: of the boxes it asks about only) and build its messages."""
+    boxes = fill_in_boxes(template, page) if fill_in else _boxes(template, page)
     marks = marks_for(boxes)
     image = render_marked_page(pdf, page, boxes)
-    return page_messages(template, form_map, page, image, marks)
+    return page_messages(template, form_map, page, image, marks, boxes=boxes if fill_in else None)
 
 
 def _error(page: int, e: Exception, seconds: float) -> PageOutcome:
@@ -111,6 +139,7 @@ def map_pages(
     *,
     pages: list[int] | None = None,
     max_parallel: int = 4,
+    fill_in: bool = False,
 ) -> PagePassResult:
     """Map the template's seeded boxes page by page with a vision model.
 
@@ -127,10 +156,16 @@ def map_pages(
     ``set_required`` (a table when one of its boxes is listed). Table ops count against the page of their first
     segment, and a box-clearing op against the box's page. ``llm`` is an :class:`LLMConfig` (the
     pass creates and closes the provider) or a ready :class:`Provider` (the caller keeps ownership).
+
+    With ``fill_in`` the pass only fills in what a person or an earlier pass left: each page's call shows and lists
+    only its boxes with no data mapping or no label (``fill_in_boxes``; a page with none is ``skipped``), asks for a
+    label for each, and of the answer applies only a mapping for a box with none and a label for a box with none. A
+    box already mapped keeps its mapping, a box already labelled its label, and a table is added only of unmapped
+    boxes.
     """
     in_scope = sorted({p.index for p in form_map.pages} if pages is None else set(pages))
     outcomes = {p: PageOutcome(p, "skipped") for p in in_scope}
-    todo = [p for p in in_scope if _boxes(template, p)]
+    todo = [p for p in in_scope if (fill_in_boxes(template, p) if fill_in else _boxes(template, p))]
     owns_provider = isinstance(llm, LLMConfig)
     provider: Provider = make_provider(llm) if owns_provider else llm  # type: ignore[arg-type,assignment]
     try:
@@ -139,7 +174,7 @@ def map_pages(
         for p in todo:
             start = time.monotonic()
             try:
-                requests[p] = (_page_request(template, form_map, pdf, p), time.monotonic() - start)
+                requests[p] = (_page_request(template, form_map, pdf, p, fill_in), time.monotonic() - start)
             except Exception as e:  # noqa: BLE001 - a page that cannot be rendered fails alone
                 outcomes[p] = _error(p, e, time.monotonic() - start)
         limits = _call_limits(provider)
@@ -163,6 +198,8 @@ def map_pages(
             outcome.status = "unparsed"
             continue
         ops, page_specs = mapping_ops(template, answer, page)
+        if fill_in:
+            ops, page_specs = _fill_in_ops(template, answer, page, ops, page_specs)
         template, outcome.applied, outcome.rejected = apply_ops(template, ops, page, context)
         specs.extend(page_specs)
 

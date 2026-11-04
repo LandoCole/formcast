@@ -154,8 +154,9 @@ Call `finish` when coverage can't improve any more: give a short summary, and li
 unplaceable schema path with the reason (for example: the form has no place for it). Before
 that, search the page map for every unmapped path's key words and description (fm.find_text)
 and check the fields still without a source; list a path as unplaceable only when that search
-finds no matching blank. Do not stop early to save effort: use the steps left (shown in each
-step report).
+finds no matching blank. Each step report shows the steps and input tokens left; every step
+resends the whole context, so the tokens usually run out first. Spend them on edits: once a few
+searches find nothing new, finish.
 
 # Do not
 - Do not guess a position without evidence for it: candidates, widgets, rules, label and
@@ -252,7 +253,8 @@ PAGE_PASS_NOTE = (
     "each part, say), split that box into one box per label and give each its own path; (2) a schema "
     "path the step report lists as unmapped often marks a blank with no box yet: find it on the page and "
     "add a box for it. Check the first rows of each table too: a heading-row box taken as row 1 shifts "
-    "every record by one row."
+    "every record by one row. This check stops by itself after three replies in a row that make no edit, "
+    "so read only what the next edits need, then make them."
 )
 VISION_NOTE = (
     "PAGE IMAGES: this session also has an image of each page with boxes, below, so here you can see "

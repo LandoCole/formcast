@@ -248,7 +248,7 @@ def _place(strategy: Strategy, ctx: _Context) -> tuple[int, Rect] | None:
     doc = ctx.doc
     sizes = doc.page_sizes()
     if isinstance(strategy, WidgetRead):
-        return next((found[0] for name in strategy.names if (found := doc.widget_places(name))), None)
+        return next((found[0] for name in strategy.names if (found := doc.widget_places(name, page=strategy.page))), None)
     if isinstance(strategy, BoxRead):
         if ctx.matched == "none" or strategy.page >= len(sizes):
             return None
@@ -275,7 +275,7 @@ def _place(strategy: Strategy, ctx: _Context) -> tuple[int, Rect] | None:
 def _mark_place(mark: ChoiceMark, ctx: _Context) -> tuple[int, Rect] | None:
     """Where one option's mark is, or ``None`` when the document has no such widget or the mark's page."""
     if mark.widget is not None:
-        found = ctx.doc.widget_places(mark.widget, mark.state)
+        found = ctx.doc.widget_places(mark.widget, mark.state, mark.page)
         return found[0] if found else None
     if ctx.matched == "none" or mark.page >= len(ctx.doc.page_sizes()):  # type: ignore[operator]
         return None
@@ -501,7 +501,7 @@ def _located(strategy: Strategy, ctx: _Context) -> bool:
     """Whether the place ``strategy`` reads from is on the document, whatever is in it."""
     doc = ctx.doc
     if isinstance(strategy, WidgetRead):
-        return any(doc.has_widget(name) for name in strategy.names)
+        return any(doc.has_widget(name, strategy.page) for name in strategy.names)
     if isinstance(strategy, BoxRead):
         return ctx.matched != "none" and ctx.agrees(strategy.page, strategy.rect)
     if isinstance(strategy, AnchorRead):
@@ -509,7 +509,7 @@ def _located(strategy: Strategy, ctx: _Context) -> bool:
     if isinstance(strategy, PhraseRead):
         return bool(doc.find_label(strategy.phrases, strategy.page))
     return any(
-        doc.has_widget(mark.widget)
+        doc.has_widget(mark.widget, mark.page)
         if mark.widget is not None
         else ctx.matched != "none" and ctx.agrees(mark.page, mark.rect)  # type: ignore[arg-type]
         for mark in strategy.options.values()
@@ -523,12 +523,13 @@ def _try(strategy: Strategy, ctx: _Context, *, yes_no: bool = False) -> _Read | 
     ``yes_no`` says the path is a ``boolean``, so a choice of one option reads yes or no (:func:`_choice`)."""
     doc = ctx.doc
     if isinstance(strategy, WidgetRead):
+        parts = []
         for name in strategy.names:
-            value = doc.widget_value(name)
+            value = doc.widget_value(name, strategy.page)
             raw = value if isinstance(value, str) else None if value is None else str(value).lower()
             if raw and raw.strip():
-                return _Read(raw=raw.strip(), strategy="widget")
-        return None
+                parts.append(raw.strip())
+        return _Read(raw=" ".join(parts), strategy="widget") if parts else None
     if isinstance(strategy, BoxRead):
         if ctx.matched == "none":
             return None
@@ -638,7 +639,7 @@ def _choice(strategy: ChoiceRead, ctx: _Context, *, yes_no: bool = False) -> _Re
     marked: list[tuple[str, int | None, Rect | None]] = []
     for key, mark in strategy.options.items():
         if mark.widget is not None:
-            on = ctx.doc.widget_on(mark.widget, mark.state)
+            on = ctx.doc.widget_on(mark.widget, mark.state, mark.page)
             page, rect = None, None
         elif ctx.matched == "none":
             continue  # a drawn box is a place on the page: only on a matching layout

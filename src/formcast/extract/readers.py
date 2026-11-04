@@ -38,6 +38,8 @@ way of saying the form has no place for it), which gets none either.
 
 from __future__ import annotations
 
+import re
+
 from collections.abc import Callable
 from contextlib import ExitStack
 from dataclasses import dataclass, field
@@ -108,6 +110,8 @@ class ReaderProposal(_Model):
     clean: list[Transform] = Field(default_factory=list)
 
 
+#: A form map's widget id, ``w<page>_<index>``, as a proposal may name a form field by.
+_WIDGET_ID = re.compile(r"w(\d+)_(\d+)")
 #: A box found on a sample: its page and its rectangle in the layout's place.
 _Place = tuple[int, Rect]
 #: Records one dropped item as a warning: what it is ("label") and its value.
@@ -129,23 +133,47 @@ class _Samples:
             self.fits[sample, page] = page_fit(self.layout, self.texts[sample], page)
         return page, self.fits[sample, page].in_layout(rect)
 
-    def widget(self, name: str, state: str | None = None) -> _Place | None:
-        """The first rectangle of the form field ``name`` (its button ``state``) on the first sample that has it."""
+    def widget(self, name: str, state: str | None = None, page: int | None = None) -> _Place | None:
+        """The first rectangle of the form field ``name`` (its button ``state``, on ``page`` when given) on the first
+        sample that has it."""
         for sample, text in enumerate(self.texts):
-            places = text.widget_places(name, state)
+            places = text.widget_places(name, state, page)
             if places:
                 return self._in_layout(sample, *places[0])
         return None
 
+    def widget_ref(self, ref: str) -> tuple[str, int | None]:
+        """A proposal's form field as ``(name, page)``: a name as it is (page ``None``), or a form map id such as
+        ``w27_3`` (a name the samples do not have) as that widget's name and page, so a form that reuses a name on
+        several pages is read on the page meant."""
+        m = _WIDGET_ID.fullmatch(ref)
+        if m is None or any(text.has_widget(ref) for text in self.texts):
+            return ref, None
+        page, index = int(m.group(1)), int(m.group(2))
+        for doc in self.docs:
+            if page < len(doc.form_map.pages) and index < len(widgets := doc.form_map.pages[page].widgets):
+                return widgets[index].name, page
+        return ref, None
+
+    def reused(self, name: str) -> bool:
+        """Whether a sample has the form field ``name`` on several pages holding different values."""
+        for text in self.texts:
+            pages = text.widget_pages(name)
+            if len(pages) > 1 and len({repr(text.widget_value(name, p)) for p in pages}) > 1:
+                return True
+        return False
+
     def box(self, ref: BoxRef) -> _Place | None:
-        """The detected blank of id ``ref.id`` on the sample ``ref`` names, else its form field of that name."""
+        """The detected blank of id ``ref.id`` on the sample ``ref`` names, else its form field of that name or form
+        map id (``w1_0``)."""
         if not 0 <= ref.sample < len(self.docs):
             return None
         for page in self.docs[ref.sample].form_map.pages:
             for candidate in page.candidates:
                 if candidate.id == ref.id:
                     return self._in_layout(ref.sample, page.index, candidate.rect)
-        places = self.texts[ref.sample].widget_places(ref.id)
+        name, page = self.widget_ref(ref.id)  # a form field's name, or its form map id
+        places = self.texts[ref.sample].widget_places(name, page=page)
         return self._in_layout(ref.sample, *places[0]) if places else None
 
     def label_page(self, label: str) -> int | None:
@@ -217,27 +245,35 @@ def _reader(proposal: ReaderProposal, found: _Samples, warnings: list[str], *, y
     def dropped(what: str, value: str) -> None:
         warnings.append(f"{proposal.path}: {what} '{value}' is on no sample; left out")
 
-    names: list[str] = []
-    widget_box: _Place | None = None
-    for name in dict.fromkeys(proposal.widgets):
-        place = found.widget(name)
-        if place is None:
-            dropped("widget", name)
-            continue
-        names.append(name)
-        widget_box = widget_box or place
     box = None
     if proposal.box is not None:
         box = found.box(proposal.box)
         if box is None:
             dropped("box", proposal.box.id)
-    box = box or widget_box
     labels = _kept(proposal.labels, found.label_page, "label", dropped)
     phrases = _kept(proposal.phrases, lambda p: found.phrase_page(p, proposal.stop), "phrase", dropped)
+    # A name the form reuses on several pages for different answers is read on one page: the one its id names, else
+    # the page of the field's box or label, so a later form's copy of "Address01" is not read off the first page.
+    hint = box[0] if box is not None else next(iter(labels.values()), None)
+    names: list[str] = []
+    pages: set[int | None] = set()
+    widget_box: _Place | None = None
+    for ref in dict.fromkeys(proposal.widgets):
+        name, page = found.widget_ref(ref)
+        if page is None and hint is not None and found.reused(name) and found.widget(name, page=hint) is not None:
+            page = hint
+        place = found.widget(name, page=page)
+        if place is None:
+            dropped("widget", ref)
+            continue
+        names.append(name)
+        pages.add(page)
+        widget_box = widget_box or place
+    box = box or widget_box
 
     strategies: list[Strategy] = []
     if names:
-        strategies.append(WidgetRead(names=names))
+        strategies.append(WidgetRead(names=names, page=pages.pop() if len(pages) == 1 else None))
     if box is not None:
         strategies.append(BoxRead(page=box[0], rect=box[1]))
     if labels:
@@ -282,14 +318,15 @@ def _choices(
     for key, option in proposal.options.items():
         place = None
         if option.widget is not None:
-            place = found.widget(option.widget, option.state)
+            name, page = found.widget_ref(option.widget)
+            place = found.widget(name, option.state, page)
             if place is None:
                 if option.state is None:
                     dropped("widget", option.widget)
                 else:
                     dropped(f"widget '{option.widget}' button", option.state)
             else:
-                by_widget[key] = ChoiceMark(widget=option.widget, state=option.state)
+                by_widget[key] = ChoiceMark(widget=name, state=option.state, page=page)
         if option.box is not None:
             ref = found.box(option.box)
             if ref is None:

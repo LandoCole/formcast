@@ -409,6 +409,10 @@ addEventListener("resize", () => {
 // While an overlay (choose, start, match, save, extract, the setup's save, reprocess) is open, everything else on
 // the page is inert: no focus, no clicks, no keys reach the boxes behind it. Focus moves into the overlay, Tab cycles
 // inside it, and focus goes back to where it was when the last overlay closes.
+//
+// Every overlay can be closed: its × (.sheet-x, in the sheet's top right) or Escape. An overlay with its own way out
+// names it (`data-as`: Cancel, Close, Keep editing) and the × does just that; the others (the choice, the start screen,
+// the match prompt, the Extract modal) simply close, onto the editor as it is, and Open a form brings the choice back.
 const overlays = [...document.querySelectorAll(".overlay")];
 const FOCUSABLE = "button:not([hidden]):not(:disabled), select:not(:disabled), textarea:not([hidden]), input:not([hidden]), [tabindex='0']";
 let focusBefore = null; // the element focused outside the overlays
@@ -448,6 +452,19 @@ document.addEventListener("keydown", (e) => {
   const next = e.shiftKey ? (at <= 0 ? items.length - 1 : at - 1) : (at + 1) % items.length;
   e.preventDefault();
   items[next].focus();
+});
+
+for (const x of document.querySelectorAll(".overlay .sheet-x")) {
+  x.addEventListener("click", () => {
+    if (x.dataset.as) $(x.dataset.as).click();
+    else x.closest(".overlay").hidden = true;
+  });
+}
+// after the overlays' own Escape (on the overlay, so first): an overlay they closed is no longer open here
+document.addEventListener("keydown", (e) => {
+  const open = openOverlay();
+  if (open === null || e.key !== "Escape" || e.defaultPrevented) return;
+  open.querySelector(".sheet-x")?.click();
 });
 
 // ------------------------------------------------------------------ bus

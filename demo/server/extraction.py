@@ -34,7 +34,7 @@ message; the traceback goes to the server log. The scan reads each document unde
 it between documents, so a page image asked for during a scan of thousands waits for one document, not the scan.
 
 **Samples.** ``Batches.pick(batch, n, how, picked)`` chooses the documents a template is built from: ``spread`` or
-``first`` take ``n`` (3 to 20) of the scan's largest group with ``formcast.extract.scan.sample``, once the scan is
+``first`` take ``n`` (1 to 20) of the scan's largest group with ``formcast.extract.scan.sample``, once the scan is
 done (``ScanNotDone`` before); ``pick`` takes the person's own choice as given.
 
 **Setups.** A setup is an extraction template being made: the template, its samples as read
@@ -148,7 +148,7 @@ MAX_BATCH_FILES = 200_000  #: the most PDFs one batch may hold
 FIRST_PAGE_ONLY_FROM = 2_000  #: from this many files on, the scan reads first pages only
 PAGE_LIMIT = 200  #: the most entries one page of a list (files, documents) may ask for
 PAGE_DEFAULT = 50  #: the entries a page of a list gives when it does not say
-MIN_SAMPLE = 3  #: the fewest documents a sample picked by ``spread`` or ``first`` may ask for
+MIN_SAMPLE = 1  #: the fewest documents a sample picked by ``spread`` or ``first`` may ask for
 DEFAULT_NAME = "Uploaded files"  #: a batch's name when it is given none
 SCAN_PAUSE = 0.001  #: seconds the scan leaves ``PYMUPDF_LOCK`` free between documents
 SCAN_FAILED = "The scan stopped because of an unexpected error. The server log has the details."
@@ -430,7 +430,7 @@ class Batches:
 
         Raises:
             ScanNotDone: ``spread`` or ``first`` while the batch is being scanned.
-            FormcastError: an unknown ``how``; ``n`` not from 3 to 20; ``picked`` empty, longer than 20, with an
+            FormcastError: an unknown ``how``; ``n`` not from 1 to 20; ``picked`` empty, longer than 20, with an
                 index twice or one that is not a file of the batch; or no document of the batch could be read.
         """
         with batch._lock:

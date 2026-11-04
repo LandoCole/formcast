@@ -34,8 +34,11 @@ def _lines_pdf(*lines: str) -> bytes:
     return doc.tobytes()
 
 
-def _radio_pdf(value: str | None, states=("indiv", "joint", "llc")) -> bytes:
-    """A one-page PDF with a radio group "kind": one field, one kid per state, the kid for ``value`` selected."""
+def _radio_pdf(value: str | None, states=("indiv", "joint", "llc"), *, radio: bool = True) -> bytes:
+    """A one-page PDF with a radio group "kind": one field, one kid per state, the kid for ``value`` selected.
+
+    ``radio=False`` makes the buttons check boxes that share the one field and its value, as some forms make a Yes
+    and a No box."""
     doc = pymupdf.open()
     page = doc.new_page()
     parent = doc.get_new_xref()
@@ -56,7 +59,7 @@ def _radio_pdf(value: str | None, states=("indiv", "joint", "llc")) -> bytes:
         kids.append(kid)
     refs = " ".join(f"{k} 0 R" for k in kids)
     v = f"/V /{value} " if value else ""
-    doc.update_object(parent, f"<< /FT /Btn /Ff 32768 /T (kind) {v}/Kids [{refs}] >>")
+    doc.update_object(parent, f"<< /FT /Btn /Ff {32768 if radio else 0} /T (kind) {v}/Kids [{refs}] >>")
     doc.xref_set_key(page.xref, "Annots", f"[{refs}]")
     doc.xref_set_key(doc.pdf_catalog(), "AcroForm", f"<< /Fields [{parent} 0 R] >>")
     return doc.tobytes()
@@ -124,6 +127,54 @@ def test_a_radio_group_reads_as_the_selected_buttons_state():
         assert not doc.has_values
         assert doc.widget_value("kind") is None
         assert doc.widget_on("kind", "joint") is False and doc.widget_on("kind") is False
+
+
+def test_check_boxes_sharing_one_field_and_value_are_each_on_only_for_their_own_state():
+    # a Yes box ("1") and a No box ("2") under one field valued "2": the value is not off, yet only the No box is on
+    with DocText(_radio_pdf("2", states=("1", "2"), radio=False)) as doc:
+        assert doc.widget_value("kind") == "2"
+        assert doc.widget_on("kind", "2") is True and doc.widget_on("kind", "1") is False
+
+
+def _rename(doc, xref, name):
+    """Rename the field of widget ``xref``: the widget itself when it carries the /T, else its parent."""
+    kind, parent = doc.xref_get_key(xref, "Parent")
+    target = int(parent.split()[0]) if doc.xref_get_key(xref, "T")[0] == "null" and kind == "xref" else xref
+    doc.xref_set_key(target, "T", f"({name})")
+
+
+def _reused_name_pdf(*, stray: bool = False) -> bytes:
+    """Two pages with a text field named "Name", "Ann" on page 0 and "Bo" on page 1: two separate fields that share
+    the name. With ``stray`` they are one field ("Ann") whose page-1 widget carries a stray value "Bo" of its own, as
+    some forms do; no viewer shows it."""
+    doc = pymupdf.open()
+    for n, value in enumerate(("Ann", "Bo")):
+        page = doc.new_page()
+        w = pymupdf.Widget()
+        w.field_name = "Name" if stray else f"Name{n}"
+        w.field_type, w.field_value, w.rect = pymupdf.PDF_WIDGET_TYPE_TEXT, value, pymupdf.Rect(72, 72, 200, 90)
+        page.add_widget(w)
+    second = next(doc[1].widgets()).xref
+    if stray:
+        doc.xref_set_key(second, "V", "(Bo)")
+    else:
+        for page in doc:
+            _rename(doc, next(page.widgets()).xref, "Name")  # two fields, one name
+    return doc.tobytes()
+
+
+def test_a_stray_value_on_a_kid_is_not_read_its_fields_is():
+    with DocText(_reused_name_pdf(stray=True)) as doc:
+        assert doc.widget_value("Name", 0) == doc.widget_value("Name", 1) == "Ann"  # what a viewer shows on both
+
+
+def test_a_name_reused_on_two_pages_is_read_page_by_page():
+    with DocText(_reused_name_pdf()) as doc:
+        assert doc.widget_pages("Name") == [0, 1]
+        assert doc.widget_value("Name") == "Ann"  # no page: the first that holds a value
+        assert (doc.widget_value("Name", 0), doc.widget_value("Name", 1)) == ("Ann", "Bo")
+        assert doc.has_widget("Name", 1) and not doc.has_widget("Name", 2)
+        assert [page for page, _ in doc.widget_places("Name", page=1)] == [1]
 
 
 def test_widget_places_ask_the_state_only_of_a_radio_group_as_widget_on_does():

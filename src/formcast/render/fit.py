@@ -54,14 +54,31 @@ def _font(fontname: str) -> pymupdf.Font:
     return pymupdf.Font(fontname)
 
 
+#: Wide East Asian characters (Chinese, Japanese, Korean, full-width forms), drawn a full em wide; the browser's
+#: fill measures by the same ranges (demo/web/core/fill/fit.js ``WIDE``).
+WIDE = (
+    (0x1100, 0x115F), (0x2E80, 0x303E), (0x3041, 0x33FF), (0x3400, 0x4DBF), (0x4E00, 0x9FFF), (0xA000, 0xA4CF),
+    (0xAC00, 0xD7A3), (0xF900, 0xFAFF), (0xFE30, 0xFE4F), (0xFF00, 0xFF60), (0xFFE0, 0xFFE6), (0x20000, 0x3FFFD),
+)  # fmt: skip
+
+
+def is_wide(ch: str) -> bool:
+    """Whether ``ch`` is a wide East Asian character (see :data:`WIDE`)."""
+    cp = ord(ch)
+    return any(lo <= cp <= hi for lo, hi in WIDE)
+
+
 @functools.cache
 def _char_width(ch: str, fontname: str) -> float:
     """Width at size 1 of the glyph a standard-font appearance draws for ``ch``.
 
     The appearance writes the value as cp1252 bytes, so ``ch`` is drawn as its own glyph. As in
     PyMuPDF's ``get_text_length``, a character cp1252 cannot encode counts as U+00B7 and one the
-    font has no glyph for (a control) as a space.
+    font has no glyph for (a control) as a space, except a wide East Asian character (Chinese,
+    Japanese, Korean), which MuPDF draws in a fallback font a full em wide.
     """
+    if unencodable_chars(ch) and is_wide(ch):
+        return 1.0
     font = _font(fontname)
     cp = 0xB7 if unencodable_chars(ch) else ord(ch)
     if not font.has_glyph(cp):

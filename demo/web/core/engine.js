@@ -10,7 +10,7 @@ export const REQUIRED_METHODS = Object.freeze(["open", "seed", "apply", "fill", 
  * Methods an engine may have; the UI offers them only when present. `extract` is a group: an object holding
  * every one of {@link EXTRACT_METHODS} (the server engine's extraction calls, see engines/server/client.js).
  */
-export const OPTIONAL_METHODS = Object.freeze(["detect", "build", "revise", "matches", "oneshot", "readProgress", "waitForReading", "detectPage", "extract"]);
+export const OPTIONAL_METHODS = Object.freeze(["detect", "build", "revise", "matches", "oneshot", "readProgress", "waitForReading", "detectPage", "fillInPage", "extract"]);
 
 /** The methods of the optional `extract` group: batches, setups, saved extraction templates and runs. */
 export const EXTRACT_METHODS = Object.freeze([

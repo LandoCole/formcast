@@ -117,9 +117,11 @@ def test_width_counts_every_character_of_accented_text(font, text):
 
 
 def test_width_of_unencodable_and_control_characters():
-    assert _width("北", "helv", 10) == pytest.approx(_width("·", "helv", 10))  # no cp1252 byte: U+00B7
+    assert _width("ő", "helv", 10) == pytest.approx(_width("·", "helv", 10))  # no cp1252 byte: U+00B7
     assert _width("\x01", "helv", 10) == pytest.approx(_width(" ", "helv", 10))  # no glyph: a space
-    assert _width("北京 Sí", "helv", 10) == pytest.approx(_width("··", "helv", 10) + _width(" Sí", "helv", 10))
+    # a wide East Asian character: MuPDF draws it in a fallback font, a full em wide
+    assert _width("北", "helv", 10) == pytest.approx(10)
+    assert _width("北京 Sí", "helv", 10) == pytest.approx(20 + _width(" Sí", "helv", 10))
 
 
 def test_accented_value_shrinks_when_its_true_width_overflows():

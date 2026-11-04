@@ -4,7 +4,8 @@ One *step* is one model reply. A ``run_python`` call executes in the persistent
 sandbox; the edit ops it recorded are applied in order to the authoritative
 template (each validated by :func:`formcast.template.ops.apply`), the sandbox
 gets the new template, and a step report goes back as the tool result. The loop
-ends at ``finish``, when the budget runs out, or on a provider/sandbox error.
+ends at ``finish``, when the budget runs out, after ``idle_steps`` replies in a row made no edit
+(when set: the check after a page pass), or on a provider/sandbox error.
 
 Context sent each turn: the system prompt, the first user message, a one-line
 summary per older step, and the last ``VERBATIM_STEPS`` steps verbatim (of which
@@ -133,6 +134,7 @@ class StepEvent:
     output_tokens: int
     finished: bool  # the model's finish was accepted: this is the last event
     summary: str  # the model's finish summary on the last event, else ""
+    note: str = ""  # what the step did, in a few words (ran code, no tool call, finish refused...), to trace it
 
 
 @dataclass
@@ -142,10 +144,28 @@ class SessionResult:
     summary: str
     steps: list[StepRecord]
     usage: Usage
-    stop_reason: Literal["finish", "budget", "error", "cancelled"]
+    stop_reason: Literal["finish", "budget", "stalled", "error", "cancelled"]
     unplaceable: list[dict] = field(default_factory=list)
     error: str | None = None  # set when stop_reason == "error"
     page_pass: PagePassResult | None = None  # set when build_template ran a page pass first
+
+
+MAX_NOTE_ERROR = 160
+
+
+def _step_note(record: StepRecord) -> str:
+    """A step in a few words, for the job's log: what the reply did, and what went wrong if anything."""
+    if record.exec is None:
+        return record.note
+    parts = [f"ran code, printed {len(record.exec.stdout):,} characters"]
+    if record.exec.error:
+        last = [ln for ln in record.exec.error.strip().splitlines() if ln.strip()][-1:] or ["an error"]
+        line = last[0].strip()
+        parts.append("the code raised " + (line if len(line) <= MAX_NOTE_ERROR else line[: MAX_NOTE_ERROR - 3] + "..."))
+    if record.rejected:
+        parts.append(f"{len(record.rejected)} edits refused")
+    parts.extend(record.note.split("; ")[1:])  # what the reply's other calls met: finish refused, a bad call
+    return "; ".join(parts)
 
 
 def _hit_token_limit(raw: dict[str, Any]) -> bool:
@@ -251,6 +271,7 @@ class Session:
         page_images: list[tuple[int, bytes]] | None = None,
         after_page_pass: bool = False,
         focus_pages: set[int] | None = None,
+        idle_steps: int | None = None,
     ):
         self.form_map = form_map
         self.schema = schema
@@ -265,6 +286,7 @@ class Session:
         self.budget = budget
         self.sandbox_factory = sandbox_factory
         self.on_step = on_step
+        self.idle_steps = idle_steps
         self._cov: Coverage | None = None  # coverage as of the last run_python step
         self.context = op_context(form_map, self.schema_paths)
         self._refusals_left = unaccounted_refusals if instruction is None else 0
@@ -333,6 +355,13 @@ class Session:
             if finished is not None:
                 summary, unplaceable = finished
                 return self._result("finish", summary=summary, unplaceable=unplaceable)
+            if self._idle():
+                return self._result("stalled")
+
+    def _idle(self) -> bool:
+        """Whether the last ``idle_steps`` replies all made no edit (never without ``idle_steps``)."""
+        n = self.idle_steps
+        return bool(n) and len(self.steps) >= n and all(not r.applied for r in self.steps[-n:])
 
     def _event(self, n: int, finished: tuple[str, list[dict]] | None) -> StepEvent:
         step = self.steps[-1]
@@ -348,6 +377,7 @@ class Session:
             output_tokens=self.usage.output_tokens,
             finished=finished is not None,
             summary=finished[0] if finished is not None else "",
+            note=_step_note(step),
         )
 
     def _over_budget(self, started: float) -> bool:
@@ -399,6 +429,7 @@ class Session:
                 cov = self._cov = coverage(self.template, self.form_map, self.schema_paths)
                 kwargs = {
                     "template": self.template, "form_map": self.form_map, "budget": (n, self.budget.max_steps),
+                    "tokens": (self.usage.input_tokens, self.budget.max_input_tokens),
                 }  # fmt: skip
                 results.append(step_report(record, cov, **kwargs))
                 short_results.append(
@@ -436,6 +467,8 @@ class Session:
         )
         if record is None:
             self._record(n, response, note="finish" if finish_call else "; ".join(notes) or "no code run")
+        elif notes:
+            record.note = "; ".join(["run_python", *notes])
         if finish_call is not None:
             args = finish_call.arguments or {}
             return str(args.get("summary") or ""), _unplaceable(args.get("unplaceable"))
@@ -508,7 +541,7 @@ class Session:
 
     def _result(
         self,
-        stop_reason: Literal["finish", "budget", "error", "cancelled"],
+        stop_reason: Literal["finish", "budget", "stalled", "error", "cancelled"],
         *,
         summary: str = "",
         unplaceable: list[dict] | None = None,

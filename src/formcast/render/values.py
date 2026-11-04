@@ -57,14 +57,22 @@ def is_missing(v: Any) -> bool:
 
 
 def lookup(data: Any, path: str) -> Any:
-    """Follow ``path`` through dicts; ``None`` for anything absent. ``[]`` paths aren't looked up here."""
+    """Follow ``path`` through dicts, and through lists at a concrete index (``"refs[1].phone"``); ``None`` for
+    anything absent. ``[]`` paths aren't looked up here."""
+    indices = [int(m.group(1)) for m in _INDEX_OR_QUOTED.finditer(path) if m.group(1) is not None]
     try:
-        segments = parse_path(path)
+        segments = parse_path(schema_path_of(path) if indices else path)
     except ValueError:
         return None
     cur = data
     for seg in segments:
-        if is_array_item(seg) or not isinstance(cur, dict):
+        if is_array_item(seg):
+            if not indices or not isinstance(cur, list):
+                return None
+            i = indices.pop(0)
+            cur = cur[i] if 0 <= i < len(cur) else None
+            continue
+        if not isinstance(cur, dict):
             return None
         cur = cur.get(seg)
     return cur

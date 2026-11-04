@@ -176,6 +176,8 @@ def _page_body(page: PageMap) -> list[str]:
         extras = []
         if w.tooltip:
             extras.append(f"tip={_q(w.tooltip)}")
+        if w.state:
+            extras.append(f"state={_q(w.state)}")
         if w.options:
             shown = w.options[:MAX_OPTIONS]
             more = f"|+{len(w.options) - len(shown)} more" if len(w.options) > len(shown) else ""

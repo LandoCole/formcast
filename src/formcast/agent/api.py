@@ -26,6 +26,18 @@ PdfInput = str | Path | bytes
 # for pages with boxes. Shorter documents are unchanged.
 LONG_DOCUMENT_PAGES = 12
 MAX_AGENT_IMAGE_PAGES = 12
+# After a page pass the agent's check is skipped when the pass left at most this many schema paths
+# unmapped and every box linked: there is too little left for a session that resends the whole
+# document at each step. It stops by itself after CHECK_IDLE_STEPS replies in a row made no edit.
+SKIP_CHECK_UNMAPPED = 3
+CHECK_IDLE_STEPS = 3
+
+
+def _check_needed(template: Template, form_map: FormMap, schema: dict) -> bool:
+    """Whether a page pass's ``template`` leaves the agent's check enough to do (see SKIP_CHECK_UNMAPPED)."""
+    cov = coverage(template, form_map, flatten_schema(schema))
+    unlinked = [f for f in template.fields if f.rect is not None and not (f.source and f.source.paths)]
+    return len(cov.unmapped_paths) > SKIP_CHECK_UNMAPPED or bool(unlinked) or bool(cov.unused_candidates)
 
 
 def _boxed_pages(template: Template, form_map: FormMap) -> set[int]:
@@ -115,7 +127,10 @@ def build_template(
     the pass; once it is done, ``on_step`` gets one event for it, ``step=0`` and summary
     ``"page pass"`` (``finished`` only with ``agent=False``), and raising
     :class:`formcast.errors.SessionCancelled` from it stops the run there (``stop_reason``
-    ``"cancelled"``, the page pass's template). When no page's call succeeded, the agent starts
+    ``"cancelled"``, the page pass's template). When the pass left at most ``SKIP_CHECK_UNMAPPED``
+    schema paths unmapped and every box linked, the agent's check is skipped (summary
+    ``"page pass; the check was skipped"``, no steps); otherwise the check stops by itself
+    (``stop_reason`` ``"stalled"``) after ``CHECK_IDLE_STEPS`` replies in a row made no edit. When no page's call succeeded, the agent starts
     as from a fresh template, without the page-pass note. The result's ``page_pass`` holds the
     pass and its ``usage`` includes the pass's tokens (``budget``'s token caps count the agent's
     alone). With ``agent=False`` the run stops after the page pass (summary ``"page pass only"``,
@@ -143,25 +158,28 @@ def build_template(
                 page_images=_page_images(pdf, start, fm),
             ).run()
         pp = map_pages(new_template(schema, fm, candidates=seed_candidates), fm, pdf, provider)
+        answered = any(o.status == "ok" for o in pp.pages)
+        skip = agent and answered and not _check_needed(pp.template, fm, schema)
         if on_step is not None:
             try:
-                on_step(_page_pass_event(pp, fm, schema, finished=not agent))
+                on_step(_page_pass_event(pp, fm, schema, finished=not agent or skip))
             except SessionCancelled:
                 return SessionResult(
                     template=pp.template, finished=False, summary="cancelled", steps=[], usage=pp.usage,
                     stop_reason="cancelled", page_pass=pp,
                 )  # fmt: skip
-        if not agent:
+        if not agent or skip:
             return SessionResult(
-                template=pp.template, finished=True, summary="page pass only", steps=[], usage=pp.usage,
-                stop_reason="finish", page_pass=pp,
+                template=pp.template, finished=True, summary="page pass only" if not agent else "page pass; the check was skipped",
+                steps=[], usage=pp.usage, stop_reason="finish", page_pass=pp,
             )  # fmt: skip
         focus = _focus(pp.template, fm)
         images = _page_images(pdf, pp.template, fm, pages=focus)
-        if any(o.status == "ok" for o in pp.pages):
+        if answered:
             session = Session(
                 fm, schema, provider, template=pp.template, budget=budget, on_step=on_step, page_images=images,
                 after_page_pass=True, focus_pages=_boxed_pages(pp.template, fm) if focus is not None else None,
+                idle_steps=CHECK_IDLE_STEPS,
             )  # fmt: skip
         else:  # no page answered: the template is the fresh one, so the agent starts as if no pass ran
             session = Session(

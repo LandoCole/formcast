@@ -439,6 +439,10 @@ def write_text(
             flags &= ~pymupdf.PDF_TX_FIELD_IS_MULTILINE
         doc.xref_set_key(field, "Ff", str(flags))
         w.field_flags = flags  # a field-widget's update() writes Ff back
+    if _field_xref(doc, w.xref) != w.xref and doc.xref_get_key(w.xref, "V")[0] != "null":
+        # a kid holds no value of its own: a stray /V on it (some forms carry one) would shadow the field's in its
+        # appearance, so the box would show the old value, or nothing
+        doc.xref_set_key(w.xref, "V", "null")
     _set_text_value(page, w, value)
     w.update()
     _refresh_text_siblings(page, w.xref, q)

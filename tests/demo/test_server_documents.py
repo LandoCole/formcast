@@ -131,10 +131,12 @@ def test_capabilities_say_ai_is_off_without_a_model_and_on_with_a_provider_facto
     assert status == 200
     assert caps == {
         "ai": False, "matches": True, "store": True, "records": True, "scanned": True, "detectLive": False,
-        "oneshot": True, "xlsx": caps["xlsx"], "progress": True, "detectPage": True, "extract": True,
+        "oneshot": True, "xlsx": caps["xlsx"], "progress": True, "detectPage": True, "fillInPage": False,
+        "extract": True,
     }  # fmt: skip
     with_ai = start_demo_server(provider_factory=FakeProvider)
-    assert get_json(with_ai, "/api/capabilities")[1]["ai"] is True
+    on = get_json(with_ai, "/api/capabilities")[1]
+    assert on["ai"] is True and on["fillInPage"] is True  # a page's fill-in is an AI call
 
 
 def test_a_configured_model_turns_ai_on_without_building_a_provider_or_leaking_the_key(start_demo_server):

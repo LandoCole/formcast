@@ -236,6 +236,7 @@ def test_a_choice_mark_takes_a_widget_or_a_page_and_rect_not_both():
     ChoiceMark(widget="w")
     ChoiceMark(page=0, rect=(1, 2, 3, 4))
     ChoiceMark(widget="kind", state="joint")
+    ChoiceMark(widget="kind", state="joint", page=3)  # a reused name's buttons on one page
     bad_marks = (
         {"page": 0, "rect": (1, 2, 3, 4), "state": "joint"},
         {"state": "joint"},
@@ -243,7 +244,7 @@ def test_a_choice_mark_takes_a_widget_or_a_page_and_rect_not_both():
         {"widget": "w", "page": 0, "rect": (1, 2, 3, 4)},
         {"page": 0},
         {"rect": (1, 2, 3, 4)},
-        {"widget": "w", "page": 0},
+        {"widget": "w", "rect": (1, 2, 3, 4)},
     )
     for bad in bad_marks:
         with pytest.raises(ValidationError):

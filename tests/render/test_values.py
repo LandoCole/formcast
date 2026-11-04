@@ -298,3 +298,12 @@ def test_missing_message_distinguishes_transform_result_from_absent_value():
     assert [w.code for w in r.warnings] == ["missing"] and "transforms" in r.warnings[0].message
     absent = resolve(tpl_name_only, {})[0]["f_name"]
     assert [w.code for w in absent.warnings] == ["missing"] and absent.warnings[0].message.startswith("no value for")
+
+
+def test_lookup_follows_a_concrete_index_into_a_list():
+    data = {"deps": [{"rel": "Husband"}, {"rel": "Child"}], "tags": ["a", "b"]}
+    assert lookup(data, "deps[1].rel") == "Child"
+    assert lookup(data, "tags[0]") == "a"
+    assert lookup(data, "deps[2].rel") is None  # past the list
+    assert lookup(data, "deps[].rel") is None  # a generic path is not looked up here
+    assert lookup({"deps": {"rel": "x"}}, "deps[0].rel") is None  # not a list

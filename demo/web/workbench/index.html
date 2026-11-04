@@ -102,6 +102,7 @@
         <span id="page-no">No form open</span>
         <button type="button" class="ib" id="next-page" aria-label="Next page" disabled>›</button>
         <button type="button" class="btn small quiet" id="detect-page" hidden>Find the blanks on this page</button>
+        <button type="button" class="btn small quiet" id="fill-in-page" hidden>Label and map with AI</button>
         <span class="page-state" id="page-state"></span>
       </div>
       <div class="zoom">
@@ -322,6 +323,7 @@
         <button type="button" class="btn quiet" id="open-run-folder">Open</button>
       </div>
     </div>
+    <button type="button" class="ib sheet-x" aria-label="Close">×</button>
   </div>
 </div>
 
@@ -356,7 +358,7 @@
     <div class="group" data-part="build">
       <p class="label">2 · The sample</p>
       <div class="samplerow">
-        <label class="num">Use <input type="number" class="text" id="n-sample" min="3" max="20" value="5" step="1"> documents</label>
+        <label class="num">Use <input type="number" class="text" id="n-sample" min="1" max="20" value="5" step="1"> documents</label>
         <select id="sample-how" aria-label="How the sample is picked">
           <option value="spread">Spread across the batch (recommended)</option>
           <option value="first">The first ones in the batch</option>
@@ -422,6 +424,7 @@
       <button type="button" class="btn dark" id="read-sample" data-part="build">Read the sample →</button>
       <button type="button" class="btn dark" id="run-these" data-part="run" hidden disabled>Run on these →</button>
     </div>
+    <button type="button" class="ib sheet-x" aria-label="Close">×</button>
   </div>
 </div>
 
@@ -461,6 +464,7 @@
       <button type="button" class="btn quiet" id="start-close">Back</button>
       <button type="button" class="btn dark" id="open">Open</button>
     </div>
+    <button type="button" class="ib sheet-x" aria-label="Close">×</button>
   </div>
 </div>
 
@@ -479,6 +483,7 @@
       <button type="button" class="btn" id="adapt" hidden>Adapt with AI</button>
       <button type="button" class="btn quiet" id="build-new">Build new</button>
     </div>
+    <button type="button" class="ib sheet-x" aria-label="Close">×</button>
   </div>
 </div>
 
@@ -497,6 +502,7 @@
       <button type="button" class="btn quiet" id="save-cancel">Cancel</button>
       <button type="button" class="btn dark" id="save-go">Save</button>
     </div>
+    <button type="button" class="ib sheet-x" data-as="save-cancel" aria-label="Close">×</button>
   </div>
 </div>
 
@@ -511,6 +517,7 @@
     <div class="row">
       <button type="button" class="btn dark" id="details-close">Close</button>
     </div>
+    <button type="button" class="ib sheet-x" data-as="details-close" aria-label="Close">×</button>
   </div>
 </div>
 
@@ -536,6 +543,7 @@
         <button type="button" class="btn dark" id="setup-replace-go">Replace</button>
       </div>
     </div>
+    <button type="button" class="ib sheet-x" data-as="setup-save-cancel" aria-label="Close">×</button>
   </div>
 </div>
 
@@ -549,6 +557,7 @@
       <button type="button" class="btn quiet" id="reprocess-cancel">Keep editing</button>
       <button type="button" class="btn dark" id="reprocess-go">Reprocess →</button>
     </div>
+    <button type="button" class="ib sheet-x" data-as="reprocess-cancel" aria-label="Close">×</button>
   </div>
 </div>
 

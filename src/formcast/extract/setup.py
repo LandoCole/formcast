@@ -32,6 +32,7 @@ it"`` for a path the model gave no proposal for. Such a path gets no reader, so 
 from __future__ import annotations
 
 import copy
+import json
 import hashlib
 import re
 from collections.abc import Callable, Collection, Iterator
@@ -50,7 +51,7 @@ from formcast.extract.model import RESERVED_NAMES, ExtractionTemplate, SampleRec
 from formcast.extract.names import normalized
 from formcast.extract.proof import Proof, _check_samples, prove
 from formcast.extract.readers import ReaderProposal, resolve
-from formcast.extract.samples import Detect, SampleDoc, SamplePdf, _detect, _read
+from formcast.extract.samples import Detect, SampleDoc, SamplePdf, _detect, _read, reused_values
 from formcast.llm import LLMConfig, Provider, Usage, make_provider
 from formcast.match import PdfFeatures
 from formcast.pagemap.build import DetectPolicy, PageProgress
@@ -235,7 +236,7 @@ def _fields(
         doc = max(docs, key=_boxes)  # the first of the samples with the most boxes
         derived = derive_schema(
             doc.pdf, llm, form_map=doc.form_map, vision=spec.vision, classify_required=True,
-            reserved_names=RESERVED_NAMES, flat_fields=spec.names_from_titles,
+            reserved_names=RESERVED_NAMES, flat_fields=spec.names_from_titles, instructions=_reused_note(doc),
         )  # fmt: skip
         schema, _ = _titled(derived.schema, {}, spec.names_from_titles)
         return schema, [], {}, derived.usage, []
@@ -252,6 +253,27 @@ def _fields(
     absent = [p for p in concrete_paths(schema) if _generic(p) not in on]
     warnings = [] if on_form else ["the model found none of the destination's fields on the form"]
     return schema, absent, {}, usage, warnings
+
+
+#: The most reused form field names the schema's designer is told of.
+MAX_REUSED_NAMES = 40
+
+
+def _reused_note(doc: SampleDoc) -> str:
+    """For a filled sample that reuses form field names on several pages with different answers, a note telling the
+    schema's designer that those pages are sections of their own; ``""`` when it reuses none."""
+    reused = reused_values(doc.values)
+    if not reused:
+        return ""
+    lines = [
+        f"- {name}: " + "; ".join(f"{where} = {json.dumps(value, ensure_ascii=False)}" for where, value in places)
+        for name, places in list(reused.items())[:MAX_REUSED_NAMES]
+    ]
+    return (
+        "This copy of the form is filled in, and it reuses these form field names on several pages with different "
+        "answers. Each page listed holds its own answer, so give that page's section its own properties (an object "
+        "named after the form or worksheet on that page), not the first page's:\n" + "\n".join(lines)
+    )
 
 
 #: The reason of a field that comes with a destination schema's own level and no reason of its own.

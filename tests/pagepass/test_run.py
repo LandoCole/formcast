@@ -332,3 +332,51 @@ def test_a_rejected_table_leaves_its_required_op_out(pdf):
     result = map_pages(_template(), _form(), pdf, FakeProvider(replies))
     assert len(result.pages[0].rejected) == 1 and result.pages[0].applied == 0
     assert not any(f.required for f in result.template.fields)
+
+
+# --- fill-in: only what a box lacks ----------------------------------------------
+
+
+def _worked_template() -> Template:
+    """c0_1 labelled and mapped (done), c0_2 labelled only, c0_3 neither; c1_1 on page 1 done."""
+    from formcast.template.model import Source
+
+    t = _template(with_page1_boxes=True)
+    fields = [
+        t.fields[0].model_copy(update={"label": "Name", "source": Source(paths=["name"])}),
+        t.fields[1].model_copy(update={"label": "Row A"}),
+        t.fields[2],
+        t.fields[3].model_copy(update={"label": "Name", "source": Source(paths=["name"])}),
+        t.fields[4].model_copy(update={"label": "B", "source": Source(paths=["name"])}),
+    ]
+    return t.model_copy(update={"fields": fields})
+
+
+def test_fill_in_asks_only_about_boxes_lacking_a_label_or_mapping_and_never_overwrites(pdf):
+    reply = json.dumps({
+        "mappings": [
+            {"id": "c0_1", "label": "Other", "source": {"paths": ["rows"]}},  # done already: dropped
+            {"id": "c0_2", "label": "Renamed", "source": {"paths": ["name"]}},  # mapped; its label kept
+            {"id": "c0_3", "label": "  Second   name "},  # labelled, left unmapped
+        ],
+        "tables": [], "required": [{"id": "c0_1", "reason": "x"}],
+    })  # fmt: skip
+    provider = FakeProvider({0: reply})
+    result = map_pages(_worked_template(), _form(), pdf, provider, fill_in=True)
+    assert [c["page"] for c in provider.calls] == [0]  # page 1's boxes have everything: no call
+    assert [(o.page, o.status) for o in result.pages] == [(0, "ok"), (1, "skipped")]
+    text = "".join(getattr(p, "text", "") for p in provider.calls[0]["messages"][-1].content)
+    assert "FILL IN:" in text and "BOXES ON THIS PAGE (2;" in text
+    assert '- c0_2: text (label "Row A"; no mapping)' in text and "- c0_3: text (no label; no mapping)" in text
+    assert "- c0_1" not in text
+    by_id = {f.id: f for f in result.template.fields}
+    assert (by_id["c0_1"].label, by_id["c0_1"].source.paths, by_id["c0_1"].required) == ("Name", ["name"], False)
+    assert (by_id["c0_2"].label, by_id["c0_2"].source.paths) == ("Row A", ["name"])
+    assert (by_id["c0_3"].label, by_id["c0_3"].source) == ("Second name", None)
+    assert result.pages[0].applied == 2
+
+
+def test_fill_in_skips_a_page_whose_boxes_have_everything(pdf):
+    provider = FakeProvider({})
+    result = map_pages(_worked_template(), _form(), pdf, provider, pages=[1], fill_in=True)
+    assert provider.calls == [] and [(o.page, o.status) for o in result.pages] == [(1, "skipped")]

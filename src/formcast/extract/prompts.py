@@ -97,7 +97,10 @@ Then FIELDS (what each field is) and PATHS TO ANSWER, one per line; "[0]", "[1]"
 row of a repeated group.
 
 For each path give one reader, with what applies of:
-- "widgets": the names of the form fields that hold the answer (the name="..." of the form map).
+- "widgets": the names of the form fields that hold the answer (the name="..." of the form map). List several only
+  when the answer is split over them (a date's month, day and year boxes): their values are joined with a space in
+  the order listed, so give a "date" step with that format ("%m %d %y"). A name FORM FIELD VALUES lists once per page
+  holds a different answer on each page: give the id of the one you mean (such as w27_3) instead of its name.
 - "box": the box the answer sits in on one sample, {{"sample": <its number>, "id": "<a found blank's id such as
   c0_3, or a form field's name>"}}, for an answer that no form field holds.
 - "labels": the printed label beside the answer, as printed (case and punctuation do not matter), with "side"
@@ -111,6 +114,8 @@ For each path give one reader, with what applies of:
   {{"<answer>": {{"widget": "<form field name>", "state": "<the button's on-state, for a radio group>"}}}} or
   {{"<answer>": {{"box": {{"sample": <its number>, "id": "c0_7"}}}}}}. A boolean marked by one lone check box has
   the one option "true" (or "false" when marking it means no); the box left unmarked reads as the opposite.
+  Buttons that share one name (a Yes box and a No box, or one box per answer) are told apart by their state="..."
+  in the form map: give each answer its own button's state, read off the box printed next to that answer.
 - "clean": the steps, in order, that turn the text read into the answer, each {{"op": "<name>", "args": {{...}}}},
   from these:
 {{transforms}}

@@ -297,6 +297,8 @@ def test_step_report_states_the_budget_left_when_given():
     assert "steps left" not in plain
     report = step_report(record, cov, template=_template(), form_map=_form_map(), budget=(7, 40))
     assert "(step 7 of 40; 33 steps left)" in report
+    tokens = step_report(record, cov, template=_template(), form_map=_form_map(), budget=(7, 40), tokens=(450_000, 1_500_000))
+    assert "(input tokens: 450,000 of 1,500,000 used; 1,050,000 left)" in tokens.splitlines()[0]
 
 
 def test_step_report_shortens_long_reasons_after_the_first_few():

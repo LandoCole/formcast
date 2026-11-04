@@ -43,12 +43,20 @@ export function unencodableChars(text) {
 /**
  * A width function for a pdf-lib standard font that measures like the library's `_width`
  * (src/formcast/render/fit.py): the appearance writes the value as cp1252 bytes, so each character
- * is drawn as its own glyph; a character cp1252 cannot encode counts as U+00B7 and one the font has
- * no glyph for (a control) as the font's missing width (the width of a space in Helvetica, Times
- * and Courier).
+ * is drawn as its own glyph; a character cp1252 cannot encode counts as U+00B7, except a wide East
+ * Asian one (`WIDE`), which MuPDF draws in a fallback font a full em wide, and one the font has no
+ * glyph for (a control) as the font's missing width (the width of a space in Helvetica, Times and
+ * Courier).
  * @param {{widthOfTextAtSize: (text: string, size: number) => number}} font
  * @returns {(text: string, size: number) => number}
  */
+/** Wide East Asian code point ranges, as the library's `WIDE` (src/formcast/render/fit.py). */
+const WIDE = [
+  [0x1100, 0x115f], [0x2e80, 0x303e], [0x3041, 0x33ff], [0x3400, 0x4dbf], [0x4e00, 0x9fff], [0xa000, 0xa4cf],
+  [0xac00, 0xd7a3], [0xf900, 0xfaff], [0xfe30, 0xfe4f], [0xff00, 0xff60], [0xffe0, 0xffe6], [0x20000, 0x3fffd],
+];
+const isWide = (cp) => WIDE.some(([lo, hi]) => lo <= cp && cp <= hi);
+
 export function makeMeasure(font) {
   const missing = font.widthOfTextAtSize(" ", 1000);
   const widths = new Map(); // code point -> width at size 1000
@@ -70,7 +78,7 @@ export function makeMeasure(font) {
     let total = 0;
     for (const ch of codePoints(text)) {
       const cp = ch.codePointAt(0);
-      total += glyphWidth(cp1252Encodable(cp) ? cp : 0xb7);
+      total += cp1252Encodable(cp) ? glyphWidth(cp) : isWide(cp) ? 1000 : glyphWidth(0xb7);
     }
     return (total * size) / 1000;
   };
