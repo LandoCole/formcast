@@ -25,7 +25,7 @@ const PARTS = {
   async pageview() {
     const { PageView } = await import("../../../demo/web/core/pageview.js");
     const bus = createBus();
-    for (const type of ["select", "op", "region", "addmode"]) bus.on(type, (detail) => events.push({ type, detail }));
+    for (const type of ["select", "op", "region", "addmode", "textmode", "words"]) bus.on(type, (detail) => events.push({ type, detail: type === "words" ? { ...detail, error: detail.error?.message } : detail }));
     window.setup = ({ readOnly = false, regionSelect = false, page, template, scale, compare, warnings }) => {
       const mount = document.getElementById("mount");
       window.view?.destroy();
@@ -34,7 +34,8 @@ const PARTS = {
       const view = new PageView(mount, { bus, readOnly, regionSelect });
       const render = typeof page.imageUrl === "string" ? () => page.imageUrl : page.render;
       if (scale !== undefined) view.setScale(scale);
-      view.setPage({ index: page.index ?? 0, width: page.width, height: page.height, rotation: page.rotation ?? 0, render });
+      const words = page.words === undefined ? undefined : async () => page.words; // the page's words, as the server lists them
+      view.setPage({ index: page.index ?? 0, width: page.width, height: page.height, rotation: page.rotation ?? 0, render, words });
       if (template !== undefined) view.setTemplate(template, { compare, warnings });
       window.view = view;
       window.bus = bus;

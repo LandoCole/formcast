@@ -598,6 +598,15 @@ def test_a_page_of_a_batch_file_is_a_png_and_a_page_or_batch_that_is_not_there_i
         assert status == 404 and body == {"error": "not_found", "detail": f"no such batch: {'0' * 32}"}
 
 
+def test_the_words_of_a_page_of_a_batch_file_are_listed_where_they_sit(five):
+    base, batch = five
+    status, words = get_json(base, f"/api/batches/{batch['id']}/files/0/pages/0/words")
+    assert status == 200 and (words["width"], words["height"]) == (612, 792) and words["lines"]
+    assert all(w["text"] and len(w["rect"]) == 4 for line in words["lines"] for w in line)
+    assert get_json(base, f"/api/batches/{batch['id']}/files/0/pages/99/words")[0] == 404
+    assert get_json(base, f"/api/batches/{batch['id']}/files/5/pages/0/words")[0] == 404
+
+
 def test_an_unreadable_file_is_in_no_group_and_its_page_cannot_be_shown(demo_server, corpus_pdfs):
     batch = new_batch(demo_server)
     add_files(demo_server, batch["id"], [("good.pdf", corpus_pdfs[0]), ("broken.pdf", b"%PDF-1.7 not really")])
@@ -1011,6 +1020,11 @@ def test_a_samples_marks_have_a_kind_and_a_place_and_its_pages_are_images(bench)
     assert get_json(bench.base, f"/api/setups/{setup['id']}/samples/9/marks")[0] == 404
     assert http_request(bench.base, "GET", f"/api/setups/{setup['id']}/samples/0/pages/9.png")[0] == 404
     assert http_request(bench.base, "GET", f"/api/setups/{setup['id']}/samples/0/pages/0.png?dpi=x")[0] == 400
+    status, words = get_json(bench.base, f"/api/setups/{setup['id']}/samples/0/pages/0/words")  # from its form map
+    first = bench.api.setups.get(setup["id"]).sample(0).form_map.pages[0]
+    assert status == 200 and words["lines"][0][0]["text"] == first.words[first.lines[0].word_ids[0]].text
+    assert get_json(bench.base, f"/api/setups/{setup['id']}/samples/0/pages/9/words")[0] == 404
+    assert get_json(bench.base, f"/api/setups/{setup['id']}/samples/9/pages/0/words")[0] == 404
 
 
 def test_a_line_job_adds_the_fields_of_one_more_line_to_the_setup(bench):
@@ -1629,6 +1643,18 @@ def test_a_page_of_a_document_of_the_run_is_a_png_and_anything_else_is_not_found
         assert status == 404, query
         assert str(r.api.settings.data_dir) not in json.loads(out)["detail"]
     assert http_request(r.base, "GET", f"/api/runs/{run_id}/pages.png?page=0")[0] == 400
+
+
+def test_the_words_of_a_page_of_a_document_of_the_run_are_listed_and_anything_else_is_not_found(reviewed):
+    r, run_id = reviewed
+    [doc] = problems_of(r, run_id, "?status=blank")[1]["documents"]
+    status, words = get_json(r.base, f"/api/runs/{run_id}/words?doc={doc['doc_id']}&page=0")
+    assert status == 200 and words["width"] == 612 and words["source"] == "pdf" and words["lines"]
+    for query in ("?doc=../etc/passwd&page=0", f"?doc={doc['doc_id']}&page=9", "?doc=nope.pdf"):
+        status, out = get_json(r.base, f"/api/runs/{run_id}/words{query}")
+        assert status == 404, query
+        assert str(r.api.settings.data_dir) not in out["detail"]
+    assert get_json(r.base, f"/api/runs/{run_id}/words?page=0")[0] == 400
 
 
 def test_a_run_exports_as_a_workbook_or_a_zip_of_csv_files(reviewed):

@@ -53,6 +53,11 @@
 // list is asked for again. The server lists only documents that still have problems, so More asks from the listed
 // ones not settled since, and the label and legend count from the list as it was first asked for.
 //
+// The page's text can be selected (core/textlayer.js: its words, `runWords`, laid invisibly over the image; the
+// marks never take the pointer, so it is always on). Selecting some shows a small bar under it (#rsel): Copy, and
+// "Use for <field>" while the picked problem's card still has its value box, which puts the words there (on one line)
+// and focuses it, for Use this value or Enter.
+//
 // Export xlsx and Export Parquet download the run's results (`engine.extract.exportRun`); a server without pyarrow
 // answers Parquet with `not_supported`, which hides the button and says so. Send to fill → makes the run's documents a
 // dataset (`toData`: only found values, ruling P13) and opens the fill start screen with it as Your data
@@ -66,6 +71,7 @@
 // back once they can), and opens a command line run's folder on the server's machine by its path (#run-folder).
 
 import { downloadBytes } from "../core/store.js";
+import { TextLayer } from "../core/textlayer.js";
 import { asideLine, decisionText, docLine, fieldBreakdown, fieldTable, levelSwitch, markTag, noValue, optionalWhy, problemLabel, problemName, reprocessNote, runLine, runStats, sendNotice } from "./extract-model.js";
 import { mountZoom } from "./extract-setup.js";
 import { showStages } from "./jobs.js";
@@ -75,7 +81,8 @@ const PAGE = 50;
 /** The page images' resolution, in dots per inch. */
 const DPI = 150;
 /** What the caption says under a page whose problems are outlined (the mockup's words). */
-const CAPTION = "The boxes are where each problem field was read, or looked for";
+const CAPTION = "The boxes are where each problem field was read, or looked for · select text on the page to copy it or use it as the value";
+const WORDS_KEPT = 40; // pages of words the review keeps
 /** What the legend says under the documents set aside. */
 const ASIDE_LEGEND =
   "Not read, so not in the values; the export lists them on their own. To read them, run Extract from PDFs again with just these documents.";
@@ -127,6 +134,13 @@ export function mountReview(app) {
   const calls = engine.extract;
   const pg = $("rpage");
   const chooseMsg = $("choose-msg");
+  const text = new TextLayer(pg);
+  text.setActive(true);
+  const useBar = make("div", { className: "rsel", id: "rsel", hidden: true });
+  useBar.addEventListener("pointerdown", (e) => e.preventDefault()); // a click on it keeps the selection
+  pg.append(useBar);
+  const wordsOf = new Map(); // "run|doc|page" -> the page's words (a promise), WORDS_KEPT at most
+  let wordsToken = 0;
 
   const state = {
     run: null, // the Run on show, as the server last gave it
@@ -648,7 +662,8 @@ export function mountReview(app) {
   function showPage() {
     const d = docOf(state.doc);
     if (d === null) {
-      pg.replaceChildren();
+      pg.querySelector("img")?.remove();
+      text.show(null);
       state.size = null;
       renderPager();
       renderCaption();
@@ -665,7 +680,9 @@ export function mountReview(app) {
       });
       img.addEventListener("error", () => pageFailed(img, d.doc_id));
       img.src = src;
-      pg.replaceChildren(img);
+      pg.querySelector("img")?.remove();
+      pg.prepend(img); // under the words, the marks and the bar
+      loadWords(d.doc_id, state.page);
     }
     drawMarks();
     renderPager();
@@ -679,6 +696,8 @@ export function mountReview(app) {
    */
   async function pageFailed(img, docId) {
     if (!img.isConnected) return;
+    wordsToken += 1; // no words over a page that isn't there (they would cover what is said under it)
+    text.show(null);
     const page = state.page;
     let reason = "";
     try {
@@ -697,7 +716,7 @@ export function mountReview(app) {
     if (!img.isConnected || state.doc !== docId || state.page !== page) return;
     const retry = make("button", { type: "button", className: "btn quiet small", textContent: "Try again" });
     retry.addEventListener("click", () => {
-      pg.replaceChildren(); // a new image of the same page
+      pg.querySelector("img")?.remove(); // a new image of the same page
       showPage();
     });
     $("rcap").replaceChildren(`This page couldn't be shown: ${reason}. `, retry);
@@ -745,6 +764,69 @@ export function mountReview(app) {
     $("rcap").textContent = text;
   }
 
+  /** Lay the words of page `page` of `docId` over it (none while they are read; none if they can't be read). */
+  async function loadWords(docId, page) {
+    const token = ++wordsToken;
+    text.show(null);
+    refreshUse();
+    const key = `${state.run.id}|${docId}|${page}`;
+    if (!wordsOf.has(key)) {
+      wordsOf.set(key, calls.runWords(state.run.id, docId, page));
+      if (wordsOf.size > WORDS_KEPT) wordsOf.delete(wordsOf.keys().next().value);
+    }
+    let words;
+    try {
+      words = await wordsOf.get(key);
+    } catch {
+      wordsOf.delete(key); // asked again next time; the page shows without them
+      return;
+    }
+    if (token === wordsToken) text.show(words);
+  }
+
+  /** Show the bar under the words selected on the page (Copy, and Use for the picked problem), or hide it. */
+  function refreshUse() {
+    const words = text.selectedText();
+    if (words === "") {
+      useBar.hidden = true;
+      return;
+    }
+    const d = docOf(state.doc);
+    const p = d?.problems?.find((x) => x.path === state.problem) ?? null;
+    const input = p === null ? null : cardOf(d.doc_id, p.path)?.querySelector("input:not(:disabled)");
+    const value = words.split(/\s+/).join(" ");
+    const parts = [];
+    if (input) {
+      const use = make("button", { type: "button", className: "btn small dark", textContent: `Use for ${problemName(p)}` });
+      use.title = `Put “${value}” in the value box of ${problemName(p)}`;
+      use.addEventListener("click", () => {
+        input.value = value;
+        globalThis.getSelection()?.removeAllRanges();
+        useBar.hidden = true;
+        input.focus();
+      });
+      parts.push(use);
+    }
+    const copy = make("button", { type: "button", className: "btn small quiet", textContent: "Copy" });
+    copy.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(words);
+        copy.textContent = "Copied";
+      } catch {
+        copy.textContent = "Press ⌘C or Ctrl+C to copy";
+      }
+    });
+    parts.push(copy);
+    useBar.replaceChildren(...parts);
+    const at = globalThis.getSelection().getRangeAt(0).getBoundingClientRect();
+    const box = pg.getBoundingClientRect();
+    useBar.style.left = `${Math.max(0, Math.min(at.left - box.left, box.width - 260))}px`;
+    useBar.style.top = `${at.bottom - box.top + 6}px`;
+    useBar.hidden = false;
+  }
+
+  document.addEventListener("selectionchange", refreshUse);
+
   function turnPage(step) {
     const next = state.page + step;
     if (docOf(state.doc) === null || next < 0 || next >= state.pages) return;
@@ -776,6 +858,7 @@ export function mountReview(app) {
     if (d === null) box.replaceChildren();
     else if (isAside()) box.replaceChildren(asideCard(d));
     else box.replaceChildren(...d.problems.map((p) => problemCard(d, p)));
+    refreshUse();
   }
 
   /** A set-aside document's card: why it was not read, the closest template, and what to do with it. */
@@ -908,6 +991,7 @@ export function mountReview(app) {
     state.turned = false;
     state.reveal = true;
     for (const card of $("problems").children) card.classList.toggle("on", card.dataset.path === path);
+    refreshUse(); // "Use for" names the problem picked
     if (p.page !== null && p.page !== state.page) {
       state.page = p.page;
       showPage();

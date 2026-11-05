@@ -17,6 +17,10 @@
 // in the browser by pdf.js from the very bytes Download saves) with the boxes hidden. Any template
 // change and any new document end it, so the page never shows a fill of an older template.
 //
+// Select text. The page bar's "Select text" turns on the page view's text mode (core/pageview.js): the page's
+// words laid over it, a drag selects them, and the caption says how to copy them (`state.text`). A filled preview
+// has none to select: its values are not among the blank's words.
+//
 // Test hooks (localhost and 127.0.0.1 only): `?poll=<ms>` sets how often AI jobs and a batch's scan
 // are polled, and `window.__workbench` exposes the template on screen, whether the edit queue is idle,
 // whether the PDF on screen is still being read (`reading`),
@@ -35,6 +39,7 @@ import { showLinkPanels } from "../core/panels.js";
 import { schemaPathsOf } from "../core/schema.js";
 import { SchemaList, fieldWarnings } from "../core/schemalist.js";
 import { createSession } from "../core/session.js";
+import { selectTextNote } from "../core/textlayer.js";
 import { POLL_MS, createServerEngine } from "../engines/server/client.js";
 import { mountReview } from "./extract-review.js";
 import { mountSetup } from "./extract-setup.js";
@@ -88,6 +93,8 @@ const state = {
   preview: null,
   /** The server is still reading the PDF on show (start.js): it can be looked at, not edited, until its seed is in. */
   reading: false,
+  /** "Select text" is on (the page view's text mode): false, or the page's words shown ({count, error?}; null while read). */
+  text: false,
 };
 
 let pending = 0; // session calls queued or running
@@ -251,7 +258,9 @@ function showPage(index) {
     height: page.height,
     rotation: page.rotation,
     render: (canvas, scale) => (filled ? filled.render(page.index, canvas, scale) : page.render(canvas, scale)),
+    words: filled ? undefined : page.words, // the filled values are not among the blank's words
   });
+  if (!view.canSelectText) view.setTextMode(false);
   applyScale();
   renderPanels();
   renderPage(true);
@@ -326,6 +335,7 @@ function renderPanels() {
   $("page-no").textContent = open ? `Page ${state.page + 1} / ${doc.pageCount}` : "No form open";
   app.pages?.render(); // finding the blanks on this page (pages.js)
   for (const id of ["add-box", "save", "fill-open", "build-ai"]) $(id).disabled = !open || state.reading;
+  $("select-text").disabled = !open || !view.canSelectText;
   $("undo").disabled = !session.canUndo;
   $("redo").disabled = !session.canRedo;
 
@@ -344,6 +354,10 @@ function renderPanels() {
   }
   if (state.preview !== null) {
     $("caption").textContent = `The filled PDF · ${state.preview.title} · Clear in the fill drawer goes back to the boxes`;
+    return;
+  }
+  if (state.text !== false) {
+    $("caption").textContent = selectTextNote(state.text);
     return;
   }
   if (state.reading) {
@@ -377,6 +391,7 @@ const redo = () => app.track(session.redo());
 $("undo").addEventListener("click", undo);
 $("redo").addEventListener("click", redo);
 $("add-box").addEventListener("click", () => view.setAddMode($("add-box").getAttribute("aria-pressed") !== "true"));
+$("select-text").addEventListener("click", () => view.setTextMode(state.text === false));
 $("prev-page").addEventListener("click", () => showPage(state.page - 1));
 $("next-page").addEventListener("click", () => showPage(state.page + 1));
 $("zoom-in").addEventListener("click", () => zoomBy(1));
@@ -488,6 +503,16 @@ bus.on("op", ({ op }) => {
 bus.on("undo", undo);
 bus.on("redo", redo);
 bus.on("addmode", ({ on }) => $("add-box").setAttribute("aria-pressed", String(on)));
+bus.on("textmode", ({ on }) => {
+  $("select-text").setAttribute("aria-pressed", String(on));
+  state.text = on ? null : false;
+  renderPanels();
+});
+bus.on("words", ({ count, error }) => {
+  if (state.text === false) return;
+  state.text = { count, error };
+  renderPanels();
+});
 bus.on("template", ({ added, reason }) => {
   if (reason === "apply") app.notice(""); // a made edit clears an old message
   if (added !== null) {

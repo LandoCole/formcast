@@ -1,7 +1,8 @@
 // The setup screen (`.view[data-only=setup]`): an extraction template being made from its samples, as the server's
 // Setup has it ({id, batch, template, proof, warnings, samples}), and every change a person makes to it. `open(setup)`
 // shows a Setup (the Extract modal's build hands it on through `app.extract.openSetup`); the toolbar then names the
-// batch, its size and the sample count (#doc-pick goes back to the choice), with Save and Run on all.
+// batch, its size and the sample count (#doc-pick goes back to the choice), the sample PDF on show beside it (‹ › through
+// the samples, its name and kind: #sample-no, #sample-kind), with Save and Run on all.
 //
 // The screen, as the mockup lays it out. The strip (#strip) names where the fields started (the AI's suggestion, the
 // person's lines, shown in a text area, or a saved fill template, with how many of its fields this form lacks), the
@@ -11,7 +12,7 @@
 // ? unsure, ○ not on this form, and * after the name of a required field, an option set's row with a row per answer under
 // it; under it all, "Add a field" (#add) runs an `extract-line` job and selects the first field it adds. A click selects
 // one field (an answer's row, that answer's box); Ctrl or ⌘ and a click (in the list or on a box) adds or takes away one,
-// and Shift and a click a run of rows. The middle column is a page of one sample (‹ › through the samples and their pages, fit width / fit page
+// and Shift and a click a run of rows. The middle column is a page of the sample on show (‹ › through its pages, fit width / fit page
 // and zoom steps) with the readers' marks on it (`engine.extract.marks`, in that sample page's frame): each `box` and
 // each checkbox `option` drawn as the editor draws a linked box, which moves and resizes as there; where a value was
 // `read`, dotted, and a `label` a reader looks beside, underlined (these two only show, they do not move). The
@@ -33,7 +34,9 @@
 // naming the sample shown (`sample`), since the marks are in that sample's frame: the server moves it into the
 // layout's place (ruling P3). A widget read has no place of its own, so a fillable sample shows the field's box mark
 // at the widget (ruling P4). The marks are redrawn only when no press is held on the page, so a box being dragged
-// is never pulled from under the pointer.
+// is never pulled from under the pointer. "Select text" (#setup-select-text) turns on the page view's text mode: the
+// sample page's words over it to select and copy (`sampleWords`, or `pageWords` while the sample is read), the caption
+// saying how; meanwhile no box moves.
 //
 // Save asks for a name (#setup-save-box, as the fill template's save) and stores the template with its sample PDFs
 // (`engine.extract.save`); `promptSave()` resolves the name saved (null when the prompt closed unsaved), so Run on
@@ -59,6 +62,7 @@
 import { createBus } from "../core/bus.js";
 import { makeView, viewSize } from "../core/geometry.js";
 import { PageView } from "../core/pageview.js";
+import { selectTextNote } from "../core/textlayer.js";
 import { DETECT_SUM } from "./extract.js";
 import { categoryOf, REASON_KEY, checksOf, fieldSchema, fieldState, groupFields, linkBlock, optionsOf, outcomeLine, rowProof, unusedName } from "./extract-model.js";
 
@@ -226,6 +230,7 @@ export function mountSetup(app) {
     /** The sample being read while its template is built, or null: {batch, name, samples: [{index, name, pages}]} */
     pending: null,
     before: null, // the setup screen as it was when a build started (its setup and save state), put back on cancel
+    text: false, // "Select text" is on: false, or the page's words shown ({count, error?}; null while they are read)
   };
   let queue = Promise.resolve(); // the changes, one after another
   let pending = 0; // changes and mark loads under way
@@ -950,6 +955,10 @@ export function mountSetup(app) {
   }
 
   function renderCaption() {
+    if (state.text !== false) {
+      $("cap").textContent = selectTextNote(state.text);
+      return;
+    }
     const { ready, total } = state.setup.proof;
     $("cap").textContent = `${ready} of ${total} fields ready · click a box or a field to see how it is read`;
   }
@@ -1050,6 +1059,7 @@ export function mountSetup(app) {
       height,
       rotation: 0,
       render: (_canvas, scale) => (s !== null ? calls.samplePageUrl(s.id, sample, page, dpi(scale)) : calls.pageUrl(p.batch, file, page, dpi(scale))),
+      words: () => (s !== null ? calls.sampleWords(s.id, sample, page) : calls.pageWords(p.batch, file, page)),
     });
     applyZoom();
     drawMarks();
@@ -1151,6 +1161,18 @@ export function mountSetup(app) {
   }
   // the page view draws its boxes again on its own (a zoom, a resize): mark them again each time
   new MutationObserver(decorate).observe(pvEl, { childList: true, subtree: true });
+
+  $("setup-select-text").addEventListener("click", () => view.setTextMode(state.text === false));
+  bus.on("textmode", ({ on }) => {
+    $("setup-select-text").setAttribute("aria-pressed", String(on));
+    state.text = on ? null : false;
+    if (state.setup !== null) renderCaption();
+  });
+  bus.on("words", ({ count, error }) => {
+    if (state.text === false) return;
+    state.text = { count, error };
+    if (state.setup !== null) renderCaption();
+  });
 
   bus.on("select", ({ id }) => {
     if (addingBox) {

@@ -13,6 +13,7 @@ Batches (``api.batches``, ``demo/server/extraction.py``):
     GET  /api/batches/{b}/files?offset=&limit=                      -> {total, files: [{index, name, size, group}]}
     POST /api/batches/{b}/sample     {n, how: spread|first|pick, picked?: [index]} -> {samples: [{index, name, group}]}
     GET  /api/batches/{b}/files/{i}/pages/{p}.png?dpi=              -> image/png
+    GET  /api/batches/{b}/files/{i}/pages/{p}/words                 -> the page's words (``documents.page_words``)
 
 ``{folder}`` opens a folder on the server's machine in place: 403 ``not_allowed`` when ``settings.folder_scan`` is
 off, 400 ``bad_folder`` when it is not a full path to a folder holding a PDF. An upload the batch refuses (a zip too
@@ -33,6 +34,7 @@ Setups (``api.setups``) and saved extraction templates (``api.extractions``):
     POST /api/setups/{s}/learn       {path}                         -> Setup
     GET  /api/setups/{s}/samples/{i}/marks                          -> {marks: [Mark]}
     GET  /api/setups/{s}/samples/{i}/pages/{p}.png?dpi=             -> image/png
+    GET  /api/setups/{s}/samples/{i}/pages/{p}/words                -> the page's words, from the sample's form map
     GET  /api/extractions                                           -> {extractions: [{name, template_id, fields, samples, updated}]}
     GET  /api/extractions/{name}                                    -> {template}
     POST /api/extractions/{name}/fill-template {doc}                -> {template, warnings}  (a blank copy's fill template)
@@ -76,6 +78,7 @@ Runs (``api.runs``):
     GET  /api/runs/{r}/set-aside?offset=&limit=                     -> {total, documents: [{doc_id, name, reason, closest_template, closest_score}]}
     POST /api/runs/{r}/decisions     {doc_id, path, decision, value?} -> Run
     GET  /api/runs/{r}/pages.png?doc=&page=&dpi=                    -> image/png (a page of a document of the run)
+    GET  /api/runs/{r}/words?doc=&page=                             -> the page's words (``documents.page_words``)
     GET  /api/runs/{r}/places?doc=                                  -> {places: {path: {page, rect}}} (see below)
     GET  /api/runs/{r}/export?format=xlsx|parquet|csv               -> the .xlsx, or a .zip of the Parquet or CSV files
     POST /api/runs/{r}/to-data                                      -> {dataset: Dataset.summary(), truncated, with_problems}
@@ -161,7 +164,7 @@ from typing import Any
 import pydantic
 
 from demo.server.api import AI_NOT_CONFIGURED, DEFAULT_DPI, Api, ApiError, Request, Response, _object, _uploads, missing
-from demo.server.documents import MAX_DPI, MIN_DPI, PYMUPDF_LOCK, page_png
+from demo.server.documents import MAX_DPI, MIN_DPI, PYMUPDF_LOCK, page_png, page_words
 from demo.server.extraction import (
     MIN_SAMPLE, PAGE_DEFAULT, PAGE_LIMIT, Batch, Run, RunBusy, RunNotStarted, ScanNotDone, Setup, SetupBusy,
 )
@@ -180,6 +183,7 @@ from formcast.extract.samples import SamplePdf, ScanProgress, read_samples
 from formcast.extract.setup import FIELDS_LABELS, MAX_SAMPLES, STAGES, SetupSpec, add_line, build_setup
 from formcast.extract.tofill import fill_template_for
 from formcast.pagemap.extract import open_pdf
+from formcast.pagemap.model import PageMap
 
 BATCH = r"/api/batches/(?P<batch>[0-9a-f]{32})"
 SETUP = r"/api/setups/(?P<setup>[0-9a-f]{32})"
@@ -207,12 +211,14 @@ def add_extract_routes(api: Api) -> None:
     route("GET", BATCH + r"/files", list_batch_files)
     route("POST", BATCH + r"/sample", pick_sample)
     route("GET", BATCH + r"/files/(?P<i>\d{1,7})/pages/(?P<n>\d{1,6})\.png", batch_page_image)
+    route("GET", BATCH + r"/files/(?P<i>\d{1,7})/pages/(?P<n>\d{1,6})/words", batch_page_words)
     route("POST", r"/api/setups", reopen_setup)
     route("GET", SETUP, get_setup)
     route("POST", SETUP + r"/edit", edit_setup)
     route("POST", SETUP + r"/learn", learn_wording)
     route("GET", SETUP + r"/samples/(?P<i>\d{1,3})/marks", sample_marks_of)
     route("GET", SETUP + r"/samples/(?P<i>\d{1,3})/pages/(?P<n>\d{1,6})\.png", sample_page_image)
+    route("GET", SETUP + r"/samples/(?P<i>\d{1,3})/pages/(?P<n>\d{1,6})/words", sample_page_words)
     route("GET", r"/api/extractions", list_extractions)
     route("GET", EXTRACTION, get_extraction)
     route("PUT", EXTRACTION, save_extraction)
@@ -225,6 +231,7 @@ def add_extract_routes(api: Api) -> None:
     route("GET", RUN + r"/set-aside", run_set_aside)
     route("POST", RUN + r"/decisions", decide)
     route("GET", RUN + r"/pages\.png", run_page_image)
+    route("GET", RUN + r"/words", run_page_words)
     route("GET", RUN + r"/places", run_places)
     route("GET", RUN + r"/export", export_run)
     route("POST", RUN + r"/to-data", run_to_data)
@@ -364,6 +371,29 @@ def batch_page_image(api: Api, req: Request) -> Response:
     except OSError:
         raise ApiError(404, "not_found", f"{f.name} is no longer on the server") from None
     return _png(data, f.name, int(req.match["n"]), dpi)
+
+
+def batch_page_words(api: Api, req: Request) -> dict:
+    """``GET .../files/{i}/pages/{p}/words``: the words of a page of one of the batch's files, read from the file."""
+    batch = _batch(api, req)
+    with missing("file"):
+        f = batch.file(int(req.match["i"]))
+    try:
+        data = f.path.read_bytes()
+    except OSError:
+        raise ApiError(404, "not_found", f"{f.name} is no longer on the server") from None
+    return _words(data, f.name, int(req.match["n"]))
+
+
+def _words(data: bytes, name: str, n: int, page: PageMap | None = None) -> dict:
+    """The words of page ``n`` of the PDF ``data`` (called ``name``): 404 for no such page, 422 for a PDF MuPDF can't
+    open. ``page`` is the page's form map, when there is one."""
+    try:
+        return page_words(data, n, page)
+    except IndexError:
+        raise ApiError(404, "not_found", f"{name} has no page {n + 1}") from None
+    except Exception:  # MuPDF raises several types for a file it cannot open
+        raise ApiError(422, "bad_pdf", f"{name} can't be read: it is not a PDF that can be read.") from None
 
 
 def _dpi(req: Request) -> int:
@@ -660,6 +690,16 @@ def sample_page_image(api: Api, req: Request) -> Response:
     return _png(doc.pdf, doc.file, int(req.match["n"]), dpi)
 
 
+def sample_page_words(api: Api, req: Request) -> dict:
+    """``GET .../samples/{i}/pages/{p}/words``: the words of a page of one of the setup's samples, from its form map."""
+    setup = _setup(api, req)
+    with missing("sample"):
+        doc = setup.sample(int(req.match["i"]))
+    n = int(req.match["n"])
+    pages = doc.form_map.pages
+    return _words(doc.pdf, doc.file, n, pages[n] if n < len(pages) else None)
+
+
 # ------------------------------------------------------------------ saved extraction templates
 
 
@@ -948,6 +988,25 @@ def run_page_image(api: Api, req: Request) -> Response:
     except OSError:
         raise ApiError(404, "not_found", f"{name} is no longer on the server") from None
     return _png(data, name, page, dpi)
+
+
+def run_page_words(api: Api, req: Request) -> dict:
+    """``GET .../words?doc=<doc_id>&page=0``: the words of a page of one of the run's documents, read from its file."""
+    run = _run(api, req)
+    doc_id = req.query.get("doc")
+    if not doc_id:
+        raise ApiError(400, "bad_request", "Send doc as the doc_id of a document of the run.")
+    page = _whole(req.query, "page", 0, 0, None)
+    try:
+        doc = run.document(doc_id)
+    except KeyError:
+        raise ApiError(404, "not_found", "no such document in this run") from None
+    name = run.name_of(doc_id)
+    try:
+        data = Path(doc.file).read_bytes()
+    except OSError:
+        raise ApiError(404, "not_found", f"{name} is no longer on the server") from None
+    return _words(data, name, page)
 
 
 def run_places(api: Api, req: Request) -> dict:

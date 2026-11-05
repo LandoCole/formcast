@@ -14,6 +14,8 @@ from pathlib import Path
 import pymupdf
 import pytest
 
+from demo.server.documents import page_words
+
 ROOT = Path(__file__).resolve().parents[2]
 SEED = json.loads((ROOT / "tests" / "web" / "fixtures" / "fw9_seed.json").read_text(encoding="utf-8"))
 AGENT_FW9 = json.loads((ROOT / "demo" / "data" / "templates" / "fw9.json").read_text(encoding="utf-8"))  # the stored agent template
@@ -89,6 +91,7 @@ def pv(server, browser, page_png):
             self.page = page
             self.template = make_template()
             self.errors = errors
+            self.url = url
 
         def setup(self, **overrides):
             opts = {
@@ -394,7 +397,7 @@ def test_destroy_removes_listeners_observer_and_its_elements(pv):
           };
         }"""
     )
-    assert out == {"disconnected": 1, "events": 0, "children": 0, "cls": False}
+    assert out == {"disconnected": 2, "events": 0, "children": 0, "cls": False}  # the view's observer and its text layer's
 
 
 def drop(box, path):
@@ -668,3 +671,102 @@ def test_canvas_render_callback_gets_the_scale(pv, page_png):
     size = pv.page.locator("canvas.fc-pv-media").bounding_box()
     assert size["width"] == pytest.approx(width * 2, abs=1)
     assert pv.page.evaluate("window.renderCalls[0]") >= 2  # css scale x device pixel ratio
+
+
+# ------------------------------------------------------------------ select text
+
+
+@pytest.fixture(scope="module")
+def fw9_words() -> dict:
+    """fw9 page 0's words, as the server lists them."""
+    return page_words((ROOT / "forms" / "dev" / "fw9.pdf").read_bytes(), 0)
+
+
+def text_on(pv, words, **overrides):
+    """Set the page up with ``words`` and turn Select text on with its button; waits for the words."""
+    page = {"index": 0, "width": words["width"], "height": words["height"], "imageUrl": pv.url, "words": words}
+    page.update(overrides)
+    pv.setup(page=page)
+    pv.page.locator(".fc-pv-text").click()
+    pv.page.wait_for_function("window.events.some(e => e.type === 'words')")
+
+
+def test_select_text_lays_the_words_over_the_page_where_they_sit(pv, fw9_words):
+    text_on(pv, fw9_words)
+    assert [e["detail"] for e in pv.events("textmode")] == [{"on": True}]
+    count = sum(len(line) for line in fw9_words["lines"])
+    assert pv.events("words")[0]["detail"] == {"page": 0, "count": count, "source": "pdf", "error": None}
+    assert pv.page.locator(".fc-text > span").count() == count
+    # a word's span covers its rect, as a box at that rect does (both placed in the same frame)
+    word = fw9_words["lines"][3][0]
+    span = pv.page.locator(".fc-text > span").nth(sum(len(line) for line in fw9_words["lines"][:3])).bounding_box()
+    surface = pv.page.locator(".fc-pv-page").bounding_box()
+    x0, y0, x1, y1 = word["rect"]
+    assert span["x"] - surface["x"] == pytest.approx(x0 * SCALE, abs=1.5)
+    assert span["y"] - surface["y"] == pytest.approx(y0 * SCALE, abs=1.5)
+    assert span["width"] == pytest.approx((x1 - x0) * SCALE, abs=1.5)
+
+
+def test_a_drag_in_select_text_selects_words_and_moves_no_box(pv, fw9_words):
+    text_on(pv, fw9_words)
+    box = pv.box("w0_0").bounding_box()
+    pv.page.mouse.move(box["x"] + 2, box["y"] + box["height"] / 2)
+    pv.page.mouse.down()
+    pv.page.mouse.move(box["x"] + 60, box["y"] + box["height"] / 2, steps=4)
+    pv.page.mouse.up()
+    assert pv.ops() == [] and pv.events("select") == []
+    # a selection over two lines reads as two lines, its words apart by spaces
+    first, second = fw9_words["lines"][0], fw9_words["lines"][1]
+    pv.page.evaluate(
+        """n => {
+          const spans = document.querySelectorAll(".fc-text > span");
+          const range = document.createRange();
+          range.setStart(spans[0].firstChild, 0);
+          range.setEnd(spans[n].firstChild, spans[n].textContent.length);
+          getSelection().removeAllRanges();
+          getSelection().addRange(range);
+        }""",
+        len(first) + len(second) - 1,
+    )
+    expected = " ".join(w["text"] for w in first) + "\n" + " ".join(w["text"] for w in second)
+    assert pv.page.evaluate("window.view.selectedText()") == expected
+    copied = pv.page.evaluate(
+        """() => {
+          let out = null;
+          addEventListener("copy", (e) => { out = e.clipboardData.getData("text/plain"); }, { once: true });
+          document.execCommand("copy");
+          return out;
+        }"""
+    )
+    assert copied == expected
+
+
+def test_escape_or_add_box_ends_select_text_and_the_boxes_move_again(pv, fw9_words):
+    text_on(pv, fw9_words)
+    assert "is-active" in pv.page.locator(".fc-text").get_attribute("class")
+    pv.page.keyboard.press("Escape")
+    assert [e["detail"]["on"] for e in pv.events("textmode")] == [True, False]
+    assert "is-active" not in pv.page.locator(".fc-text").get_attribute("class")
+    assert pv.page.locator(".fc-text > span").count() == 0
+    pv.page.locator(".fc-pv-text").click()
+    pv.page.locator(".fc-pv-add").click()
+    assert [e["detail"]["on"] for e in pv.events("textmode")] == [True, False, True, False]
+    pv.drag(pv.box("w0_0"), 20, 0).up()
+    assert [op["op"] for op in pv.ops()] == ["move"]
+
+
+def test_select_text_is_off_on_a_page_with_no_words(pv):
+    assert pv.page.locator(".fc-pv-text").is_disabled()  # the harness's page has no words
+
+
+def test_the_words_of_a_turned_page_turn_with_it(pv):
+    words = {"width": 612, "height": 792, "rotation": 90, "source": "pdf", "lines": [[{"text": "Turned", "rect": [100, 50, 200, 70]}]]}
+    text_on(pv, words, rotation=90)
+    pv.page.evaluate(
+        "t => window.view.setTemplate(t)",
+        {**pv.template, "fields": [{**field(pv.template, "w0_0"), "page": 0, "rect": [100, 50, 200, 70]}]},
+    )
+    span = pv.page.locator(".fc-text > span").bounding_box()
+    box = pv.box("w0_0").bounding_box()
+    for key in ("x", "y", "width", "height"):
+        assert span[key] == pytest.approx(box[key], abs=3), key

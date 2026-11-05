@@ -25,6 +25,12 @@
   </div>
   <div class="tb-left" data-for="extract">
     <button type="button" class="btn sel" id="doc-pick" title="Fill or extract other PDFs">No extraction open</button>
+    <div class="pager tb-samples" data-only="setup" hidden role="group" aria-label="Sample PDF">
+      <button type="button" class="ib" id="prev-s" aria-label="Previous sample">‹</button>
+      <span id="sample-no">Sample 1 / 1</span>
+      <button type="button" class="ib" id="next-s" aria-label="Next sample">›</button>
+      <span class="page-state" id="sample-kind"></span>
+    </div>
     <button type="button" class="btn quiet" id="back-setup" data-only="review" hidden title="Change the setup this run was read with">← Go back to setup</button>
   </div>
   <div class="tb-right" data-for="fill">
@@ -106,6 +112,7 @@
         <span class="page-state" id="page-state"></span>
       </div>
       <div class="zoom">
+        <button type="button" class="btn quiet small" id="select-text" aria-pressed="false" disabled title="Select and copy the page's text (Esc to stop)">Select text</button>
         <button type="button" class="ib" id="zoom-out" aria-label="Zoom out">−</button>
         <button type="button" class="zoom-level" id="zoom-level" title="Fit the page to the column">Fit</button>
         <button type="button" class="ib" id="zoom-in" aria-label="Zoom in">+</button>
@@ -181,13 +188,8 @@
 
       <section class="col col-page" aria-label="Sample page">
         <div class="pagebar">
-          <div class="pager">
-            <button type="button" class="ib" id="prev-s" aria-label="Previous sample">‹</button>
-            <span id="sample-no">Sample 1 / 1</span>
-            <button type="button" class="ib" id="next-s" aria-label="Next sample">›</button>
-            <span class="page-state" id="sample-kind"></span>
-          </div>
           <div class="zoom" id="setup-zoom">
+            <button type="button" class="btn quiet small" id="setup-select-text" aria-pressed="false" title="Select and copy the page's text (Esc to stop)">Select text</button>
             <button type="button" class="ib" id="prev-p" aria-label="Previous page">‹</button>
             <span class="page-of" id="page-of">Page 1 / 1</span>
             <button type="button" class="ib" id="next-p" aria-label="Next page">›</button>

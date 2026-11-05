@@ -3,6 +3,11 @@
 // arrow keys, Delete, drop a schema path on a box to link it, and an optional area select (a drag
 // on empty space reports the area; a click there still clears the selection, as does Escape).
 //
+// Select text. The page is a picture, so its words are laid over it by a text layer (core/textlayer.js), loaded from
+// the page's `words()` when "Select text" mode is on (`setTextMode`, emits `textmode`, then `words` once they are
+// shown). In that mode the boxes let the pointer through: a drag selects words, and nothing moves or is drawn. Turning
+// on "Add box" turns it off, and Escape too.
+//
 // Everything on screen is placed through geometry.js (`toScreen`, `toPage`), the only place that
 // converts between PDF points and pixels, so rotated pages work the same as upright ones. The
 // view never edits a template: it emits ready-to-apply ops on the bus (once per gesture, on
@@ -10,6 +15,7 @@
 // `setTemplate` again. `destroy()` removes its listeners, its observer and what it drew.
 
 import { makeView, ptToPx, toPage, toScreen, viewSize } from "./geometry.js";
+import { TextLayer } from "./textlayer.js";
 
 /** The `dataTransfer` type a schema list sets when a path is dragged. */
 export const PATH_MIME = "application/x-formcast-path";
@@ -40,6 +46,8 @@ const SMALL_BOX_PX = 48;
  * @property {string | ((canvas: HTMLCanvasElement, scale: number) => Promise<void | string> | string)} render
  *   Draws the page into `canvas` at `scale` pixels per point (a promise), or returns an image
  *   URL (a string, or a promise of one). A plain URL string is also accepted.
+ * @property {() => Promise<import("./textlayer.js").PageWords>} [words] the page's words where they sit, for
+ *   "Select text"; a page without it has no text to select
  */
 
 function clamp(v, lo, hi) {
@@ -64,6 +72,11 @@ export class PageView {
   #surface;
   #layer;
   #addBtn = null;
+  #textBtn = null;
+  /** @type {TextLayer} */
+  #text;
+  #textMode = false;
+  #wordsToken = 0;
   #media = null;
   #mediaIsImage = false;
   /** @type {PageSpec | null} */
@@ -108,8 +121,15 @@ export class PageView {
       add.textContent = "Add box";
       add.setAttribute("aria-pressed", "false");
       add.addEventListener("click", () => this.setAddMode(!this.#addMode), { signal });
-      bar.append(add);
+      const text = document.createElement("button");
+      text.type = "button";
+      text.className = "fc-pv-btn fc-pv-text";
+      text.textContent = "Select text";
+      text.setAttribute("aria-pressed", "false");
+      text.addEventListener("click", () => this.setTextMode(!this.#textMode), { signal });
+      bar.append(add, text);
       this.#addBtn = add;
+      this.#textBtn = text;
       el.append(bar);
     }
 
@@ -120,6 +140,7 @@ export class PageView {
     this.#layer = document.createElement("div");
     this.#layer.className = "fc-pv-layer";
     this.#surface.append(this.#layer);
+    this.#text = new TextLayer(this.#surface, { before: this.#layer });
     this.#stage.append(this.#surface);
     el.append(this.#stage);
 
@@ -137,6 +158,7 @@ export class PageView {
       (e) => {
         if (e.key === "Escape") {
           if (this.#addMode) this.setAddMode(false);
+          if (this.#textMode) this.setTextMode(false);
           this.#clearMarquee();
           this.#userSelect(null);
         }
@@ -161,6 +183,13 @@ export class PageView {
     this.#clearMarquee();
     this.#mediaIsImage = false;
     this.#layout(true);
+    this.#textBtn?.toggleAttribute("disabled", !this.canSelectText);
+    this.#loadWords();
+  }
+
+  /** True when the page shown has words to select (its spec has `words`). */
+  get canSelectText() {
+    return typeof this.#page?.words === "function";
   }
 
   /**
@@ -205,10 +234,34 @@ export class PageView {
     if (this.#readOnly) return;
     on = Boolean(on);
     if (on === this.#addMode) return;
+    if (on) this.setTextMode(false);
     this.#addMode = on;
     this.#addBtn?.setAttribute("aria-pressed", String(on));
     this.#syncLayerMode();
     this.#bus.emit("addmode", { on });
+  }
+
+  /**
+   * Turn "Select text" mode on or off. Emits `textmode` when it changes. While it is on, the page's words are shown
+   * over it and a drag selects them; the boxes cannot be moved, resized or drawn.
+   * @param {boolean} on
+   */
+  setTextMode(on) {
+    on = Boolean(on);
+    if (on === this.#textMode) return;
+    if (on) this.setAddMode(false);
+    this.#textMode = on;
+    this.#textBtn?.setAttribute("aria-pressed", String(on));
+    this.#layer.classList.toggle("is-text", on);
+    this.#el.classList.toggle("is-text", on);
+    this.#text.setActive(on);
+    this.#loadWords();
+    this.#bus.emit("textmode", { on });
+  }
+
+  /** The words selected on the page, as they read (lines apart by line breaks); "" for none. */
+  selectedText() {
+    return this.#text.selectedText();
   }
 
   /** Remove the area-select outline. */
@@ -231,6 +284,8 @@ export class PageView {
     this.#page = null;
     this.#view = null;
     this.#template = null;
+    this.#wordsToken += 1;
+    this.#text.destroy();
     this.#addBtn?.closest(".fc-pv-bar")?.remove();
     this.#stage.remove();
     this.#el.classList.remove("fc-pageview");
@@ -292,7 +347,29 @@ export class PageView {
     media.setAttribute("aria-hidden", "true");
     this.#media?.remove();
     this.#media = media;
-    this.#surface.insertBefore(media, this.#layer);
+    this.#surface.prepend(media); // under the words and the boxes
+  }
+
+  /** Show the page's words while "Select text" is on (none otherwise); emits `words` with how many, or the error. */
+  async #loadWords() {
+    const page = this.#page;
+    const token = ++this.#wordsToken;
+    if (!this.#textMode || page === null || typeof page.words !== "function") {
+      this.#text.show(null);
+      return;
+    }
+    let words;
+    try {
+      words = await page.words();
+    } catch (error) {
+      if (token !== this.#wordsToken) return;
+      this.#text.show(null);
+      this.#bus.emit("words", { page: page.index, count: 0, error });
+      return;
+    }
+    if (token !== this.#wordsToken) return;
+    this.#text.show(words);
+    this.#bus.emit("words", { page: page.index, count: this.#text.count, source: words.source });
   }
 
   // ------------------------------------------------------------------ boxes

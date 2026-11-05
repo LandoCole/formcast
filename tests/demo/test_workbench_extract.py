@@ -1730,7 +1730,7 @@ def test_a_problem_picked_goes_to_its_place_on_the_page_with_what_is_wrong_there
     mark = b.page.locator('#rpage .rmark.is-picked.is-missing[data-path="investor.tax_id"]')
     expect(mark).to_be_visible()  # nothing was read: the server says where it should be
     expect(tag).to_have_text("Should be here")
-    expect(b.page.locator("#rcap")).to_have_text("The boxes are where each problem field was read, or looked for")
+    expect(b.page.locator("#rcap")).to_have_text("The boxes are where each problem field was read, or looked for · select text on the page to copy it or use it as the value")
 
     b.page.click("#rnext-p")  # turned away; picking it again goes back to it
     expect(b.page.locator("#rpage-of")).to_have_text("Page 2")
@@ -1944,7 +1944,7 @@ def test_a_page_image_that_fails_past_the_first_page_stops_the_pages_only_when_i
     b.page.click("#rcap button")  # again: the page is there now (the form has two)
     expect(b.page.locator("#rpage-of")).to_have_text("Page 2")
     page_loaded(b)
-    expect(b.page.locator("#rcap")).to_have_text("The boxes are where each problem field was read, or looked for")
+    expect(b.page.locator("#rcap")).to_have_text("The boxes are where each problem field was read, or looked for · select text on the page to copy it or use it as the value")
     b.page.click("#rnext-p")  # page 3 is not there (404): the document ends at page 2
     expect(b.page.locator("#rpage-of")).to_have_text("Page 2")
     expect(b.page.locator("#rnext-p")).to_be_disabled()
@@ -1992,7 +1992,7 @@ def test_choosing_a_document_shows_its_page_with_the_problems_place_outlined_and
     x0, y0, x1, _ = problem["rect"]
     assert abs(box["x"] - page["x"] - x0 * scale) < 3 and abs(box["y"] - page["y"] - y0 * scale) < 3
     assert abs(box["width"] - (x1 - x0) * scale) < 3
-    expect(b.page.locator("#rcap")).to_have_text("The boxes are where each problem field was read, or looked for")
+    expect(b.page.locator("#rcap")).to_have_text("The boxes are where each problem field was read, or looked for · select text on the page to copy it or use it as the value")
     c = card(b, "investor.tax_id")
     expect(c).to_contain_text("Taxpayer ID · Fails a check")
     expect(c).to_contain_text("Read: 8422-19037")
@@ -2006,6 +2006,36 @@ def test_choosing_a_document_shows_its_page_with_the_problems_place_outlined_and
     expect(b.page.locator("#review-zoom [data-fit='page']")).to_have_attribute("aria-pressed", "true")
     b.page.click("#review-zoom [data-step='1']")
     expect(b.page.locator("#review-zoom [data-fit='page']")).to_have_attribute("aria-pressed", "false")
+
+
+def test_words_selected_on_the_page_are_used_as_the_picked_problems_value(start_demo_server, bench, run_files):
+    base = extract_server(start_demo_server)
+    _, run_id = saved_run(base, run_files)
+    b = bench(base, fill=False)
+    show_review(b, run_id)
+    listed(b, "no_tin.pdf").click()
+    page_loaded(b)
+    doc = problem_doc(base, run_id, "no_tin.pdf")
+    words = get_json(base, f"/api/runs/{run_id}/words?doc={doc['doc_id']}&page=0")[1]
+    spans = b.page.locator("#rpage .fc-text > span")
+    expect(spans).to_have_count(sum(len(line) for line in words["lines"]))
+    line = words["lines"][0]
+    first, last = spans.first.bounding_box(), spans.nth(len(line) - 1).bounding_box()
+    y = first["y"] + first["height"] / 2
+    b.page.mouse.move(first["x"] + 1, y)
+    b.page.mouse.down()
+    b.page.mouse.move(last["x"] + last["width"] - 1, y, steps=5)
+    page = b.page.locator("#rpage").bounding_box()
+    b.page.mouse.move(page["x"] + page["width"] - 4, y + 2, steps=5)  # on past the words, over empty space
+    b.page.mouse.up()
+    bar = b.page.locator("#rsel")
+    expect(bar).to_be_visible()
+    expect(bar.locator("button")).to_have_text(["Use for Taxpayer ID", "Copy"])
+    bar.get_by_role("button", name="Use for Taxpayer ID").click()
+    c = card(b, "investor.tax_id")
+    expect(c.locator("input")).to_have_value(" ".join(w["text"] for w in line))
+    expect(c.locator("input")).to_be_focused()
+    expect(bar).to_be_hidden()
 
 
 def test_each_decision_settles_its_card_and_updates_the_stats_and_the_list(start_demo_server, bench, run_files):

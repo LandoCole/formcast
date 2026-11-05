@@ -312,6 +312,55 @@ def test_page_image_errors(demo_server):
     assert json.loads(out)["error"] == "not_found"
 
 
+def _labelled_form() -> bytes:
+    """A page with a label, a filled form field under it, and a second line of text."""
+    doc = pymupdf.open()
+    page = doc.new_page(width=612, height=792)
+    page.insert_text((72, 100), "Subscriber name", fontsize=10)
+    w = pymupdf.Widget()
+    w.field_name, w.field_type, w.field_value, w.rect = "name", pymupdf.PDF_WIDGET_TYPE_TEXT, "Ann Lee", pymupdf.Rect(72, 120, 300, 136)
+    page.add_widget(w)
+    page.insert_text((72, 200), "Date of birth", fontsize=10)
+    return doc.tobytes()
+
+
+def test_page_words_lists_a_pages_words_line_by_line_where_they_sit_its_filled_form_fields_too():
+    words = documents_mod.page_words(_labelled_form(), 0)
+    assert (words["page"], words["width"], words["height"], words["rotation"], words["source"]) == (0, 612, 792, 0, "pdf")
+    assert [[w["text"] for w in line] for line in words["lines"]] == [["Subscriber", "name"], ["Ann", "Lee"], ["Date", "of", "birth"]]
+    x0, y0, x1, y1 = words["lines"][0][0]["rect"]
+    assert 71 < x0 < 73 and 88 < y0 < y1 < 103  # unrotated page points, as the form map's
+    with pytest.raises(IndexError):
+        documents_mod.page_words(_labelled_form(), 1)
+    with pytest.raises(IndexError):
+        documents_mod.page_words(_labelled_form(), -1)
+
+
+def test_a_page_with_no_text_has_no_words():
+    doc = pymupdf.open()
+    doc.new_page(width=200, height=300)
+    assert documents_mod.page_words(doc.tobytes(), 0) | {"width": 0} == {"page": 0, "width": 0, "height": 300, "rotation": 0, "source": "none", "lines": []}
+
+
+def test_a_docs_words_come_from_its_form_map_once_it_is_built():
+    doc = documents_mod.Doc("form.pdf", _labelled_form(), detect="manual")
+    assert doc.page_words(0)["lines"][0][0]["text"] == "Subscriber"  # before the form map: read from the page
+    form_map = doc.form_map()
+    form_map.pages[0].words[0].text = "Investor"  # what only the form map says
+    assert doc.page_words(0)["lines"][0][0]["text"] == "Investor"
+    with pytest.raises(IndexError):
+        doc.page_words(1)
+
+
+def test_page_words_route(demo_server):
+    _, doc = upload(demo_server, "form.pdf", _labelled_form())
+    status, _, out = http_request(demo_server, "GET", f"/api/documents/{doc['id']}/pages/0/words")
+    assert status == 200 and [w["text"] for w in json.loads(out)["lines"][1]] == ["Ann", "Lee"]
+    status, _, out = http_request(demo_server, "GET", f"/api/documents/{doc['id']}/pages/1/words")
+    assert (status, json.loads(out)["error"]) == (404, "not_found")
+    assert http_request(demo_server, "GET", f"/api/documents/{'0' * 32}/pages/0/words")[0] == 404
+
+
 def test_adding_a_document_starts_one_form_map_build_in_the_background(demo_server, monkeypatch):
     builder = GatedBuilder()
     monkeypatch.setattr(documents_mod, "build_form_map", builder)

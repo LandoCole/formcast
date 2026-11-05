@@ -13,6 +13,10 @@
 // view `rotation: 0` with the image's own (turned) size would put every box in the wrong place on
 // a rotated page. An older server that sends no `rotations` is read as all zeros.
 //
+// Page words. A ServerDoc page's `words()` resolves the page's words where they sit (`GET .../pages/{n}/words`:
+// `{width, height, rotation, source, lines: [[{text, rect}]]}`, rects in unrotated page points), for the page view's
+// text layer (core/textlayer.js); extraction has `pageWords`, `sampleWords` and `runWords` for its own pages.
+//
 // Errors. Every failure is an `EngineError(code, detail)` whose `message` is the plain detail:
 //   the server's own {error, detail} keeps its code (not_found, bad_input, busy, ai_not_configured,
 //   fingerprint_mismatch, cannot_rebind, ...); `timeout`, `network` and `server` are made here.
@@ -232,6 +236,7 @@ export async function createServerEngine({
       widgets: [], // the server keeps the form map; edits are checked there
       imageUrl: (dpi) => imageUrl(index, dpi),
       render: async (_canvas, scale) => imageUrl(index, Math.min(MAX_DPI, Math.max(MIN_DPI, scale * 72))),
+      words: () => call("GET", `/api/documents/${id}/pages/${index}/words`),
     }));
     return {
       id, name: summary.name, pageCount: summary.page_count, kinds: summary.kinds ?? [], pages,
@@ -364,6 +369,8 @@ export async function createServerEngine({
       },
       /** The URL of page `page` (from 0) of the batch's file `index`, as a PNG. */
       pageUrl: (batchId, index, page, dpi = DEFAULT_DPI) => `${root}${batchPath(batchId)}/files/${index}/pages/${page}.png?dpi=${Math.round(dpi)}`,
+      /** The words of page `page` of the batch's file `index`, where they sit (see "Page words" at the top). */
+      pageWords: (batchId, index, page) => call("GET", `${batchPath(batchId)}/files/${index}/pages/${page}/words`),
 
       /**
        * Start building a template from samples of a batch: `{batch, samples: [index], spec: {name, start, lines,
@@ -396,6 +403,8 @@ export async function createServerEngine({
       marks: async (id, sample) => (await call("GET", `${setupPath(id)}/samples/${sample}/marks`)).marks,
       /** The URL of page `page` of the setup's sample `sample`, as a PNG. */
       samplePageUrl: (id, sample, page, dpi = DEFAULT_DPI) => `${root}${setupPath(id)}/samples/${sample}/pages/${page}.png?dpi=${Math.round(dpi)}`,
+      /** The words of page `page` of the setup's sample `sample`, where they sit (see "Page words" at the top). */
+      sampleWords: (id, sample, page) => call("GET", `${setupPath(id)}/samples/${sample}/pages/${page}/words`),
       /**
        * Start adding the fields of one more line ("wire details") to a setup; the done job's `result` is
        * `{setup, paths}`, `paths` the ones added.
@@ -458,6 +467,8 @@ export async function createServerEngine({
        */
       runPage: (id, docId, page, dpi = DEFAULT_DPI) =>
         call("GET", `${runPath(id)}/pages.png${query({ doc: docId, page, dpi: Math.round(dpi) })}`, { file: true }),
+      /** The words of page `page` (from 0) of the run's document `docId`, where they sit (see "Page words" at the top). */
+      runWords: (id, docId, page) => call("GET", `${runPath(id)}/words${query({ doc: docId, page })}`),
       /** `{places: {path: {page, rect}}}`: where the document's problems with no place are, or should be, on its pages. */
       places: (id, docId) => call("GET", `${runPath(id)}/places${query({ doc: docId })}`),
       /** The URL that downloads the run's results: `xlsx`, or a zip of the `parquet` or `csv` files. */

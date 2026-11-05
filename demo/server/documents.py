@@ -47,6 +47,10 @@ Detection by hand. A document opened with ``detect="manual"`` builds its form ma
 (text, widgets and OCR only), which is quick even for a long agreement. ``Doc.detect_page(n)`` then runs
 detection on page ``n`` alone and puts its boxes in the form map, so the jobs that read it later see them. It
 also takes a page a ``"auto"`` build skipped as prose.
+
+Words. ``page_words`` lists a page's words where they sit, line by line, for the page view's text layer (text a person
+can select and copy over the page image). A ``Doc`` takes them from its form map once built (OCR words included),
+else reads the page's text itself (``Doc.page_words``); a sample or a run's document passes its own.
 """
 
 from __future__ import annotations
@@ -65,8 +69,10 @@ from formcast.errors import FormcastError
 from formcast.match import PdfFeatures, pdf_features
 from formcast.pagemap.build import NOTE_PROSE, PageProgress, build_form_map, detect_on_page, needs_detection
 from formcast.pagemap.detect import DetectPolicy, Detector
-from formcast.pagemap.extract import PDF_LOCK, is_image_dominated, open_pdf, page_size
-from formcast.pagemap.model import FormMap, PageMap
+from formcast.pagemap.extract import PDF_LOCK, extract_page, is_image_dominated, open_pdf, page_size
+from formcast.geometry import Rect, contained_fraction
+from formcast.pagemap.model import FormMap, PageMap, TextLine
+from formcast.pagemap.ocr import ocr_available, ocr_page
 
 log = logging.getLogger("demo.server")
 
@@ -77,6 +83,7 @@ PYMUPDF_LOCK = PDF_LOCK
 MAX_DOCUMENTS = 20
 MIN_DPI, MAX_DPI = 36, 200
 _IMAGES_PER_DOC = 24  # rendered pages kept per document (least recently used dropped)
+_WORDS_PER_DOC = 24  # pages of words read before the form map, kept per document
 # Every part of PdfFeatures that similarity may read; Doc.match_features computes them all.
 _FEATURE_PARTS = ("fingerprint", "fingerprint_blind", "page_sizes", "signature", "phrases")
 DETECT_MODES = ("auto", "manual")
@@ -104,6 +111,71 @@ def page_png(pdf: bytes, n: int, dpi: int) -> bytes:
             return doc[n].get_pixmap(dpi=clamp_dpi(dpi), alpha=False).tobytes("png")
         finally:
             doc.close()
+
+
+def page_words(pdf: bytes, n: int, page: PageMap | None = None) -> dict:
+    """The words of page ``n`` (0-based) where they sit, line by line in reading order, for the page view's text layer:
+    ``{page, width, height, rotation, source, lines: [[{text, rect}]]}``, each rect in unrotated page points (as the
+    form map's) and ``source`` how they were read (``pdf``, ``ocr``, ``pdf+ocr``, or ``none`` for a page with no words).
+
+    From ``page``, the page's form map, when given. Otherwise read from the PDF here: its text, or Tesseract's when the
+    page is a scan and Tesseract is installed (Tesseract runs outside ``PYMUPDF_LOCK``; ``ocr_page`` locks its render).
+
+    Raises:
+        IndexError: ``n`` is not a page of the PDF.
+    """
+    if page is None:
+        if n < 0:  # MuPDF counts a negative page from the end
+            raise IndexError(n)
+        with PYMUPDF_LOCK:
+            doc = pymupdf.open(stream=pdf, filetype="pdf")
+        try:
+            with PYMUPDF_LOCK:
+                mu = doc[n]
+                page = extract_page(mu)
+            if page.kind == "scanned" and ocr_available():
+                words, lines = ocr_page(mu)
+                page = page.model_copy(update={"words": words, "lines": lines, "text_source": "ocr"})
+        finally:
+            with PYMUPDF_LOCK:
+                doc.close()
+    lines = [
+        [{"text": page.words[i].text, "rect": [round(v, 2) for v in page.words[i].rect]} for i in line.word_ids]
+        for line in _reading_order(page)
+    ]
+    lines = [line for line in lines if line]
+    return {
+        "page": n,
+        "width": page.width,
+        "height": page.height,
+        "rotation": page.rotation,
+        "source": page.text_source if lines else "none",
+        "lines": lines,
+    }
+
+
+def _reading_order(page: PageMap) -> list[TextLine]:
+    """The page's lines as they read: in the order of the page's own text, with each line written in a form field
+    (which MuPDF reads after all of the page's text) put after the last of them that reads before it (a running
+    footer the page's text lists first doesn't pull it to the top)."""
+    def in_field(line: TextLine) -> bool:
+        return any(contained_fraction(line.rect, w.rect) > 0.5 for w in page.widgets)
+
+    out = [line for line in page.lines if not in_field(line)]
+    filled = sorted((line for line in page.lines if in_field(line)), key=lambda line: (line.rect[1] + line.rect[3], line.rect[0]))
+    for line in filled:
+        at = max((k + 1 for k, other in enumerate(out) if _reads_before(other.rect, line.rect)), default=0)
+        out.insert(at, line)
+    return out
+
+
+def _reads_before(a: Rect, b: Rect) -> bool:
+    """True when the line at ``a`` reads before the line at ``b``: on the same row (they overlap by half the shorter
+    one's height) and to its left, or on a row above."""
+    overlap = min(a[3], b[3]) - max(a[1], b[1])
+    if overlap >= min(a[3] - a[1], b[3] - b[1]) / 2:
+        return a[0] < b[0]
+    return a[1] + a[3] < b[1] + b[3]
 
 
 class Doc:
@@ -140,6 +212,8 @@ class Doc:
         self._features_complete = False  # every part computed, so scoring them needs no MuPDF
         self._images: OrderedDict[tuple[int, int], bytes] = OrderedDict()
         self._image_lock = threading.Lock()
+        self._words: OrderedDict[int, dict] = OrderedDict()  # pages of words read before the form map was built
+        self._words_lock = threading.Lock()
 
     def summary(self) -> dict:
         return {
@@ -390,6 +464,27 @@ class Doc:
             while len(self._images) > _IMAGES_PER_DOC:
                 self._images.popitem(last=False)
             return png
+
+
+    def page_words(self, n: int) -> dict:
+        """The words of page ``n`` (0-based), as ``page_words`` lists them: from the form map once it is built (OCR
+        words included); before, read from the page (and kept), so the text is there while the form is still read.
+
+        Raises:
+            IndexError: ``n`` is not a page of this document.
+        """
+        if not 0 <= n < self.page_count:
+            raise IndexError(n)
+        built = self._map
+        if built is not None and built.done() and built.exception() is None:
+            return page_words(self.bytes, n, built.result().pages[n])
+        with self._words_lock:  # only so that identical concurrent requests read once
+            words = self._words.get(n)
+            if words is None:
+                words = self._words[n] = page_words(self.bytes, n)
+                while len(self._words) > _WORDS_PER_DOC:
+                    self._words.popitem(last=False)
+            return words
 
 
 class Documents:

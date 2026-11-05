@@ -93,6 +93,19 @@
 
 .fc-pv-layer { position: absolute; inset: 0; }
 .fc-pv-layer.is-drawing { cursor: crosshair; touch-action: none; }
+/* "Select text": the boxes let the pointer through to the words under them (core/textlayer.js). */
+.fc-pv-layer.is-text, .fc-pv-layer.is-text * { pointer-events: none; }
+.fc-pv-layer.is-text .fc-box { opacity: .45; }
+
+/* ---- text layer: the page's words, invisible, over the page image (core/textlayer.js) ---- */
+.fc-text { position: absolute; left: 0; top: 0; transform-origin: 0 0; line-height: 1; pointer-events: none; user-select: none; -webkit-user-select: none; }
+.fc-text > span { position: absolute; z-index: 1; white-space: pre; color: transparent; font-family: sans-serif; line-height: 1; transform-origin: 0 0; }
+/* Empty, and selectable: Chrome won't carry a selection onto an unselectable element, so it keeps it where it was. */
+.fc-text-end { position: absolute; left: 0; right: 0; top: 100%; bottom: 0; z-index: 0; cursor: default; }
+.fc-text.is-selecting .fc-text-end { top: 0; }
+.fc-text.is-active { pointer-events: auto; user-select: text; -webkit-user-select: text; cursor: text; }
+.fc-text.is-active > span { cursor: text; }
+.fc-text ::selection { background: rgba(32, 94, 166, .35); color: transparent; }
 /* A filled PDF on show (the host adds .is-filled): its own fields are drawn, the boxes and the
    add-box bar are hidden (kept in the layout, so the page doesn't jump). */
 .fc-pageview.is-filled .fc-pv-layer, .fc-pageview.is-filled .fc-pv-bar { visibility: hidden; }

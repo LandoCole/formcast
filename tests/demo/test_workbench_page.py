@@ -365,6 +365,26 @@ def test_build_new_by_hand_move_undo_and_redo(demo_server, bench):
     assert next(f for f in b.template()["fields"] if f["id"] == fid)["rect"] == moved
 
 
+def test_select_text_lays_the_pdfs_words_over_the_page_and_its_boxes_stay_put(demo_server, bench):
+    b = bench(demo_server)
+    b.open_form("fw9")
+    b.build_new()
+    expect(b.boxes().first).to_be_visible()
+    button = b.page.locator("#select-text")
+    expect(button).to_be_enabled()
+    button.click()
+    expect(button).to_have_attribute("aria-pressed", "true")
+    expect(b.page.locator("#caption")).to_have_text("Select text · drag over the words, then copy (⌘C or Ctrl+C) · Esc to stop")
+    expect(b.page.locator("#pageview .fc-text > span").first).to_be_attached()
+    assert b.page.locator("#pageview .fc-text > span").count() > 100
+    b.drag(b.boxes().first, 30, 12)  # selects text; the box doesn't move
+    b.idle()
+    assert b.history() == []
+    b.page.click("#add-box")  # drawing a box ends it
+    expect(button).to_have_attribute("aria-pressed", "false")
+    expect(b.page.locator("#pageview .fc-text > span")).to_have_count(0)
+
+
 def test_a_box_moved_while_an_earlier_edit_is_in_flight_stays_where_it_was_left(demo_server, bench, page):
     """Under server latency a landing edit must not snap other boxes back or drop a held arrow-key nudge."""
     page.add_init_script(GATE_APPLY)

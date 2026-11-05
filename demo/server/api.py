@@ -230,6 +230,7 @@ class Api:
         self._add("GET", r"/api/forms", self.forms)
         self._add("POST", r"/api/documents", self.create_document)
         self._add("GET", r"/api/documents/(?P<doc>[0-9a-f]{32})/pages/(?P<n>\d{1,6})\.png", self.page_image)
+        self._add("GET", r"/api/documents/(?P<doc>[0-9a-f]{32})/pages/(?P<n>\d{1,6})/words", self.page_words)
         self._add("GET", r"/api/documents/(?P<doc>[0-9a-f]{32})/matches", self.matches)
         self._add("GET", r"/api/documents/(?P<doc>[0-9a-f]{32})/progress", self.document_progress)
         self._add("POST", r"/api/documents/(?P<doc>[0-9a-f]{32})/pages/(?P<n>\d{1,6})/detect", self.detect_page)
@@ -356,6 +357,16 @@ class Api:
         except IndexError:
             raise ApiError(404, "not_found", f"this document has {doc.page_count} pages") from None
         return Response(200, {"Content-Type": "image/png", "Cache-Control": "private, max-age=3600"}, png)
+
+    def page_words(self, req: Request) -> dict:
+        """``GET /api/documents/{id}/pages/{n}/words`` -> the page's words where they sit, line by line, for the page
+        view's text layer (``documents.page_words``)."""
+        with missing("document"):
+            doc = self.documents.get(req.match["doc"])
+        try:
+            return doc.page_words(int(req.match["n"]))
+        except IndexError:
+            raise ApiError(404, "not_found", f"this document has {doc.page_count} pages") from None
 
     def document_progress(self, req: Request) -> dict:
         """``GET /api/documents/{id}/progress``: how reading the form is going (``Doc.progress``), with the detector
