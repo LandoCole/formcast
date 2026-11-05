@@ -2,7 +2,7 @@
 // engine, the session (core/session.js: document, template, undo, the ordered edit queue) and the
 // shared parts, renders on the session's events, and hands the overlays and progress panels to their modules: the
 // choice of Fill or Extract the page opens on and the page's mode (extract.js), the start screen and
-// match prompt (start.js), AI jobs and area revise (jobs.js), the fill drawer (fill.js) and the left column's
+// match prompt (start.js), AI jobs and the chat's revise (jobs.js), the fill drawer (fill.js) and the left column's
 // Mapping view of your data (mapping.js), saving to
 // the store (save.js), extraction's setup screen (extract-setup.js) and its runs and their review
 // (extract-review.js), which call back through `app`.
@@ -16,6 +16,10 @@
 // The filled preview. Fill in the drawer shows the filled PDF on the page (`state.preview`, drawn
 // in the browser by pdf.js from the very bytes Download saves) with the boxes hidden. Any template
 // change and any new document end it, so the page never shows a fill of an older template.
+//
+// The right column's tabs: Box (the box selected and the history) and Chat (#fill-chat, core/chat.js, whose
+// messages jobs.js answers with revise jobs). An area dragged on the page with AI on goes to the chat and brings it
+// up. The conversation is about the form on screen: another form empties it.
 //
 // Select text. The page bar's "Select text" turns on the page view's text mode (core/pageview.js): the page's
 // words laid over it, a drag selects them, and the caption says how to copy them (`state.text`). A filled preview
@@ -31,6 +35,7 @@
 // `reviewPageSize` (documents listed at a time), and the bus's `on(type, fn)`.
 
 import { createBus } from "../core/bus.js";
+import { ChatPanel } from "../core/chat.js";
 import { makeView, viewSize } from "../core/geometry.js";
 import { HistoryPanel } from "../core/history.js";
 import { Inspector } from "../core/inspector.js";
@@ -366,7 +371,7 @@ function renderPanels() {
   }
   const linked = t.fields.filter((f) => (f.source?.paths ?? []).length > 0).length;
   const source = session.source?.text ?? "";
-  const regionHint = engine.capabilities.ai ? " · drag on empty space to ask the AI about an area" : "";
+  const regionHint = engine.capabilities.ai ? " · drag on empty space to point the chat at an area" : "";
   $("caption").textContent = `${source ? `${source} · ` : ""}${plural(t.fields.length, "box", "boxes")} · ${linked} linked${regionHint}`;
 }
 
@@ -554,6 +559,27 @@ if (LOCAL) {
 }
 
 $("engine-line").textContent = engine.capabilities.ai ? "Local server · AI on" : "Local server · AI off";
+
+// ------------------------------------------------------------------ the right column's tabs and the chat
+
+/** Show the right column's tab `tab`: "box" (the box selected and the history) or "chat". */
+app.showSideTab = (tab) => {
+  for (const el of document.querySelectorAll('#col-side [data-part="box"]')) el.hidden = tab !== "box";
+  $("fill-chat").hidden = tab !== "chat";
+  $("fill-tab-box").setAttribute("aria-selected", String(tab === "box"));
+  $("fill-tab-chat").setAttribute("aria-selected", String(tab === "chat"));
+};
+$("fill-tab-box").addEventListener("click", () => app.showSideTab("box"));
+$("fill-tab-chat").addEventListener("click", () => app.showSideTab("chat"));
+
+app.chat = new ChatPanel($("fill-chat"), {
+  send: (...args) => app.jobs.ask(...args),
+  available: engine.capabilities.ai,
+  onArea: () => view.clearRegion(),
+  readout: "It reads the template and the page, and makes its edits on a copy…",
+});
+app.onReset(() => app.chat.clear()); // the conversation was about the form before
+
 app.jobs = mountJobs(app);
 mountFill(app);
 app.mapping = mountMapping(app);

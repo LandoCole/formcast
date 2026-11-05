@@ -11,12 +11,12 @@
 //
 // The thread: the person's messages (an area as a chip, "page N · [x0, y0, x1, y1]"), the replies, each with its list of
 // changes and the preview of what they read (`preview`, when the editor gives one), and Apply / Discard. While a
-// message is on its way, a line says so with Cancel. A message that failed says why, with Try again (the same message,
-// area and history): an answer the AI could not make usable (the editor's error code `unusable`) says UNUSABLE. An
-// Apply refused because the template changed meanwhile (code `stale_setup` or `stale`) says STALE and drops the
-// proposal. The composer: the area marked for the next message as a chip that can be removed, the text box (Enter
-// sends, Shift and Enter is a new line), Send and Clear. With `available: false` (no model configured) the panel says
-// so and has no composer.
+// message is on its way, a line says so (and what the AI does, the editor's `readout`) with Cancel. A message that
+// failed says why, with Try again (the same message, area and history): an answer the AI could not make usable (the
+// editor's error code `unusable`) says UNUSABLE. An Apply refused because the template changed meanwhile (code
+// `stale_setup` or `stale`) says STALE and drops the proposal. The composer: the area marked for the next message as a
+// chip that can be removed, the text box (Enter sends, Shift and Enter is a new line), Send and Clear. With
+// `available: false` (no model configured) the panel says so and has no composer.
 
 /** At most this many earlier exchanges go with a message (the server refuses more). */
 export const MAX_HISTORY = 3;
@@ -59,6 +59,7 @@ export class ChatPanel {
   #send;
   #available;
   #onArea;
+  #readout;
   /** The thread, oldest first: {message, area, state: "waiting" | "answered" | "failed", ...the answer, outcome, note, error}. */
   #turns = [];
   /** @type {ChatArea | null} */
@@ -72,15 +73,17 @@ export class ChatPanel {
 
   /**
    * @param {HTMLElement} el the panel's host
-   * @param {{send: Send, available: boolean, onArea?: (area: ChatArea | null) => void}} opts `send` asks the AI (see
-   *   the top; `signal` aborts when the person cancels); `available` false says the AI is off; `onArea(null)` is
-   *   called when the panel lets go of the area marked (removed, sent, or cleared), so the page can stop showing it
+   * @param {{send: Send, available: boolean, onArea?: (area: ChatArea | null) => void, readout?: string}} opts `send`
+   *   asks the AI (see the top; `signal` aborts when the person cancels); `available` false says the AI is off;
+   *   `onArea(null)` is called when the panel lets go of the area marked (removed, sent, or cleared), so the page can
+   *   stop showing it; `readout` says what the AI does while a message is on its way
    */
-  constructor(el, { send, available, onArea = () => {} }) {
+  constructor(el, { send, available, onArea = () => {}, readout = "It reads the template and the samples, and proves its changes on them…" }) {
     this.#el = el;
     this.#send = send;
     this.#available = Boolean(available);
     this.#onArea = onArea;
+    this.#readout = readout;
     el.classList.add("fc-chat");
     if (!this.#available) {
       el.replaceChildren(make("p", { className: "fc-chat-off", textContent: AI_OFF }));
@@ -250,7 +253,7 @@ export class ChatPanel {
       "li",
       { className: "fc-chat-wait" },
       make("p", { className: "fc-chat-label", textContent: "Asking the AI" }),
-      make("p", { className: "fc-chat-readout", textContent: "It reads the template and the samples, and proves its changes on them…" }),
+      make("p", { className: "fc-chat-readout", textContent: this.#readout }),
       button("Cancel", "fc-chat-cancel", () => turn.cancel()),
     );
   }

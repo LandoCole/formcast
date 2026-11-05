@@ -1,12 +1,12 @@
 // AI jobs: the one-shot mapping (from the start screen and the fill drawer's "Add data"), Build with
-// AI, Adapt (from the match prompt) and area revise (drag on empty page space, then type an
-// instruction). One at a time. A job runs on the server; its panel (#job) sits at the top of the right
-// column, beside the page, never over it, so the person can look through the PDF, zoom and turn the
-// pages while it runs. It lists the job's steps as they come and offers Cancel, or Hide (the job goes
-// on). Cancel is seen between steps, so the panel says it stops after the step running now. A finished
-// job's template loads with one undo step, so Undo returns to the template from before it. A cancelled
-// job closes the panel and leaves the template alone; one that fails, or can't be started or followed,
-// keeps the panel open with why, Try again (the same job afresh) and Close.
+// AI, Adapt (from the match prompt) and the chat's revise (below). One at a time. A job runs on the
+// server; its panel (#job) sits at the top of the right column, beside the page, never over it, so the
+// person can look through the PDF, zoom and turn the pages while it runs. It lists the job's steps as
+// they come and offers Cancel, or Hide (the job goes on). Cancel is seen between steps, so the panel says
+// it stops after the step running now. A finished job's template loads with one undo step, so Undo
+// returns to the template from before it. A cancelled job closes the panel and leaves the template
+// alone; one that fails, or can't be started or followed, keeps the panel open with why, Try again (the
+// same job afresh) and Close.
 //
 // A result not loaded from the panel (a job run in the background, or the partial result of a
 // cancelled or failed one, which includes the step that was running) is kept here, with the job's
@@ -20,6 +20,14 @@
 // open in the fill drawer with the first one filled. Other jobs then offer Load result in the panel.
 // The template edited meanwhile, any job's result is offered under the toolbar instead, as a hidden
 // job's is, so it never replaces those edits unasked.
+//
+// The chat (the right column's Chat tab, core/chat.js, created in workbench.js): each message runs one revise job
+// (`ask`, the panel's `send`), with the area last dragged on empty page space (with AI on, a drag marks one for the
+// chat and brings up the Chat tab) and the chat's last exchanges. The chat says how it goes, not the job panel. Its
+// finished template is held as a proposal, not loaded: the chat shows the agent's summary and the number of edits,
+// and Apply puts it on screen as one undo step, only while the template on screen is still the one the job was sent
+// (else it is refused as stale, as the chat then says); Discard drops it. A job that fails or is cancelled changes
+// nothing, its partial result dropped.
 
 const NOUNS = { build: "build", adapt: "adapt", revise: "revision", oneshot: "mapping" };
 const TITLES = { build: "AI build", adapt: "AI adapt", revise: "AI revision", oneshot: "One-shot mapping" };
@@ -89,14 +97,13 @@ export function showStages(el, job) {
 
 /**
  * @param {object} app see workbench.js
- * @returns {{adapt: (template: object) => void}}
+ * @returns {{ask: import("../core/chat.js").Send, adapt: (template: object) => void, oneshot: Function}}
  */
 export function mountJobs(app) {
   const { $, engine, session, view } = app;
   const ai = engine.capabilities.ai;
   const panel = $("job");
   const status = $("job-status");
-  const ask = $("ask");
   let handle = null;
   let stopping = false;
   let running = false; // a job is starting or running
@@ -105,7 +112,7 @@ export function mountJobs(app) {
   let kind = "build"; // the running (or last) job's kind
   let refused = ""; // why the last cancel didn't go through, shown until the next one
   let offered = null; // the result on offer: {job, generation, partial}
-  let region = null;
+  let asking = 0; // the chat's revise jobs running (a cancelled one runs on until its step ends)
   let again = null; // the last job asked for, as Try again starts it afresh: {jobKind, start, opts}
 
   $("build-ai").hidden = !ai;
@@ -187,7 +194,7 @@ export function mountJobs(app) {
    * template on screen, edits made meanwhile included, as one undo step).
    */
   async function run(jobKind, start, opts = {}) {
-    if (running) {
+    if (running || asking > 0) {
       app.notice("An AI job is already running. Wait for it to end, or cancel it.");
       return;
     }
@@ -351,54 +358,69 @@ export function mountJobs(app) {
     run("build", () => engine.build(session.doc, session.template.schema));
   });
 
-  // ---------------------------------------------------------------- area revise
+  // ---------------------------------------------------------------- the chat's revise
 
-  function closeAsk() {
-    ask.hidden = true;
-    region = null;
-    view.clearRegion();
-  }
-
-  app.bus.on("region", (r) => {
-    if (!ai || app.template === null || running || app.state.reading) {
+  app.bus.on("region", ({ page, rect }) => {
+    if (!ai || app.template === null || app.state.reading) {
       view.clearRegion();
       return;
     }
-    region = r;
-    const col = $("col-page");
-    const marquee = $("pageview").querySelector(".fc-marquee");
-    const c = col.getBoundingClientRect();
-    const m = marquee?.getBoundingClientRect() ?? c;
-    ask.hidden = false;
-    const width = ask.offsetWidth;
-    const left = Math.max(8, Math.min(m.left - c.left + col.scrollLeft, col.scrollWidth - width - 8));
-    ask.style.left = `${left}px`;
-    // below the area, or above it when the column has no room left below
-    const below = m.bottom - c.top + col.scrollTop + 8;
-    const above = m.top - c.top + col.scrollTop - ask.offsetHeight - 8;
-    const room = col.scrollTop + col.clientHeight - below - ask.offsetHeight;
-    ask.style.top = `${room < 0 && above >= 0 ? above : below}px`;
-    ask.scrollIntoView({ block: "nearest" });
-    $("ask-text").focus({ preventScroll: true });
+    app.chat.setArea({ page, rect });
+    app.showSideTab("chat");
   });
-  $("ask-cancel").addEventListener("click", closeAsk);
-  ask.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") closeAsk();
-  });
-  $("ask-go").addEventListener("click", () => {
-    const instruction = $("ask-text").value.trim();
-    if (!instruction) {
-      $("ask-text").focus();
-      return;
+
+  /**
+   * The chat's `send` (core/chat.js): run a revise job for `message`, with `area` and `history`, and answer with its
+   * template held (see the top). Rejects with why when the job can't run, fails, or is cancelled.
+   */
+  async function ask(message, area, history, signal) {
+    if (app.template === null) throw new Error("No form is open.");
+    if (app.state.reading) throw new Error("The form is still being read. Ask once its boxes are in.");
+    if (running) throw new Error("An AI job is already running. Wait for it to end, or cancel it.");
+    asking += 1;
+    let job;
+    let sent;
+    const generation = session.generation;
+    try {
+      await app.track(session.idle());
+      sent = session.template;
+      const region = area === null ? null : { page: area.page, rect: area.rect };
+      const started = await engine.revise(sent, session.doc, message, region, history);
+      if (signal.aborted) started.cancel().catch(() => {});
+      else signal.addEventListener("abort", () => started.cancel().catch(() => {}), { once: true });
+      job = await started.done;
+    } finally {
+      asking -= 1;
     }
-    const area = region;
-    closeAsk();
-    $("ask-text").value = "";
-    run("revise", () => engine.revise(session.template, session.doc, instruction, area));
-  });
-  app.onReset(closeAsk);
+    if (session.generation !== generation) throw new Error("Another form was opened meanwhile.");
+    if (job.status === "cancelled") throw new Error("Cancelled.");
+    if (job.status !== "done") throw new Error(`The AI revision stopped: ${job.error ?? "an unknown error"} The template is unchanged.`);
+    const unplaced = (job.unplaceable ?? []).map((u) => u.path).filter(Boolean);
+    const reply = `${job.summary || "Done."}${unplaced.length ? ` Not placed: ${unplaced.join(", ")}.` : ""}`;
+    const edits = job.steps.reduce((n, s) => n + (s.ops_applied ?? 0), 0);
+    if (edits === 0) return { reply, changes: [], apply: null, discard: () => {} };
+    let proposal = job.template;
+    return {
+      reply,
+      changes: [`${plural(edits, "edit")} to the template`],
+      apply: async () => {
+        await app.track(session.idle());
+        if (proposal === null || session.generation !== generation || session.template !== sent) {
+          throw Object.assign(new Error("The template changed since this was proposed."), { code: "stale" });
+        }
+        const res = await app.track(session.replaceTemplate(proposal, { source: { kind: "ai", text: "AI revision" } }));
+        if (res.error !== undefined) throw new Error(res.error);
+        proposal = null;
+      },
+      discard: () => {
+        proposal = null;
+      },
+    };
+  }
 
   return {
+    ask,
+
     /** Start an adapt job from a stored template (the seed is already on screen). */
     adapt(template) {
       run("adapt", () => engine.build(session.doc, null, { startFrom: template }));

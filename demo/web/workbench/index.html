@@ -123,17 +123,9 @@
       <p class="empty" id="stage-empty">Open a form to start.</p>
     </div>
     <p class="cap" id="caption"></p>
-    <div class="ask" id="ask" role="dialog" aria-labelledby="ask-label" hidden>
-      <p class="label" id="ask-label">Ask the AI about this area</p>
-      <textarea id="ask-text" rows="3" aria-labelledby="ask-label" placeholder="The signature line needs its own box."></textarea>
-      <div class="row">
-        <button type="button" class="btn quiet small" id="ask-cancel">Cancel</button>
-        <button type="button" class="btn dark small" id="ask-go">Revise</button>
-      </div>
-    </div>
   </section>
 
-  <aside class="col col-side" id="col-side" aria-label="Progress, selected box and history">
+  <aside class="col col-side" id="col-side" aria-label="Progress, selected box, history and chat">
     <!-- the work still going on for the form on screen (start.js, jobs.js): it never covers the page -->
     <section class="group progress" id="read-progress" aria-labelledby="read-title" hidden>
       <p class="label" id="read-title">Reading the form</p>
@@ -156,14 +148,20 @@
         <button type="button" class="btn dark small" id="job-load" hidden>Load result</button>
       </div>
     </section>
-    <div class="group">
+    <!-- the box selected and the history, or the chat with the AI about the template (core/chat.js) -->
+    <div class="fc-tabs" role="tablist" aria-label="Box or chat">
+      <button type="button" class="btn quiet small" role="tab" id="fill-tab-box" aria-selected="true" aria-controls="inspector">Box</button>
+      <button type="button" class="btn quiet small" role="tab" id="fill-tab-chat" aria-selected="false" aria-controls="fill-chat">Chat</button>
+    </div>
+    <div class="group" data-part="box">
       <p class="label">Selected box</p>
       <div id="inspector"></div>
     </div>
-    <div class="group">
+    <div class="group" data-part="box">
       <p class="label">History</p>
       <div id="history"></div>
     </div>
+    <section class="group" id="fill-chat" data-part="chat" role="tabpanel" aria-labelledby="fill-tab-chat" hidden></section>
   </aside>
 </main>
 

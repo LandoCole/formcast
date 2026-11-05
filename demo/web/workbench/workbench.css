@@ -164,15 +164,7 @@ details.more > select { margin-bottom: 4px; }
 #history .fc-hi-bar { display: none; }   /* Undo and Redo live in the toolbar */
 .empty { margin: 48px 0 0; text-align: center; font-style: italic; color: var(--graphite); }
 .cap { margin: 0; padding-top: 12px; font-family: var(--mono); font-size: 10px; line-height: 20px; letter-spacing: .04em; color: var(--graphite); }
-.col-side .group:last-child { margin-bottom: 0; }
-
-/* ---------- area revise popover ---------- */
-.ask {
-  position: absolute; z-index: 6; box-sizing: border-box; width: min(320px, calc(100% - 16px)); padding: 12px;
-  background: var(--paper); outline: 1px solid var(--ink); box-shadow: 4px 4px 0 var(--rule);
-}
-.ask .label { margin-bottom: 0; color: var(--ink); }
-.ask textarea { margin: 8px 0 10px; font: italic 15px/20px var(--serif); }
+.col-side .group:last-child, #fill-chat { margin-bottom: 0; }
 
 /* ---------- overlays ---------- */
 .overlay {

@@ -9,6 +9,7 @@ in a script holds a job mid-run. Form maps are built without detectors, so a see
 from __future__ import annotations
 
 import json
+import re
 from functools import partial
 from pathlib import Path
 
@@ -446,22 +447,125 @@ def test_build_with_ai_lists_the_steps_loads_the_result_and_one_undo_returns_to_
     assert b.template() == seed
 
 
-@pytest.mark.usefixtures("text_only_agent")
-def test_area_select_revise_runs_a_job_and_loads_its_result(start_demo_server, bench):
-    factory = Factory([code(ADD_NOTE), finish("added a note field")])
-    base = start_demo_server(provider_factory=factory)
-    b = bench(base)
+def revise_jobs_sent(b: Bench) -> list[dict]:
+    """Every revise job the page starts from now on, as sent."""
+    sent: list[dict] = []
+
+    def note(request) -> None:
+        if request.method == "POST" and request.url.endswith("/api/jobs") and request.post_data_json.get("kind") == "revise":
+            sent.append(request.post_data_json)
+
+    b.page.on("request", note)
+    return sent
+
+
+def ask(b: Bench, message: str) -> None:
+    """Send ``message`` from the Chat tab of the right column."""
+    b.page.click("#fill-tab-chat")
+    b.page.fill("#fill-chat .fc-chat-text", message)
+    b.page.click("#fill-chat .fc-chat-send")
+
+
+def chat_answer(b: Bench):
+    """The chat's first answer in the thread."""
+    return b.page.locator("#fill-chat .fc-chat-ai").first
+
+
+def asked_for_a_note(start_demo_server, bench, factory: Factory | None = None) -> tuple[Bench, dict, Factory]:
+    """A one-widget form on screen and the chat asked for a notes field; its answer, with Apply, is in the thread."""
+    factory = factory or Factory([code(ADD_NOTE), finish("added a note field")])
+    b = bench(start_demo_server(provider_factory=factory))
     b.upload(widget_pdf())
     b.build_new()
-    b.drag_on_page(0.55, 0.1, 0.95, 0.5)
-    expect(b.page.locator("#ask")).to_be_visible()
-    b.page.fill("#ask-text", "Add a field for notes")
-    b.page.click("#ask-go")
-    expect(b.page.locator("#job-load")).to_be_visible()
-    b.page.click("#job-load")
+    seed = b.template()
+    ask(b, "Add a field for notes")
+    expect(chat_answer(b).locator(".fc-chat-apply")).to_be_visible(timeout=30_000)
+    return b, seed, factory
+
+
+@pytest.mark.usefixtures("text_only_agent")
+def test_the_fill_chat_runs_a_revise_and_applies_its_template_onto_undo(start_demo_server, bench):
+    b, seed, factory = asked_for_a_note(start_demo_server, bench)
+    expect(b.page.locator("#fill-tab-chat")).to_have_attribute("aria-selected", "true")
+    expect(b.page.locator("#inspector")).to_be_hidden()  # the Box tab's parts give way to the chat
+    expect(b.page.locator("#fill-chat .fc-chat-me")).to_have_text("Add a field for notes")
+    answer = chat_answer(b)
+    expect(answer.locator(".fc-chat-reply")).to_have_text("added a note field")
+    expect(answer.locator(".fc-chat-changes li")).to_have_text(["1 edit to the template"])
+    expect(b.page.locator("#job")).to_be_hidden()  # the chat says how it goes, not the job panel
+    assert "Add a field for notes" in factory.providers[0].calls[0][1].content
+    b.idle()
+    assert b.template() == seed  # held, not loaded, until Apply
+    expect(b.boxes(".is-ai")).to_have_count(0)
+
+    answer.locator(".fc-chat-apply").click()
+    expect(answer.locator(".fc-chat-outcome")).to_have_text("Applied.")
+    expect(answer.locator(".fc-chat-apply")).to_have_count(0)
     expect(b.boxes(".is-ai")).to_have_count(1)
+    b.page.click("#fill-tab-box")
+    expect(b.page.locator("#fill-chat")).to_be_hidden()
+    b.idle()
+    assert any(who == "AI" for who, _ in b.history())
+    b.page.click("#undo")
+    expect(b.boxes(".is-ai")).to_have_count(0)
+    b.idle()
+    assert b.template() == seed
+
+
+@pytest.mark.usefixtures("text_only_agent")
+def test_a_dragged_area_goes_to_the_chat_not_a_popover(start_demo_server, bench):
+    factory = Factory([code(ADD_NOTE), finish("added a note field")])
+    b = bench(start_demo_server(provider_factory=factory))
+    b.upload(widget_pdf())
+    b.build_new()
+    jobs = revise_jobs_sent(b)
+    expect(b.page.locator("#fill-tab-box")).to_have_attribute("aria-selected", "true")
+    b.drag_on_page(0.55, 0.1, 0.95, 0.5)
+    expect(b.page.locator("#ask")).to_have_count(0)
+    expect(b.page.locator("#fill-tab-chat")).to_have_attribute("aria-selected", "true")  # the chat comes up with it
+    chip = b.page.locator("#fill-chat .fc-chat-composer .fc-chat-chip")
+    expect(chip).to_have_text(re.compile(r"^page 1 · \[\d+, \d+, \d+, \d+\]"))
+    expect(b.page.locator("#pageview .fc-marquee")).to_have_count(1)
+    b.page.fill("#fill-chat .fc-chat-text", "Add a field for notes")
+    b.page.click("#fill-chat .fc-chat-send")
+    expect(chat_answer(b).locator(".fc-chat-reply")).to_have_text("added a note field", timeout=30_000)
+    assert len(jobs) == 1
+    region = jobs[0]["region"]
+    assert region["page"] == 0 and "sample" not in region
+    x0, y0, x1, y1 = region["rect"]
+    assert 150 < x0 < x1 <= 300 and 0 < y0 < y1 <= 100
+    expect(b.page.locator("#fill-chat .fc-chat-me .fc-chat-chip")).to_have_text(f"page 1 · [{round(x0)}, {round(y0)}, {round(x1)}, {round(y1)}]")
+    expect(chip).to_have_count(0)  # it went with that message
+    expect(b.page.locator("#pageview .fc-marquee")).to_have_count(0)
     first_message = factory.providers[0].calls[0][1].content
     assert "Add a field for notes" in first_message and "region" in first_message.lower()
+
+
+def test_the_fill_chat_refuses_a_stale_apply(start_demo_server, bench):
+    b, seed, _ = asked_for_a_note(start_demo_server, bench)
+    b.drag(b.boxes().first, 30, 0)  # the person edits meanwhile
+    b.page.wait_for_function("t => JSON.stringify(window.__workbench.template) !== t", arg=json.dumps(seed))
+    b.idle()
+    edited = b.template()
+    answer = chat_answer(b)
+    answer.locator(".fc-chat-apply").click()
+    expect(answer.locator(".fc-chat-outcome")).to_have_text("The template changed since this was proposed; ask again.")
+    expect(answer.locator(".fc-chat-apply")).to_have_count(0)
+    b.idle()
+    assert b.template() == edited
+    expect(b.boxes(".is-ai")).to_have_count(0)
+
+
+def test_discard_leaves_the_template(start_demo_server, bench):
+    b, seed, _ = asked_for_a_note(start_demo_server, bench)
+    answer = chat_answer(b)
+    answer.locator(".fc-chat-discard").click()
+    expect(answer.locator(".fc-chat-outcome")).to_have_text("Discarded.")
+    expect(answer.locator(".fc-chat-apply")).to_have_count(0)
+    b.idle()
+    assert b.template() == seed
+    expect(b.boxes(".is-ai")).to_have_count(0)
+    expect(b.page.locator("#undo")).to_be_disabled()
 
 
 def test_adapt_seeds_the_new_pdf_then_loads_the_stored_template_moved_onto_it(start_demo_server, bench):
@@ -554,7 +658,7 @@ def test_a_secondary_button_press_does_not_hold_back_redrawing(demo_server, benc
     assert left(a_id) == pytest.approx(start, abs=0.5)  # redrawn although no pointerup came
 
 
-def test_with_ai_on_a_click_on_empty_space_clears_the_selection_and_a_drag_asks_the_ai(start_demo_server, bench):
+def test_with_ai_on_a_click_on_empty_space_clears_the_selection_and_a_drag_marks_an_area_for_the_chat(start_demo_server, bench):
     b = bench(start_demo_server(provider_factory=Factory()))
     b.upload(widget_pdf())
     b.build_new()
@@ -563,12 +667,13 @@ def test_with_ai_on_a_click_on_empty_space_clears_the_selection_and_a_drag_asks_
     bb = b.page.locator("#pageview .fc-pv-page").bounding_box()
     b.page.mouse.click(bb["x"] + bb["width"] * 0.8, bb["y"] + bb["height"] * 0.15)
     expect(b.page.locator("#inspector .fc-ins-empty")).to_be_visible()
-    expect(b.page.locator("#ask")).to_be_hidden()
+    expect(b.page.locator("#fill-tab-box")).to_have_attribute("aria-selected", "true")
     b.boxes().first.click()
     b.page.keyboard.press("Escape")
     expect(b.page.locator("#inspector .fc-ins-empty")).to_be_visible()
     b.drag_on_page(0.55, 0.1, 0.95, 0.5)
-    expect(b.page.locator("#ask")).to_be_visible()
+    expect(b.page.locator("#fill-tab-chat")).to_have_attribute("aria-selected", "true")
+    expect(b.page.locator("#fill-chat .fc-chat-composer .fc-chat-chip")).to_be_visible()
 
 
 def test_adapt_needs_only_the_same_page_count_while_reuse_needs_the_same_page_sizes(start_demo_server, bench, page):
@@ -727,7 +832,10 @@ def test_without_ai_configured_build_with_ai_is_hidden_and_a_note_says_how_to_tu
     expect(b.page.locator("#ai-note")).to_be_visible()
     expect(b.page.locator("#ai-note")).to_contain_text("FORMCAST_DEMO_BASE_URL")
     b.drag_on_page(0.05, 0.02, 0.3, 0.06)
-    expect(b.page.locator("#ask")).to_be_hidden()  # no area select for the AI
+    expect(b.page.locator("#fill-tab-box")).to_have_attribute("aria-selected", "true")  # no area select for the AI
+    b.page.click("#fill-tab-chat")
+    expect(b.page.locator("#fill-chat .fc-chat-off")).to_contain_text("The AI is not configured")
+    expect(b.page.locator("#fill-chat .fc-chat-send")).to_have_count(0)
 
 
 @pytest.mark.parametrize("width", [1280, 1440])
