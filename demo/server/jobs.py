@@ -17,7 +17,7 @@ data. ``stages`` lists its stages, each ``{key, label, status, detail}`` with st
 result. ``usage`` counts the model tokens the job has used so far (a oneshot job's, in full).
 
 A task job (``Jobs.start_task``) is the generic kind the extraction workbench uses (``extract-setup``,
-``extract-line``, ``extract-run``): the caller gives the function to run, ``runner(job)``, and its stages. The runner
+``extract-line``, ``extract-chat``, ``extract-run``): the caller gives the function to run, ``runner(job)``, and its stages. The runner
 reports through the job (``stage``, ``set_result``, ``add_usage``) and polls ``job.cancel_requested``. Its return ends
 the job ``done``; a ``SessionCancelled`` ends it ``cancelled``; a ``FormcastError`` ends it ``error`` with its message;
 anything else ends it ``error`` with a generic message and the traceback goes to the log only. A task job takes one of
@@ -80,7 +80,7 @@ KEEP_FINISHED = 20
 Kind = Literal["build", "adapt", "revise", "oneshot"]
 KINDS: tuple[str, ...] = ("build", "adapt", "revise", "oneshot")
 #: the task jobs of the extraction workbench (``Jobs.start_task``); ``demo/server/extract_api.py`` starts them
-EXTRACT_KINDS: tuple[str, ...] = ("extract-setup", "extract-line", "extract-run")
+EXTRACT_KINDS: tuple[str, ...] = ("extract-setup", "extract-line", "extract-chat", "extract-run")
 
 _GENERIC_ERROR = "The job stopped because of an unexpected error. The server log has the details."
 _PROVIDER_ERROR = (

@@ -25,7 +25,7 @@ records, a table file or free text in; a filled PDF (or a zip of them) out. Ever
 smart PDFs and rebinds; inside ``Doc`` for the form map and the match features). Matching takes no lock:
 it scores the document's features, which ``Doc.match_features`` computes in full, so it does not wait for a build.
 
-The PDF extraction workbench's routes and its ``extract-setup``, ``extract-line`` and ``extract-run`` jobs are in
+The PDF extraction workbench's routes and its ``extract-setup``, ``extract-line``, ``extract-chat`` and ``extract-run`` jobs are in
 ``demo/server/extract_api.py`` (``Api.create_job`` hands those kinds over; they need no model).
 
 Handlers are small methods registered in ``Api._add_routes``; they return a JSON-able value

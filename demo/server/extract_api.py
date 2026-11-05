@@ -1,8 +1,8 @@
 """The extraction workbench's HTTP routes and jobs, kept apart from ``demo/server/api.py``.
 
     add_extract_routes(api)           registers the routes on an ``Api`` (called at the end of ``Api._add_routes``)
-    start_extract_job(api, kind, payload) -> {"id": ...}    starts an ``extract-setup``, ``extract-line`` or
-                                      ``extract-run`` task job (``Jobs.start_task``); ``Api.create_job`` hands these
+    start_extract_job(api, kind, payload) -> {"id": ...}    starts an ``extract-setup``, ``extract-line``,
+                                      ``extract-chat`` or ``extract-run`` task job (``Jobs.start_task``); ``Api.create_job`` hands these
                                       kinds over after reading the request
 
 Batches (``api.batches``, ``demo/server/extraction.py``):
@@ -30,6 +30,7 @@ Setups (``api.setups``) and saved extraction templates (``api.extractions``):
 
     POST /api/jobs {kind: "extract-setup", batch, samples: [index], spec}   -> {id}; done: result {setup: Setup}
     POST /api/jobs {kind: "extract-line", setup, line}                      -> {id}; done: result {setup: Setup, paths}
+    POST /api/jobs {kind: "extract-chat", setup, message, area?, history?}  -> {id}; done: result {reply, edits, preview, version}
     GET  /api/setups/{s}                                            -> Setup
     POST /api/setups                 {extraction: name}             -> Setup   (a saved template reopened)
     POST /api/setups/{s}/edit        {edit: Edit} or {edits: [Edit]}, version? -> Setup
@@ -57,6 +58,18 @@ the paths it added. The model is called by these two jobs only: an edit (``formc
 wording learned (the proof's suggestions for one path, ``FieldProof.suggested``) and a reopened template are proven
 again with no model call. Marks and page images are of the setup's sample ``i`` (from 0, in the template's order);
 a mark is in that sample page's frame, so a box drawn on it is sent back as a ``set_box`` edit naming the sample.
+
+An ``extract-chat`` job answers a person's ``message`` about the setup's template with one model call
+(``propose_fix``): ``reply`` is the model's words, ``edits`` the ``Edit``s it proposes (as JSON, the ``op`` kept),
+``preview`` the proof of every path they name or make on the edited template (``FieldProof`` as JSON, keyed by path,
+empty when there are no edits) and ``version`` the setup's version the answer was made for. Nothing is changed and
+the setup is not marked busy: the person applies the edits with ``POST /api/setups/{s}/edit`` and that ``version``,
+which is refused as ``stale_setup`` when the setup changed since. ``area`` is a place the person marked,
+``{sample, page, rect: [x0, y0, x1, y1]}`` (sample and page from 0, the rectangle in that page's points, x0 < x1 and
+y0 < y1) on a sample and page the setup has; ``history`` is the earlier turns, at most 3 (``MAX_HISTORY``) of
+``{message, reply, changes, outcome: applied|discarded|pending}``, oldest first. A ``message`` that is not words, or an
+``area`` or ``history`` that is not as above, is 400 ``bad_request`` before the job starts. An answer the model could
+not make usable in two tries ends the job ``error`` with the library's message.
 
 ``PUT /api/extractions/{name}`` saves the setup's template under ``name`` (its ``name`` field becomes ``name``, its
 ``template_id`` is kept) with the setup's sample PDFs. A template whose run could not be exported is refused, 400
@@ -159,6 +172,7 @@ from __future__ import annotations
 
 import importlib.util
 import io
+import math
 import os
 import re
 import tempfile
@@ -183,6 +197,7 @@ from demo.server.store import check_name
 from formcast import FormcastError, SessionCancelled
 from formcast.extract.aipass import ai_pass
 from formcast.extract.batch import INTERNAL_ERROR, PROBLEMS, ReviewDecision, run_batch
+from formcast.extract.chat import MAX_HISTORY, ChatArea, ChatTurn, propose_fix
 from formcast.extract.edit import Edit
 from formcast.extract.export import check_columns
 from formcast.extract.model import ExtractionTemplate, concrete_paths
@@ -262,6 +277,8 @@ def start_extract_job(api: Api, kind: str, payload: dict) -> dict:
         raise ApiError(400, "ai_not_configured", AI_NOT_CONFIGURED)
     if kind == "extract-setup":
         return _start_setup(api, payload)
+    if kind == "extract-chat":
+        return _start_chat(api, payload)
     return _start_line(api, payload)
 
 
@@ -638,6 +655,86 @@ def _start_line(api: Api, payload: dict) -> dict:
     except BaseException:  # no job started: the setup takes changes again
         setup.end_line(None)
         raise
+
+
+def _start_chat(api: Api, payload: dict) -> dict:
+    """``{setup, message, area?, history?}`` -> an ``extract-chat`` job: ``propose_fix`` on the setup's template and samples.
+
+    The setup is not marked busy and is not changed; the result carries the version it was read at."""
+    setup = _setup_of(api, payload.get("setup"))
+    message = payload.get("message")
+    if not isinstance(message, str) or not message.strip():
+        raise ApiError(400, "bad_request", "Send message as the words to ask the AI about the template.")
+    template, samples, version = setup.snapshot_versioned()
+    area = _chat_area(payload.get("area"), samples)
+    history = _chat_history(payload.get("history"))
+    message = message.strip()
+
+    def run(job: Job) -> None:
+        provider = api.provider_factory()
+        try:
+            vision = template.setup.vision if template.setup is not None else True
+            answer = propose_fix(template, samples, message, provider, area=area, history=history, vision=vision)
+        finally:
+            provider.close()
+        job.add_usage(answer.usage)
+        _stop_if_cancelled(job)
+        job.set_result(
+            reply=answer.reply,
+            edits=[edit.model_dump(mode="json") for edit in answer.edits],
+            preview={path: proof.model_dump(mode="json") for path, proof in answer.preview.items()},
+            version=version,
+        )
+
+    return _task(api, "extract-chat", run)
+
+
+def _chat_area(raw: Any, samples: list) -> ChatArea | None:
+    """The request's ``area``: ``None`` when absent, else a ``ChatArea`` on a sample and page the setup's samples have.
+
+    Raises:
+        ApiError: 400 ``bad_request`` for anything else.
+    """
+    if raw is None:
+        return None
+    ask = "Send area as {sample, page, rect: [x0, y0, x1, y1]}, a rectangle on a page of one of the template's samples."
+    rect = raw.get("rect") if isinstance(raw, dict) else None
+    if (
+        not isinstance(raw, dict)
+        or set(raw) != {"sample", "page", "rect"}
+        or any(type(raw[key]) is not int for key in ("sample", "page"))
+        or not isinstance(rect, list)
+        or len(rect) != 4
+        or any(type(v) not in (int, float) or not math.isfinite(v) for v in rect)
+    ):
+        raise ApiError(400, "bad_request", ask)
+    x0, y0, x1, y1 = rect
+    if not (x0 < x1 and y0 < y1):
+        raise ApiError(400, "bad_request", "Send the area's rect as [x0, y0, x1, y1] with x0 less than x1 and y0 less than y1.")
+    if not 0 <= raw["sample"] < len(samples):
+        raise ApiError(400, "bad_request", f"The area is on sample {raw['sample']}, which the template does not have.")
+    pages = len(samples[raw["sample"]].form_map.pages)
+    if not 0 <= raw["page"] < pages:
+        raise ApiError(400, "bad_request", f"The area is on page {raw['page']}, which sample {raw['sample']} does not have.")
+    return ChatArea(sample=raw["sample"], page=raw["page"], rect=(x0, y0, x1, y1))
+
+
+def _chat_history(raw: Any) -> list[ChatTurn]:
+    """The request's ``history``: no turns when absent, else at most ``MAX_HISTORY`` ``ChatTurn``s.
+
+    Raises:
+        ApiError: 400 ``bad_request`` for anything else.
+    """
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise ApiError(400, "bad_request", "Send history as a list of the earlier turns.")
+    if len(raw) > MAX_HISTORY:
+        raise ApiError(400, "bad_request", f"Send at most {MAX_HISTORY} earlier turns, not {len(raw)}.")
+    try:
+        return [ChatTurn.model_validate(turn) for turn in raw]
+    except pydantic.ValidationError as exc:
+        raise ApiError(400, "bad_request", f"An earlier turn is not {{message, reply, changes, outcome}}: {_first_error(exc)}.") from None
 
 
 # ------------------------------------------------------------------ setups

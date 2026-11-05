@@ -676,6 +676,11 @@ class Setup:
         with self._lock:
             return self.template, list(self.samples)
 
+    def snapshot_versioned(self) -> tuple[ExtractionTemplate, list[SampleDoc], int]:
+        """``snapshot`` and the ``version`` of the setup it is the template of, taken together."""
+        with self._lock:
+            return self.template, list(self.samples), self.version
+
     def sample(self, n: int) -> SampleDoc:
         """The template's sample ``n`` (from 0, in its order).
 

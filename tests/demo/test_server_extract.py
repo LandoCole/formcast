@@ -48,9 +48,10 @@ from formcast.extract import samples as samples_mod
 from formcast.extract.batch import run_batch
 from formcast.extract.model import ExtractionTemplate, SampleRecord, concrete_paths
 from formcast.extract.proof import Proof, prove
-from formcast.extract.prompts import FIELDS_SYSTEM, VALUES_SYSTEM
+from formcast.extract.prompts import CHAT_SYSTEM, FIELDS_SYSTEM, VALUES_SYSTEM
 from formcast.extract.samples import SamplePdf
 from formcast.extract.setup import STAGES
+from formcast.llm import LLMResponse, Usage
 from formcast.pagemap.build import DetectPolicy
 from tests.extract.conftest import write_corpus
 from tests.extract.corpus import FIELD_RECTS, SHIFT, clients, hand_template, make_form
@@ -1038,6 +1039,143 @@ def test_an_edit_with_no_version_still_applies(bench):
     edit(bench, setup["id"], {"op": "set_field", "path": "investor.dob", "required": False})
     status, after = edit(bench, setup["id"], {"op": "set_field", "path": "investor.tax_id", "required": False})
     assert (status, after["version"]) == (200, 2)
+
+
+class ChatModel(GatedModel):
+    """``GatedModel`` that answers the chat's call with the next of ``answers`` (JSON texts), recording what it was sent."""
+
+    def __init__(self, *args, **kw) -> None:
+        super().__init__(*args, **kw)
+        self.answers: list[str] = []
+        self.sent: list = []
+
+    def complete(self, messages, tools, **kwargs):
+        if messages[0].content != CHAT_SYSTEM:
+            return super().complete(messages, tools, **kwargs)
+        self.sent.append(messages)
+        return LLMResponse(text=self.answers.pop(0), tool_calls=[], usage=Usage(7, 3), raw={})
+
+
+CHAT_EDIT = {"op": "set_labels", "path": "investor.legal_name", "labels": ["Investor legal name"], "side": "right"}
+
+
+def chat_answer(*edits: dict, reply: str = "Read it from its label.") -> str:
+    return json.dumps({"reply": reply, "edits": list(edits)})
+
+
+@pytest.fixture
+def chatter(start_demo_server, setup_pdfs, setup_people) -> Bench:
+    files = setup_pdfs
+    return bench_of(start_demo_server, files, ChatModel({name: client for (name, _), client in zip(files, setup_people)}))
+
+
+def chat_job(b: Bench, setup: dict, message: str = "fix the legal name", **more) -> tuple[int, dict]:
+    return start_job(b.base, {"kind": "extract-chat", "setup": setup["id"], "message": message, **more})
+
+
+def test_a_chat_job_returns_proven_edits_and_leaves_the_setup_alone(chatter):
+    setup = built(chatter)
+    chatter.model.answers.append(chat_answer(CHAT_EDIT))
+    status, out = chat_job(chatter, setup, area={"sample": 0, "page": 0, "rect": [10, 10, 200, 40]},
+                           history=[{"message": "hi", "reply": "ok", "changes": "none", "outcome": "discarded"}])  # fmt: skip
+    assert status == 200, out
+    job = job_ended(chatter.base, out["id"])
+    assert job["status"] == "done", job
+    result = job["result"]
+    assert result["reply"] == "Read it from its label."
+    assert result["edits"] == [CHAT_EDIT] and result["version"] == setup["version"]
+    assert list(result["preview"]) == ["investor.legal_name"]
+    proof = result["preview"]["investor.legal_name"]
+    assert proof["path"] == "investor.legal_name" and len(proof["samples"]) == 5
+    assert job["usage"]["input_tokens"] == 7 and job["usage"]["output_tokens"] == 3
+    assert len(chatter.model.sent) == 1
+    after = get_json(chatter.base, f"/api/setups/{setup['id']}")[1]  # no edit made, and no busy mark
+    assert after == setup
+    assert edit(chatter, setup["id"], {"op": "set_field", "path": "investor.dob", "required": False})[0] == 200
+
+
+def test_a_chat_job_with_no_edits_is_an_answer_alone(chatter):
+    setup = built(chatter)
+    chatter.model.answers.append(chat_answer(reply="That field is already read from its box."))
+    status, out = chat_job(chatter, setup, "why is the date empty?")
+    job = job_ended(chatter.base, out["id"])
+    assert (status, job["status"]) == (200, "done"), job
+    assert job["result"]["edits"] == [] and job["result"]["preview"] == {}
+    assert job["result"]["reply"].startswith("That field")
+
+
+def test_a_chat_job_refuses_four_turns_of_history(chatter):
+    setup = built(chatter)
+    turn = {"message": "m", "reply": "r", "changes": "c", "outcome": "applied"}
+    status, out = chat_job(chatter, setup, history=[turn] * 4)
+    assert (status, out["error"]) == (400, "bad_request") and "3" in out["detail"]
+    chatter.model.answers.append(chat_answer())
+    status, out = chat_job(chatter, setup, history=[turn] * 3)  # three are fine
+    assert status == 200 and job_ended(chatter.base, out["id"])["status"] == "done"
+
+
+def test_a_chat_job_refuses_a_bad_request_before_it_starts(chatter):
+    setup = built(chatter)
+    turn = {"message": "m", "reply": "r", "changes": "c", "outcome": "applied"}
+    area = {"sample": 0, "page": 0, "rect": [10, 10, 200, 40]}
+    bad = [
+        {"message": ""}, {"message": "   "}, {"message": 3}, {"message": None},
+        {"area": []}, {"area": {"sample": 0, "page": 0}},
+        {"area": {**area, "rect": [10, 10, 200]}}, {"area": {**area, "rect": [10, 10, "200", 40]}},
+        {"area": {**area, "rect": [200, 10, 10, 40]}}, {"area": {**area, "rect": [10, 40, 200, 40]}},
+        {"area": {**area, "sample": 1.5}}, {"area": {**area, "sample": 9}}, {"area": {**area, "sample": -1}},
+        {"area": {**area, "page": 9}}, {"area": {**area, "page": True}},
+        {"history": "no"}, {"history": [{"message": "m"}]}, {"history": [{**turn, "outcome": "kept"}]},
+        {"history": [turn, "x"]},
+    ]  # fmt: skip
+    for more in bad:
+        status, out = chat_job(chatter, setup, **{"message": "fix the name", **more})
+        assert (status, out["error"]) == (400, "bad_request"), (more, out)
+        assert out["detail"].endswith("."), out
+    status, out = start_job(chatter.base, {"kind": "extract-chat", "setup": setup["id"]})
+    assert (status, out["error"]) == (400, "bad_request")
+    status, out = start_job(chatter.base, {"kind": "extract-chat", "setup": "0" * 32, "message": "hi"})
+    assert (status, out["error"]) == (404, "not_found")
+    status, out = start_job(chatter.base, {"kind": "extract-chat", "setup": 4, "message": "hi"})
+    assert (status, out["error"]) == (400, "bad_request")
+    assert chatter.model.sent == []
+
+
+def test_a_chat_job_without_a_model_is_refused(demo_server):
+    status, out = start_job(demo_server, {"kind": "extract-chat", "setup": "0" * 32, "message": "fix it"})
+    assert (status, out["error"]) == (400, "ai_not_configured")
+
+
+def test_a_chat_answer_that_cannot_be_used_ends_the_job_in_error(chatter):
+    setup = built(chatter)
+    chatter.model.answers.extend(["not json", "still not json"])
+    status, out = chat_job(chatter, setup)
+    assert status == 200, out
+    job = job_ended(chatter.base, out["id"])
+    assert job["status"] == "error" and job["error"], job
+    assert get_json(chatter.base, f"/api/setups/{setup['id']}")[1] == setup
+
+
+def test_applying_a_chat_answer_after_another_edit_is_stale(chatter):
+    setup = built(chatter)
+    chatter.model.answers.append(chat_answer(CHAT_EDIT))
+    status, out = chat_job(chatter, setup)
+    result = job_ended(chatter.base, out["id"])["result"]
+    other = {"op": "set_field", "path": "investor.dob", "required": False}
+    assert edit(chatter, setup["id"], other)[0] == 200
+    status, stale = get_json(chatter.base, f"/api/setups/{setup['id']}/edit", "POST", {"edits": result["edits"], "version": result["version"]})
+    assert (status, stale["error"]) == (409, "stale_setup")
+    _, now = get_json(chatter.base, f"/api/setups/{setup['id']}")
+    assert now["version"] == 1 and now["template"]["readers"]["investor.legal_name"] == setup["template"]["readers"]["investor.legal_name"]
+
+
+def test_a_chat_answer_applies_at_the_version_it_was_made_for(chatter):
+    setup = built(chatter)
+    chatter.model.answers.append(chat_answer(CHAT_EDIT))
+    result = job_ended(chatter.base, chat_job(chatter, setup)[1]["id"])["result"]
+    status, after = get_json(chatter.base, f"/api/setups/{setup['id']}/edit", "POST", {"edits": result["edits"], "version": result["version"]})
+    assert (status, after["version"]) == (200, 1), after
+    assert result["preview"]["investor.legal_name"] == next(f for f in after["proof"]["fields"] if f["path"] == "investor.legal_name")
 
 
 def test_a_refused_edit_leaves_the_version_where_it_was(bench):

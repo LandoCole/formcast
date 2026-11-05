@@ -400,7 +400,7 @@ def test_the_bad_kind_message_names_every_job_kind(ai):
     status, out = post(base, "/api/jobs", {"kind": "teleport"})
     assert (status, out["error"]) == (400, "bad_kind")
     assert out["detail"] == (
-        "kind must be build, adapt, revise, oneshot, extract-setup, extract-line or extract-run"
+        "kind must be build, adapt, revise, oneshot, extract-setup, extract-line, extract-chat or extract-run"
     )
 
 
