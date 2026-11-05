@@ -1169,6 +1169,9 @@ def test_renders_of_different_documents_do_not_overlap_inside_mupdf(monkeypatch)
             page = self.doc[n]
 
             class P:
+                def __getattr__(_, name):  # the page's size and the rest, as the render reads them
+                    return getattr(page, name)
+
                 def get_pixmap(_, **kw):
                     with guard:
                         inside[0] += 1

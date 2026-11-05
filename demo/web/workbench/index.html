@@ -354,7 +354,7 @@
         <p class="batch-sum" id="batch-sum" aria-live="polite"></p>
         <ol class="reading-strip" id="batch-strip" aria-label="Documents by layout"></ol>
         <p class="opt" id="batch-note"></p>
-        <button type="button" class="btn quiet small" id="new-batch" title="Clear this batch: the next files or folder start a new one">Start a new batch</button>
+        <button type="button" class="btn quiet small" id="new-batch" title="Clear this batch and remove its uploaded files from the server: the next files or folder start a new one">Start a new batch</button>
       </div>
     </div>
 
@@ -443,6 +443,7 @@
     <div class="group">
       <p class="label"><label for="form-pick" id="form-pick-label">1 · The form</label></p>
       <select id="form-pick"><option value="">Loading…</option></select>
+      <button type="button" class="btn quiet small" id="form-delete" hidden title="Delete the saved template picked, with the PDF and mappings kept with it">Delete this template</button>
       <label class="btn quiet file below"><span id="file-label">Or choose a PDF</span><input type="file" id="file" accept=".pdf,application/pdf"></label>
       <label class="check" id="manual-row"><input type="checkbox" id="manual-pages"><span>I'll pick the form pages myself <span class="opt">No automatic detection. For a long agreement: it opens at once, and you find the blanks page by page as you go.</span></span></label>
     </div>

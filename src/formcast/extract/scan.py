@@ -117,12 +117,16 @@ class _Group:
     members: list[tuple[str, bool]] = field(default_factory=list)
 
 
-def _read(path: Path, first_page_only: bool) -> _Doc:
-    """Read one document's scan features. Raises ``FormcastError`` (``OSError`` is turned into one)."""
+def _read(path: Path, first_page_only: bool, max_pages: int | None = None) -> _Doc:
+    """Read one document's scan features. Raises ``FormcastError`` (``OSError`` is turned into one), also for a
+    document of more than ``max_pages`` pages, before any of it is read."""
     try:
         data = path.read_bytes()
     except OSError as exc:
         raise FormcastError("cannot open PDF") from exc
+    if max_pages is not None:
+        with PDF_LOCK:
+            open_pdf(data, max_pages=max_pages).close()
     if first_page_only:
         with PDF_LOCK:  # as PdfFeatures and DocText do for the other reads
             doc = open_pdf(data)
@@ -163,11 +167,13 @@ def scan(
     same: float = SCAN_SAME,
     first_page_only: bool = False,
     on_progress: Callable[[int, int], None] | None = None,
+    max_pages: int | None = None,
 ) -> ScanReport:
     """Group ``paths`` by layout (see the module docstring); ``same`` is the signature closeness to join a group.
 
-    Unreadable files are listed in ``unreadable`` with the reason, and the scan goes on. Nothing is detected or
-    matched, and no model is called. ``on_progress(done, total)`` is called after each document, readable or not.
+    Unreadable files are listed in ``unreadable`` with the reason, and the scan goes on; so is a file of more than
+    ``max_pages`` pages ("too many pages: ..."). Nothing is detected or matched, and no model is called.
+    ``on_progress(done, total)`` is called after each document, readable or not.
     """
     started = time.perf_counter()
     paths = [Path(p) for p in paths]
@@ -176,7 +182,7 @@ def scan(
     unreadable: list[tuple[str, str]] = []
     for done, path in enumerate(paths, start=1):
         try:
-            doc = _read(path, first_page_only)
+            doc = _read(path, first_page_only, max_pages)
         except FormcastError as exc:
             unreadable.append((str(path), str(exc)))
         except Exception as exc:  # MuPDF raises several types on damaged files it could still open

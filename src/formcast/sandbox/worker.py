@@ -15,8 +15,9 @@ validates and applies them against the authoritative template.
 Restrictions on the user's code: its own builtins dict without ``open``,
 ``exec``, ``eval``, ``compile``, ``input``, ``globals``, ``locals``, ``vars``,
 ``breakpoint`` (and with ``__import__`` replaced by an allowlist importer);
-``RLIMIT_AS`` where the OS enforces it (not macOS). The worker's own modules
-are imported before any of this applies.
+``RLIMIT_AS`` where the OS enforces it (not macOS), and on every OS the parent's
+memory watch, which kills a worker past its limit (``Sandbox``). The worker's
+own modules are imported before any of this applies.
 
 This is **not a security boundary against a hostile model** (per the spec), only
 a guard against accidents. Known escape routes left open on purpose include

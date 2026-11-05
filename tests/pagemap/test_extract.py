@@ -3,10 +3,15 @@ import pytest
 
 from formcast.geometry import points_to_norm
 from formcast.pagemap import PageMap, Word
+from formcast.errors import FormcastError
 from formcast.pagemap.extract import (
+    MAX_RENDER_PIXELS,
     extract_page,
     image_norm_to_points,
     needs_ocr,
+    open_pdf,
+    render_dpi,
+    render_matrix,
     text_layer_coverage,
 )
 
@@ -289,3 +294,31 @@ def test_invisible_paint_is_not_geometry():
     page.draw_line((120, 100), (300, 100), width=0.75)
     pm = extract_page(page)
     assert [r.rect for r in pm.rules] == [(120.0, 100.0, 300.0, 100.0)]
+
+
+def _pdf(pages: int, width: float = 612, height: float = 792) -> bytes:
+    doc = pymupdf.open()
+    for _ in range(pages):
+        doc.new_page(width=width, height=height)
+    return doc.tobytes()
+
+
+def test_open_pdf_refuses_a_pdf_past_max_pages_and_takes_one_at_it():
+    with pytest.raises(FormcastError, match=r"too many pages: 3 \(the limit is 2\)"):
+        open_pdf(_pdf(3), max_pages=2)
+    open_pdf(_pdf(2), max_pages=2).close()
+    open_pdf(_pdf(3)).close()  # no limit by default
+
+
+def test_a_letter_page_renders_at_the_dpi_asked_and_a_huge_page_is_capped():
+    assert render_dpi(612, 792, 300) == 300  # 8.4 million pixels: under the cap
+    capped = render_dpi(14400, 14400, 200)  # a 200 x 200 inch sheet would be 1.6 billion pixels at 200 dpi
+    assert capped < 200 and (14400 * capped / 72) ** 2 == pytest.approx(MAX_RENDER_PIXELS)
+
+
+def test_render_matrix_keeps_a_huge_pages_pixmap_under_the_cap():
+    doc = pymupdf.open(stream=_pdf(1, 14400, 14400), filetype="pdf")
+    page = doc[0]
+    pix = page.get_pixmap(matrix=render_matrix(page, 72), alpha=False)
+    assert pix.width * pix.height <= MAX_RENDER_PIXELS * 1.001  # MuPDF rounds each edge up to a whole pixel
+    assert pix.width > 5000  # still a usable image, only coarser

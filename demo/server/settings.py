@@ -11,6 +11,7 @@ environment. Values are never printed or logged (``LLMConfig`` masks its key in 
     FORMCAST_DEMO_ENABLED      false (or 0, no, off) drops the demo data: see ``demo_enabled``
     FORMCAST_DEMO_FOLDER_SCAN  false (or 0, no, off) stops the workbench opening a folder of PDFs by its path
     FORMCAST_DEMO_EXTRACT_WORKERS   processes an extraction run uses (a whole number; 0 = one per CPU)
+    FORMCAST_DEMO_MAX_PAGES    the most pages a PDF may have (a whole number, default 200; 0 = no limit)
 
 The AI features are on only when the base URL, key and model are all set.
 
@@ -53,6 +54,14 @@ class Settings:
     max_json_bytes: int = 20 * 2**20
     folder_scan: bool = True  #: may a batch be opened from a folder path on this machine
     extract_workers: int = 0  #: processes an extraction run uses; 0 is one per CPU
+    #: the most pages a PDF may have: a longer one is refused when opened, as a sample, and set aside by a run
+    #: (0: no limit). Reading a PDF walks every page under MuPDF's one lock, so a huge one stalls the server.
+    max_pages: int = 200
+
+    @property
+    def page_limit(self) -> int | None:
+        """``max_pages`` as the library takes it: ``None`` for no limit."""
+        return self.max_pages or None
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> Settings:
@@ -76,6 +85,8 @@ class Settings:
             out.folder_scan = parse_bool(scan, f"{PREFIX}FOLDER_SCAN")
         if (workers := get("EXTRACT_WORKERS")) is not None:
             out.extract_workers = parse_count(workers, f"{PREFIX}EXTRACT_WORKERS")
+        if (pages := get("MAX_PAGES")) is not None:
+            out.max_pages = parse_count(pages, f"{PREFIX}MAX_PAGES")
         base_url, api_key, model = get("BASE_URL"), get("API_KEY"), get("MODEL")
         if base_url and api_key and model:
             out.llm = LLMConfig(

@@ -22,7 +22,7 @@ from PIL import Image
 
 from formcast.errors import FormcastError
 from formcast.geometry import Rect
-from formcast.pagemap.extract import PDF_LOCK, image_norm_to_points
+from formcast.pagemap.extract import PDF_LOCK, image_norm_to_points, render_matrix
 from formcast.pagemap.model import TextLine, Word
 
 NOT_INSTALLED = (
@@ -137,8 +137,9 @@ def unrotate_box(box: Rect, angle: float, size: tuple[int, int]) -> Rect:
 
 
 def render(page: pymupdf.Page, dpi: int) -> Image.Image:
-    """The page as an RGB image (cropped and rotated as ``get_pixmap`` shows it)."""
-    pix = page.get_pixmap(dpi=dpi, alpha=False)
+    """The page as an RGB image (cropped and rotated as ``get_pixmap`` shows it), at ``dpi`` unless that is past the
+    pixel cap (``render_dpi``)."""
+    pix = page.get_pixmap(matrix=render_matrix(page, dpi), alpha=False)
     return Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
 
 

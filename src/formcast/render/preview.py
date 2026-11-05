@@ -12,7 +12,7 @@ import pymupdf
 from PIL import Image, ImageDraw, ImageFont
 
 from formcast.geometry import Rect
-from formcast.pagemap.extract import open_pdf
+from formcast.pagemap.extract import open_pdf, render_matrix
 from formcast.pagemap.model import FormMap
 from formcast.render.fill import fill
 from formcast.template.model import Field, Template
@@ -110,7 +110,8 @@ def preview(
     try:
         out: list[bytes] = []
         for page in doc:
-            pix = page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom), alpha=False)
+            scale = render_matrix(page, dpi)  # ``zoom``, lowered for a page too large to render at ``dpi``
+            pix = page.get_pixmap(matrix=scale, alpha=False)
             base = Image.frombytes("RGB", (pix.width, pix.height), pix.samples).convert("RGBA")
             overlay = Image.new("RGBA", base.size, (0, 0, 0, 0))
             draw = ImageDraw.Draw(overlay)
@@ -120,13 +121,13 @@ def preview(
                         continue
                     for c in pm.candidates:
                         draw.rectangle(
-                            _to_pixels(page, c.rect, zoom),
+                            _to_pixels(page, c.rect, scale.a),
                             outline=(*CANDIDATE_COLOR, CANDIDATE_ALPHA),
                             fill=(*CANDIDATE_COLOR, CANDIDATE_FILL_ALPHA),
                             width=1,
                         )
             for f in template.fields:
-                _draw_field(draw, page, f, zoom, font, width)
+                _draw_field(draw, page, f, scale.a, font, width)
             image = Image.alpha_composite(base, overlay).convert("RGB")
             buf = io.BytesIO()
             image.save(buf, format="PNG")

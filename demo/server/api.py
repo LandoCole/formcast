@@ -165,10 +165,16 @@ class Api:
         self.datasets = Datasets()
         self.jobs = Jobs(secrets=[settings.llm.api_key] if settings.llm is not None else [])
         # the extraction workbench's managers (demo/server/extraction.py): batches of PDFs, setups, saved extractions, runs
-        self.batches = Batches(settings.data_dir / "local" / "batches")
+        self.batches = Batches(settings.data_dir / "local" / "batches", max_pages=settings.page_limit)
         self.setups = Setups()
         self.extractions = ExtractionStore(settings.data_dir / "local" / "extractions")
         self.runs = Runs(settings.data_dir / "local" / "runs")
+        try:  # no batch is open yet: the uploads an earlier server left behind, that no saved run reads, go
+            swept = self.batches.sweep(self.runs.batches_used())
+            if swept:
+                log.info("removed %d uploaded batch folder(s) that no saved run reads", swept)
+        except OSError:
+            log.warning("the uploaded batches couldn't be cleared up", exc_info=True)
         self._routes: list[tuple[str, re.Pattern[str], Callable[[Request], Any]]] = []
         self._add_routes()
 
@@ -338,7 +344,7 @@ class Api:
                 raise ApiError(404, "not_found", f"no such demo form: {form}")
             name, data = f"{form}.pdf", path.read_bytes()
         try:
-            doc = self.documents.add(data, name, detect=detect)
+            doc = self.documents.add(data, name, detect=detect, max_pages=self.settings.page_limit)
         except FormcastError as exc:
             raise ApiError(400, "bad_pdf", f"This file can't be used: {exc}.") from None
         return doc.summary()

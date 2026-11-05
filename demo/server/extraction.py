@@ -73,6 +73,14 @@ whose templates have the same sha256, so a cancelled run resumes where it stoppe
 otherwise a new one. ``Runs.get`` reads a run's folder the first time it is asked for, so runs outlive the server
 (their batches do not: batches are in memory, so the same files read after a restart are a new batch and a new run).
 
+**Deleting.** ``Runs.delete`` removes a workbench run's folder (a command line run is only forgotten: its folder is
+the person's) and refuses a run a job is reading (``RunBusy``). ``Batches.delete`` forgets a batch and removes the
+files uploaded into it (a folder's batch only forgets: its files are the person's), and refuses one a saved run reads
+(``BatchInUse``: the run's page images are its files). ``Batches.sweep`` removes the upload folders of batches that
+neither the server holds open nor any saved run reads; the server runs it when it starts, when no batch is open, so
+uploads a restart left behind do not pile up. A run's batch is swept as soon as its last run is deleted, unless the
+batch is open.
+
 A command line run (``python -m formcast.extract run``) is opened by its folder (``Runs.open_folder``): each
 template its ``run.json`` names must be a saved extraction with the same ``template_id`` and sha256. It is held in
 memory under a new id and read where it is; nothing is copied. Its documents are named by their ``doc_id`` (their
@@ -161,6 +169,10 @@ RUN_ID = re.compile(r"[0-9a-f]{32}")  #: a run's id, and the name of its folder
 FIELD_COUNTS = ("found", "blank", "not_located", "missing", "failed_check", "unsure", "reviewed", "not_on_form", "absent")
 #: The summary of a run that has not begun reading.
 NOT_STARTED = RunSummary(total=0, complete=0, with_problems=0, no_template=0, unreadable=0, internal_errors=0, seconds=0.0)
+
+
+class BatchInUse(FormcastError):
+    """A saved run reads the batch's files; delete the run first."""
 
 
 class ScanNotDone(FormcastError):
@@ -287,8 +299,9 @@ class _Pdf:
 class Batches:
     """The batches the workbench has open, by id; uploaded files go under ``root`` (``<data>/local/batches``)."""
 
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, *, max_pages: int | None = None) -> None:
         self.root = Path(root)
+        self.max_pages = max_pages  #: a file of more pages is scanned as unreadable ("too many pages")
         self._batches: dict[str, Batch] = {}
         self._lock = threading.Lock()
 
@@ -350,6 +363,51 @@ class Batches:
             self._batches[batch.id] = batch
         return batch
 
+    # ------------------------------------------------------------ deleting
+
+    def delete(self, batch_id: str, used: set[str]) -> None:
+        """Forget the batch ``batch_id`` and remove the files uploaded into it; ``used`` is the ids of the batches
+        saved runs read.
+
+        Raises:
+            KeyError: the server has no such batch open.
+            BatchInUse: a saved run reads it.
+        """
+        if batch_id in used:
+            raise BatchInUse("A saved run reads these files. Delete the run first, then the batch.")
+        with self._lock:
+            batch = self._batches.pop(batch_id)
+        with batch._adding:  # an upload under way finishes writing first
+            with batch._lock:
+                batch._generation += 1  # a scan under way stops at its next document
+            self._remove(batch_id)
+
+    def sweep(self, used: set[str]) -> int:
+        """Remove the upload folders of the batches the server does not hold open and no saved run reads (their ids
+        not in ``used``); the number removed. Only folders named as a batch id are touched."""
+        with self._lock:
+            keep = used | set(self._batches)
+        removed = 0
+        for folder in sorted(self.root.iterdir()) if self.root.is_dir() else []:
+            if RUN_ID.fullmatch(folder.name) and folder.name not in keep and folder.is_dir():
+                self._remove(folder.name)
+                removed += 1
+        return removed
+
+    def drop_unused(self, batch_id: str | None, used: set[str]) -> None:
+        """Remove the upload folder of ``batch_id`` once no saved run reads it, unless the server holds it open."""
+        if batch_id is None or not RUN_ID.fullmatch(batch_id) or batch_id in used:
+            return
+        with self._lock:
+            if batch_id in self._batches:
+                return
+        self._remove(batch_id)
+
+    def _remove(self, batch_id: str) -> None:
+        folder = self.root / batch_id
+        if folder.parent == self.root:
+            shutil.rmtree(folder, ignore_errors=True)
+
     # ------------------------------------------------------------ uploads
 
     def add(self, batch: Batch, uploads: list[tuple[str, bytes]]) -> None:
@@ -407,7 +465,9 @@ class Batches:
 
         try:
             with PYMUPDF_LOCK:
-                report = scan(paths, first_page_only=len(paths) >= FIRST_PAGE_ONLY_FROM, on_progress=step)
+                report = scan(
+                    paths, first_page_only=len(paths) >= FIRST_PAGE_ONLY_FROM, on_progress=step, max_pages=self.max_pages
+                )  # fmt: skip
         except _Superseded:
             return
         except Exception:
@@ -1201,6 +1261,27 @@ class Runs:
                 if same and [template_sha256(t) for t in run.templates] == shas:
                     return run, False
             return self._create(name, extraction, batch, templates), True
+
+    def delete(self, run_id: str) -> Run:
+        """Delete the run ``run_id``: a workbench run's folder is removed, a command line run (opened by its folder)
+        is only forgotten. Returns the run, whose ``batch`` may now be unused.
+
+        Raises:
+            KeyError: there is no such run.
+            RunBusy: a job is reading it.
+        """
+        run = self.get(run_id)
+        run.claim()  # no job starts on it from here on; one running refuses the delete
+        with self._lock:
+            self._runs.pop(run.id, None)
+        if not run.folder and run.out_dir.parent == self.root:
+            shutil.rmtree(run.out_dir, ignore_errors=True)
+        return run
+
+    def batches_used(self) -> set[str]:
+        """The ids of the batches the saved workbench runs read."""
+        with self._lock:
+            return {run.batch for run in self._stored() if run.batch is not None}
 
     def discard(self, run: Run) -> None:
         """Forget a run made for a job that never started, and remove its folder."""

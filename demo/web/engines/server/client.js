@@ -356,6 +356,8 @@ export async function createServerEngine({
 
       /** The Batch now, its scan's progress included. */
       batch: (id) => call("GET", batchPath(id)),
+      /** Forget a batch and remove its uploaded files; 409 `in_use` while a saved run reads them. */
+      removeBatch: async (id) => (await call("DELETE", batchPath(id), { json: {} })).deleted,
       /** A page of the batch's files: `{total, files: [{index, name, size, group}]}` (`limit` 1 to 200). */
       files: (id, offset = 0, limit = 50) => call("GET", `${batchPath(id)}/files${query({ offset, limit })}`),
       /**
@@ -430,6 +432,11 @@ export async function createServerEngine({
       startRun: ({ extraction, batch, ai = false }) => startJob({ kind: "extract-run", extraction, batch, ai }),
       /** The runs the server knows: `[{id, name, extraction, started, summary}]`. */
       runs: async () => (await call("GET", "/api/runs")).runs,
+      /**
+       * Delete a run's results (a command line run is only forgotten, its folder stays); 409 `busy_run` while a job
+       * reads it. @returns {Promise<string>} the deleted id
+       */
+      removeRun: async (id) => (await call("DELETE", runPath(id), { json: {} })).deleted,
       /** A command line run's output folder on the server's machine, opened: the Run. */
       openRun: (folder) => call("POST", "/api/runs", { json: { folder }, timeout: formMapTimeoutMs }),
       /** The Run `{id, name, extraction, summary, fields, seconds}`. */

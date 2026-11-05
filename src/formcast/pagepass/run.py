@@ -24,6 +24,15 @@ PdfInput = str | Path | bytes
 PAGE_PASS_MAX_OUTPUT_TOKENS = 32000
 PAGE_PASS_TIMEOUT_S = 300
 MAX_FILL_IN_LABEL = 80  # a label a fill-in pass gives a box: the printed words a person would call it by
+# Said once to a page whose answer has no usable JSON, after it in the same conversation; a second such answer is
+# ``unparsed``. A reply cut off at the output limit before any complete entry is asked for again, more compactly.
+UNPARSED_RETRY = (
+    "That answer can't be used: it is not the JSON object asked for. Reply again with the JSON object only."
+)
+CUT_OFF_RETRY = (
+    "Your reply was cut off at the output limit before any complete entry. Reply again with the JSON object only, "
+    "written compactly: no explanation, no whitespace."
+)
 
 
 @dataclass
@@ -108,15 +117,33 @@ def _error(page: int, e: Exception, seconds: float) -> PageOutcome:
 
 
 def _call_page(provider: Provider, page: int, messages: list[Message], limits: dict[str, int]) -> PageOutcome:
-    """Ask for one page; an exception of any kind becomes an ``error`` outcome."""
+    """Ask for one page, and once more when the answer has no usable JSON (``UNPARSED_RETRY``, or ``CUT_OFF_RETRY``
+    for a reply cut off at the output limit); the outcome holds the last answer and both calls' usage. An exception of
+    any kind on the first call becomes an ``error`` outcome; on the second, the first answer stands."""
     start = time.monotonic()
     try:
         response = provider.complete(messages, [], **limits)
     except Exception as e:  # noqa: BLE001 - a failed page keeps its boxes unmapped; the pass goes on
         return _error(page, e, time.monotonic() - start)
-    return PageOutcome(
-        page, "ok", usage=response.usage, seconds=time.monotonic() - start, text=response.text
-    )
+    usage = response.usage
+    if parse_answer(response.text) is None:
+        limit = limits.get("max_output_tokens")
+        cut_off = bool(limit) and response.usage.output_tokens >= limit - 64
+        again = [
+            *messages,
+            Message("assistant", "(cut off)" if cut_off else response.text or "(empty)"),
+            Message("user", CUT_OFF_RETRY if cut_off else UNPARSED_RETRY),
+        ]
+        try:
+            retried = provider.complete(again, [], **limits)
+        except Exception:  # noqa: BLE001 - the first answer stands (and is marked unparsed)
+            retried = None
+        if retried is not None:
+            usage = Usage(
+                usage.input_tokens + retried.usage.input_tokens, usage.output_tokens + retried.usage.output_tokens
+            )
+            response = retried
+    return PageOutcome(page, "ok", usage=usage, seconds=time.monotonic() - start, text=response.text)
 
 
 def _table_op_page(template: Template, op: dict, previous: int) -> int:
@@ -151,7 +178,8 @@ def map_pages(
     without them). A page that cannot be rendered is an ``error``. Answers are
     applied afterwards in page order, so the result does not depend on which call finished first:
     every page's plain mappings, then the tables of all pages (those continuing across pages
-    merged into one). A failed or unparsable page keeps its boxes unmapped; a rejected op is
+    merged into one). A page whose answer has no usable JSON is asked once more in the same
+    conversation; a failed page, or one unparsable twice, keeps its boxes unmapped; a rejected op is
     recorded in its page's outcome, never raised. The boxes an answer lists as required are marked with
     ``set_required`` (a table when one of its boxes is listed). Table ops count against the page of their first
     segment, and a box-clearing op against the box's page. ``llm`` is an :class:`LLMConfig` (the

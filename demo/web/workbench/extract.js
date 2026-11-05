@@ -17,7 +17,8 @@
 // The Extract modal, in the mockup's four groups. 1 · the batch: the PDFs and zips among the files chosen or dropped
 // (or in a folder chosen) go to one batch, made at the first upload and added to after; a folder typed is opened on
 // the server's machine as a new batch. Start a new batch (#new-batch, shown once there is one) clears the batch on
-// show, so the next files or folder start a new one; a batch the server no longer has (it restarted) is cleared the
+// show, so the next files or folder start a new one, and deletes it on the server (its uploaded files are removed,
+// unless a saved run reads them); a batch the server no longer has (it restarted) is cleared the
 // same way the moment a call about it answers 404, with "That batch is no longer on the server; add the documents
 // again." While the modal is open a file dropped anywhere on the page but #drop is ignored, never opened by the
 // browser in place of the page. A file over the server's upload limit is left out and named in
@@ -403,7 +404,13 @@ function mountModal(app, api) {
   }
   $("new-batch").addEventListener("click", () => {
     say("");
-    queue(clearBatch); // after the uploads under way: what they add goes to the batch being cleared
+    queue(async () => {
+      // after the uploads under way: what they add goes to the batch being cleared
+      const old = state.batch;
+      clearBatch();
+      // its uploaded files go too, unless a saved run reads them (409 in_use: the run's pages are those files)
+      if (old !== null) await calls.removeBatch(old.id).catch(() => {});
+    });
   });
   $("scan").addEventListener("click", () => queue(scanFolder));
   $("folder").addEventListener("keydown", (e) => {

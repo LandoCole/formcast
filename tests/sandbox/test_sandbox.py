@@ -1,8 +1,12 @@
+import os
+import sys
+
 import pytest
 
 from formcast.errors import FormcastError
 from formcast.pagemap.model import FormMap, PageMap, TextLine, Word
 from formcast.sandbox import ExecResult, Sandbox
+from formcast.sandbox.client import memory_bytes
 from formcast.schema import flatten_schema
 from formcast.template.model import Field, FormInfo, Template
 
@@ -318,6 +322,22 @@ def test_timeout_restarts_the_worker_and_resets_the_namespace():
         assert "NameError" in sb.exec("print(x)").error
         # the restarted worker has the latest context
         assert _ok(sb.exec("print(add_field(page=0, rect=[0,0,9,9], type='text'))")).stdout == "f5\n"
+
+
+@pytest.mark.skipif(sys.platform not in ("darwin", "linux"), reason="the memory watch reads macOS and Linux only")
+def test_memory_bytes_reads_a_process():
+    assert memory_bytes(os.getpid()) > 1024 * 1024
+
+
+def test_code_past_the_memory_limit_is_stopped_and_the_worker_restarted():
+    with Sandbox(timeout_s=20, memory_mb=300) as sb:
+        sb.start(_form_map(), flatten_schema(SCHEMA), _template())
+        _ok(sb.exec("x = 1"))
+        result = sb.exec("big = bytearray(600 * 1024 * 1024)\nwhile True: pass")
+        assert not result.timed_out
+        # macOS ignores RLIMIT_AS: the parent's watch kills the worker. Linux enforces it first: a MemoryError.
+        assert "more than 300 MB" in result.error or "MemoryError" in result.error
+        assert _ok(sb.exec("print(2)")).stdout == "2\n"
 
 
 def test_worker_crash_is_reported_and_recovered(sandbox):

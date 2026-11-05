@@ -935,3 +935,31 @@ def test_refresh_follows_lines_appended_since_the_load_and_reads_again_only_a_re
     (tmp_path / "results.jsonl").write_text("".join(kept))  # rewritten shorter: read again from the start
     results.refresh()
     assert results.summary().total == 10 and parses["loads"] == 1
+
+
+@pytest.mark.parametrize("workers", [1, 2])
+def test_a_document_past_the_page_limit_is_set_aside_unread(tmp_path, workers):
+    folder = tmp_path / "in"
+    folder.mkdir()
+    form = make_form(clients(1)[0], kind="fillable")
+    pages = pymupdf.open(stream=form, filetype="pdf").page_count
+    (folder / "good.pdf").write_bytes(form)
+    long = pymupdf.open(stream=form, filetype="pdf")
+    long.insert_pdf(pymupdf.open(stream=form, filetype="pdf"))  # twice as many pages as the limit allows
+    (folder / "long.pdf").write_bytes(long.tobytes())
+    summary = run_batch([hand_template()], sorted(folder.glob("*.pdf")), tmp_path / "out", workers=workers, max_pages=pages)
+    assert (summary.total, summary.unreadable) == (2, 1)
+    errors = {d.doc_id: d.error for d in Results.load(tmp_path / "out").documents()}
+    assert errors == {"good.pdf": None, "long.pdf": f"too many pages: {2 * pages} (the limit is {pages})"}
+
+
+def test_the_scan_lists_a_document_past_the_page_limit_as_unreadable(tmp_path):
+    from formcast.extract.scan import scan
+
+    doc = pymupdf.open()
+    for _ in range(3):
+        doc.new_page()
+    (tmp_path / "three.pdf").write_bytes(doc.tobytes())
+    report = scan([tmp_path / "three.pdf"], max_pages=2)
+    assert report.groups == [] and report.unreadable == [(str(tmp_path / "three.pdf"), "too many pages: 3 (the limit is 2)")]
+    assert len(scan([tmp_path / "three.pdf"], max_pages=3).groups) == 1

@@ -20,6 +20,8 @@ class LLMConfig:
     `max_tokens_param` names the Chat Completions field carrying the output
     limit: OpenAI's newer models require "max_completion_tokens" while some
     compatible servers only know "max_tokens". `reasoning_effort=None` omits it.
+    `timeout_s` bounds one attempt; `max_call_s` bounds a whole call, its retries and
+    the waits between them included (`None`: twice the attempt's timeout).
     """
 
     base_url: str
@@ -30,6 +32,7 @@ class LLMConfig:
     max_output_tokens: int = 8000
     timeout_s: float = 120
     max_retries: int = 3
+    max_call_s: float | None = None
     extra_headers: dict[str, str] = field(default_factory=dict)
     reasoning_effort: str | None = None
     max_tokens_param: str = "max_completion_tokens"

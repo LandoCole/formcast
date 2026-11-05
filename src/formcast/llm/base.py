@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 from collections.abc import Callable
 from typing import Protocol
 
 import httpx
 
-from formcast.errors import FormcastError
+from formcast.errors import FormcastError, LLMRequestError
 from formcast.llm.config import LLMConfig
 from formcast.llm.types import ImagePart, LLMResponse, Message, ToolCall, ToolSpec
 
@@ -23,10 +24,21 @@ _VISION_HINT = (
 )
 # 4xx statuses that say nothing about the request's content (a timeout, a rate limit): no vision hint.
 _NO_HINT_STATUSES = frozenset({408, 429})
+# A 400 whose body says this is about the request's size: the prompt is past the model's context window.
+_TOO_LARGE_BODY = re.compile(
+    r"context[ _-]?(length|window)|prompt is too long|too many (input )?tokens|maximum (context|input)|"
+    r"request[ _-]too[ _-]large|input is too long",
+    re.I,
+)
+_TOO_LARGE_HINT = (
+    " (the request is too large for the model: send fewer pages or samples, "
+    "or pass vision=False to send no page images)"
+)
 
 # Indirection so tests can monkeypatch the backoff sleep (or pass `sleep=` to
 # make_provider) without waiting.
 _sleep: Callable[[float], None] = time.sleep
+_clock: Callable[[], float] = time.monotonic
 
 
 class Provider(Protocol):
@@ -137,11 +149,13 @@ class HTTPProvider:
             **self.cfg.extra_headers,
         }
 
-    def _wait(self, attempt: int, response: httpx.Response | None) -> None:
+    def _delay(self, attempt: int, response: httpx.Response | None) -> float:
         delay = _retry_after(response) if response is not None else None
         if delay is None:
             delay = BASE_BACKOFF_S * 2**attempt
-        delay = min(delay, MAX_BACKOFF_S)
+        return min(delay, MAX_BACKOFF_S)
+
+    def _wait(self, delay: float) -> None:
         (self._sleep or _sleep)(delay)
 
     def post_json(
@@ -154,35 +168,55 @@ class HTTPProvider:
     ) -> dict:
         """POST `body` as JSON, retrying 429/5xx and transport errors with backoff.
 
-        `timeout_s` overrides the config timeout for this call; `images` marks a
-        request carrying image parts so a 4xx (not 408 or 429) can suggest `vision=False`.
+        `timeout_s` overrides the config timeout for one attempt; the whole call, its retries and waits
+        included, stops at `max_call_s` (twice the attempt's timeout when unset): no attempt runs past it,
+        and a retry whose wait would pass it is not made. `images` marks a request carrying image parts so a
+        4xx (not 408 or 429) can suggest `vision=False`; a request too large for the model says so instead.
+
+        Raises:
+            LLMRequestError: the call failed (its `status`, and `too_large` for a request past the model's size).
         """
         url = self._url(path)
         timeout = self.cfg.timeout_s if timeout_s is None else timeout_s
+        budget = self.cfg.max_call_s if self.cfg.max_call_s is not None else 2 * timeout
+        deadline = _clock() + budget
         attempts = self.cfg.max_retries + 1
         for attempt in range(attempts):
             last = attempt == attempts - 1
+            left = deadline - _clock()
+            if left <= 0:  # the waits used the time up (a retry is only made when its wait ends before this)
+                raise LLMRequestError(f"LLM request to {url} took more than the call's {budget:g} s")
             try:
                 response = self._client.post(
-                    url, headers=self._headers(), json=body, timeout=timeout
+                    url, headers=self._headers(), json=body, timeout=min(timeout, left)
                 )
             except httpx.TransportError as exc:
-                if last:
-                    raise FormcastError(
-                        f"LLM request to {url} failed after {attempts} attempt(s): "
+                delay = self._delay(attempt, None)
+                if last or _clock() + delay >= deadline:
+                    raise LLMRequestError(
+                        f"LLM request to {url} failed after {attempt + 1} attempt(s): "
                         f"{type(exc).__name__}: {self.redact(str(exc))}"
                     ) from exc
-                self._wait(attempt, None)
+                self._wait(delay)
                 continue
             if response.status_code in _RETRY_STATUSES and not last:
-                self._wait(attempt, response)
-                continue
+                delay = self._delay(attempt, response)
+                if _clock() + delay < deadline:
+                    self._wait(delay)
+                    continue
             if response.status_code >= 400:
                 code = response.status_code
-                hint = _VISION_HINT if images and code < 500 and code not in _NO_HINT_STATUSES else ""
-                raise FormcastError(
+                too_large = code == 413 or (code == 400 and bool(_TOO_LARGE_BODY.search(response.text)))
+                if too_large:
+                    hint = _TOO_LARGE_HINT
+                elif images and code < 500 and code not in _NO_HINT_STATUSES:
+                    hint = _VISION_HINT
+                else:
+                    hint = ""
+                raise LLMRequestError(
                     f"LLM request to {url} failed with HTTP {response.status_code}: "
-                    f"{self._excerpt(response.text)}{hint}"
+                    f"{self._excerpt(response.text)}{hint}",
+                    status=code, too_large=too_large,
                 )
             try:
                 payload = response.json()

@@ -69,7 +69,7 @@ from formcast.errors import FormcastError
 from formcast.match import PdfFeatures, pdf_features
 from formcast.pagemap.build import NOTE_PROSE, PageProgress, build_form_map, detect_on_page, needs_detection
 from formcast.pagemap.detect import DetectPolicy, Detector
-from formcast.pagemap.extract import PDF_LOCK, extract_page, is_image_dominated, open_pdf, page_size
+from formcast.pagemap.extract import PDF_LOCK, extract_page, is_image_dominated, open_pdf, page_size, render_matrix
 from formcast.geometry import Rect, contained_fraction
 from formcast.pagemap.model import FormMap, PageMap, TextLine
 from formcast.pagemap.ocr import ocr_available, ocr_page
@@ -95,7 +95,8 @@ def clamp_dpi(dpi: int) -> int:
 
 
 def page_png(pdf: bytes, n: int, dpi: int) -> bytes:
-    """PNG of page ``n`` (0-based) of the PDF ``pdf`` at ``dpi`` (clamped to 36-200), with the page's /Rotate applied.
+    """PNG of page ``n`` (0-based) of the PDF ``pdf`` at ``dpi`` (clamped to 36-200, and lowered for a page too large to
+    render at it: ``render_dpi``), with the page's /Rotate applied.
 
     Opens the PDF from its bytes and renders under ``PYMUPDF_LOCK``. For a PDF held as bytes with no ``Doc``
     (a sample of a batch, a document of a run); ``Doc.page_png`` adds its cache.
@@ -108,7 +109,8 @@ def page_png(pdf: bytes, n: int, dpi: int) -> bytes:
     with PYMUPDF_LOCK:
         doc = pymupdf.open(stream=pdf, filetype="pdf")
         try:
-            return doc[n].get_pixmap(dpi=clamp_dpi(dpi), alpha=False).tobytes("png")
+            page = doc[n]
+            return page.get_pixmap(matrix=render_matrix(page, clamp_dpi(dpi)), alpha=False).tobytes("png")
         finally:
             doc.close()
 
@@ -181,12 +183,15 @@ def _reads_before(a: Rect, b: Rect) -> bool:
 class Doc:
     """One open PDF. Build with ``Documents.add``."""
 
-    def __init__(self, name: str, pdf_bytes: bytes, *, detectors: DetectorWarmup | None = None, detect: str = "auto") -> None:
+    def __init__(
+        self, name: str, pdf_bytes: bytes, *, detectors: DetectorWarmup | None = None, detect: str = "auto",
+        max_pages: int | None = None,
+    ) -> None:  # fmt: skip
         if detect not in DETECT_MODES:
             raise ValueError(f"detect must be one of {DETECT_MODES}, not {detect!r}")
-        # open_pdf rejects encrypted, corrupt and empty PDFs with FormcastError.
+        # open_pdf rejects encrypted, corrupt and empty PDFs, and one past max_pages, with FormcastError.
         with PYMUPDF_LOCK:
-            pdf = open_pdf(pdf_bytes)
+            pdf = open_pdf(pdf_bytes, max_pages=max_pages)
             try:
                 self.page_count: int = pdf.page_count
                 self.page_sizes: list[tuple[float, float]] = [page_size(p) for p in pdf]
@@ -495,10 +500,11 @@ class Documents:
         self._docs: OrderedDict[str, Doc] = OrderedDict()
         self._lock = threading.Lock()
 
-    def add(self, pdf_bytes: bytes, name: str, *, detect: str = "auto") -> Doc:
+    def add(self, pdf_bytes: bytes, name: str, *, detect: str = "auto", max_pages: int | None = None) -> Doc:
         """Open ``pdf_bytes``, keep it and start building its form map. Raises ``FormcastError`` for a PDF that
-        cannot be used. ``detect="manual"`` runs no detection in the build (see ``Doc.detect_page``)."""
-        doc = Doc(name, pdf_bytes, detectors=self.detectors, detect=detect)  # validated outside the lock: opening can take a moment
+        cannot be used, or that has more than ``max_pages`` pages. ``detect="manual"`` runs no detection in the build
+        (see ``Doc.detect_page``)."""
+        doc = Doc(name, pdf_bytes, detectors=self.detectors, detect=detect, max_pages=max_pages)  # validated outside the lock: opening can take a moment
         with self._lock:
             self._docs[doc.id] = doc
             while len(self._docs) > self.limit:

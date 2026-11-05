@@ -263,12 +263,16 @@ def test_dropping_pdfs_and_then_a_zip_puts_them_in_one_batch_and_start_a_new_bat
     batches = start_demo_server.servers[-1].api.batches._batches
     assert len(batches) == 1
 
-    b.page.click("#new-batch")  # the next files start a batch of their own
+    [first] = batches
+    folder = start_demo_server.servers[-1].api.batches.root / first
+    assert folder.is_dir()
+    b.page.click("#new-batch")  # the next files start a batch of their own, and this one is deleted on the server
     expect(b.page.locator("#batch")).to_be_hidden()
     b.page.dispatch_event("#drop", "drop", {"dataTransfer": data_transfer(b, FILES[:2])})
     expect(b.page.locator("#batch-sum")).to_contain_text("2 PDFs")
     expect(b.page.locator("#batch-strip li")).to_have_count(2)
-    assert len(batches) == 2 and sorted(len(x.files) for x in batches.values()) == [2, 5]
+    assert first not in batches and not folder.exists()
+    assert [len(x.files) for x in batches.values()] == [2]
 
 
 def test_a_batch_the_server_no_longer_has_is_cleared_and_the_next_files_start_a_new_one(start_demo_server, bench):
@@ -2267,6 +2271,26 @@ def test_send_to_fill_of_a_run_made_for_a_destination_picks_that_form(start_demo
     expect(b.page.locator("#data-given")).to_contain_text("Client forms results")
 
 
+def test_delete_on_the_choice_asks_first_then_deletes_a_saved_run_and_a_saved_extraction(start_demo_server, bench, run_files):
+    base = extract_server(start_demo_server)
+    _, run_id = saved_run(base, run_files)
+    b = bench(base, fill=False)
+    runs, saved = b.page.locator("#saved-runs li"), b.page.locator("#saved-extractions li")
+    expect(runs).to_have_count(1)
+    answers = iter([False, True, True])  # No, then Yes, then Yes
+    asked: list[str] = []
+    b.page.on("dialog", lambda d: (asked.append(d.message), d.accept() if next(answers) else d.dismiss()))
+    runs.first.locator("button.del").click()
+    expect(runs).to_have_count(1)  # dismissed: nothing deleted
+    runs.first.locator("button.del").click()
+    expect(b.page.locator("#saved-runs-group")).to_be_hidden()
+    assert not (start_demo_server.servers[-1].api.settings.data_dir / "local" / "runs" / run_id).exists()
+    saved.first.locator("button.del").click()
+    expect(b.page.locator("#saved-extractions-group")).to_be_hidden()
+    assert get_json(base, "/api/extractions")[1]["extractions"] == []
+    assert "Delete this run's results" in asked[0] and "Client info" in asked[2]
+
+
 def test_the_choice_lists_the_saved_runs_and_extractions_and_opens_them_or_a_run_folder_on_the_server(start_demo_server, bench, run_files, tmp_path):
     base = extract_server(start_demo_server)
     _, run_id = saved_run(base, run_files)
@@ -2276,7 +2300,7 @@ def test_the_choice_lists_the_saved_runs_and_extractions_and_opens_them_or_a_run
     # mars is complete: its country is optional
     expect(runs).to_contain_text(f"Client forms · Client info · {RUN_TOTAL} documents · 2 with problems")
     expect(b.page.locator("#saved-extractions li")).to_contain_text(["Client info"])
-    runs.first.locator("button").click()
+    runs.first.locator("button:not(.del)").click()
     expect(b.page.locator("#choose")).to_be_hidden()
     expect(b.page.locator('.view[data-only="review"]')).to_be_visible()
     assert b.page.evaluate("document.body.dataset.mode") == "extract"

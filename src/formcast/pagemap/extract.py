@@ -9,6 +9,7 @@ with ``page.rotation_matrix`` / ``page.derotation_matrix``.
 
 from __future__ import annotations
 
+import math
 import threading
 from dataclasses import dataclass
 from pathlib import Path
@@ -35,6 +36,9 @@ UNDERSCORE_MIN_RUN = 3
 IMAGE_DOMINANT_FRACTION = 0.8
 IMAGE_GRID = 4.0  # points per cell when measuring the union of image areas
 MIN_TEXT_COVERAGE = 0.35
+# The most pixels one page render may have: ten US Letter pages at 200 dpi (1700 x 2200 px each), about 37
+# million (112 MB as RGB). A larger page renders at a lower dpi (render_dpi) instead of taking gigabytes.
+MAX_RENDER_PIXELS = 10 * 1700 * 2200
 # text_layer_coverage rendering.
 COVERAGE_DPI = 50
 INK_THRESHOLD = 160  # gray level below which a pixel is ink
@@ -69,12 +73,40 @@ class _Char:
     bold: bool
 
 
-def open_pdf(pdf: str | Path | bytes) -> pymupdf.Document:
-    """Open a PDF from a path or bytes; the caller closes it.
+def check_pages(count: int, max_pages: int | None) -> None:
+    """Refuse a PDF of more than ``max_pages`` pages (``None``: any number).
+
+    Raises:
+        FormcastError: "too many pages: 1,204 (the limit is 200)".
+    """
+    if max_pages is not None and count > max_pages:
+        raise FormcastError(f"too many pages: {count:,} (the limit is {max_pages:,})")
+
+
+def render_dpi(width_pt: float, height_pt: float, dpi: float) -> float:
+    """``dpi``, lowered when needed so a ``width_pt`` x ``height_pt`` area renders to about :data:`MAX_RENDER_PIXELS`
+    pixels at most (MuPDF rounds each edge up to a whole pixel). A huge page (a poster, a drawing sheet) still renders,
+    only coarser."""
+    pixels = (width_pt * dpi / 72) * (height_pt * dpi / 72)
+    if pixels <= MAX_RENDER_PIXELS:
+        return dpi
+    return dpi * math.sqrt(MAX_RENDER_PIXELS / pixels)
+
+
+def render_matrix(page: pymupdf.Page, dpi: float, clip: pymupdf.Rect | None = None) -> pymupdf.Matrix:
+    """The ``get_pixmap`` matrix that renders ``page`` (or ``clip`` of it) at ``dpi``, capped by :func:`render_dpi`."""
+    area = clip if clip is not None else page.rect  # page.rect is the page as rendered (rotated, cropped)
+    zoom = render_dpi(area.width, area.height, dpi) / 72
+    return pymupdf.Matrix(zoom, zoom)
+
+
+def open_pdf(pdf: str | Path | bytes, *, max_pages: int | None = None) -> pymupdf.Document:
+    """Open a PDF from a path or bytes; the caller closes it. ``max_pages`` refuses a longer one (``check_pages``).
 
     Raises:
         FormcastError: "encrypted PDF" when a password is needed, "cannot open
-            PDF" when the input is missing, not a PDF, or has no pages.
+            PDF" when the input is missing, not a PDF, or has no pages, "too
+            many pages: ..." past ``max_pages``.
     """
     try:
         if isinstance(pdf, (bytes, bytearray, memoryview)):
@@ -89,6 +121,11 @@ def open_pdf(pdf: str | Path | bytes) -> pymupdf.Document:
     if not doc.is_pdf or doc.page_count == 0:
         doc.close()
         raise FormcastError("cannot open PDF")
+    try:
+        check_pages(doc.page_count, max_pages)
+    except FormcastError:
+        doc.close()
+        raise
     return doc
 
 
@@ -186,10 +223,11 @@ def _needs_ocr(
 def _coverage(
     page: pymupdf.Page, words: list[Word], rules: list[Rule], drawings: list[dict]
 ) -> float:
-    pix = page.get_pixmap(dpi=COVERAGE_DPI, colorspace=pymupdf.csGRAY, alpha=False)
+    scale = render_matrix(page, COVERAGE_DPI)
+    pix = page.get_pixmap(matrix=scale, colorspace=pymupdf.csGRAY, alpha=False)
     gray = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.stride)
     ink = gray[:, : pix.width] < INK_THRESHOLD
-    to_pixels = page.rotation_matrix * pymupdf.Matrix(COVERAGE_DPI / 72, COVERAGE_DPI / 72)
+    to_pixels = page.rotation_matrix * scale
 
     def mask(rects: list[Rect], pad: float) -> np.ndarray:
         m = np.zeros_like(ink)

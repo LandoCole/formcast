@@ -10,12 +10,14 @@ Batches (``api.batches``, ``demo/server/extraction.py``):
     POST /api/batches                {name?} | {folder, name?}      -> Batch
     POST /api/batches/{b}/files      multipart, parts named file    -> Batch   (PDFs and .zip files)
     GET  /api/batches/{b}                                           -> Batch
+    DELETE /api/batches/{b}                                         -> {deleted}  (its uploaded files removed)
     GET  /api/batches/{b}/files?offset=&limit=                      -> {total, files: [{index, name, size, group}]}
     POST /api/batches/{b}/sample     {n, how: spread|first|pick, picked?: [index]} -> {samples: [{index, name, group}]}
     GET  /api/batches/{b}/files/{i}/pages/{p}.png?dpi=              -> image/png
     GET  /api/batches/{b}/files/{i}/pages/{p}/words                 -> the page's words (``documents.page_words``)
 
-``{folder}`` opens a folder on the server's machine in place: 403 ``not_allowed`` when ``settings.folder_scan`` is
+A batch a saved run reads can't be deleted (409 ``in_use``: the run's page images are its files); a folder's batch is
+only forgotten, its files stay where they are. ``{folder}`` opens a folder on the server's machine in place: 403 ``not_allowed`` when ``settings.folder_scan`` is
 off, 400 ``bad_folder`` when it is not a full path to a folder holding a PDF. An upload the batch refuses (a zip too
 large or damaged, too many files, a folder's batch) is 400 ``bad_upload``; its body may be up to
 ``settings.max_upload_bytes``, as every multipart body, so the page sends a large batch in several requests. A list
@@ -74,6 +76,7 @@ Runs (``api.runs``):
     GET  /api/runs                                                  -> {runs: [{id, name, extraction, started, summary}]}
     POST /api/runs                   {folder}                       -> Run     (a command line run opened)
     GET  /api/runs/{r}                                              -> Run
+    DELETE /api/runs/{r}                                            -> {deleted}  (409 ``busy_run`` while a job reads it)
     GET  /api/runs/{r}/problems?path=&status=&level=&offset=&limit= -> {total, documents: [{doc_id, name, problems: [Problem]}]}
     GET  /api/runs/{r}/set-aside?offset=&limit=                     -> {total, documents: [{doc_id, name, reason, closest_template, closest_score}]}
     POST /api/runs/{r}/decisions     {doc_id, path, decision, value?} -> Run
@@ -166,7 +169,7 @@ import pydantic
 from demo.server.api import AI_NOT_CONFIGURED, DEFAULT_DPI, Api, ApiError, Request, Response, _object, _uploads, missing
 from demo.server.documents import MAX_DPI, MIN_DPI, PYMUPDF_LOCK, page_png, page_words
 from demo.server.extraction import (
-    MIN_SAMPLE, PAGE_DEFAULT, PAGE_LIMIT, Batch, Run, RunBusy, RunNotStarted, ScanNotDone, Setup, SetupBusy,
+    MIN_SAMPLE, PAGE_DEFAULT, PAGE_LIMIT, Batch, BatchInUse, Run, RunBusy, RunNotStarted, ScanNotDone, Setup, SetupBusy,
 )
 from demo.server.jobs import Job, JobsBusy
 from demo.server.settings import Settings
@@ -207,6 +210,7 @@ def add_extract_routes(api: Api) -> None:
 
     route("POST", r"/api/batches", create_batch)
     route("GET", BATCH, get_batch)
+    route("DELETE", BATCH, delete_batch)
     route("POST", BATCH + r"/files", add_batch_files)
     route("GET", BATCH + r"/files", list_batch_files)
     route("POST", BATCH + r"/sample", pick_sample)
@@ -227,6 +231,7 @@ def add_extract_routes(api: Api) -> None:
     route("GET", r"/api/runs", list_runs)
     route("POST", r"/api/runs", open_run_folder)
     route("GET", RUN, get_run)
+    route("DELETE", RUN, delete_run)
     route("GET", RUN + r"/problems", run_problems)
     route("GET", RUN + r"/set-aside", run_set_aside)
     route("POST", RUN + r"/decisions", decide)
@@ -273,6 +278,17 @@ def _stop_if_cancelled(job: Job) -> None:
 def _batch(api: Api, req: Request) -> Batch:
     with missing("batch"):
         return api.batches.get(req.match["batch"])
+
+
+def delete_batch(api: Api, req: Request) -> dict:
+    """Forget a batch and remove its uploaded files (a folder's files stay); 409 ``in_use`` while a saved run reads it."""
+    batch_id = req.match["batch"]
+    try:
+        with missing("batch"):
+            api.batches.delete(batch_id, api.runs.batches_used())
+    except BatchInUse as exc:
+        raise ApiError(409, "in_use", str(exc)) from None
+    return {"deleted": batch_id}
 
 
 def create_batch(api: Api, req: Request) -> dict:
@@ -433,6 +449,20 @@ def _whole(query: dict[str, str], key: str, default: int, low: int, high: int | 
 # ------------------------------------------------------------------ setup jobs
 
 
+def _check_sample_pages(api: Api, sample: SamplePdf) -> None:
+    """Refuse a sample past the server's page limit (400 ``too_many_pages``); one that can't be opened is left to the
+    setup, which says why."""
+    limit = api.settings.page_limit
+    if limit is None:
+        return
+    try:
+        with PYMUPDF_LOCK:
+            open_pdf(sample.pdf, max_pages=limit).close()
+    except FormcastError as exc:
+        if str(exc).startswith("too many pages"):
+            raise ApiError(400, "too_many_pages", f"{sample.file} can't be a sample: {exc}.") from None
+
+
 def _start_setup(api: Api, payload: dict) -> dict:
     """``{batch, samples, spec}`` -> an ``extract-setup`` job: ``build_setup`` on the batch's files ``samples``."""
     try:
@@ -448,6 +478,7 @@ def _start_setup(api: Api, payload: dict) -> dict:
             samples.append(SamplePdf(f.name, f.path.read_bytes()))
         except OSError:
             raise ApiError(404, "not_found", f"{f.name} is no longer on the server") from None
+        _check_sample_pages(api, samples[-1])
     warmup = api.documents.detectors
     stages = [(key, FIELDS_LABELS[spec.start] if key == "fields" else label) for key, label in STAGES]
 
@@ -814,7 +845,7 @@ def _start_run(api: Api, payload: dict) -> dict:
 
             run_batch(
                 templates, paths, run.out_dir, root=root, workers=workers, on_progress=progress,
-                should_stop=lambda: job.cancel_requested,
+                should_stop=lambda: job.cancel_requested, max_pages=api.settings.page_limit,
             )  # fmt: skip
             _stop_if_cancelled(job)  # the documents read so far are kept; a run of the batch again resumes
             job.set_result(done=len(names))
@@ -880,6 +911,18 @@ def list_runs(api: Api, req: Request) -> dict:
 
 def get_run(api: Api, req: Request) -> dict:
     return _run(api, req).summary()
+
+
+def delete_run(api: Api, req: Request) -> dict:
+    """Delete a run's results (a command line run is only forgotten: its folder stays), and the files of its batch
+    once no other run reads them; 409 ``busy_run`` while a job reads it."""
+    try:
+        with missing("run"):
+            run = api.runs.delete(req.match["run"])
+    except RunBusy as exc:
+        raise ApiError(409, "busy_run", str(exc)) from None
+    api.batches.drop_unused(run.batch, api.runs.batches_used())
+    return {"deleted": run.id}
 
 
 def open_run_folder(api: Api, req: Request) -> dict:

@@ -644,9 +644,9 @@ def test_a_doctext_opens_its_pdf_and_counts_its_pages_holding_the_pdf_lock(monke
     owned: list[bool] = []
     real = page_mod.open_pdf
 
-    def watching(pdf):
+    def watching(pdf, **kw):
         owned.append(PDF_LOCK._is_owned())
-        return real(pdf)
+        return real(pdf, **kw)
 
     monkeypatch.setattr(page_mod, "open_pdf", watching)
     with DocText(_lines_pdf("Name:")) as doc:

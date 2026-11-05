@@ -58,10 +58,16 @@ tpl = Template.from_json(Path("intake.template.json").read_text())
 
 - `LLMConfig` fields: `base_url`, `api_key`, `model`, `api_format`
   (`"chat_completions"` or `"responses"`), and optionally `temperature`
-  (`None` omits it), `max_output_tokens`, `timeout_s`, `max_retries`,
+  (`None` omits it), `max_output_tokens`, `timeout_s`, `max_retries`, `max_call_s`,
   `extra_headers`, `reasoning_effort` and `max_tokens_param`.
   `LLMConfig.from_env("PREFIX")` reads `PREFIX_BASE_URL`, `PREFIX_API_KEY`,
   `PREFIX_MODEL` and `PREFIX_API_FORMAT`. Its repr hides the key.
+- **Model calls fail in bounded time.** `timeout_s` bounds one attempt; 429s, 5xx and network errors are
+  retried with backoff (`Retry-After` honored), and `max_call_s` bounds the whole call with its retries and waits
+  (twice the attempt's timeout when unset). A failed call raises `LLMRequestError` (a `FormcastError`) with its
+  HTTP `status`; `too_large` is set when the endpoint says the request is past the model's size (HTTP 413, or a
+  400 about the context length), and the message says to send fewer pages or pass `vision=False`. A page-pass
+  answer with no usable JSON is asked for once more before its page is marked `unparsed`.
 - `build_template` and `revise` take a `budget=SessionBudget(...)` (steps, tokens,
   wall clock). `build_template(..., start_from=old_tpl)` adapts an existing template
   to a new revision of a form. `fingerprint(pdf)` identifies a blank form across re-saves.
@@ -340,6 +346,9 @@ python -m formcast.extract ai out/ --template client.json    # opt-in model pass
   score). One that fits no template, or cannot be read (encrypted, corrupt, empty, a file that crashes the
   reader), is set aside with the reason and the run goes on. `scan` shows which layouts a folder holds before
   any template exists.
+- **Page limit.** `run_batch(..., max_pages=200)` and `scan(..., max_pages=200)` set a longer PDF aside unread
+  ("too many pages: 1,204 (the limit is 200)"); `open_pdf(pdf, max_pages=...)` refuses one the same way. Page
+  renders are capped at about 37 million pixels (ten Letter pages at 200 dpi): a larger page renders at a lower dpi.
 - **Runs resume.** `run` appends one line per document to `out/results.jsonl` as it goes. Run it again after a
   crash or with more files in the folder and it reads only the new ones; a torn last line is read again.
   `run.json` keeps each template's sha256: a resume with an edited template is refused (use a new `--out`).
@@ -447,7 +456,8 @@ python -m formcast.extract ai out/ --template client.json
 ## The sandbox is not a security boundary
 
 The agent's Python runs in a separate worker process (`formcast.sandbox`) with a
-per-step timeout, a memory limit where the OS enforces one (not macOS), a
+per-step timeout, a memory limit (1 GB by default: the OS enforces it where it can, and on every OS,
+macOS included, the parent reads the worker's memory while it runs and kills it past the limit), a
 restricted set of builtins (no `open`, `exec`, `eval`, `compile`, `input`, ...)
 and an import allowlist. Its edit ops are only recorded there; the parent process
 validates and applies them. This keeps a *confused* model from doing damage by
@@ -583,7 +593,9 @@ Settings come from the git-ignored `.env` and the environment. `FORMCAST_DEMO_BA
 `FORMCAST_DEMO_API_KEY` and `FORMCAST_DEMO_MODEL` turn the AI features on, and `FORMCAST_DEMO_API_FORMAT`
 (`chat_completions`, the default, or `responses`) picks the API. The server calls the library with its
 defaults, so the model must accept image input: a build runs the page pass first, and build, adapt and
-revise send page images. There is no setting for `vision=False` yet. `FORMCAST_DEMO_HOST`,
+revise send page images. There is no setting for `vision=False` yet. `FORMCAST_DEMO_MAX_PAGES` (200 by
+default; `0` for no limit) is the most pages a PDF may have: a longer one is refused when it is opened or picked
+as a sample, and set aside by a batch's scan and by a run ("too many pages"). `FORMCAST_DEMO_HOST`,
 `FORMCAST_DEMO_PORT` and `FORMCAST_DEMO_DATA_DIR` set the rest.
 `FORMCAST_DEMO_ENABLED=false` (or `python -m demo.server --no-demo`) takes the demo data out of the app:
 the demo forms, the shipped templates, and the demo schemas and records. The start screen then offers
@@ -635,7 +647,8 @@ The flow:
 6. **Save** to the template store, with the PDF and, when the AI (or a saved mapping) mapped your data,
    that data mapping. Saves go to `local/templates/` in the data folder (`demo/data/local/templates/`,
    git-ignored; the PDF and mappings in `assets/<name>/`), never into the shipped `demo/data/templates/`.
-   A saved template hides a shipped one with the same name; the shipped ones cannot be deleted.
+   A saved template hides a shipped one with the same name; the shipped ones cannot be deleted. *Delete this
+   template*, beside the form list when a saved template is picked, deletes it with its PDF and mappings.
 
 Filling from code. A saved template takes data without the browser:
 
@@ -742,8 +755,14 @@ called per document unless you ask for it.
 
 The choice lists the saved runs (*Open a saved run*) and extraction templates, so a run can be reviewed again
 later, and opens a command line run (`python -m formcast.extract run ... --out out/`) by its folder's path, when
-its template is saved in the workbench. Batches, saved extraction templates and runs live under `local/` in the
-data folder (`batches/`, `extractions/`, `runs/`); a setup being made is kept in memory until it is saved.
+its template is saved in the workbench. Each saved run and extraction template has *Delete* beside it (asked
+first): deleting a run removes its results and review decisions, and its uploaded files once no other run reads
+them (a command line run is only taken off the list; its folder stays); deleting an extraction template removes it
+and its sample PDFs, and runs made with it keep their own copy. *Start a new batch* deletes the batch on show and
+its uploaded files, unless a saved run reads them. Batches, saved extraction templates and runs live under `local/`
+in the data folder (`batches/`, `extractions/`, `runs/`); a setup being made is kept in memory until it is saved.
+Batches are kept in memory too, so when the server starts it removes the uploaded files of every batch that no saved
+run reads.
 
 ## Spec
 

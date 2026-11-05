@@ -38,7 +38,7 @@ import numpy as np
 import pymupdf
 
 from formcast.geometry import Rect, area, intersect
-from formcast.pagemap.extract import PDF_LOCK, extract_page, open_pdf, page_size
+from formcast.pagemap.extract import PDF_LOCK, extract_page, open_pdf, page_size, render_matrix
 from formcast.pagemap.model import Word
 
 #: Marks that stand for "checked" when typed or drawn as text in a check box.
@@ -173,12 +173,13 @@ class DocText:
     only, so a ``DocText`` may be used beside other threads' MuPDF work; one ``DocText`` is used by one thread.
 
     Raises:
-        FormcastError: "encrypted PDF" or "cannot open PDF" when the input cannot be read.
+        FormcastError: "encrypted PDF" or "cannot open PDF" when the input cannot be read, "too many pages: ..." when
+            it has more than ``max_pages``.
     """
 
-    def __init__(self, pdf: str | Path | bytes) -> None:
+    def __init__(self, pdf: str | Path | bytes, *, max_pages: int | None = None) -> None:
         with PDF_LOCK:
-            self._doc = open_pdf(pdf)
+            self._doc = open_pdf(pdf, max_pages=max_pages)
             self.page_count: int = self._doc.page_count
         self._texts: dict[int, _Text] = {}
         self._fields: dict[str, list[tuple[str, object, int]]] | None = None  # name -> [(kind, value, page)] per widget
@@ -589,7 +590,7 @@ class DocText:
         with PDF_LOCK:
             pg = self._doc[page]
             clip = inner * pg.rotation_matrix  # the pixmap shows the page with /Rotate applied
-            pix = pg.get_pixmap(dpi=MARK_DPI, clip=clip, colorspace=pymupdf.csGRAY, alpha=False)
+            pix = pg.get_pixmap(matrix=render_matrix(pg, MARK_DPI, clip), clip=clip, colorspace=pymupdf.csGRAY, alpha=False)
             gray = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.stride)[:, : pix.width]
         if gray.size == 0:
             return False

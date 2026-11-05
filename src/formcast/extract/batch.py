@@ -276,15 +276,15 @@ def parse_no_template(error: str | None) -> tuple[str, float] | None:
 # ------------------------------------------------------------- reading one PDF
 
 
-def _read_one(templates: list[ExtractionTemplate], file: str, doc_id: str) -> DocumentResult:
-    """Route and read one file, opening it once. Never raises for a bad document."""
+def _read_one(templates: list[ExtractionTemplate], file: str, doc_id: str, max_pages: int | None = None) -> DocumentResult:
+    """Route and read one file, opening it once. Never raises for a bad document (one past ``max_pages`` is one)."""
     at = now()
     try:
         data = Path(file).read_bytes()
     except OSError:
         return _failed(None, "cannot open PDF", b"", doc_id, file, at)
     try:
-        doc = DocText(data)
+        doc = DocText(data, max_pages=max_pages)
     except FormcastError as exc:
         return _failed(None, str(exc), data, doc_id, file, at)
     try:
@@ -300,31 +300,35 @@ def _read_one(templates: list[ExtractionTemplate], file: str, doc_id: str) -> Do
         doc.close()
 
 
-def _line(templates: list[ExtractionTemplate], file: str, doc_id: str) -> str:
+def _line(templates: list[ExtractionTemplate], file: str, doc_id: str, max_pages: int | None = None) -> str:
     """One document's result as its line of ``results.jsonl`` (without the newline); always a line, never raises."""
     try:
-        return _read_one(templates, file, doc_id).model_dump_json()
+        return _read_one(templates, file, doc_id, max_pages).model_dump_json()
     except Exception as exc:  # the document is recorded whatever broke
         return _failed(None, f"internal error: {type(exc).__name__}: {exc}", b"", doc_id, file, now()).model_dump_json()
 
 
 _TEMPLATES: list[ExtractionTemplate] = []  # a worker process's templates, set once by _start_worker
+_MAX_PAGES: int | None = None  # and its page limit
 
 
-def _start_worker(templates_json: str) -> None:
-    global _TEMPLATES
+def _start_worker(templates_json: str, max_pages: int | None = None) -> None:
+    global _TEMPLATES, _MAX_PAGES
     _TEMPLATES = [ExtractionTemplate.model_validate(t) for t in json.loads(templates_json)]
+    _MAX_PAGES = max_pages
 
 
 def _work(file: str, doc_id: str) -> str:
-    return _line(_TEMPLATES, file, doc_id)
+    return _line(_TEMPLATES, file, doc_id, _MAX_PAGES)
 
 
-def _pool(workers: int, payload: str) -> ProcessPoolExecutor:
-    """A pool of ``workers`` processes started by spawn (see the module, *Workers*), each given the templates."""
+def _pool(workers: int, payload: str, max_pages: int | None = None) -> ProcessPoolExecutor:
+    """A pool of ``workers`` processes started by spawn (see the module, *Workers*), each given the templates and the
+    page limit."""
     return ProcessPoolExecutor(
-        max_workers=workers, mp_context=multiprocessing.get_context("spawn"), initializer=_start_worker, initargs=(payload,)
-    )
+        max_workers=workers, mp_context=multiprocessing.get_context("spawn"), initializer=_start_worker,
+        initargs=(payload, max_pages),
+    )  # fmt: skip
 
 
 def _ping() -> None:
@@ -347,6 +351,7 @@ def _read_all(
     workers: int,
     timeout: float,
     should_stop: Callable[[], bool] | None = None,
+    max_pages: int | None = None,
 ) -> Iterator[str]:
     """Each ``(doc_id, file)`` of ``todo`` read, as result lines, in the order they finish.
 
@@ -360,14 +365,14 @@ def _read_all(
         for doc_id, file in todo:
             if should_stop is not None and should_stop():
                 return
-            yield _line(templates, file, doc_id)
+            yield _line(templates, file, doc_id, max_pages)
         return
     payload = json.dumps([t.model_dump(mode="json", by_alias=True) for t in templates])
     queue = deque(todo)
     stopped = False  # once true, always true: nothing more is submitted or read alone
     while queue and not stopped:  # one pool until the queue is done or the pool breaks
         count = min(workers, len(queue))
-        pool = _pool(count, payload)
+        pool = _pool(count, payload, max_pages)
         pending: dict[Future[str], tuple[str, str]] = {}  # future -> (doc_id, file)
         sent: dict[Future[str], float] = {}  # future -> when it was submitted
         suspects: list[tuple[str, str]] = []  # read alone once this pool is down
@@ -415,11 +420,14 @@ def _read_all(
                 yield future.result()  # finished before the break, not yet written
             else:
                 suspects.append(item)
-        yield from _read_alone(payload, suspects, timeout, lambda: stopped or bool(should_stop and should_stop()))
+        yield from _read_alone(
+            payload, suspects, timeout, lambda: stopped or bool(should_stop and should_stop()), max_pages
+        )  # fmt: skip
 
 
 def _read_alone(
-    payload: str, suspects: list[tuple[str, str]], timeout: float, should_stop: Callable[[], bool] | None = None
+    payload: str, suspects: list[tuple[str, str]], timeout: float, should_stop: Callable[[], bool] | None = None,
+    max_pages: int | None = None,
 ) -> Iterator[str]:
     """Each suspect read alone in a one-worker pool; one that kills that worker too is recorded as crashed, one
     that takes longer than ``timeout`` seconds as hung (its worker is terminated). Once ``should_stop()`` is true
@@ -435,7 +443,7 @@ def _read_alone(
                 return
             try:
                 if pool is None:
-                    pool = _pool(1, payload)
+                    pool = _pool(1, payload, max_pages)
                     pool.submit(_ping).result()
                 line = pool.submit(_work, file, doc_id).result(timeout=timeout)
             except (BrokenProcessPool, TimeoutError) as exc:
@@ -464,6 +472,7 @@ def run_batch(
     timeout: float = TIMEOUT,
     on_progress: Callable[[int, int], None] | None = None,
     should_stop: Callable[[], bool] | None = None,
+    max_pages: int | None = None,
 ) -> RunSummary:
     """Route and read every PDF of ``paths`` into ``out_dir``, skipping the ones already there (see the module).
 
@@ -472,7 +481,8 @@ def run_batch(
     document read; ``done`` counts the documents of ``paths`` already in the results from an earlier run. Returns
     the summary of the whole ``out_dir``, with ``seconds`` this call's. ``should_stop()`` is asked before each
     document is started; once it is true the run starts no more, writes the ones in flight and returns (see the
-    module, *Stopping*); run again over the same ``out_dir`` it reads the rest.
+    module, *Stopping*); run again over the same ``out_dir`` it reads the rest. A document of more than ``max_pages``
+    pages is set aside unread, as unreadable ("too many pages: 1,204 (the limit is 200)").
 
     Raises:
         FormcastError: no templates; a timeout that is not positive; ``out_dir`` holds a run with other templates,
@@ -503,7 +513,7 @@ def run_batch(
     count = len(docs) - len(todo)
     try:
         with (out / RESULTS).open("a", encoding="utf-8") as sink:
-            for line in _read_all(templates, todo, workers, timeout, should_stop):
+            for line in _read_all(templates, todo, workers, timeout, should_stop, max_pages):
                 sink.write(line + "\n")
                 sink.flush()
                 count += 1

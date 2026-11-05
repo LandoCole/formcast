@@ -205,6 +205,31 @@ def test_the_extraction_settings_default_to_a_folder_scan_and_no_workers_of_thei
     assert settings.folder_scan is True and settings.extract_workers == 0
 
 
+def test_the_page_limit_is_200_by_default_read_from_the_environment_and_0_is_none():
+    assert (Settings.from_env({}).max_pages, Settings.from_env({}).page_limit) == (200, 200)
+    assert Settings.from_env({"FORMCAST_DEMO_MAX_PAGES": "40"}).page_limit == 40
+    assert Settings.from_env({"FORMCAST_DEMO_MAX_PAGES": "0"}).page_limit is None
+    with pytest.raises(ValueError, match="FORMCAST_DEMO_MAX_PAGES"):
+        Settings.from_env({"FORMCAST_DEMO_MAX_PAGES": "lots"})
+
+
+def test_a_pdf_past_the_page_limit_is_refused_when_opened(start_demo_server):
+    base = start_demo_server(max_pages=2)
+    for pages, expected in ((2, 200), (3, 400)):
+        body, headers = multipart_files([("file", "f.pdf", small_pdf(pages=pages))])
+        status, _, out = http_request(base, "POST", "/api/documents", body, headers)
+        assert status == expected
+    assert "too many pages: 3 (the limit is 2)" in json.loads(out)["detail"]
+
+
+def test_a_batch_scan_sets_a_file_past_the_page_limit_aside(start_demo_server):
+    base = start_demo_server(max_pages=2)
+    batch = new_batch(base)
+    assert add_files(base, batch["id"], [("short.pdf", small_pdf(pages=2)), ("long.pdf", small_pdf(pages=3))])[0] == 200
+    done = scanned(base, batch["id"])
+    assert sum(g["size"] for g in done["scan"]["groups"]) == 1
+
+
 def test_the_extraction_settings_are_read_from_the_environment():
     settings = Settings.from_env({"FORMCAST_DEMO_FOLDER_SCAN": "off", "FORMCAST_DEMO_EXTRACT_WORKERS": "2"})
     assert settings.folder_scan is False and settings.extract_workers == 2
@@ -570,7 +595,7 @@ def test_a_sample_waits_for_the_scan(tmp_path, corpus_pdfs, monkeypatch):
     from formcast.extract import scan as scan_mod
 
     real_read, release = scan_mod._read, threading.Event()
-    monkeypatch.setattr(scan_mod, "_read", lambda path, first: release.wait(10) and real_read(path, first))
+    monkeypatch.setattr(scan_mod, "_read", lambda path, first, *rest: release.wait(10) and real_read(path, first, *rest))
     batches = extraction.Batches(tmp_path / "batches")
     batch = batches.create("b")
     batches.add(batch, [("a.pdf", corpus_pdfs[0])])
@@ -624,12 +649,12 @@ def test_an_upload_while_a_scan_runs_starts_it_again_and_the_old_scans_results_a
     real_read = scan_mod._read
     reading, release, reads = threading.Event(), threading.Event(), []
 
-    def slow_first_read(path, first_page_only):
+    def slow_first_read(path, first_page_only, *rest):
         reads.append(Path(path).name)
         if len(reads) == 1:  # the first scan's first document takes a while
             reading.set()
             assert release.wait(10)
-        return real_read(path, first_page_only)
+        return real_read(path, first_page_only, *rest)
 
     monkeypatch.setattr(scan_mod, "_read", slow_first_read)
     batches = extraction.Batches(tmp_path / "batches")
@@ -649,7 +674,7 @@ def test_the_scan_reads_each_document_under_the_mupdf_lock_and_lets_go_at_the_en
     from formcast.extract import scan as scan_mod
 
     real_read, owned = scan_mod._read, []
-    monkeypatch.setattr(scan_mod, "_read", lambda path, first: owned.append(PYMUPDF_LOCK._is_owned()) or real_read(path, first))
+    monkeypatch.setattr(scan_mod, "_read", lambda path, first, *rest: owned.append(PYMUPDF_LOCK._is_owned()) or real_read(path, first, *rest))
     batches = extraction.Batches(tmp_path / "batches")
     batch = batches.create("b")
     batches.add(batch, [(f"{i}.pdf", pdf) for i, pdf in enumerate(corpus_pdfs[:3])])
@@ -1933,3 +1958,70 @@ def test_a_builds_search_for_blanks_is_drawn_page_by_page_as_the_reading_strip_d
     done = view.update(ScanProgress(0, 2, "done", (0, 2), kinds, found=4))
     assert done["pages"][2]["state"] == "done" and done["pages"][2]["boxes"] == 4 and done["pages_done"] == 2
     assert done["current"] is None
+
+
+# ------------------------------------------------------------------ deleting runs and batches
+
+
+def test_a_run_and_then_its_batch_are_deleted_and_the_batch_is_kept_while_the_run_reads_it(runner, corpus_files):
+    batch = batch_of(runner, corpus_files[:3])
+    run_id = run_on(runner, batch)["result"]["run"]
+    folder = batch_folder_of(runner, batch)
+    assert folder.is_dir() and (runs_dir(runner) / run_id).is_dir()
+    status, out = get_json(runner.base, f"/api/batches/{batch}", "DELETE", {})
+    assert (status, out["error"]) == (409, "in_use") and folder.is_dir()
+    status, out = get_json(runner.base, f"/api/runs/{run_id}", "DELETE", {})
+    assert (status, out) == (200, {"deleted": run_id})
+    assert not (runs_dir(runner) / run_id).exists()
+    assert folder.is_dir()  # the server still holds the batch open: its files stay until it is deleted or swept
+    assert run_id not in [r["id"] for r in get_json(runner.base, "/api/runs")[1]["runs"]]
+    assert get_json(runner.base, f"/api/runs/{run_id}", "DELETE", {})[0] == 404
+    status, out = get_json(runner.base, f"/api/batches/{batch}", "DELETE", {})
+    assert (status, out) == (200, {"deleted": batch}) and not folder.exists()
+    assert get_json(runner.base, f"/api/batches/{batch}")[0] == 404
+
+
+def test_a_run_being_read_cannot_be_deleted(runner, corpus_files):
+    run_id = run_on(runner, batch_of(runner, corpus_files[:2]))["result"]["run"]
+    run = runner.api.runs.get(run_id)
+    run.claim()  # as a job reading it does
+    try:
+        status, out = get_json(runner.base, f"/api/runs/{run_id}", "DELETE", {})
+        assert (status, out["error"]) == (409, "busy_run") and (runs_dir(runner) / run_id).is_dir()
+    finally:
+        run.release()
+
+
+def test_deleting_a_runs_last_run_removes_its_batch_files_once_the_batch_is_no_longer_open(runner, corpus_files):
+    batch = batch_of(runner, corpus_files[:2])
+    run_id = run_on(runner, batch)["result"]["run"]
+    with runner.api.batches._lock:
+        del runner.api.batches._batches[batch]  # as after a restart: the batch is no longer open
+    assert get_json(runner.base, f"/api/runs/{run_id}", "DELETE", {})[0] == 200
+    assert not batch_folder_of(runner, batch).exists()
+
+
+def test_the_sweep_removes_only_the_upload_folders_no_open_batch_or_saved_run_uses(tmp_path):
+    root = tmp_path / "batches"
+    batches = extraction.Batches(root)
+    open_one = batches.create()
+    names = {"open": open_one.id, "used": "a" * 32, "orphan": "b" * 32}
+    for name in names.values():
+        (root / name / "files").mkdir(parents=True)
+    (root / "notes").mkdir()  # not a batch id: never touched
+    assert batches.sweep({names["used"]}) == 1
+    assert sorted(p.name for p in root.iterdir()) == sorted([names["open"], names["used"], "notes"])
+
+
+def test_the_server_sweeps_leftover_uploads_when_it_starts(start_demo_server):
+    base = start_demo_server()
+    batch = new_batch(base)
+    assert add_files(base, batch["id"], [("one.pdf", small_pdf())])[0] == 200
+    folder = start_demo_server.servers[-1].api.settings.data_dir / "local" / "batches" / batch["id"]
+    assert folder.is_dir()
+    start_demo_server()  # a restart over the same data: that batch is no longer open, and no run reads it
+    assert not folder.exists()
+
+
+def batch_folder_of(r: Runner, batch_id: str) -> Path:
+    return r.api.settings.data_dir / "local" / "batches" / batch_id

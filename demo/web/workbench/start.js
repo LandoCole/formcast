@@ -1,7 +1,7 @@
 // The start screen and the match prompt: the one-shot flow's way in.
 //
-// Start: (1) the form: a saved template (it keeps its PDF, boxes and schema), a demo form or the
-// person's own PDF; (2) optionally their data: a CSV, Excel or JSON file, or pasted text (records, a
+// Start: (1) the form: a saved template (it keeps its PDF, boxes and schema; Delete this template, #form-delete,
+// deletes the one picked, asked first, and a shipped one is refused), a demo form or the person's own PDF; (2) optionally their data: a CSV, Excel or JSON file, or pasted text (records, a
 // table, or plain prose); (3) the schema, folded away: by default the AI designs it from the form, or a
 // stored or pasted JSON Schema (a demo form picks its own), and how the boxes are linked: by the AI with
 // the agent checking its page pass (the default), by the page pass alone, or by hand. Then:
@@ -201,6 +201,7 @@ export function mountStart(app) {
     $("schema-text").hidden = value !== PASTE;
     const fromSaved = savedPick() !== null;
     $("schema-group").hidden = fromSaved;
+    $("form-delete").hidden = !fromSaved || typeof engine.templates.delete !== "function";
     $("manual-row").hidden = fromSaved || !canPick; // a saved template keeps its boxes
     $("ai-mode").hidden = !ai;
     const how = !ai ? "" : { check: "", fast: " · one pass", off: " · link by hand" }[$("ai-mode").value];
@@ -221,6 +222,21 @@ export function mountStart(app) {
   }
 
   $("form-pick").addEventListener("change", formPicked);
+  $("form-delete").addEventListener("click", async () => {
+    const name = savedPick();
+    if (name === null || !window.confirm(`Delete the saved template “${name}”, with the PDF and data mappings kept with it?`)) return;
+    $("form-delete").disabled = true;
+    try {
+      await engine.templates.delete(name);
+      $("form-pick").value = "";
+      say(msg, `Deleted “${name}”.`);
+      await load();
+    } catch (e) {
+      say(msg, e.message);
+    } finally {
+      $("form-delete").disabled = false;
+    }
+  });
   fileInput.addEventListener("change", () => {
     const file = fileInput.files?.[0];
     $("file-label").textContent = file ? file.name : forms.length || saved.length ? "Or choose a PDF" : "Choose a PDF";

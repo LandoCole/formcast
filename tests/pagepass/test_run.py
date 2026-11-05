@@ -85,14 +85,17 @@ class FakeProvider:
         self._lock = threading.Lock()
 
     def complete(self, messages, tools, *, max_output_tokens=None, timeout_s=None):
-        text = "".join(getattr(p, "text", "") for p in messages[-1].content)
+        text = "".join(getattr(p, "text", "") for p in messages[1].content)  # the page's request (a retry follows it)
         page = int(re.search(r"page (\d+)\):", text).group(1))
         with self._lock:
             self.calls.append(
                 {"page": page, "messages": messages, "tools": tools, "max": max_output_tokens, "timeout": timeout_s}
             )
+            asked = sum(c["page"] == page for c in self.calls)
         time.sleep(self.delays.get(page, 0))
         reply = self.replies[page]
+        if isinstance(reply, list):  # one reply per call, the last one again after the list
+            reply = reply[min(asked, len(reply)) - 1]
         if isinstance(reply, Exception):
             raise reply
         return LLMResponse(text=reply, tool_calls=[], usage=self.usage, raw={})
@@ -168,12 +171,36 @@ def test_a_page_that_fails_to_render_becomes_an_error(pdf):
     assert "out of range" in result.pages[2].error
 
 
-def test_unparsable_answer_marks_the_page_unparsed(pdf):
-    result = map_pages(_template(), _form(), pdf, FakeProvider({0: "I cannot do that"}))
+def test_unparsable_answer_twice_marks_the_page_unparsed(pdf):
+    provider = FakeProvider({0: "I cannot do that"})
+    result = map_pages(_template(), _form(), pdf, provider)
     outcome = result.pages[0]
     assert (outcome.status, outcome.text, outcome.applied) == ("unparsed", "I cannot do that", 0)
-    assert outcome.usage == Usage(10, 5)  # the call still cost tokens
+    assert outcome.usage == Usage(20, 10)  # both calls still cost tokens
     assert all(f.source is None for f in result.template.fields)
+    retry = provider.calls[1]["messages"]
+    assert len(provider.calls) == 2 and (retry[-2].content, retry[-1].content) == ("I cannot do that", run_mod.UNPARSED_RETRY)
+
+
+def test_unparsable_answer_is_asked_again_once(pdf):
+    provider = FakeProvider({0: ["Sure! Here it is.", _reply(0)]})
+    result = map_pages(_template(), _form(), pdf, provider)
+    assert result.pages[0].status == "ok" and result.pages[0].applied > 0
+    assert result.pages[0].usage == Usage(20, 10)
+
+
+def test_a_reply_cut_off_with_nothing_complete_is_asked_for_compactly(pdf):
+    provider = FakeProvider({0: ['{"mappings": [{"id": "c0_1", "sou', _reply(0)]}, usage=Usage(10, 32000))
+    result = map_pages(_template(), _form(), pdf, provider)
+    retry = provider.calls[1]["messages"]
+    assert (retry[-2].content, retry[-1].content) == ("(cut off)", run_mod.CUT_OFF_RETRY)
+    assert result.pages[0].status == "ok"
+
+
+def test_a_failed_retry_keeps_the_first_answer(pdf):
+    provider = FakeProvider({0: ["no json here", RuntimeError("down")]})
+    result = map_pages(_template(), _form(), pdf, provider)
+    assert (result.pages[0].status, result.pages[0].text, result.pages[0].usage) == ("unparsed", "no json here", Usage(10, 5))
 
 
 def test_usage_is_summed_over_pages(pdf):

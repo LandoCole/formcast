@@ -6,7 +6,7 @@ import importlib
 from typing import TYPE_CHECKING, Any
 
 from formcast import errors
-from formcast.errors import FormcastError, OpError
+from formcast.errors import FormcastError, LLMRequestError, OpError
 
 __version__ = "0.1.0"
 
@@ -94,9 +94,9 @@ def __dir__() -> list[str]:
 
 
 __all__ = [
-    "DataMapping", "ExtractionTemplate", "FillReport", "FormSignature", "FormcastError", "LLMConfig", "OpContext",
-    "OpError", "PagePassResult", "PdfFeatures", "SessionBudget", "SessionCancelled", "SessionResult", "Similarity",
-    "StepEvent", "Template",
+    "DataMapping", "ExtractionTemplate", "FillReport", "FormSignature", "FormcastError", "LLMConfig", "LLMRequestError",
+    "OpContext", "OpError", "PagePassResult", "PdfFeatures", "SessionBudget", "SessionCancelled", "SessionResult",
+    "Similarity", "StepEvent", "Template",
     "__version__",
     "apply", "build_form_map", "build_template", "coverage", "derive_schema", "errors", "extract_records", "fill",
     "fingerprint", "flatten_schema", "map_pages", "map_table", "ops", "pdf_features", "preview", "read_table",

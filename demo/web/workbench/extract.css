@@ -152,8 +152,11 @@ body[data-mode="extract"] [data-for="fill"] { display: none !important; }
 .saved { margin-top: 20px; }
 .saved .group { margin-bottom: 12px; }
 .saved-list { list-style: none; margin: 0; padding: 0; max-height: 168px; overflow: auto; outline: 1px solid var(--rule); outline-offset: -.5px; }
-.saved-list li { box-shadow: inset 0 -.5px 0 0 var(--rule); }
+.saved-list li { display: flex; align-items: stretch; box-shadow: inset 0 -.5px 0 0 var(--rule); }
 .saved-list button { display: block; width: 100%; padding: 6px 10px; background: none; border: 0; color: var(--ink); text-align: left; font: 12px/18px var(--mono); cursor: pointer; overflow-wrap: anywhere; }
+.saved-list button.del { flex: none; width: auto; padding: 6px 12px; color: var(--graphite); font-size: 11px; }
+.saved-list button.del:hover { color: var(--ink); }
+.saved-list button.del:disabled { cursor: default; opacity: .5; }
 .saved-list button:hover { background: var(--tint); }
 .saved-list button:focus-visible { outline: 2px solid var(--ink); outline-offset: -2px; }
 .saved-list small { display: block; color: var(--graphite); font-size: 11px; }

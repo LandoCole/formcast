@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import collections
+import ctypes
 import json
 import os
 import queue
@@ -23,6 +24,8 @@ from formcast.template.model import Template
 
 STARTUP_TIMEOUT_S = 60.0
 STDERR_TAIL_LINES = 40
+# How often the parent reads the worker's memory while it waits for an answer (see _Worker.request).
+MEMORY_POLL_S = 0.2
 # The only parent environment variables the worker sees (the parent may hold API
 # keys in os.environ, and user code can reach the worker's os module).
 ENV_ALLOWLIST = ("PATH", "HOME", "TMPDIR", "LANG", "SYSTEMROOT")
@@ -33,6 +36,45 @@ def _worker_env() -> dict[str, str]:
     package_root = str(Path(formcast.__file__).resolve().parent.parent)
     env["PYTHONPATH"] = os.pathsep.join(p for p in (package_root, os.environ.get("PYTHONPATH")) if p)
     return env
+
+
+class _RusageInfoV0(ctypes.Structure):
+    """macOS ``struct rusage_info_v0`` (``<sys/resource.h>``), as ``proc_pid_rusage`` fills it."""
+
+    _fields_ = [("ri_uuid", ctypes.c_uint8 * 16)] + [
+        (name, ctypes.c_uint64)
+        for name in (
+            "ri_user_time", "ri_system_time", "ri_pkg_idle_wkups", "ri_interrupt_wkups", "ri_pageins",
+            "ri_wired_size", "ri_resident_size", "ri_phys_footprint", "ri_proc_start_abstime", "ri_proc_exit_abstime",
+        )
+    ]  # fmt: skip
+
+
+def _darwin_rusage():
+    """libproc's ``proc_pid_rusage``, or None when it can't be loaded."""
+    try:
+        fn = ctypes.CDLL("/usr/lib/libproc.dylib").proc_pid_rusage
+    except (OSError, AttributeError):
+        return None
+    fn.argtypes = [ctypes.c_int, ctypes.c_int, ctypes.POINTER(_RusageInfoV0)]
+    fn.restype = ctypes.c_int
+    return fn
+
+
+_PROC_PID_RUSAGE = _darwin_rusage() if sys.platform == "darwin" else None
+
+
+def memory_bytes(pid: int) -> int | None:
+    """The memory process ``pid`` holds now: its physical footprint on macOS (what Activity Monitor shows), its
+    resident set on Linux; None where it can't be read (another OS, or the process is gone)."""
+    if _PROC_PID_RUSAGE is not None:
+        info = _RusageInfoV0()
+        return int(info.ri_phys_footprint) if _PROC_PID_RUSAGE(pid, 0, ctypes.byref(info)) == 0 else None
+    try:
+        with open(f"/proc/{pid}/statm", encoding="ascii") as f:
+            return int(f.read().split()[1]) * os.sysconf("SC_PAGE_SIZE")
+    except (OSError, ValueError, IndexError):
+        return None
 
 
 @dataclass
@@ -57,6 +99,7 @@ class _Worker:
     """One worker process with reader threads for its stdout and stderr."""
 
     def __init__(self, memory_mb: int):
+        self.memory_mb = memory_mb
         # -P: do not put the current directory on sys.path (it could shadow modules).
         self.proc = subprocess.Popen(
             [sys.executable, "-P", "-m", "formcast.sandbox.worker", "--memory-mb", str(memory_mb)],
@@ -88,10 +131,13 @@ class _Worker:
             self.stderr_tail.append(line.decode("utf-8", "replace").rstrip("\n"))
 
     def request(self, message: dict[str, Any], timeout: float) -> tuple[str, dict | None]:
-        """Send one request; ``("ok", response)``, ``("timeout", None)`` or ``("exited", None)``.
+        """Send one request; ``("ok", response)``, ``("timeout", None)``, ``("exited", None)`` or ``("memory", None)``.
 
         Responses whose ``seq`` is not this request's (left over from a request
-        the caller stopped waiting for) are discarded.
+        the caller stopped waiting for) are discarded. While it waits, the worker's
+        memory is read every ``MEMORY_POLL_S``: past ``memory_mb`` the worker is
+        killed and the answer is ``"memory"``. That is the limit on macOS, which
+        does not enforce the worker's ``RLIMIT_AS``; elsewhere it backs it up.
         """
         self.seq += 1
         seq = self.seq
@@ -103,14 +149,24 @@ class _Worker:
             return "exited", None
         deadline = time.monotonic() + timeout
         while True:
+            left = deadline - time.monotonic()
             try:
-                response = self.responses.get(timeout=max(0.0, deadline - time.monotonic()))
+                response = self.responses.get(timeout=max(0.0, min(left, MEMORY_POLL_S)))
             except queue.Empty:
-                return "timeout", None
+                if self._over_memory():
+                    self.proc.kill()
+                    return "memory", None
+                if left <= MEMORY_POLL_S:
+                    return "timeout", None
+                continue
             if response is None:
                 return "exited", None
             if response.get("seq") == seq:
                 return "ok", response
+
+    def _over_memory(self) -> bool:
+        used = memory_bytes(self.proc.pid)
+        return used is not None and used > self.memory_mb * 1024 * 1024
 
     def describe_exit(self) -> str:
         try:
@@ -204,6 +260,18 @@ class Sandbox:
                 ),
                 timed_out=True,
             )
+        if status == "memory":
+            self._spawn()
+            return ExecResult(
+                stdout="",
+                truncated=False,
+                error=(
+                    f"Stopped: the code used more than {self.memory_mb:,} MB of memory. The worker was killed and "
+                    "restarted, so the namespace was reset: variables, functions and imports from earlier steps are "
+                    "gone (fm, schema, tpl, the edit ops, transforms() and api() are still there). Ops and output from "
+                    "this step were discarded."
+                ),
+            )
         if status == "exited":
             assert self._worker is not None
             detail = self._worker.describe_exit()
@@ -263,9 +331,9 @@ class Sandbox:
             {"cmd": protocol.INIT, **self._context, "max_stdout": self.max_stdout}, STARTUP_TIMEOUT_S
         )
         if status != "ok" or not response or not response.get("ok"):
-            detail = (response or {}).get("error") or (
-                worker.describe_exit() if status == "exited" else "no answer in time"
-            )
+            detail = (response or {}).get("error") or {
+                "exited": worker.describe_exit, "memory": lambda: f"it used more than {self.memory_mb:,} MB"
+            }.get(status, lambda: "no answer in time")()
             worker.stop(graceful=False)
             raise FormcastError(f"sandbox worker failed to start: {detail}")
         self._worker = worker

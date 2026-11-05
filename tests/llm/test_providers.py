@@ -1,10 +1,11 @@
 import base64
 import json
+import pickle
 
 import httpx
 import pytest
 
-from formcast.errors import FormcastError
+from formcast.errors import FormcastError, LLMRequestError
 from formcast.llm import (
     ImagePart,
     LLMConfig,
@@ -527,6 +528,79 @@ def test_remote_protocol_error_exhausted_raises_formcast_error(no_sleep):
             [Message(role="user", content="go")], []
         )
     assert len(rec.requests) == 2
+
+
+# ---- the call's time limit and the errors it raises ----------------------------
+
+
+@pytest.fixture
+def clock(monkeypatch):
+    """A fake clock the backoff sleeps move forward: ``now[0]`` is the time."""
+    now = [0.0]
+
+    def sleep(seconds: float) -> None:
+        now[0] += seconds
+
+    monkeypatch.setattr(llm_base, "_clock", lambda: now[0])
+    monkeypatch.setattr(llm_base, "_sleep", sleep)
+    return now
+
+
+def test_retry_whose_wait_passes_the_call_limit_is_not_made(clock):
+    rec = Recorder(httpx.Response(429, headers={"retry-after": "50"}, text="slow down"), chat_reply())
+    with pytest.raises(LLMRequestError, match="429") as exc:
+        make_provider(cfg(max_call_s=30), transport=rec.transport).complete([Message(role="user", content="go")], [])
+    assert len(rec.requests) == 1 and clock[0] == 0.0  # gave up at once rather than wait past the limit
+    assert exc.value.status == 429 and not exc.value.too_large
+
+
+def test_attempt_timeout_shrinks_to_the_time_left(clock):
+    rec = Recorder(httpx.Response(503, headers={"retry-after": "40"}, text="busy"), chat_reply())
+    out = make_provider(cfg(timeout_s=120, max_call_s=100), transport=rec.transport).complete(
+        [Message(role="user", content="go")], []
+    )
+    assert out.text == "hi"
+    assert rec.requests[0].extensions["timeout"]["read"] == 100
+    assert rec.requests[1].extensions["timeout"]["read"] == 60  # 100 s less the 40 s wait
+
+
+def test_default_call_limit_is_twice_the_attempt_timeout(clock):
+    # one wait of 60 s fits in 2 x 50 s; the next (60 s again) would pass it, so the call stops after two attempts
+    rec = Recorder(httpx.Response(503, headers={"retry-after": "60"}, text="busy"))
+    with pytest.raises(LLMRequestError, match="503"):
+        make_provider(cfg(timeout_s=50, max_retries=5), transport=rec.transport).complete(
+            [Message(role="user", content="go")], []
+        )
+    assert len(rec.requests) == 2
+
+
+@pytest.mark.parametrize(
+    ("status", "body"),
+    [
+        (413, "payload too big"),
+        (400, '{"error": {"message": "prompt is too long: 1204331 tokens > 1000000 maximum"}}'),
+        (400, "This model's maximum context length is 128000 tokens."),
+    ],
+)
+def test_request_too_large_is_told_apart(status, body):
+    rec = Recorder(httpx.Response(status, text=body))
+    image = ImagePart(b"png")
+    with pytest.raises(LLMRequestError, match="too large for the model") as exc:
+        make_provider(cfg(), transport=rec.transport).complete([Message(role="user", content=[image])], [])
+    assert exc.value.too_large and exc.value.status == status
+    assert "vision=False" in str(exc.value) and len(rec.requests) == 1
+
+
+def test_plain_400_is_not_too_large():
+    rec = Recorder(httpx.Response(400, text="unknown parameter: foo"))
+    with pytest.raises(LLMRequestError) as exc:
+        make_provider(cfg(), transport=rec.transport).complete([Message(role="user", content="go")], [])
+    assert not exc.value.too_large and "too large" not in str(exc.value)
+
+
+def test_llm_request_error_survives_pickling():
+    err = pickle.loads(pickle.dumps(LLMRequestError("boom", status=413, too_large=True)))
+    assert (str(err), err.status, err.too_large) == ("boom", 413, True)
 
 
 # ---- malformed prior tool calls are sent back as valid JSON objects ---------

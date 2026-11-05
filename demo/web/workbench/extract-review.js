@@ -67,7 +67,8 @@
 //
 // The choice (#choose) lists, under its two choices, the saved runs (#saved-runs, newest first: "Open a saved run") and
 // extraction templates (#saved-extractions: reopened on the setup screen, its samples read again, where Run on all
-// runs it on a new batch), each time it is shown (saying so in #choose-msg when they can't be read, and taking that
+// runs it on a new batch), each with Delete beside it (asked first; the server refuses a run a job is reading), each
+// time it is shown (saying so in #choose-msg when they can't be read, and taking that
 // back once they can), and opens a command line run's folder on the server's machine by its path (#run-folder).
 
 import { downloadBytes } from "../core/store.js";
@@ -78,6 +79,9 @@ import { showStages } from "./jobs.js";
 
 /** Documents listed at a time (the server's default page). */
 const PAGE = 50;
+/** What Delete asks of a saved run. */
+const RUN_DELETE =
+  "Delete this run's results and review decisions? Its uploaded files go too, when no other run reads them. A command line run is only taken off this list: its folder stays.";
 /** The page images' resolution, in dots per inch. */
 const DPI = 150;
 /** What the caption says under a page whose problems are outlined (the mockup's words). */
@@ -1118,11 +1122,27 @@ export function mountReview(app) {
 
   // ------------------------------------------------------------------ the choice's saved runs and templates
 
-  /** A row of the choice's lists: a button with `text` and `detail` under it. */
-  function choiceItem(text, detail, onClick) {
+  /**
+   * A row of the choice's lists: a button with `text` and `detail` under it, and beside it a Delete button that asks
+   * `question` and then runs `onDelete`.
+   */
+  function choiceItem(text, detail, onClick, question, onDelete) {
     const button = make("button", { type: "button" }, text, make("small", { textContent: detail }));
     button.addEventListener("click", onClick);
-    return make("li", {}, button);
+    const del = make("button", { type: "button", className: "del", textContent: "Delete", title: question });
+    del.setAttribute("aria-label", `Delete ${text}`);
+    del.addEventListener("click", async () => {
+      if (!window.confirm(question)) return;
+      del.disabled = true;
+      app.say(chooseMsg, "");
+      try {
+        await onDelete();
+      } catch (e) {
+        app.say(chooseMsg, e.message);
+      }
+      refreshChoices();
+    });
+    return make("li", {}, button, del);
   }
 
   /** List the saved runs and extraction templates under the choice; when they can't be read, the choice says so. */
@@ -1144,10 +1164,18 @@ export function mountReview(app) {
     if (listFailed && chooseMsg.textContent === listFailed) app.say(chooseMsg, ""); // listed now: that is no longer so
     listFailed = "";
     $("saved-runs-group").hidden = runs.length === 0;
-    $("saved-runs").replaceChildren(...runs.map((r) => choiceItem(runLine(r), startedText(r.started), () => openSaved(r.id))));
+    $("saved-runs").replaceChildren(
+      ...runs.map((r) =>
+        choiceItem(runLine(r), startedText(r.started), () => openSaved(r.id), RUN_DELETE, () => calls.removeRun(r.id)),
+      ),
+    );
     $("saved-extractions-group").hidden = saved.length === 0;
     $("saved-extractions").replaceChildren(
-      ...saved.map((x) => choiceItem(x.name, `${plural(x.fields, "field")} · ${plural(x.samples, "sample")}`, () => reopen(x.name))),
+      ...saved.map((x) =>
+        choiceItem(x.name, `${plural(x.fields, "field")} · ${plural(x.samples, "sample")}`, () => reopen(x.name),
+          `Delete the extraction template “${x.name}” and its sample PDFs? Runs made with it keep their own copy.`,
+          () => calls.remove(x.name)),
+      ),
     );
   }
 
