@@ -418,6 +418,13 @@ Path("client.json").write_text(more.template.model_dump_json(by_alias=True, inde
 - `llm` is an `LLMConfig` (one provider is opened for the whole build and closed after) or a ready provider;
   calls of one stage run side by side (`max_parallel`, 4 by default). A sample that cannot be read is refused,
   by name, before any model call.
+- **Asking for a fix.** `propose_fix(template, samples, message, llm, area=ChatArea(...), history=[...])` turns a
+  person's words into edits with one model call (one more when the answer cannot be used), makes them on a copy of
+  the template and proves the copy: the answer is `ChatAnswer(reply, edits, preview, usage)`, `preview` the proof of
+  each path the edits touch, and the template given is unchanged. Two edits exist for this: `add_field` (a schema
+  property with no reader yet; the edits after it give it a box, labels or clean steps) and `set_reading` (what the
+  model reads at a path on a sample, which the readers are proven against). `history` is at most `MAX_HISTORY`
+  (3) earlier `ChatTurn`s; the library keeps no conversation.
 
 ### The AI pass over a run's failing documents
 
@@ -635,7 +642,7 @@ The flow:
    seed), and the fill drawer opens on your data's records with the first one filled. A saved template,
    or *Reuse*, runs only the data stages: columns named by schema path, or matching a mapping saved with
    the template, need no AI at all.
-4. **Edit or revise.** Edit by hand, or draw an area and type an instruction for the agent. Undo and
+4. **Edit or revise.** Edit by hand, or ask the agent in the Chat tab (below). Undo and
    redo cover both.
 5. **Fill.** *Your data* lists the mapped records: each shows as JSON you can edit before filling, under
    the data mapping that made it (form field ← column, template or value, with transforms; the columns
@@ -649,6 +656,28 @@ The flow:
    git-ignored; the PDF and mappings in `assets/<name>/`), never into the shipped `demo/data/templates/`.
    A saved template hides a shipped one with the same name; the shipped ones cannot be deleted. *Delete this
    template*, beside the form list when a saved template is picked, deletes it with its PDF and mappings.
+
+**The Chat tab.** Both template editors, the fill editor and the extraction [setup screen](#extracting-in-the-workbench), have a
+**Chat** tab in the right column, beside *Box* in the fill editor and beside *Field* on the setup screen. It asks
+the AI for a fix in words, from a pointed one ("it missed this one: add it") to a broad one ("put every box on its
+value, not its label"). With the AI on, a drag on empty space of the page marks an area, shown in the tab as a chip
+("page 3 · [302, 214, 572, 226]") that can be removed, and it goes with the next message; the server adds the text
+inside it.
+
+The answer is a short reply and a list of changes, and nothing changes until you press *Apply*; *Discard* drops
+them. On the setup screen the changes are one model call (`propose_fix`), made on a copy of the template and proven
+on the samples before you see them: the tab shows what each field would read on every sample, the fields they touch
+are marked in the field list (a field they add gets a row marked *new*), and the boxes they place are drawn dashed on
+the page. *Apply* is an ordinary edit, proven again, and is refused, with "The template changed since this was
+proposed; ask again.", if the template changed since the answer was made (`/api/setups/{id}/edit` takes the
+`version` it was made for and answers 409 `stale_setup`). In the fill editor a message runs one `revise` job, the
+agent's summary and the number of changes are shown, and *Apply* puts the revised template on screen as one undo
+step, refused in the same way when the template on screen is not the one the job was sent.
+
+Nothing about the chat is stored. The browser keeps the conversation in memory until *Clear*, a reload, or opening
+another form or setup, and sends the last 3 exchanges (message, reply, the changes in a line, and whether they were
+applied or discarded) with each message; the server keeps none, and a request carries the template as it is, not the
+history of its edits. With no model configured the tab says so and has no composer.
 
 Filling from code. A saved template takes data without the browser:
 

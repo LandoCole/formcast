@@ -54,7 +54,7 @@ An ``extract-setup`` job builds a template from the batch's files ``samples`` (`
 of a fill template in ``api.store`` whose schema the fields start from. Its stages are ``STAGES``, the ``fields``
 stage labelled by where the fields start (``FIELDS_LABELS``); a cancel takes effect when the stage or page being read
 ends. An ``extract-line`` job adds the fields of one more line to a setup (``add_line``); its result's ``paths`` are
-the paths it added. The model is called by these two jobs only: an edit (``formcast.extract.edit``'s JSON edits), a
+the paths it added. The model is called by these two jobs and ``extract-chat`` only: an edit (``formcast.extract.edit``'s JSON edits), a
 wording learned (the proof's suggestions for one path, ``FieldProof.suggested``) and a reopened template are proven
 again with no model call. Marks and page images are of the setup's sample ``i`` (from 0, in the template's order);
 a mark is in that sample page's frame, so a box drawn on it is sent back as a ``set_box`` edit naming the sample.
