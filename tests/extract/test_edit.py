@@ -8,6 +8,7 @@ from pydantic import TypeAdapter, ValidationError
 from formcast.data.mapping import Transform
 from formcast.errors import FormcastError
 from formcast.extract.edit import (
+    AddField,
     Edit,
     MakeOptionSet,
     MarkAbsent,
@@ -20,9 +21,11 @@ from formcast.extract.edit import (
     SetField,
     SetLabels,
     SetOptionBox,
+    SetReading,
     SplitOptionSet,
     apply_edit,
 )
+from formcast.extract.read import extract
 from formcast.extract.model import (
     RESERVED_NAMES,
     BoxRead,
@@ -33,6 +36,7 @@ from formcast.extract.model import (
     SampleRecord,
     SetupInfo,
     WidgetRead,
+    concrete_paths,
 )
 from formcast.schema import REASON_KEY
 from tests.extract.corpus import FIELD_RECTS, SHIFT, TYPE_BOXES, clients, hand_template, make_form, truth
@@ -602,3 +606,88 @@ def test_coming_apart_gives_each_box_the_samples_reading():
 def test_only_a_set_comes_apart():
     with pytest.raises(FormcastError, match="not an option set"):
         apply_edit(hand_template(), SplitOptionSet(op="split_option_set", path="investor.tax_id"))
+
+
+# ------------------------------------------------------------------ a new field, and the model's reading of a sample
+
+
+def test_add_field_adds_a_property_with_no_reader():
+    t = apply_edit(hand_template(), AddField(path="investor.nickname", title="Nickname", type="text"))
+    assert "investor.nickname" in concrete_paths(t.schema_) and "investor.nickname" not in t.readers
+    assert _prop(t, "investor", "nickname") == {"type": "string", "title": "Nickname"}
+    assert "nickname" not in t.schema_["properties"]["investor"].get("required", [])
+
+
+def test_add_field_takes_a_type_a_description_and_required_as_set_field_does():
+    t = apply_edit(hand_template(), AddField(path="investor.born", title="Born", type="date", description="When", required=True))
+    born = _prop(t, "investor", "born")
+    assert (born["type"], born["format"], born["description"], born[REASON_KEY]) == ("string", "date", "When", "Set by you")
+    assert "born" in t.schema_["properties"]["investor"]["required"]
+    flag = apply_edit(hand_template(), AddField(path="investor.vip", title="VIP", type="yes/no"))
+    assert _prop(flag, "investor", "vip")["type"] == "boolean"
+
+
+def test_add_field_makes_a_missing_group_and_titles_it_with_the_category():
+    t = apply_edit(hand_template(), AddField(path="contact.email", title="Email", category="Contact details", required=True))
+    group = t.schema_["properties"]["contact"]
+    assert (group["type"], group["title"], group["required"]) == ("object", "Contact details", ["email"])
+    assert "contact.email" in concrete_paths(t.schema_)
+    plain = apply_edit(hand_template(), AddField(path="contact.email", title="Email"))
+    assert plain.schema_["properties"]["contact"]["title"] == "Contact"
+
+
+def test_add_field_then_a_box_in_one_list_reads_on_the_sample():
+    t = apply_edit(hand_template(), AddField(path="investor.tin_copy", title="Tin copy"))
+    t = apply_edit(t, SetBox(path="investor.tin_copy", page=0, rect=FIELD_RECTS["tax_id"]))
+    client = clients(1, seed=5)[0]
+    done = extract(t, make_form(client, kind="flattened"))
+    assert done.record()["investor"]["tin_copy"] == client.tax_id
+
+
+def test_add_field_refuses_an_existing_path_an_item_path_a_reserved_name_and_a_path_it_cannot_hold():
+    for path in ("investor.tax_id", "investor", "owners[0].nickname", RESERVED_NAMES[0], "owners.nickname", "investor.tax_id.x", "a..b", "investor."):
+        with pytest.raises(FormcastError):
+            apply_edit(hand_template(), AddField(path=path, title="X"))
+
+
+def test_every_other_edit_still_refuses_a_path_that_is_not_in_the_schema():
+    with pytest.raises(FormcastError, match="no field"):
+        apply_edit(hand_template(), SetField(path="investor.nickname", title="X"))
+
+
+def test_add_field_leaves_the_template_it_was_given_alone():
+    base = hand_template()
+    before = base.model_dump(by_alias=True)
+    apply_edit(base, AddField(path="contact.email", title="Email"))
+    assert base.model_dump(by_alias=True) == before
+
+
+def _with_reading():
+    return hand_template().model_copy(update={"samples": [
+        SampleRecord(file="a.pdf", sha256="0" * 64, opinion={"investor.tax_id": "1"}),
+        SampleRecord(file="b.pdf", sha256="1" * 64, opinion={}),
+    ]})
+
+
+def test_set_reading_sets_the_samples_opinion_and_only_that_samples():
+    t = apply_edit(_with_reading(), SetReading(path="investor.tax_id", sample=0, value="11-1111111"))
+    assert t.samples[0].opinion["investor.tax_id"] == "11-1111111" and t.samples[1].opinion == {}
+    t = apply_edit(t, SetReading(path="investor.dob", sample=1, value=None))  # "not on this sample" is a reading too
+    assert t.samples[1].opinion == {"investor.dob": None}
+
+
+def test_set_reading_refuses_a_sample_the_template_does_not_have_and_a_path_it_does_not_have():
+    with pytest.raises(FormcastError, match="no sample 2"):
+        apply_edit(_with_reading(), SetReading(path="investor.tax_id", sample=2, value="1"))
+    with pytest.raises(FormcastError, match="no sample 0"):
+        apply_edit(hand_template(), SetReading(path="investor.tax_id", sample=0, value="1"))
+    with pytest.raises(FormcastError, match="no field"):
+        apply_edit(_with_reading(), SetReading(path="investor.nickname", sample=0, value="1"))
+    with pytest.raises(ValidationError):
+        SetReading(path="investor.tax_id", sample=-1, value="1")
+
+
+def test_add_field_and_set_reading_parse_from_plain_json():
+    parse = TypeAdapter(Edit).validate_python
+    assert isinstance(parse({"op": "add_field", "path": "a.b", "title": "B"}), AddField)
+    assert isinstance(parse({"op": "set_reading", "path": "investor.tax_id", "sample": 0, "value": "1"}), SetReading)

@@ -14,6 +14,8 @@ change to it, discriminated by ``op`` so the workbench can send them as plain JS
     {"op": "mark_absent", "path": "wire.bank"}     (and "restore", "remove_field")
     {"op": "make_option_set", "path": "is_trust", "others": ["is_llc"], "title": "Tax classification"}
     {"op": "split_option_set", "path": "tax_classification"}
+    {"op": "add_field", "path": "investor.nickname", "title": "Nickname", "type": "text", "category": "Investor"}
+    {"op": "set_reading", "path": "investor.tax_id", "sample": 0, "value": "12-3456789"}
 
 :func:`apply_edit` gives back a validated copy and leaves the template it was given alone. The schema edits
 (``set_field``, ``rename_field``, ``set_category``, ``remove_field``) go to the one property schema every item path of a repeated group shares, so
@@ -32,13 +34,17 @@ edit that gives a path a reader takes it out of ``absent``: the person has just 
 An option set is one field with a check mark per answer (a :class:`~formcast.extract.model.ChoiceRead`).
 ``make_option_set`` links yes-or-no fields, each one box on the form, into such a field, and ``split_option_set`` takes
 one apart again. What the model read on the samples goes across, so neither asks it again.
+
+``add_field`` is the one edit that names a path the schema does not have yet: it adds the field, with no reader, for
+``set_box``, ``set_labels`` and the rest to give one. ``set_reading`` changes what a sample says a path holds (the
+model's reading, :attr:`~formcast.extract.model.SampleRecord.opinion`), which is what the readers are proven against.
 """
 
 from __future__ import annotations
 
 import re
 from collections.abc import Callable
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -238,9 +244,40 @@ class SplitOptionSet(_Edit):
     path: str
 
 
+class AddField(_Edit):
+    """Add a field the schema does not have, with no reader: ``path`` is its place, ``title`` what it is called.
+
+    ``path`` is a top-level name or ``group.name`` (any number of groups), never an item of a repeated group.
+    Its ``type`` is as :class:`SetField` has it, and ``required`` records "Set by you" as the reason. A group the path
+    needs and the schema lacks is made, the topmost one titled ``category`` when given, else from its name. The field
+    has no reader, so nothing is read there until an edit gives it one.
+    """
+
+    op: Literal["add_field"] = "add_field"
+    path: str
+    title: str
+    type: Literal["text", "number", "integer", "date", "yes/no"] = "text"
+    description: str = ""
+    category: str | None = None
+    required: bool = False
+
+
+class SetReading(_Edit):
+    """Say what ``path`` holds on the template's ``sample`` (a position in its samples): the model's reading there.
+
+    ``value=None`` says it is not on that sample. The readers are proven against these readings, and an extraction
+    template is rebuilt from them, so a person correcting one is telling the template what the sample says.
+    """
+
+    op: Literal["set_reading"] = "set_reading"
+    path: str
+    sample: int = Field(ge=0)
+    value: Any = None
+
+
 Edit = Annotated[
     SetField | SetBox | SetOptionBox | SetLabels | SetClean | MarkAbsent | Restore | RemoveField | RenameField
-    | SetCategory | MakeOptionSet | SplitOptionSet,
+    | SetCategory | MakeOptionSet | SplitOptionSet | AddField | SetReading,
     Field(discriminator="op"),
 ]
 
@@ -254,8 +291,9 @@ def apply_edit(template: ExtractionTemplate, edit: Edit, *, pdfs: list[bytes] | 
     sample), so a box drawn on a copy pushed down the page is stored where it is on the layout. No model is called.
 
     Raises:
-        FormcastError: ``edit.path`` is not a field of the schema, a ``set_option_box`` answer is not one of the
-            field's answers, a name a path cannot hold, that is reserved
+        FormcastError: ``edit.path`` is not a field of the schema (for ``add_field``: it is one, or a group, is an item
+            of a repeated group, or is under a field that is not a group), a ``set_reading`` sample the template does
+            not have, a ``set_option_box`` answer is not one of the field's answers, a name a path cannot hold, that is reserved
             (:data:`~formcast.extract.model.RESERVED_NAMES`, at the top level) or that another field beside it has, a
             title with nothing to make a name from, a category that cannot take the field, or the field's schema is
             built with ``$ref``/``anyOf`` and cannot be edited in place;
@@ -263,7 +301,7 @@ def apply_edit(template: ExtractionTemplate, edit: Edit, *, pdfs: list[bytes] | 
             page the template's samples do not have.
         pydantic.ValidationError: the edited template is not valid.
     """
-    if edit.path not in concrete_paths(template.schema_):
+    if not isinstance(edit, AddField) and edit.path not in concrete_paths(template.schema_):
         raise FormcastError(f"no field {edit.path}")
     if isinstance(edit, (SetBox, SetOptionBox)) and edit.sample is not None:
         rect = _in_layout(template, edit.sample, edit.page, edit.rect, pdfs)
@@ -461,6 +499,35 @@ def _set_category(t: ExtractionTemplate, edit: SetCategory) -> None:
         _set_required(target, name, True)
     new = f"{key}.{name}" if key else name
     _repath(t, {edit.path: new}, {edit.path: new})
+
+
+def _add_field(t: ExtractionTemplate, edit: AddField) -> None:
+    if "[" in edit.path:
+        raise FormcastError("a field cannot be added to a repeated group: it would be a new field of every item")
+    names = edit.path.split(".")
+    if not all(_FIELD_NAME.fullmatch(name) for name in names):
+        raise FormcastError("a field's path is names of letters, numbers and underscores joined by dots, with no spaces")
+    node = t.schema_
+    category = (edit.category or "").strip()
+    made = False  # a group made on the way down: the topmost one takes the category's title
+    for depth, name in enumerate(names[:-1]):
+        child = (node.get("properties") or {}).get(name)
+        if child is None:
+            _check_free(name, node, top_level=depth == 0)
+            title = category if category and not made else name.replace("_", " ").capitalize()
+            child = node.setdefault("properties", {})[name] = {"type": "object", "title": title, "properties": {}}
+            made = True
+        elif child.get("type") != "object" or "properties" not in child:
+            raise FormcastError(f"{'.'.join(names[: depth + 1])} is a field or a repeated group, not a group to add to")
+        node = child
+    _check_free(names[-1], node, top_level=len(names) == 1)
+    field: dict = {**_TYPES[edit.type], "title": edit.title}
+    if edit.description:
+        field["description"] = edit.description
+    node["properties"][names[-1]] = field
+    if edit.required:
+        _set_required(node, names[-1], True)
+        field[REASON_KEY] = SET_BY_YOU
 
 
 # ------------------------------------------------------------------- the readers
@@ -687,6 +754,12 @@ def _split_option_set(t: ExtractionTemplate, edit: SplitOptionSet) -> None:
         t.setup = t.setup.model_copy(update={"line_paths": lines})
 
 
+def _set_reading_edit(t: ExtractionTemplate, edit: SetReading) -> None:
+    if edit.sample >= len(t.samples):
+        raise FormcastError(f"the template has no sample {edit.sample}")
+    t.samples[edit.sample].opinion[edit.path] = edit.value
+
+
 _HANDLERS = {
     SetField: _set_field,
     SetBox: _set_box,
@@ -700,4 +773,6 @@ _HANDLERS = {
     RemoveField: _remove_field,
     RenameField: _rename_field,
     SetCategory: _set_category,
+    AddField: _add_field,
+    SetReading: _set_reading_edit,
 }
