@@ -47,8 +47,9 @@ Setups (``api.setups``) and saved extraction templates (``api.extractions``):
     Setup = {id, batch, version, template, proof, warnings, samples: [{index, name, kind, pages: [[w, h]]}]}
 
 A setup's ``version`` is 0 when it is made and goes up by one each time its template changes (an edit, a wording
-learned, the fields of a line kept). An edit may carry the ``version`` it was made for (an int); when the setup is at
-another one it is refused, 409 ``stale_setup``, and nothing changes. With no ``version`` the edit always applies.
+learned, the fields of a line kept, its names frozen by a save). An edit may carry the ``version`` it was made for
+(an int); when the setup is at another one it is refused, 409 ``stale_setup``, and nothing changes. With no
+``version`` the edit always applies.
 
 An ``extract-setup`` job builds a template from the batch's files ``samples`` (``build_setup``; 1 to 20 of them). ``spec`` is ``SetupSpec``'s fields, with ``destination`` the name
 of a fill template in ``api.store`` whose schema the fields start from. Its stages are ``STAGES``, the ``fields``

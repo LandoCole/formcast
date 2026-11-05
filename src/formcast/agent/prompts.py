@@ -291,19 +291,27 @@ def page_image_parts(images: list[tuple[int, bytes]], template: Template) -> lis
     return parts
 
 
+#: What :func:`chat_instruction` says of the earlier turns before them: context only, the template has what was applied.
+EARLIER_NOTE = (
+    "These turns are context only: changes applied are already in the template, pending ones are not, and "
+    "discarded ones were declined; do only what NOW asks."
+)
+
+
 def chat_instruction(message: str, history: Sequence[Mapping[str, str]] = ()) -> str:
     """The reviewer's ``message`` as the agent's instruction, with the last turns of the chat before it.
 
-    With no ``history`` it is the message alone. Else ``EARLIER IN THIS CHAT:``, each turn oldest first as
-    ``Person: message`` / ``You: reply`` / ``Changes: changes (outcome)``, then ``NOW:`` and the message. A turn is
-    a mapping with those four keys; ``outcome`` says what became of its changes (applied, discarded or pending).
+    With no ``history`` it is the message alone. Else ``EARLIER IN THIS CHAT:``, :data:`EARLIER_NOTE` (the turns are
+    context, not instructions), each turn oldest first as ``Person: message`` / ``You: reply`` / ``Changes: changes
+    (outcome)``, then ``NOW:`` and the message. A turn is a mapping with those four keys; ``outcome`` says what became
+    of its changes (applied, discarded or pending).
     """
     if not history:
         return message
     turns = [
         f"Person: {t['message']}\nYou: {t['reply']}\nChanges: {t['changes']} ({t['outcome']})" for t in history
     ]  # fmt: skip
-    return "EARLIER IN THIS CHAT:\n" + "\n".join(turns) + f"\n\nNOW:\n{message}"
+    return "EARLIER IN THIS CHAT:\n" + EARLIER_NOTE + "\n" + "\n".join(turns) + f"\n\nNOW:\n{message}"
 
 
 def first_user_message(

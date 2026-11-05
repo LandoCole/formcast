@@ -6,6 +6,7 @@ import hashlib
 import json
 
 import pytest
+from pydantic import ValidationError
 
 from formcast.errors import FormcastError
 from formcast.extract.chat import MAX_HISTORY, ChatArea, ChatTurn, _template_lines, propose_fix
@@ -161,6 +162,14 @@ def test_more_than_three_turns_is_refused_before_any_model_call():
     assert llm.calls == []
 
 
+@pytest.mark.parametrize("key", ["message", "reply", "changes"])
+def test_a_turn_holds_at_most_2000_characters_a_part(key):
+    turn = {"message": "m", "reply": "r", "changes": "c", "outcome": "applied"}
+    assert ChatTurn.model_validate({**turn, key: "x" * 2000})
+    with pytest.raises(ValidationError, match="2000"):
+        ChatTurn.model_validate({**turn, key: "x" * 2001})
+
+
 def test_an_answer_unusable_twice_raises():
     template, docs, _ = setup("flattened")
     by_rect = {"op": "set_box", "path": "investor.dob", "page": 0, "rect": [240, 166, 400, 186]}
@@ -205,7 +214,7 @@ def test_the_message_sends_area_text_lines_and_earlier_turns():
     earlier = text.split("EARLIER:", 1)[1].split("MESSAGE:", 1)[0]
     assert earlier.index("first ask") < earlier.index("second ask") and "discarded" in earlier
     assert text.rstrip().endswith("is the date right?")
-    assert text.index("SAMPLE 1") < text.index("TEMPLATE:") < text.index("AREA:")
+    assert text.index("SAMPLE 1") < text.index("SAMPLES: 2\n") < text.index("TEMPLATE:") < text.index("AREA:")
     images = [p for p in llm.calls[0][1].content if isinstance(p, ImagePart)]
     assert 1 <= len(images) <= 2
     assert sent(llm).startswith("Sample 1, page 0:")  # the area's page first

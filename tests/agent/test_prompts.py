@@ -204,6 +204,8 @@ def test_chat_instruction_lists_earlier_turns_oldest_first():
     text = chat_instruction("Now move it left", turns)
     assert text == (
         "EARLIER IN THIS CHAT:\n"
+        "These turns are context only: changes applied are already in the template, pending ones are not, and "
+        "discarded ones were declined; do only what NOW asks.\n"
         "Person: Add a phone field\nYou: Added it.\nChanges: added phone (applied)\n"
         "Person: Make it wider\nYou: Widened.\nChanges: widened phone (discarded)\n"
         "\nNOW:\nNow move it left"

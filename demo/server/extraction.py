@@ -628,7 +628,8 @@ class Setup:
     order; both are ``None`` for a setup reopened from a saved extraction template. Read it with ``summary``,
     ``snapshot``, ``sample`` and ``marks``, and change it with ``edit``, ``learn`` and a line job: they take its lock.
     ``version`` is 0 at creation and goes up by one each time the template changes (an edit, a wording learned, a
-    line job's fields kept), so a change made for an older state of the setup can be told from one made for this.
+    line job's fields kept, its names frozen by a save), so a change made for an older state of the setup can be told
+    from one made for this.
     """
 
     id: str
@@ -730,11 +731,12 @@ class Setup:
             self.version += 1
 
     def freeze_names(self) -> None:
-        """Stop names following titles, as a saved template's do not."""
+        """Stop names following titles, as a saved template's do not: a change of the template, so of its version."""
         with self._lock:
-            if self.template.setup is not None:
+            if self.template.setup is not None and self.template.setup.name_follows_title:
                 setup = self.template.setup.model_copy(update={"name_follows_title": False})
                 self.template = self.template.model_copy(update={"setup": setup})
+                self.version += 1
 
     def learn(self, path: str) -> None:
         """Put the wordings the proof suggests for ``path`` into its reader's map and prove again. No model is called.

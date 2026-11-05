@@ -6,8 +6,8 @@ The model is sent :data:`~formcast.extract.prompts.CHAT_SYSTEM` and one user mes
 page images, each after a ``Sample n, page m:`` line and drawn with the template's boxes (each tagged with its path):
 the page of the person's ``area`` first, then the pages holding the most fields that are not ready; then one text of
 the samples' views (:func:`~formcast.extract.samples.sample_view`, :data:`~formcast.extract.ask.TEXT_BUDGET` shared),
-``TEMPLATE:`` (:func:`_template_lines`), ``AREA:`` (the person's area and the text lines inside it, with their ids),
-``EARLIER:`` (the ``history`` turns, oldest first) and ``MESSAGE:``.
+``SAMPLES:`` (how many there are), ``TEMPLATE:`` (:func:`_template_lines`), ``AREA:`` (the person's area and the
+text lines inside it, with their ids), ``EARLIER:`` (the ``history`` turns, oldest first) and ``MESSAGE:``.
 
 It answers ``{"reply": "...", "edits": [...]}``, the edits of :mod:`formcast.extract.edit`, where a ``set_box`` or
 ``set_option_box`` gives its box as ``"line": "t0_12"`` (or ``"t0_12+t0_13"``) with ``"sample"``, or as
@@ -29,9 +29,9 @@ import re
 from collections.abc import Sequence
 from contextlib import ExitStack
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, TypeAdapter, ValidationError
+from pydantic import BaseModel, ConfigDict, StringConstraints, TypeAdapter, ValidationError
 
 from formcast.data.ai import _ask
 from formcast.data.mapping import _generic
@@ -60,10 +60,12 @@ from formcast.pagepass.marks import render_marked_page
 from formcast.schema import flatten_schema, resolve
 from formcast.template.model import Field
 
-__all__ = ["MAX_HISTORY", "TEMPLATE_CHARS", "ChatAnswer", "ChatArea", "ChatTurn", "propose_fix"]
+__all__ = ["MAX_HISTORY", "TEMPLATE_CHARS", "TURN_CHARS", "ChatAnswer", "ChatArea", "ChatTurn", "propose_fix"]
 
 #: The most earlier turns a message may carry.
 MAX_HISTORY = 3
+#: The longest message, reply or changes an earlier turn may carry, in characters.
+TURN_CHARS = 2000
 #: The characters of TEMPLATE lines one call sends; past it the lines of ready paths are cut first.
 TEMPLATE_CHARS = 25_000
 #: The most page images one call sends.
@@ -72,6 +74,7 @@ CHAT_IMAGES = 2
 _VALUE_CHARS = 60
 
 _EDITS = TypeAdapter(list[Edit])
+_TurnText = Annotated[str, StringConstraints(max_length=TURN_CHARS)]
 
 
 class _Model(BaseModel):
@@ -88,12 +91,12 @@ class ChatArea(_Model):
 
 
 class ChatTurn(_Model):
-    """One earlier exchange: the person's ``message``, the ``reply``, the ``changes`` it proposed in words, and what
-    became of them."""
+    """One earlier exchange: the person's ``message``, the ``reply``, the ``changes`` it proposed in words (each at
+    most :data:`TURN_CHARS` characters), and what became of them."""
 
-    message: str
-    reply: str
-    changes: str
+    message: _TurnText
+    reply: _TurnText
+    changes: _TurnText
     outcome: Literal["applied", "discarded", "pending"]
 
 
@@ -146,6 +149,7 @@ def propose_fix(
         found = _Samples(samples, texts, template.layout)
         asked = "\n\n".join(
             [
+                f"SAMPLES: {len(samples)}",
                 "TEMPLATE:\n" + "\n".join(_template_lines(template, proof)),
                 *([_area_block(area, samples[area.sample], texts[area.sample])] if area is not None else []),
                 *([_earlier(history)] if history else []),

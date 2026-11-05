@@ -191,10 +191,12 @@ its readers (form fields, a box, a printed label, a phrase in running text, chec
 proven on the samples below against your reading of each: a field is ready when no sample disagrees and one agrees.
 
 {samples} Here the images outline the template's boxes, each tagged with its field's path.
-Then TEMPLATE, a line per field: "path ready|NOT READY [title; format; required] type, group | how it is read |
-S1 ..., S2 ...", each sample's outcome (agree, disagree with what was read and your reading, missing, failed_check);
-a repeated group's rows with no reader share a line. AREA: a place the person marked, with the text lines inside it.
-EARLIER: your last exchanges with the person, oldest first. MESSAGE: what the person asks now.
+Then SAMPLES: how many samples there are, the only ones you have. TEMPLATE, a line per field: "path
+ready|NOT READY|absent [title; format; required] type, group | how it is read | S1 ..., S2 ...", each sample's
+outcome (agree, disagree with what was read and your reading, missing, failed_check); absent marks a field the form
+has no place for; a repeated group's rows with no reader share a line. AREA: a place the person marked, with the
+text lines inside it. EARLIER: your last exchanges with the person, oldest first: changes applied are already in
+TEMPLATE, discarded ones were declined, pending ones are not made. MESSAGE: what the person asks now.
 
 Answer with edits, each with "op" and "path" (as TEMPLATE writes it; a change to what a field is applies to every row
 of its group):

@@ -299,6 +299,7 @@ def test_a_revise_job_without_history_sends_its_instruction_as_it_was(start_demo
         [{"message": "x"}],
         ["x"],
         [{**TURN, "reply": 5}],
+        [{**TURN, "changes": "x" * 2001}],
     ],
 )
 def test_a_revise_job_refuses_bad_history(ai, history):  # Review Focus 4: at most 3 turns, each a whole turn

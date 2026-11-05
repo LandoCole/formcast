@@ -1127,6 +1127,7 @@ def test_a_chat_job_refuses_a_bad_request_before_it_starts(chatter):
         {"area": {**area, "page": 9}}, {"area": {**area, "page": True}},
         {"history": "no"}, {"history": [{"message": "m"}]}, {"history": [{**turn, "outcome": "kept"}]},
         {"history": [turn, "x"]},
+        *[{"history": [{**turn, key: "x" * 2001}]} for key in ("message", "reply", "changes")],  # too long
     ]  # fmt: skip
     for more in bad:
         status, out = chat_job(chatter, setup, **{"message": "fix the name", **more})
@@ -1566,7 +1567,10 @@ def test_a_saved_templates_title_edit_keeps_the_name_and_offers_the_update(bench
     assert after["renamed"] == {"investor.tax_id": "investor.tin_number"} and after["name_updates"] == {}
     status, out = get_json(bench.base, "/api/extractions/Kept", "PUT", {"setup": setup["id"]})
     assert status == 200, out
+    assert out["setup"]["version"] == 2  # freezing the names changed the template: one edit, then the freeze
     assert bench.api.extractions.get("Kept").setup.name_follows_title is False
+    status, out = get_json(bench.base, "/api/extractions/Kept", "PUT", {"setup": setup["id"]})
+    assert (status, out["setup"]["version"]) == (200, 2)  # saved again, nothing to freeze
     status, after = edit(bench, setup["id"], {"op": "set_field", "path": "investor.tin_number", "title": "Born on"})
     assert status == 200, after
     assert "investor.tin_number" in [f["path"] for f in after["proof"]["fields"]]
