@@ -1,5 +1,6 @@
 """Read filled PDFs of one layout into structured, checked values with no model call (a model is called only
-while a template is built from samples: ``build_setup``, ``add_line``, and by the opt-in ``ai_pass``).
+while a template is built from samples or fixed: ``build_setup``, ``add_line``, ``propose_fix``, and the opt-in
+``ai_pass``).
 
     ExtractionTemplate, Reader, ...   formcast.extract.model   (the template and the result of reading a document)
     DocText, label_key                formcast.extract.page    (one open PDF and the lookups made on it)
@@ -10,6 +11,7 @@ while a template is built from samples: ``build_setup``, ``add_line``, and by th
     resolve, ReaderProposal, ...      formcast.extract.readers (a model's reader proposals made readers, by code)
     read_values, propose_readers, ... formcast.extract.ask     (the model calls that build a template from samples)
     build_setup, add_line, SetupSpec  formcast.extract.setup   (a template built from samples in stages, with a model)
+    propose_fix, ChatArea, ChatTurn   formcast.extract.chat    (a person's message made into proven edits, with a model)
     required_paths                    formcast.extract.levels  (which fields of a template are required)
     ai_pass                           formcast.extract.aipass  (a model asked for a run's failing required fields)
 
@@ -23,12 +25,16 @@ from typing import TYPE_CHECKING, Any
 
 _LAZY = {
     "FIELDS_LABELS": "formcast.extract.setup",
+    "MAX_HISTORY": "formcast.extract.chat",
     "MAX_SAMPLES": "formcast.extract.setup",
     "STAGES": "formcast.extract.setup",
     "AiPassSummary": "formcast.extract.aipass",
     "AnchorRead": "formcast.extract.model",
     "BoxRead": "formcast.extract.model",
     "BoxRef": "formcast.extract.readers",
+    "ChatAnswer": "formcast.extract.chat",
+    "ChatArea": "formcast.extract.chat",
+    "ChatTurn": "formcast.extract.chat",
     "ChoiceMark": "formcast.extract.model",
     "ChoiceRead": "formcast.extract.model",
     "DocText": "formcast.extract.page",
@@ -79,6 +85,7 @@ _LAZY = {
     "fields_on_form": "formcast.extract.ask",
     "label_key": "formcast.extract.page",
     "learn_maps": "formcast.extract.proof",
+    "propose_fix": "formcast.extract.chat",
     "propose_readers": "formcast.extract.ask",
     "prove": "formcast.extract.proof",
     "read_samples": "formcast.extract.samples",
@@ -94,6 +101,7 @@ _LAZY = {
 if TYPE_CHECKING:
     from formcast.extract.aipass import AiPassSummary, ai_pass
     from formcast.extract.ask import FieldsAnswer, fields_from_lines, fields_on_form, propose_readers, read_values
+    from formcast.extract.chat import MAX_HISTORY, ChatAnswer, ChatArea, ChatTurn, propose_fix
     from formcast.extract.edit import (
         Edit, MarkAbsent, RemoveField, RenameField, Restore, SetBox, SetCategory, SetClean, SetField, SetLabels, SetOptionBox, apply_edit,
     )  # fmt: skip

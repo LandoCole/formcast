@@ -1,10 +1,12 @@
-"""The system prompts of the four model calls that build an extraction template (see :mod:`formcast.extract.ask`).
+"""The system prompts of the model calls that build an extraction template (:mod:`formcast.extract.ask`) and fix one
+(:mod:`formcast.extract.chat`).
 
     FIELDS_SYSTEM    a person's short lines made into defined fields of a JSON Schema
     ON_FORM_SYSTEM   which of a destination's fields the samples' form has
     READERS_SYSTEM   how to read each field on copies of the form (form field names, boxes, labels, phrases, options)
     VALUES_SYSTEM    one document's answer to each field, as it is on the page
     UNREAD_SYSTEM    for each filled form field no field reads: the field it repeats, a new field, or not data
+    CHAT_SYSTEM      a person's message about a template made into edits of it, with the samples' readings
 
 Every call sends the samples as :func:`~formcast.extract.samples.sample_view` writes them, numbered from 1
 (``SAMPLE 1``), with their pages numbered from 0 as in the form map, and, with vision, some page images each after a
@@ -181,3 +183,51 @@ Reply with one JSON object and nothing else, one answer per form field listed:
 "Province", "type": "string", "description": "The province of the home address"}}, {"id": "w5_1", "skip": "page
 number"}]}
 """
+
+CHAT_SYSTEM = (
+    """\
+You fix a form's extraction template with a person. The template reads each field off filled copies of the form by
+its readers (form fields, a box, a printed label, a phrase in running text, check marks) and clean steps, and is
+proven on the samples below against your reading of each: a field is ready when no sample disagrees and one agrees.
+
+{samples} Here the images outline the template's boxes, each tagged with its field's path.
+Then TEMPLATE, a line per field: "path ready|NOT READY [title; format; required] type, category | how it is read |
+S1 ..., S2 ...", each sample's outcome (agree, disagree with what was read and your reading, missing, failed_check);
+a repeated group's rows with no reader share a line. AREA: a place the person marked, with the text lines inside it.
+EARLIER: your last exchanges with the person, oldest first. MESSAGE: what the person asks now.
+
+Answer with edits, each with "op" and "path" (as TEMPLATE writes it; a change to what a field is applies to every row
+of its group):
+- "add_field": a new field, with "title", "type" ("text", "number", "integer", "date" or "yes/no"), "description",
+  "category" (the group it goes in) and "required"; never in a repeated group. The edits after it give its reader.
+- "set_field": any of "title", "description", "type", "required", "pattern", "enum", "minimum", "maximum".
+- "set_box": read the words in a box, given as "line" (the text line holding the answer, t0_12, or t0_12+t0_13
+  over two lines) with "sample" (its number), or as "area": true (the person's area).
+- "set_option_box": where one answer's check mark is: "answer", and the box as for set_box.
+- "set_labels": "labels" (printed beside the answer, as printed; [] removes the label read) and "side" ("right"
+  or "below").
+- "set_clean": "clean", the steps that turn the text read into the answer, each {"op": ..., "args": {...}}, of:
+{transforms}
+- "mark_absent" (the form has no place for it), "restore", "remove_field"; "rename_field" with "name" (the new last
+  part of the path); "set_category" with "category" (a title, "" for none).
+- "make_option_set": "others" (yes/no fields joined with this one into one field) and "title"; "split_option_set".
+- "set_reading": "sample" (its number) and "value": your reading of the field on that sample, in its type (dates as
+  YYYY-MM-DD, numbers as numbers, true or false), null when that sample has no answer.
+
+Rules:
+- Point at an answer by its text line, never by coordinates: no edit gives a rectangle. Where no line fits (a page
+  with form fields has no text lines), use "area": true when the person marked an area, else ask them to mark one.
+- For every field you add, or whose box, labels or clean steps you change, give a set_reading for every sample, read
+  there now: the readers are proven against these.
+- The edits are made in order and proven on the samples; one that cannot be made is sent back to you.
+- The reply is one or two plain sentences to the person: what you changed, or, with no edits, why nothing should.
+
+Reply with one JSON object and nothing else, such as:
+{"reply": "Added the holder's phone, read from its line.", "edits": [{"op": "add_field", "path": "holder.phone",
+"title": "Phone", "type": "text", "category": "Holder"}, {"op": "set_box", "path": "holder.phone", "line": "t0_9",
+"sample": 1}, {"op": "set_reading", "path": "holder.phone", "sample": 1, "value": "555 0100"}, {"op":
+"set_reading", "path": "holder.phone", "sample": 2, "value": "555 0199"}]}
+"""
+    .replace("{samples}", _SAMPLES)
+    .replace("{transforms}", textwrap.indent(transforms_ref(), "  "))
+)
