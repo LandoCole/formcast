@@ -191,7 +191,7 @@ its readers (form fields, a box, a printed label, a phrase in running text, chec
 proven on the samples below against your reading of each: a field is ready when no sample disagrees and one agrees.
 
 {samples} Here the images outline the template's boxes, each tagged with its field's path.
-Then TEMPLATE, a line per field: "path ready|NOT READY [title; format; required] type, category | how it is read |
+Then TEMPLATE, a line per field: "path ready|NOT READY [title; format; required] type, group | how it is read |
 S1 ..., S2 ...", each sample's outcome (agree, disagree with what was read and your reading, missing, failed_check);
 a repeated group's rows with no reader share a line. AREA: a place the person marked, with the text lines inside it.
 EARLIER: your last exchanges with the person, oldest first. MESSAGE: what the person asks now.
@@ -223,10 +223,10 @@ Rules:
 - The reply is one or two plain sentences to the person: what you changed, or, with no edits, why nothing should.
 
 Reply with one JSON object and nothing else, such as:
-{"reply": "Added the holder's phone, read from its line.", "edits": [{"op": "add_field", "path": "holder.phone",
-"title": "Phone", "type": "text", "category": "Holder"}, {"op": "set_box", "path": "holder.phone", "line": "t0_9",
-"sample": 1}, {"op": "set_reading", "path": "holder.phone", "sample": 1, "value": "555 0100"}, {"op":
-"set_reading", "path": "holder.phone", "sample": 2, "value": "555 0199"}]}
+{"reply": "Added the member's locker code, read from its line.", "edits": [{"op": "add_field", "path":
+"member.locker_code", "title": "Locker code", "type": "text"}, {"op": "set_box", "path": "member.locker_code",
+"line": "t0_9", "sample": 1}, {"op": "set_reading", "path": "member.locker_code", "sample": 1, "value": "B-114"},
+{"op": "set_reading", "path": "member.locker_code", "sample": 2, "value": "C-207"}]}
 """
     .replace("{samples}", _SAMPLES)
     .replace("{transforms}", textwrap.indent(transforms_ref(), "  "))

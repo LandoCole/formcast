@@ -67,9 +67,10 @@ MODEL_FACING = [
     "src/formcast/pagemap/query.py", "src/formcast/pagemap/summarize.py", "src/formcast/transforms.py",
     "src/formcast/extract/prompts.py", "src/formcast/extract/ask.py", "src/formcast/extract/samples.py",
 ]  # fmt: skip
-# Schema property and widget names that are plain English words any form uses.
+# Schema property and widget names that are plain English words any form uses (and "category", a key of the
+# extraction template's own edits that the template-chat prompt must name).
 GENERIC_NAMES = {
-    "address", "city", "code", "conditions", "date", "description", "details", "email", "from", "height", "kind",
+    "address", "category", "city", "code", "conditions", "date", "description", "details", "email", "from", "height", "kind",
     "name", "number", "per", "position", "reason", "reported", "result", "reviewer", "source", "state",
     "status", "title", "to", "type", "types", "uses", "valid", "where", "year", "yes", "zip",
 }  # fmt: skip

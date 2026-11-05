@@ -236,7 +236,7 @@ def derive_schema(
     """A JSON Schema for the data ``pdf`` collects, designed by the model from the form itself.
 
     The pages with blanks (form fields or detected blanks) are the form: they are shown as images and their page map
-    in full, and every other page is taken for prose and cut to an excerpt. ``form_pages`` are form pages with no
+    in full, and each remaining page is taken for prose and cut to an excerpt. ``form_pages`` are form pages with no
     blank to find, a filled copy's (its answers are written where the blanks were), shown as the pages with blanks
     are. ``filled_text`` gives such a copy's text lines per page (its answers among them, which the page map leaves
     out); each page's lines follow its page map, the pages with blanks or in ``form_pages`` in full.
