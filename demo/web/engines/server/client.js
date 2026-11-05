@@ -46,7 +46,7 @@
 // batch of PDFs (`createBatch`, `addFiles`, which sends the files in requests of at most UPLOAD_CHUNK_BYTES so no
 // request passes the server's body limit, and skips and names a file over a lower limit the server has, `batch`,
 // `files`, `pickSample`, `pageUrl`), a setup built from a sample of
-// it (`startSetup` and `startLine` are jobs; `setup`, `reopen` of a saved extraction template, `edit`, `learn`,
+// it (`startSetup`, `startLine` and `chat` are jobs; `setup`, `reopen` of a saved extraction template, `edit`, `edits`, `learn`,
 // `marks`, `samplePageUrl`), the saved extraction templates (`save`, `list`, `extraction`, `remove`) and runs
 // (`startRun` is a job; `runs`, `openRun`, `run`, `problems`, `setAside`, `decide`, `runPageUrl`, `runPage`, `places`, `exportUrl`,
 // `exportRun`, which downloads the export, `toData`). They are the
@@ -54,7 +54,7 @@
 // run the server no longer has (it restarted) is `not_found`, an edit while a line job runs on the setup
 // `busy_setup`, and so on.
 //
-// Jobs (`build`, `revise`, `oneshot`, and extraction's `startSetup`, `startLine`, `startRun`) return a JobHandle {id, kind, poll(), cancel(), done, onUpdate}. `done`
+// Jobs (`build`, `revise`, `oneshot`, and extraction's `startSetup`, `startLine`, `chat`, `startRun`) return a JobHandle {id, kind, poll(), cancel(), done, onUpdate}. `done`
 // polls `GET /api/jobs/{id}` (first at once, then every `pollMs`, 1000 by default) and resolves with
 // the job when its status is done, cancelled or error. It rejects only if the server cannot be
 // reached several polls in a row. Set `onUpdate` to a function to see the job after every poll
@@ -393,12 +393,15 @@ export async function createServerEngine({
        */
       edit: (id, edit) => call("POST", `${setupPath(id)}/edit`, { json: { edit }, timeout: formMapTimeoutMs }),
       /**
-       * Several edits made together or not at all, proven once; resolves the Setup, as `edit` does.
+       * Several edits made together or not at all, proven once; resolves the Setup, as `edit` does. With `version`
+       * (a chat answer's), they are refused with code `stale_setup` when the setup changed since that version.
        * @param {string} id
        * @param {object[]} edits
+       * @param {number} [version]
        * @returns {Promise<object>}
        */
-      edits: (id, edits) => call("POST", `${setupPath(id)}/edit`, { json: { edits }, timeout: formMapTimeoutMs }),
+      edits: (id, edits, version) =>
+        call("POST", `${setupPath(id)}/edit`, { json: version === undefined ? { edits } : { edits, version }, timeout: formMapTimeoutMs }),
       /** Accept the wordings the proof suggests for `path` into its reader's map; resolves the Setup proven again. */
       learn: (id, path) => call("POST", `${setupPath(id)}/learn`, { json: { path }, timeout: formMapTimeoutMs }),
       /** The marks of the setup's sample `sample` (from 0): `[{path, kind, page, rect, ...}]`, in that sample's frame. */
@@ -413,6 +416,19 @@ export async function createServerEngine({
        * @returns {Promise<JobHandle>}
        */
       startLine: (id, line) => startJob({ kind: "extract-line", setup: id, line }),
+      /**
+       * Ask the AI for a fix of the setup's template in words, `area` the place the person marked
+       * (`{sample, page, rect}`, in that sample page's points) and `history` the chat's last turns (at most 3,
+       * `{message, reply, changes, outcome}`). The done job's `result` is `{reply, edits, preview, version}`: nothing
+       * is changed until the edits are sent with `edits(id, edits, version)`.
+       * @param {string} id
+       * @param {string} message
+       * @param {{sample: number, page: number, rect: number[]} | null} [area]
+       * @param {object[]} [history]
+       * @returns {Promise<JobHandle>}
+       */
+      chat: (id, message, area = null, history = []) =>
+        startJob({ kind: "extract-chat", setup: id, message, ...(area ? { area } : {}), ...(history.length ? { history } : {}) }),
 
       /** Save the setup's template as `name`, with its sample PDFs: `{name, template_id}`. */
       save: (name, setupId) => call("PUT", savedPath(name), { json: { setup: setupId } }),

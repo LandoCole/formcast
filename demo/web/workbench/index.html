@@ -206,7 +206,7 @@
         <p class="cap" id="cap"></p>
       </section>
 
-      <aside class="col col-side" aria-label="Progress and selected field">
+      <aside class="col col-side" aria-label="Progress, selected field and chat">
         <!-- building the template from the sample (extract.js), with its samples on the page meanwhile -->
         <section class="group progress" id="building" aria-labelledby="building-title" hidden>
           <p class="label" id="building-title">Building the template</p>
@@ -229,6 +229,11 @@
             <button type="button" class="btn small" id="run-retry" hidden>Try again</button>
           </div>
         </section>
+        <!-- the field selected, or the chat with the AI about the template (core/chat.js) -->
+        <div class="fc-tabs" role="tablist" aria-label="Field or chat" data-part="tabs">
+          <button type="button" class="btn quiet small" role="tab" id="setup-tab-field" aria-selected="true" aria-controls="ins">Field</button>
+          <button type="button" class="btn quiet small" role="tab" id="setup-tab-chat" aria-selected="false" aria-controls="setup-chat">Chat</button>
+        </div>
         <div class="group" data-part="field">
           <p class="label">Field</p>
           <div class="fc-inspector" id="ins"></div>
@@ -237,6 +242,7 @@
           <p class="label">On the samples</p>
           <ul class="samples" id="per-sample"></ul>
         </div>
+        <section class="group" id="setup-chat" data-part="chat" role="tabpanel" aria-labelledby="setup-tab-chat" hidden></section>
       </aside>
     </div>
   </div>

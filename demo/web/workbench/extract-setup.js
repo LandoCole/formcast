@@ -38,6 +38,15 @@
 // sample page's words over it to select and copy (`sampleWords`, or `pageWords` while the sample is read), the caption
 // saying how; meanwhile no box moves.
 //
+// The right column has two tabs, Field (the inspector and the lines per sample) and Chat (#setup-chat, core/chat.js),
+// where a message asks the AI for a fix of the template in words (`engine.extract.chat`, a job), with the area last
+// dragged on the page (with AI on, a drag on empty space marks one on the sample shown, and brings up the Chat tab).
+// The answer's edits, proven on a copy of the template, are a proposal: the fields they touch are marked in the field
+// list (a field they add has a row of its own, "new"), and where those fields read on the sample shown is drawn
+// dashed on the page, until Apply sends the edits with the version they were proven on, on the change queue (refused
+// as `stale_setup` when the template changed meanwhile, as the chat then says), or Discard drops them. The
+// conversation is the page's alone, emptied when another setup opens.
+//
 // Save asks for a name (#setup-save-box, as the fill template's save) and stores the template with its sample PDFs
 // (`engine.extract.save`); `promptSave()` resolves the name saved (null when the prompt closed unsaved), so Run on
 // all (extract-review.js) saves first. The name offered is the one the setup was last saved as, else its own name
@@ -60,6 +69,7 @@
 // zoom (`mountZoom`) is the review's document page's too.
 
 import { createBus } from "../core/bus.js";
+import { ChatPanel } from "../core/chat.js";
 import { makeView, viewSize } from "../core/geometry.js";
 import { PageView } from "../core/pageview.js";
 import { selectTextNote } from "../core/textlayer.js";
@@ -92,7 +102,9 @@ const LAYER = { read: 0, place: 0, label: 1, box: 2, option: 3 };
 /** A path's first mark of these kinds, in this order, is the one selected and tagged with its path. */
 const PRIMARY = { box: 0, option: 1, read: 2, place: 3, label: 4 };
 /** Each kind of mark in words, for the box's accessible name. */
-const KIND_WORDS = { read: "where it was read", label: "its label", box: "its box", option: "a checkbox", place: "a place it is written" };
+const KIND_WORDS = { read: "where it was read", label: "its label", box: "its box", option: "a checkbox", place: "a place it is written", proposed: "where the AI's change reads it" };
+/** A field type's name in words, as the inspector says it. */
+const TYPE_WORDS = Object.fromEntries(TYPES);
 
 const plural = (n, word, many = `${word}s`) => `${n.toLocaleString("en-US")} ${n === 1 ? word : many}`;
 const generic = (path) => path.replace(/\[\d+\]/g, "[]");
@@ -212,7 +224,8 @@ export function mountSetup(app) {
   const calls = engine.extract;
   const bus = createBus(); // the setup page's own: the fill editor's handlers never hear it
   const pvEl = $("setup-pv");
-  const view = new PageView(pvEl, { bus });
+  const ai = engine.capabilities.ai === true;
+  const view = new PageView(pvEl, { bus, regionSelect: ai }); // with AI on, an area dragged on the page goes to the chat
   const saveBox = $("setup-save-box");
 
   const state = {
@@ -231,6 +244,9 @@ export function mountSetup(app) {
     pending: null,
     before: null, // the setup screen as it was when a build started (its setup and save state), put back on cancel
     text: false, // "Select text" is on: false, or the page's words shown ({count, error?}; null while they are read)
+    tab: "field", // the right column's tab: "field" or "chat"
+    /** The chat's proposal on show, or null: {setupId, edits, preview, version, touched: Set, added: [{path, title, category}]} */
+    proposal: null,
   };
   let queue = Promise.resolve(); // the changes, one after another
   let pending = 0; // changes and mark loads under way
@@ -241,6 +257,7 @@ export function mountSetup(app) {
   let inspected = null; // the path the inspector was last drawn for, or MANY
   let addingBox = false; // a press on the page with Ctrl or ⌘ is held
   const renames = new Map(); // a path an edit renamed -> the field's path now
+  let chatFor = null; // the setup the chat's conversation is about
   /** @type {Map<string, {path: string, kind: string, answer: string | null, page: number, rect: number[], primary: boolean}>} */
   const shown = new Map(); // the page's box ids -> their marks
 
@@ -262,6 +279,11 @@ export function mountSetup(app) {
     for (const o of document.querySelectorAll(".overlay")) o.hidden = true;
     app.extract.setMode("extract");
     marksToken += 1;
+    if (chatFor !== setup.id) {
+      state.proposal = null; // another setup: the conversation was about the one before
+      chat.clear();
+      chatFor = setup.id;
+    }
     Object.assign(state, { setup, batch: null, sample: 0, page: 0, marks: [], savedName, changed: false, answer: null, many: new Set(), pending: null, before: null });
     showParts(true);
     $("building").hidden = true; // its build is done
@@ -275,10 +297,26 @@ export function mountSetup(app) {
     loadMarks();
   }
 
-  /** The field's groups on the right (the inspector, the lines per sample): hidden while the template is built. */
+  /**
+   * The right column's tabs and the tab shown: the field's groups (the inspector, the lines per sample) or the chat.
+   * All hidden while the template is built.
+   */
   function showParts(on) {
-    for (const el of document.querySelectorAll('[data-only="setup"] [data-part="field"]')) el.hidden = !on;
+    for (const el of document.querySelectorAll('[data-only="setup"] [data-part="field"]')) el.hidden = !on || state.tab !== "field";
+    for (const el of document.querySelectorAll('[data-only="setup"] [data-part="chat"]')) el.hidden = !on || state.tab !== "chat";
+    for (const el of document.querySelectorAll('[data-only="setup"] [data-part="tabs"]')) el.hidden = !on;
+    $("setup-tab-field").setAttribute("aria-selected", String(state.tab === "field"));
+    $("setup-tab-chat").setAttribute("aria-selected", String(state.tab === "chat"));
   }
+
+  /** Show the right column's tab `tab` ("field" or "chat"). */
+  function showTab(tab) {
+    state.tab = tab;
+    showParts(state.setup !== null);
+  }
+
+  $("setup-tab-field").addEventListener("click", () => showTab("field"));
+  $("setup-tab-chat").addEventListener("click", () => showTab("chat"));
 
   /**
    * Show the samples `samples` of the batch `batch` ({id, name}) while their template is built (see the top); the
@@ -335,7 +373,9 @@ export function mountSetup(app) {
   /** The setup is gone from the server: close the screen and open the choice with the reason. */
   function lost() {
     marksToken += 1;
-    Object.assign(state, { setup: null, batch: null, selected: null, answer: null, many: new Set(), marks: [] });
+    Object.assign(state, { setup: null, batch: null, selected: null, answer: null, many: new Set(), marks: [], proposal: null });
+    chat.clear();
+    chatFor = null;
     settlePrompt(null);
     app.extract.showView(null);
     $("doc-pick").textContent = "No extraction open";
@@ -363,9 +403,10 @@ export function mountSetup(app) {
   /**
    * Make one change: `send(setupId)` is the call, resolving the Setup proven again, which replaces the screen's.
    * Changes run one after another, behind a line job running (see `addField`). Resolves whether it was made; a
-   * refusal is shown as a notice, and puts back only `control` (the id of the box whose change it was).
+   * refusal is shown as a notice, and puts back only `control` (the id of the box whose change it was), unless
+   * `refused(error)` is given: it is told instead (the chat says why itself).
    */
-  function change(send, { select = null, control = null } = {}) {
+  function change(send, { select = null, control = null, refused = null } = {}) {
     const s = state.setup;
     if (s === null) return Promise.resolve(false);
     pending += 1;
@@ -377,7 +418,8 @@ export function mountSetup(app) {
         replace(next, select);
         return true;
       } catch (e) {
-        failed(e, "That change wasn't made", control);
+        if (refused !== null && !isGone(e)) refused(e);
+        else failed(e, "That change wasn't made", control);
         return false;
       } finally {
         pending -= 1;
@@ -507,12 +549,35 @@ export function mountSetup(app) {
     return "A saved extraction template, proven again on its samples.";
   }
 
-  /** The field list: a row per field, grouped, each with its state across the samples. */
+  /**
+   * The field list: a row per field, grouped, each with its state across the samples. While the chat proposes a
+   * change, the rows it touches are marked, and a field it adds has a row of its own at the end of its group.
+   */
   function renderFields() {
     const out = [];
     let count = 0;
     let weak = 0;
     const proof = state.setup.proof;
+    const p = proposalOnShow();
+    const added = [...(p?.added ?? [])];
+    /** The rows of the fields the proposal adds to the group `group`, taken from `added`. */
+    const newRows = (group) => {
+      const here = added.filter((a) => categoryOf(schema(), a.path) === group);
+      for (const a of here) added.splice(added.indexOf(a), 1);
+      return here.map((a) => {
+        const li = make(
+          "li",
+          { className: "fc-sl-leaf is-proposed is-new", title: `${a.title}: proposed in the chat` },
+          make("span", { className: "fc-sl-st", textContent: "+" }),
+          make("span", { className: "fc-sl-name", textContent: a.title }),
+          make("span", { className: "fc-sl-ty", textContent: "new" }),
+        );
+        li.dataset.proposed = a.path; // not a field's row yet: no data-path
+        li.style.setProperty("--depth", group ? "1" : "0");
+        li.addEventListener("click", () => showTab("chat"));
+        return li;
+      });
+    };
     for (const { group, items } of groups()) {
       if (group) out.push(make("li", { className: "fc-sl-grp", textContent: group }));
       for (const r of items) {
@@ -531,6 +596,7 @@ export function mountSetup(app) {
         li.dataset.state = st.state;
         li.style.setProperty("--depth", group ? "1" : "0");
         li.classList.toggle("is-picked", isPicked(r));
+        li.classList.toggle("is-proposed", r.paths.some((path) => p?.touched.has(path)));
         pressable(li, r, () => select(r.paths.includes(state.selected) ? state.selected : r.path, { turn: true }));
         out.push(li);
         for (const { answer } of optionsOf(template().readers?.[r.path], fieldSchema(schema(), r.path).prop)) {
@@ -542,6 +608,12 @@ export function mountSetup(app) {
           out.push(opt);
         }
       }
+      out.push(...newRows(group));
+    }
+    for (const group of new Set(added.map((a) => categoryOf(schema(), a.path)))) {
+      const heading = added.find((a) => categoryOf(schema(), a.path) === group).category || group;
+      if (heading) out.push(make("li", { className: "fc-sl-grp", textContent: heading }));
+      out.push(...newRows(group));
     }
     $("fields").replaceChildren(...out);
     $("fields-label").textContent = `Fields · ${count} · ${weak} need a look`;
@@ -1038,6 +1110,7 @@ export function mountSetup(app) {
     state.sample = (i + n) % n;
     state.page = 0;
     state.marks = [];
+    chat.setArea(null); // an area marked on the sample before
     showPage();
     if (state.setup === null) return;
     renderSamples();
@@ -1115,7 +1188,7 @@ export function mountSetup(app) {
     const fields = [];
     const seen = new Set();
     const firsts = new Set();
-    const ordered = [...state.marks].sort((a, b) => LAYER[a.kind] - LAYER[b.kind]);
+    const ordered = [...state.marks].sort((a, b) => LAYER[a.kind] - LAYER[b.kind]).concat(proposedMarks()); // on top
     const primaries = new Set();
     for (const m of [...state.marks].sort((a, b) => PRIMARY[a.kind] - PRIMARY[b.kind])) {
       const key = `${m.path}|${m.page}`;
@@ -1133,7 +1206,7 @@ export function mountSetup(app) {
       for (let k = 2; shown.has(id); k++) id = `${base}~${k}`;
       shown.set(id, { path: m.path, kind: m.kind, answer: m.answer ?? null, page: m.page, rect: m.rect, primary: primaries.has(m) });
       const words = m.kind === "option" ? `the ${m.answer} checkbox` : KIND_WORDS[m.kind];
-      const title = rowOf(m.path)?.title ?? m.path;
+      const title = titleOf(m.path);
       const inSet = m.kind === "option" && optionsOf(template().readers?.[m.path], fieldSchema(schema(), m.path).prop).length > 0;
       fields.push({ id, type: "text", page: m.page, rect: m.rect, label: `${title}, ${words}`, tag: inSet ? m.answer : title, source: { paths: [m.path] }, origin: "human" });
     }
@@ -1179,7 +1252,8 @@ export function mountSetup(app) {
       view.select(null); // the box the press added taking the focus
       return;
     }
-    const mark = id === null ? null : shown.get(id);
+    let mark = id === null ? null : shown.get(id);
+    if (mark?.kind === "proposed" && rowOf(mark.path) === null) mark = null; // a field the chat proposes: not one yet
     Object.assign(state, { selected: mark ? mark.path : null, answer: mark?.answer ?? null, many: new Set() });
     renderFields();
     renderSide();
@@ -1189,8 +1263,8 @@ export function mountSetup(app) {
   bus.on("op", ({ op }) => {
     const mark = shown.get(op.id);
     if (mark === undefined || (op.op !== "move" && op.op !== "resize")) return; // a box is not added or deleted here
-    if (mark.kind === "read" || mark.kind === "label" || mark.kind === "place") {
-      drawMarks(); // these only show where the readers look: put it back
+    if (mark.kind === "read" || mark.kind === "label" || mark.kind === "place" || mark.kind === "proposed") {
+      drawMarks(); // these only show where the readers look (or would): put it back
       return;
     }
     const where = { path: mark.path, page: mark.page, rect: op.rect, sample: state.sample };
@@ -1255,6 +1329,166 @@ export function mountSetup(app) {
   /** Size the page for the zoom (a new page, or the screen shown again). */
   function applyZoom() {
     zoom.refresh();
+  }
+
+  // ------------------------------------------------------------------ the chat
+
+  /**
+   * The Chat tab (core/chat.js): a message asks the AI for a fix of the template (`engine.extract.chat`, a job), with
+   * the area dragged on the page (on the sample shown). Its answer is a proposal, proven on a copy of the template:
+   * the fields it adds or changes are marked in the field list and where they read is drawn dashed on the page,
+   * until Apply (the edits sent with the version they were proven on, through the change queue, so they go after
+   * the person's own) or Discard (nothing sent). An Apply after another change is refused as stale by the server.
+   */
+  const chat = new ChatPanel($("setup-chat"), { send: ask, available: ai, onArea: () => view.clearRegion() });
+
+  bus.on("region", ({ page, rect }) => {
+    if (state.setup === null) {
+      view.clearRegion();
+      return;
+    }
+    chat.setArea({ sample: state.sample, page, rect });
+    showTab("chat");
+  });
+
+  /** The proposal, when it is the setup's on screen; else null. */
+  const proposalOnShow = () => (state.proposal !== null && state.proposal.setupId === state.setup?.id ? state.proposal : null);
+
+  /** What a person calls the field `path`: its row's title, or the title the proposal gives a field it adds. */
+  function titleOf(path) {
+    return rowOf(path)?.title ?? state.proposal?.added.find((a) => a.path === path)?.title ?? path;
+  }
+
+  /** Where the proposal reads each field it touches on the sample shown, as marks (`kind` "proposed"). */
+  function proposedMarks() {
+    const p = proposalOnShow();
+    if (p === null) return [];
+    const out = [];
+    for (const [path, fp] of Object.entries(p.preview)) {
+      const read = fp.samples?.[state.sample]?.read;
+      if (!read) continue;
+      const places = read.page !== null && read.page !== undefined && read.rect ? [{ page: read.page, rect: read.rect }] : [];
+      for (const { page, rect } of [...places, ...(read.places ?? [])]) out.push({ path, kind: "proposed", page, rect });
+    }
+    return out;
+  }
+
+  /** A change of a field's settings (a `set_field`) in words. */
+  function settingsWords(e) {
+    const words = [];
+    if (e.title !== undefined && e.title !== null) words.push(`titled “${e.title}”`);
+    if (e.type) words.push(`a ${TYPE_WORDS[e.type] ?? e.type}`);
+    if (e.description !== undefined && e.description !== null) words.push("a new definition");
+    if (e.required === true || e.required === false) words.push(e.required ? "required" : "optional");
+    if (e.pattern !== undefined && e.pattern !== null) words.push(e.pattern ? `format ${e.pattern}` : "no format");
+    return words.join(", ") || "its settings";
+  }
+
+  /** A proposed edit in words; null for what the AI read on a sample (`set_reading`: the preview says it). */
+  function editWords(e, title) {
+    const t = `“${title(e.path)}”`;
+    const quoted = (list) => list.map((x) => `“${x}”`).join(", ");
+    switch (e.op) {
+      case "add_field":
+        return `Add ${t}, ${TYPE_WORDS[e.type] ?? e.type}${e.category ? `, in ${e.category}` : ""}${e.required ? ", required" : ""}`;
+      case "set_labels":
+        return e.labels.length ? `${t}: read beside ${quoted(e.labels)}${e.side === "below" ? ", under it" : ""}` : `${t}: not read beside a label`;
+      case "set_box":
+        return `${t}: its box on page ${e.page + 1}`;
+      case "set_option_box":
+        return `${t}: the “${e.answer}” box on page ${e.page + 1}`;
+      case "set_clean":
+        return `${t}: cleaned with ${e.clean.map((step) => step.op).join(", ") || "nothing"}`;
+      case "set_field":
+        return `${t}: ${settingsWords(e)}`;
+      case "mark_absent":
+        return `${t}: not on this form`;
+      case "restore":
+        return `${t}: brought back`;
+      case "remove_field":
+        return `Remove ${t}`;
+      case "rename_field":
+        return `${t}: named ${e.name}`;
+      case "set_category":
+        return `${t}: in ${e.category ? `“${e.category}”` : "no category"}`;
+      case "make_option_set":
+        return `“${e.title}”: an option set of ${quoted([e.path, ...e.others].map(title))}`;
+      case "split_option_set":
+        return `${t}: separated into fields`;
+      case "set_reading":
+        return null;
+      default:
+        return `${t}: ${String(e.op).replaceAll("_", " ")}`;
+    }
+  }
+
+  /** What the proposal reads, a line per field it touches: its state across the samples, as the field list says it. */
+  function previewLines(p) {
+    return Object.entries(p.preview).map(([path, fp]) => {
+      const st = fieldState(fp);
+      const title = titleOf(path);
+      if (fp.absent) return `${st.glyph} ${title} · not on this form`;
+      return `${st.glyph} ${title} · ${st.text} · ${fp.ready ? "ready" : "needs a look"}`;
+    });
+  }
+
+  /** The chat's `send`: ask the AI, and show its proposal (see above). */
+  async function ask(message, area, history, signal) {
+    const s = state.setup;
+    if (s === null) throw new Error("No template is open.");
+    let job;
+    try {
+      const handle = await calls.chat(s.id, message, area, history);
+      if (signal.aborted) handle.cancel();
+      else signal.addEventListener("abort", () => handle.cancel(), { once: true });
+      job = await handle.done;
+    } catch (e) {
+      if (isGone(e)) lost();
+      throw e;
+    }
+    if (job.status === "cancelled") throw new Error("Cancelled.");
+    if (job.status !== "done") {
+      const e = new Error(job.error || "The AI couldn't answer.");
+      if (/answer could not be used/i.test(job.error ?? "")) e.code = "unusable";
+      throw e;
+    }
+    if (state.setup?.id !== s.id) throw new Error("Another template was opened meanwhile.");
+    const { reply, edits, preview, version } = job.result;
+    if (edits.length === 0) return { reply, changes: [], apply: null, discard: () => {} };
+    const added = edits.filter((e) => e.op === "add_field").map((e) => ({ path: e.path, title: e.title, category: e.category ?? null }));
+    const touched = new Set(edits.flatMap((e) => [e.path, ...(e.others ?? [])]));
+    const p = { setupId: s.id, edits, preview, version, touched, added };
+    const changes = edits.map((e) => editWords(e, (path) => added.find((a) => a.path === path)?.title ?? rowOf(path)?.title ?? path)).filter((w) => w !== null);
+    showProposal(p);
+    return { reply, changes, preview: previewLines(p), apply: () => applyProposal(p), discard: () => dropProposal(p) };
+  }
+
+  function showProposal(p) {
+    state.proposal = p;
+    renderFields();
+    drawMarks();
+  }
+
+  /** Drop the proposal `p` from the screen (Discard, or a stale Apply), when it is the one on show. */
+  function dropProposal(p) {
+    if (state.proposal !== p) return;
+    state.proposal = null;
+    if (state.setup === null) return;
+    renderFields();
+    drawMarks();
+  }
+
+  /** Apply the proposal `p` through the change queue; rejects with the server's refusal (`stale_setup` among them). */
+  async function applyProposal(p) {
+    let refusal = null;
+    const send = async (id) => {
+      const next = await calls.edits(id, p.edits, p.version);
+      if (state.proposal === p) state.proposal = null; // made: the screen shows the setup with it
+      return next;
+    };
+    const made = await change(send, { refused: (e) => (refusal = e) });
+    if (made) return;
+    throw refusal ?? new Error("The template is no longer open.");
   }
 
   // ------------------------------------------------------------------ save

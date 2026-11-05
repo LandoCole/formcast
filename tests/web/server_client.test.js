@@ -532,6 +532,11 @@ test("the batch, setup and saved extraction calls go to their routes with their 
   const edit = { op: "set_box", path: "investor.tax_id", page: 0, rect: [1, 2, 3, 4], sample: 3 };
   await engine.extract.edit(SETUP_ID, edit);
   assert.deepEqual(fetch.calls.at(-1).body, { edit }); // as given, its sample included
+  const edits = [edit, { op: "set_labels", path: "investor.name", labels: ["Name"] }];
+  await engine.extract.edits(SETUP_ID, edits);
+  assert.deepEqual(fetch.calls.at(-1).body, { edits });
+  await engine.extract.edits(SETUP_ID, edits, 7); // made for the setup's version 7
+  assert.deepEqual(fetch.calls.at(-1).body, { edits, version: 7 });
   await engine.extract.learn(SETUP_ID, "investor.country");
   assert.deepEqual(fetch.calls.at(-1).body, { path: "investor.country" });
   assert.deepEqual(await engine.extract.marks(SETUP_ID, 2), [{ path: "a", kind: "box" }]);
@@ -543,7 +548,7 @@ test("the batch, setup and saved extraction calls go to their routes with their 
   assert.equal(await engine.extract.remove("Client info"), "Client info");
 });
 
-test("the setup, line and run jobs start as extract jobs and poll like the others", async () => {
+test("the setup, line, chat and run jobs start as extract jobs and poll like the others", async () => {
   const { engine, fetch } = await engineWith({
     "GET /api/capabilities": json(200, EXTRACT_CAPS),
     "POST /api/jobs": json(200, { id: "j1" }),
@@ -557,6 +562,13 @@ test("the setup, line and run jobs start as extract jobs and poll like the other
   const lineJob = await engine.extract.startLine(SETUP_ID, "wire details");
   assert.equal(lineJob.kind, "extract-line");
   assert.deepEqual(started(), { kind: "extract-line", setup: SETUP_ID, line: "wire details" });
+  const area = { sample: 1, page: 0, rect: [10, 20, 200, 40] };
+  const history = [{ message: "m", reply: "r", changes: "c", outcome: "discarded" }];
+  const chatJob = await engine.extract.chat(SETUP_ID, "it missed this one", area, history);
+  assert.equal(chatJob.kind, "extract-chat");
+  assert.deepEqual(started(), { kind: "extract-chat", setup: SETUP_ID, message: "it missed this one", area, history });
+  await engine.extract.chat(SETUP_ID, "fix the names");
+  assert.deepEqual(started(), { kind: "extract-chat", setup: SETUP_ID, message: "fix the names" }); // no area, no history
   const runJob = await engine.extract.startRun({ extraction: "Client info", batch: BATCH_ID });
   assert.deepEqual(started(), { kind: "extract-run", extraction: "Client info", batch: BATCH_ID, ai: false });
   assert.equal((await runJob.done).result.run, RUN_ID);

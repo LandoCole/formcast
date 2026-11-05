@@ -387,3 +387,51 @@
 .fc-rp-tbl { margin-top: 12px; font: 11px/1.4 var(--mono); }
 .fc-rp-note { margin: 12px 0 0; font: italic 14px/20px var(--serif); color: var(--graphite); }
 .fc-rp-note.fc-rp-required { padding-left: 10px; box-shadow: inset 2px 0 0 0 var(--ink); color: var(--ink); }
+
+/* ---- tabs above a side panel (Field | Chat) ---- */
+
+.fc-tabs { display: flex; margin: 0 0 16px; }
+.fc-tabs [role="tab"] { flex: 1 1 0; }
+.fc-tabs [role="tab"][aria-selected="true"] { background: var(--ink); color: var(--paper); outline-color: var(--ink); }
+
+/* ---- chat (core/chat.js) ----
+   The one accent: a proposal's blue (#2a78d6, the review's "not located"), on the area a person marked and on what the
+   AI proposes, so it reads as "not applied yet" against the ink of the template. */
+
+.fc-chat { display: flex; flex-direction: column; gap: 16px; color: var(--ink); font-family: var(--serif); }
+.fc-chat-thread { display: flex; flex-direction: column; gap: 14px; margin: 0; padding: 0; list-style: none; }
+.fc-chat-thread p { margin: 0; overflow-wrap: anywhere; }
+.fc-chat-me { align-self: flex-end; max-width: 92%; padding: 4px 0 4px 12px; box-shadow: inset 2px 0 0 0 var(--ink); font-size: 16px; line-height: 22px; }
+.fc-chat-chip {
+  display: inline-flex; align-items: center; gap: 6px; margin: 0 0 6px; padding: 3px 7px;
+  outline: 1px solid #2a78d6; outline-offset: -.5px; color: var(--ink); font: 10.5px/15px var(--mono);
+}
+.fc-chat-me .fc-chat-chip { display: flex; width: fit-content; }
+.fc-chat-unchip { padding: 0 2px; background: none; border: 0; color: var(--graphite); font: 13px/1 var(--mono); cursor: pointer; }
+.fc-chat-unchip:hover { color: var(--ink); }
+.fc-chat-who, .fc-chat-label { margin: 0 0 3px; color: var(--graphite); font: 10px/16px var(--mono); letter-spacing: .14em; text-transform: uppercase; }
+.fc-chat-reply { font-size: 16px; line-height: 22px; }
+.fc-chat-change { margin-top: 8px; outline: 1px solid var(--rule); outline-offset: -.5px; font: 11px/18px var(--mono); }
+.fc-chat-changes, .fc-chat-proof { margin: 0; padding: 6px 9px; list-style: none; }
+.fc-chat-changes { background: rgba(42, 120, 214, .07); }
+.fc-chat-changes li::before { content: "· "; color: var(--graphite); }
+.fc-chat-proof { box-shadow: inset 0 .5px 0 0 var(--rule); color: var(--graphite); }
+.fc-chat-acts { display: flex; gap: 6px; margin-top: 8px; }
+.fc-chat-thread .fc-chat-outcome { margin-top: 8px; color: var(--graphite); font: 11px/18px var(--mono); }
+.fc-chat-wait { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 0 0 4px; }
+.fc-chat-wait .fc-chat-label { color: var(--ink); margin: 0; }
+.fc-chat-readout { color: var(--graphite); font: 11px/18px var(--mono); }
+.fc-chat-error { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; padding-left: 10px; box-shadow: inset 2px 0 0 0 var(--ink); font: italic 15px/22px var(--serif); }
+.fc-chat-composer { position: sticky; bottom: 0; padding: 10px 0 0; background: var(--paper); box-shadow: inset 0 .5px 0 0 var(--rule); }
+.fc-chat-pending:empty { display: none; }
+textarea.fc-chat-text {
+  box-sizing: border-box; display: block; width: 100%; min-height: 64px; margin: 0; padding: 8px; resize: vertical;
+  background: var(--paper); color: var(--ink); border: 0; border-radius: 0; outline: 1px solid var(--ink); outline-offset: -.5px;
+  font: 12px/18px var(--mono);
+}
+textarea.fc-chat-text:focus-visible { outline: 2px solid var(--ink); outline-offset: -1px; }
+.fc-chat-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+.fc-chat-hint { flex: 1 1 140px; margin: 0; color: var(--graphite); font: italic 13.5px/18px var(--serif); }
+.fc-chat-off { margin: 0; color: var(--graphite); font: italic 15px/22px var(--serif); }
+.fc-btn.is-solid { background: var(--ink); color: var(--paper); }
+.fc-btn.is-solid:disabled { background: var(--paper); color: var(--graphite); }

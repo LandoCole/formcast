@@ -33,8 +33,8 @@ import pytest
 from playwright.sync_api import expect
 from test_server_documents import get_json, small_pdf
 from test_server_extract import (  # noqa: F401 (corpus_files and problem_files are fixtures)
-    SHIFTED, GatedModel, add_files, assert_proven, corpus_files, job_ended, new_batch, problem_files,
-    sample_set, start_job, zip_of,
+    SHIFTED, ChatModel, GatedModel, add_files, assert_proven, chat_answer, corpus_files, job_ended, new_batch,
+    problem_files, sample_set, start_job, zip_of,
 )
 from test_server_jobs import wait_for
 from test_workbench_page import Bench, bench, no_model_loads, widget_pdf  # noqa: F401 (bench and no_model_loads are fixtures)
@@ -42,6 +42,7 @@ from test_workbench_page import Bench, bench, no_model_loads, widget_pdf  # noqa
 from demo.server import extract_api, extraction
 from demo.server.api import Api
 from formcast.extract.edit import RenameField, SetField
+from formcast.extract.prompts import CHAT_SYSTEM
 from formcast.extract.setup import STAGES
 from tests.extract.corpus import FIELD_RECTS, SHIFT, clients, make_form
 
@@ -1490,6 +1491,264 @@ def test_the_setup_inspector_shows_the_required_reason_and_a_change_is_set_by_yo
     expect(row(b, "investor.country").locator(".fc-sl-req")).to_have_text("*")
     investor = get_json(base, f"/api/setups/{setup['id']}")[1]["template"]["schema"]["properties"]["investor"]
     assert "country" in investor["required"] and investor["properties"]["country"]["x-required-reason"] == "Set by you"
+
+
+# ------------------------------------------------------------------ the Chat tab
+
+
+class HeldChatModel(ChatModel):
+    """``ChatModel`` whose chat call waits for ``release`` once ``hold`` is set (``reached`` says it is waiting)."""
+
+    def __init__(self, *args, **kw) -> None:
+        super().__init__(*args, **kw)
+        self.hold = False
+        self.reached = threading.Event()
+        self.release = threading.Event()
+
+    def complete(self, messages, tools, **kwargs):
+        if self.hold and messages[0].content == CHAT_SYSTEM:
+            self.reached.set()
+            assert self.release.wait(10)
+        return super().complete(messages, tools, **kwargs)
+
+
+#: The chat's answer to "add the country": a new field read beside its label, with what the AI reads on each sample.
+ADD_COUNTRY = chat_answer(
+    {"op": "add_field", "path": "investor.country", "title": "Country", "type": "text"},
+    {"op": "set_labels", "path": "investor.country", "labels": ["Country"]},
+    *[{"op": "set_reading", "path": "investor.country", "sample": i + 1, "value": p.country} for i, p in enumerate(PEOPLE)],
+    reply="Added the country, read beside its label.",
+)
+#: The chat's words when an earlier answer was unusable, or a message needs no change.
+NO_CHANGE = chat_answer(reply="That needs no change.")
+
+
+def chat_on(start_demo_server, bench, *answers: str) -> tuple[Bench, str, dict, HeldChatModel]:
+    """A setup from the line "tax ID" on screen, its server's chat answering with ``answers`` in turn."""
+    model = HeldChatModel({name: client for (name, _), client in zip(FILES, PEOPLE)})
+    model.answers.extend(answers)
+    base = extract_server(start_demo_server, model)
+    setup = setup_on(base, start="lines", lines=["tax ID"])
+    b = bench(base, fill=False)
+    show_setup(b, setup)
+    return b, base, setup, model
+
+
+def chat_jobs_sent(b: Bench) -> list[dict]:
+    """Every chat job the page starts from now on, as sent."""
+    sent: list[dict] = []
+
+    def note(request) -> None:
+        if request.method == "POST" and request.url.endswith("/api/jobs") and request.post_data_json.get("kind") == "extract-chat":
+            sent.append(request.post_data_json)
+
+    b.page.on("request", note)
+    return sent
+
+
+def ask(b: Bench, message: str) -> None:
+    """Send ``message`` from the Chat tab."""
+    b.page.click("#setup-tab-chat")
+    b.page.fill("#setup-chat .fc-chat-text", message)
+    b.page.click("#setup-chat .fc-chat-send")
+
+
+def turns(b: Bench):
+    """The chat's answers in the thread."""
+    return b.page.locator("#setup-chat .fc-chat-ai")
+
+
+def proposed_boxes(b: Bench):
+    return b.page.locator('#setup-pv .fc-box[data-kind="proposed"]')
+
+
+def drag_on_sample(b: Bench, x0: float, y0: float, x1: float, y1: float) -> None:
+    """Drag across the sample page between two points given as fractions of its size."""
+    bb = b.page.locator("#setup-pv .fc-pv-page").bounding_box()
+    b.page.mouse.move(bb["x"] + bb["width"] * x0, bb["y"] + bb["height"] * y0)
+    b.page.mouse.down()
+    b.page.mouse.move(bb["x"] + bb["width"] * (x0 + x1) / 2, bb["y"] + bb["height"] * (y0 + y1) / 2, steps=4)
+    b.page.mouse.move(bb["x"] + bb["width"] * x1, bb["y"] + bb["height"] * y1, steps=4)
+    b.page.mouse.up()
+
+
+def test_the_chat_tab_sends_a_message_and_applies_the_proposal(start_demo_server, bench):
+    b, base, setup, _ = chat_on(start_demo_server, bench, ADD_COUNTRY)
+    expect(b.page.locator("#setup-tab-field")).to_have_attribute("aria-selected", "true")
+    expect(b.page.locator("#setup-chat")).to_be_hidden()
+    sent = edits_sent(b)
+    bodies: list[dict] = []
+    b.page.on("request", lambda r: bodies.append(r.post_data_json) if r.method == "POST" and r.url.endswith("/edit") else None)
+    ask(b, "It missed the country: add it.")
+    expect(b.page.locator("#ins")).to_be_hidden()  # the Field tab's parts give way to the chat
+    expect(b.page.locator("#setup-chat .fc-chat-me")).to_have_text("It missed the country: add it.")
+    answer = turns(b).first
+    expect(answer.locator(".fc-chat-reply")).to_have_text("Added the country, read beside its label.", timeout=30_000)
+    expect(answer.locator(".fc-chat-changes li")).to_have_text(["Add “Country”, text", "“Country”: read beside “Country”"])
+    expect(answer.locator(".fc-chat-proof li")).to_have_text(["● Country · 5/5 · ready"])
+    expect(row(b, "investor.country")).to_have_count(0)  # nothing changed yet: proposed only
+    expect(b.page.locator("#fields .fc-sl-leaf.is-new")).to_have_text(re.compile("Country"))
+    expect(proposed_boxes(b)).to_have_count(1)
+    assert sent == []
+
+    answer.locator(".fc-chat-apply").click()
+    expect(row(b, "investor.country").locator(".fc-sl-st")).to_have_text("●", timeout=30_000)
+    expect(row(b, "investor.country").locator(".fc-sl-ty")).to_have_text("5/5")
+    expect(answer.locator(".fc-chat-outcome")).to_have_text("Applied.")
+    expect(answer.locator(".fc-chat-apply")).to_have_count(0)
+    expect(b.page.locator("#fields .fc-sl-leaf.is-new")).to_have_count(0)
+    expect(proposed_boxes(b)).to_have_count(0)
+    assert [body.get("version") for body in bodies] == [setup["version"]]  # made for the version it was proven on
+    assert [e["op"] for e in sent] == ["add_field", "set_labels"] + ["set_reading"] * 5
+    after = get_json(base, f"/api/setups/{setup['id']}")[1]
+    assert next(f for f in after["proof"]["fields"] if f["path"] == "investor.country")["ready"] is True
+
+
+def test_a_dragged_area_goes_with_the_message(start_demo_server, bench):
+    b, _, _, _ = chat_on(start_demo_server, bench, NO_CHANGE)
+    jobs = chat_jobs_sent(b)
+    drag_on_sample(b, 0.78, 0.05, 0.95, 0.1)  # empty space right of the title
+    expect(b.page.locator("#setup-tab-chat")).to_have_attribute("aria-selected", "true")  # the chat comes up with it
+    chip = b.page.locator("#setup-chat .fc-chat-composer .fc-chat-chip")
+    expect(chip).to_have_text(re.compile(r"^page 1 · \[\d+, \d+, \d+, \d+\]"))
+    expect(b.page.locator("#setup-pv .fc-marquee")).to_have_count(1)
+    chip.locator("button").click()  # removed: no area, and none drawn
+    expect(chip).to_have_count(0)
+    expect(b.page.locator("#setup-pv .fc-marquee")).to_have_count(0)
+
+    drag_on_sample(b, 0.78, 0.05, 0.95, 0.1)
+    expect(chip).to_be_visible()
+    ask(b, "What is written here?")
+    expect(turns(b).first.locator(".fc-chat-reply")).to_have_text("That needs no change.", timeout=30_000)
+    assert len(jobs) == 1
+    area = jobs[0]["area"]
+    assert (area["sample"], area["page"]) == (0, 0)
+    x0, y0, x1, y1 = area["rect"]
+    assert 0 < x0 < x1 and 0 < y0 < y1 < 792
+    expect(b.page.locator("#setup-chat .fc-chat-me .fc-chat-chip")).to_have_text(f"page 1 · [{round(x0)}, {round(y0)}, {round(x1)}, {round(y1)}]")
+    expect(chip).to_have_count(0)  # it went with that message
+    expect(b.page.locator("#setup-pv .fc-marquee")).to_have_count(0)
+    expect(turns(b).first.locator(".fc-chat-apply")).to_have_count(0)  # an answer with no edits: the reply alone
+
+
+def test_discard_changes_nothing(start_demo_server, bench):
+    b, base, setup, _ = chat_on(start_demo_server, bench, ADD_COUNTRY)
+    sent = edits_sent(b)
+    ask(b, "It missed the country: add it.")
+    answer = turns(b).first
+    expect(proposed_boxes(b)).to_have_count(1, timeout=30_000)
+    answer.locator(".fc-chat-discard").click()
+    expect(answer.locator(".fc-chat-outcome")).to_have_text("Discarded.")
+    expect(answer.locator(".fc-chat-apply")).to_have_count(0)
+    expect(proposed_boxes(b)).to_have_count(0)
+    expect(b.page.locator("#fields .fc-sl-leaf.is-new")).to_have_count(0)
+    expect(row(b, "investor.country")).to_have_count(0)
+    b.page.wait_for_timeout(200)
+    assert sent == []
+    assert get_json(base, f"/api/setups/{setup['id']}")[1] == setup
+
+
+def test_clear_empties_the_thread_and_history(start_demo_server, bench):
+    b, _, _, _ = chat_on(start_demo_server, bench, ADD_COUNTRY, *[NO_CHANGE] * 5)
+    jobs = chat_jobs_sent(b)
+    ask(b, "It missed the country: add it.")
+    turns(b).first.locator(".fc-chat-discard").click(timeout=30_000)
+    for n in range(2, 6):
+        ask(b, f"Message {n}.")
+        expect(turns(b)).to_have_count(n, timeout=30_000)
+        expect(turns(b).nth(n - 1).locator(".fc-chat-reply")).to_be_visible(timeout=30_000)
+    assert "history" not in jobs[0]
+    first = {"message": "It missed the country: add it.", "reply": "Added the country, read beside its label.",
+             "changes": "Add “Country”, text; “Country”: read beside “Country”", "outcome": "discarded"}  # fmt: skip
+    assert jobs[1]["history"] == [first]
+    later = [{"message": f"Message {n}.", "reply": "That needs no change.", "changes": "no changes", "outcome": "applied"} for n in (2, 3, 4)]
+    assert jobs[4]["history"] == later  # the last three exchanges, oldest first
+
+    b.page.click("#setup-chat .fc-chat-clear")
+    expect(b.page.locator("#setup-chat .fc-chat-thread > *")).to_have_count(0)
+    ask(b, "Start again.")
+    expect(turns(b)).to_have_count(1, timeout=30_000)
+    expect(turns(b).first.locator(".fc-chat-reply")).to_be_visible(timeout=30_000)
+    assert "history" not in jobs[5]
+
+
+def test_a_stale_proposal_says_ask_again(start_demo_server, bench):
+    b, base, setup, _ = chat_on(start_demo_server, bench, ADD_COUNTRY)
+    ask(b, "It missed the country: add it.")
+    answer = turns(b).first
+    expect(answer.locator(".fc-chat-apply")).to_be_visible(timeout=30_000)
+    b.page.click("#setup-tab-field")  # the person edits the template meanwhile
+    row(b, "investor.tax_id").click()
+    b.page.click("#ins-required")
+    setup_idle(b)
+    edited = get_json(base, f"/api/setups/{setup['id']}")[1]
+    assert edited["version"] == setup["version"] + 1
+    b.page.click("#setup-tab-chat")
+    answer.locator(".fc-chat-apply").click()
+    expect(answer.locator(".fc-chat-outcome")).to_have_text("The template changed since this was proposed; ask again.")
+    expect(answer.locator(".fc-chat-apply")).to_have_count(0)
+    expect(proposed_boxes(b)).to_have_count(0)
+    expect(row(b, "investor.country")).to_have_count(0)
+    expect(b.page.locator("#notice")).to_be_hidden()
+    assert get_json(base, f"/api/setups/{setup['id']}")[1] == edited
+
+
+def test_with_ai_off_the_chat_tab_has_no_composer(start_demo_server, bench, monkeypatch):
+    real = Api.capabilities
+
+    def no_ai(self, req):
+        return {**real(self, req), "ai": False}
+
+    monkeypatch.setattr(Api, "capabilities", no_ai)  # the page sees no AI; the setup is still built with one
+    base = extract_server(start_demo_server)
+    setup = setup_on(base, start="lines", lines=["tax ID"])
+    b = bench(base, fill=False)
+    show_setup(b, setup)
+    b.page.click("#setup-tab-chat")
+    host = b.page.locator("#setup-chat")
+    expect(host).to_contain_text("The AI is not configured")
+    expect(host.locator("textarea")).to_have_count(0)
+    expect(host.locator(".fc-chat-send")).to_have_count(0)
+    drag_on_sample(b, 0.78, 0.05, 0.95, 0.1)  # no area to ask about
+    expect(b.page.locator("#setup-pv .fc-marquee")).to_have_count(0)
+
+
+def test_a_chat_answer_that_cannot_be_used_offers_try_again(start_demo_server, bench):
+    b, _, _, _ = chat_on(start_demo_server, bench, "not json", "still not json", NO_CHANGE)
+    jobs = chat_jobs_sent(b)
+    ask(b, "Why is the date empty?")
+    error = b.page.locator("#setup-chat .fc-chat-error")
+    expect(error).to_contain_text("The AI's answer could not be used.", timeout=30_000)
+    error.locator(".fc-chat-retry").click()
+    expect(turns(b).first.locator(".fc-chat-reply")).to_have_text("That needs no change.", timeout=30_000)
+    expect(error).to_have_count(0)
+    expect(b.page.locator("#setup-chat .fc-chat-me")).to_have_count(1)  # the same message, sent again
+    assert [job["message"] for job in jobs] == ["Why is the date empty?"] * 2
+
+
+def test_cancel_stops_the_chat_job(start_demo_server, bench):
+    b, _, _, model = chat_on(start_demo_server, bench, NO_CHANGE)
+    model.hold = True
+    try:
+        ask(b, "Why is the date empty?")
+        assert model.reached.wait(20)
+        wait = b.page.locator("#setup-chat .fc-chat-wait")
+        expect(wait).to_be_visible()
+        expect(b.page.locator("#setup-chat .fc-chat-send")).to_be_disabled()
+        wait.locator("button").click()
+    finally:
+        model.release.set()
+    expect(b.page.locator("#setup-chat .fc-chat-error")).to_contain_text("Cancelled.")
+    expect(turns(b)).to_have_count(0)
+    expect(b.page.locator("#setup-chat .fc-chat-send")).to_be_enabled()
+
+
+def test_opening_another_setup_clears_the_chat(start_demo_server, bench):
+    b, base, _, _ = chat_on(start_demo_server, bench, NO_CHANGE)
+    ask(b, "Why is the date empty?")
+    expect(turns(b)).to_have_count(1, timeout=30_000)
+    show_setup(b, setup_on(base, start="lines", lines=["tax ID"]))
+    expect(b.page.locator("#setup-chat .fc-chat-thread > *")).to_have_count(0)
 
 
 # ------------------------------------------------------------------ running on the batch, the review, export, fill
