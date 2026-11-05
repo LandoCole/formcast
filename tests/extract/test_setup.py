@@ -12,6 +12,7 @@ import formcast.extract.setup as setup_mod
 from formcast.errors import FormcastError, SessionCancelled
 from formcast.extract.batch import route
 from formcast.extract.edit import SetBox, apply_edit
+from formcast.extract.layout import normalize_line
 from formcast.extract.model import RESERVED_NAMES, BoxRead, concrete_paths
 from formcast.extract.prompts import READERS_SYSTEM
 from formcast.extract.proof import Proof, learn_maps, prove, sample_marks
@@ -430,3 +431,19 @@ def test_destination_fields_keep_their_levels_with_the_destination_reason(five_s
     assert item["required"] == ["name"] and item["properties"]["name"][REASON_KEY] == "from the destination's schema"
     assert REASON_KEY not in investor and REASON_KEY not in schema["properties"]["signers"]  # groups carry none
     assert REASON_KEY not in dest["properties"]["investor"]["properties"]["tax_id"]  # the spec's own is left alone
+
+
+def test_one_flattened_sample_does_not_teach_its_answers_as_printed_text():
+    # one copy cannot tell its answers from its labels, so the layout learned from it holds them all; the build takes
+    # out what its readers read, and a label then reads the answer printed beside it instead of stopping at it
+    client = clients(1, seed=41)[0]
+    pdf = SamplePdf("only.pdf", make_form(client, kind="flattened"))
+    r = build_setup([pdf], SetupSpec(names_from_titles=False, name="x"), CorpusModel({pdf.file: client}), **NO_DETECTORS)
+    layout_text = {line.text for line in r.template.layout.lines}
+    assert normalize_line(client.tax_id) not in layout_text and normalize_line(client.legal_name) not in layout_text
+    assert normalize_line("Taxpayer ID") in layout_text  # the form's own printing stays
+    ready = {f.path for f in r.proof.fields if f.ready}
+    assert {"investor.legal_name", "investor.tax_id"} <= ready
+    other = clients(2, seed=42)[1]
+    got = {f.path: f for f in extract(r.template, make_form(other, kind="flattened")).fields}
+    assert got["investor.tax_id"].value == other.tax_id

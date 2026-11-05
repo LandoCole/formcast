@@ -2,13 +2,14 @@
 
 A model that has looked at the sample PDFs proposes, for each schema path, how to read it (a
 :class:`ReaderProposal`): the form fields that hold it, a box on one sample (a blank the detectors found, ``"c0_3"``,
-or a form field), the printed labels beside it, the phrases before it in running text, or, for a choice, where each
+a form field, or the text line that holds the answer on a page with no form fields, ``"t0_12"``), the printed labels
+beside it, the phrases before it in running text, or, for a choice, where each
 option's check mark is (:class:`OptionProposal`). :func:`resolve` turns these into plan-1 strategies with no model
 call, and checks every name against the samples first: a widget, box, label or phrase that no sample has is dropped
 with a warning, never kept, so a template never reads by something the model made up.
 
     widget  kept when a sample has a form field of exactly that name
-    box     kept when the sample it names has that blank (or form field)
+    box     kept when the sample it names has that blank (or form field, or text line)
     label   kept when ``DocText.find_label`` finds it on a sample
     phrase  kept when ``DocText.after_phrase`` finds text after it, up to the proposal's stop, on a sample
 
@@ -29,6 +30,11 @@ a choice that lost one is left out (``read`` takes a one-option choice on a yes/
 "false" box left alone would read every unmarked copy as true). When an answer's mark is on no sample at all no
 choice is kept; when only an answer's form field is missing (it was proposed by its box alone) the choice of the form
 fields is left out and the choice of the drawn boxes, which has every answer, is kept.
+
+A text line is the answer itself, written on the sample: its box is the line (the lines, for ids joined with "+",
+``"t0_12+t0_13"`` for an answer over two lines, all on one page) widened to the space the answer has on its row
+(:func:`text_cell`, which stops at a table's column rules), so a longer answer on another copy is read whole and the
+box never takes a neighbour's text.
 
 A box is stored in the layout's place: ``extract`` moves a template's box down by the document's offset
 (:func:`~formcast.extract.layout.page_fit`), so a rectangle taken from a sample is moved up by that sample page's
@@ -68,12 +74,12 @@ from formcast.extract.model import (
     concrete_paths,
 )
 from formcast.extract.page import DocText
-from formcast.extract.samples import SampleDoc
+from formcast.extract.samples import SampleDoc, text_lines
 from formcast.geometry import Rect
 from formcast.schema import flatten_schema
 from formcast.schema import resolve as schema_at
 
-__all__ = ["BoxRef", "OptionProposal", "ReaderProposal", "resolve"]
+__all__ = ["BoxRef", "OptionProposal", "ReaderProposal", "resolve", "text_cell"]
 
 
 class _Model(BaseModel):
@@ -81,7 +87,8 @@ class _Model(BaseModel):
 
 
 class BoxRef(_Model):
-    """A box on one sample (``sample``, its position from 0): a detected blank's id (``"c0_3"``) or a form field's name."""
+    """A box on one sample (``sample``, its position from 0): a detected blank's id (``"c0_3"``), a text line's
+    (``"t0_12"``, or ``"t0_12+t0_13"`` for an answer over two lines) or a form field's name."""
 
     sample: int
     id: str
@@ -119,6 +126,12 @@ class ReaderProposal(_Model):
 
 #: A form map's widget id, ``w<page>_<index>``, as a proposal may name a form field by.
 _WIDGET_ID = re.compile(r"w(\d+)_(\d+)")
+#: A sample's text line as a proposal names it, ``t<page>_<n>`` (:func:`~formcast.extract.samples.text_lines`).
+_TEXT_ID = re.compile(r"t(\d+)_(\d+)")
+#: How far (points) the box of a text line reaches above and below the line.
+TEXT_PAD = 1.5
+#: The furthest (points) the box of a text line reaches left or right of the line, when no text on its row is nearer.
+TEXT_REACH = 150.0
 #: A box found on a sample: its page and its rectangle in the layout's place.
 _Place = tuple[int, Rect]
 #: Records one dropped item as a warning: what it is ("label") and its value.
@@ -175,10 +188,13 @@ class _Samples:
         return False
 
     def box(self, ref: BoxRef) -> _Place | None:
-        """The detected blank of id ``ref.id`` on the sample ``ref`` names, else its form field of that name or form
-        map id (``w1_0``)."""
+        """The detected blank of id ``ref.id`` on the sample ``ref`` names, its text line (or lines) of that id
+        (``t0_12``, ``t0_12+t0_13``) as :func:`text_cell` widens them, else its form field of that name or form map id
+        (``w1_0``)."""
         if not 0 <= ref.sample < len(self.docs):
             return None
+        if (text := self.text_box(ref)) is not None:
+            return text
         for page in self.docs[ref.sample].form_map.pages:
             for candidate in page.candidates:
                 if candidate.id == ref.id:
@@ -186,6 +202,22 @@ class _Samples:
         name, page = self.widget_ref(ref.id)  # a form field's name, or its form map id
         places = self.texts[ref.sample].widget_places(name, page=page)
         return self._in_layout(ref.sample, *places[0]) if places else None
+
+    def text_box(self, ref: BoxRef) -> _Place | None:
+        """The box of the text lines ``ref.id`` names on its sample, ``None`` when it names no line of one page."""
+        ids = [_TEXT_ID.fullmatch(part.strip()) for part in ref.id.split("+")]
+        if not all(ids) or len({m.group(1) for m in ids if m}) != 1:
+            return None
+        page = int(ids[0].group(1))  # type: ignore[union-attr]
+        lines = text_lines(self.docs[ref.sample], self.texts[ref.sample], page)
+        chosen = {int(m.group(2)) for m in ids if m}
+        if any(n >= len(lines) for n in chosen):
+            return None
+        rect = _union([lines[n][1] for n in sorted(chosen)])
+        others = [r for n, (_, r) in enumerate(lines) if n not in chosen]
+        walls = self.texts[ref.sample].walls(page)
+        width = self.texts[ref.sample].page_sizes()[page][0]
+        return self._in_layout(ref.sample, page, text_cell(rect, others, width, walls=walls))
 
     def label_page(self, label: str) -> int | None:
         """The page ``label`` is first found on, on the first sample that has it."""
@@ -202,6 +234,36 @@ class _Samples:
             if hits:
                 return hits[0][0]
         return None
+
+
+def text_cell(rect: Rect, others: list[Rect], page_width: float, *, walls: list[Rect] = ()) -> Rect:
+    """The box of an answer written at ``rect``, among the page's ``others`` text lines and drawn vertical ``walls``
+    (a table's column rules): ``rect`` with :data:`TEXT_PAD` above and below, reaching left and right halfway to the
+    nearest line on its row (one that shares half the height of the shorter of the two and lies wholly to that side),
+    else :data:`TEXT_REACH` points, but never past a wall that crosses its row, nor off the page. A table's cells each
+    keep their own answer, an empty cell beside it included; a lone answer may grow on another copy."""
+    x0, y0, x1, y1 = rect
+    row = [
+        r for r in others
+        if min(y1, r[3]) - max(y0, r[1]) >= 0.5 * min(y1 - y0, r[3] - r[1])
+    ]  # fmt: skip
+    left = max((r[2] for r in row if r[2] <= x0), default=None)
+    right = min((r[0] for r in row if r[0] >= x1), default=None)
+    reach_left = (x0 - left) / 2 if left is not None else TEXT_REACH
+    reach_right = (right - x1) / 2 if right is not None else TEXT_REACH
+    crossing = [w for w in walls if min(y1, w[3]) - max(y0, w[1]) >= 0.5 * (y1 - y0)]
+    wall_left = max((w[2] for w in crossing if w[2] <= x0), default=0.0)
+    wall_right = min((w[0] for w in crossing if w[0] >= x1), default=page_width)
+    return (
+        max(wall_left, x0 - min(reach_left, TEXT_REACH)),
+        y0 - TEXT_PAD,
+        min(wall_right, x1 + min(reach_right, TEXT_REACH)),
+        y1 + TEXT_PAD,
+    )
+
+
+def _union(rects: list[Rect]) -> Rect:
+    return min(r[0] for r in rects), min(r[1] for r in rects), max(r[2] for r in rects), max(r[3] for r in rects)
 
 
 def resolve(

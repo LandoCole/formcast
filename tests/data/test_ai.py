@@ -168,6 +168,26 @@ def test_a_long_agreement_shows_the_model_its_form_pages_not_its_prose():
     assert len(text) < 40 * 700  # the prose pages are excerpts
 
 
+def test_a_filled_copys_form_pages_are_shown_whole_with_their_answers_though_no_blank_is_left_on_them():
+    """A filled, flattened statement has no blanks: its pages named as form pages get an image and their page map in
+    full, and their text lines (the answers among them) follow it."""
+    doc = pymupdf.open()
+    for n in range(3):
+        page = doc.new_page(width=300, height=400)
+        page.insert_textbox(pymupdf.Rect(20, 20, 280, 380), f"Charges {n}. " + "Origination fee $1,802.00. " * 40, fontsize=7)
+    pdf = doc.tobytes()
+    doc.close()
+    fm = build_form_map(pdf, detectors={}, policy=DetectPolicy(digital=(), scanned=()), ocr="never")
+    llm = Scripted('{"schema": {"type": "object", "properties": {"x": {"type": "string"}}}}')
+    filled = {1: ["t1_0 [20,20,80,30] Appraisal Fee", "t1_1 [200,20,240,30] $405.00"]}
+    derive_schema(pdf, llm, form_map=fm, form_pages=[1, 2], filled_text=filled)
+    parts = llm.calls[0][1].content
+    assert [p.text for p in parts if isinstance(p, TextPart) and p.text.startswith("Page ")] == ["Page 2:", "Page 3:"]
+    text = next(p.text for p in parts if isinstance(p, TextPart) and p.text.startswith("PAGE MAP"))
+    assert "PAGE 2 TEXT (as filled):\nt1_0 [20,20,80,30] Appraisal Fee\nt1_1 [200,20,240,30] $405.00" in text
+    assert "Blanks were found on page(s) 2, 3" in text
+
+
 def test_the_schema_step_shows_each_section_of_forms_then_the_pages_with_the_most_blanks(monkeypatch):
     from formcast.data import ai as ai_mod
 

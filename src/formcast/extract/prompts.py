@@ -29,9 +29,9 @@ The samples are numbered SAMPLE 1, SAMPLE 2, ... Each starts with FORM FIELD VAL
 holds, for a copy that has form fields), then each page, numbered from 0: "PAGE n" and the page's form map (its form
 fields as w<page>_<n> with name="...", the blanks found on it as c<page>_<n>, its printed prompts, rectangles as
 [x0,y0,x1,y1] in points from the page's top-left), and for a page with no form fields "PAGE n TEXT:", its printed
-lines with their rectangles, where a flattened or scanned copy's answers are. Some pages may also come as images,
-each after a "Sample n, page m:" line, with each found blank outlined and tagged with its number: on page 2 the box
-tagged 5 is c2_5."""
+lines, each as t<page>_<n> with its rectangle, where a flattened or scanned copy's answers are. Some pages may also
+come as images, each after a "Sample n, page m:" line, with each found blank outlined and tagged with its number: on
+page 2 the box tagged 5 is c2_5."""
 
 FIELDS_SYSTEM = f"""\
 You define the fields of a data schema from a person's short lines. A program will read every field off filled
@@ -104,11 +104,15 @@ For each path give one reader, with what applies of:
   when the answer is split over them (a date's month, day and year boxes): their values are joined with a space in
   the order listed, so give a "date" step with that format ("%m %d %y"). A name FORM FIELD VALUES lists once per page
   holds a different answer on each page: give the id of the one you mean (such as w27_3) instead of its name.
-- "box": the box the answer sits in on one sample, {{"sample": <its number>, "id": "<a found blank's id such as
-  c0_3, or a form field's name>"}}, for an answer that no form field holds.
-- "labels": the printed label beside the answer, as printed (case and punctuation do not matter), with "side"
-  ("right" or "below": where the answer is from the label), "max_lines" (lines the answer takes below its label)
-  and "max_width" (points). Several wordings when the samples word it differently. Give the question's own
+- "box": where the answer sits on one sample, {{"sample": <its number>, "id": "<id>"}}, for an answer that no form
+  field holds. On a page with no form fields give the text line that holds the answer itself (t0_12: the value,
+  never its label), joining the lines of an answer written over several lines with "+" (t0_12+t0_13); else a found
+  blank's id (c0_3) or a form field's name. Give it for every answer such a page writes: it is read where the answer
+  is, so it reads answers in a table's cells, under a heading or far from their label, which a label cannot.
+- "labels": the printed label beside the answer (never the answer itself), as printed (case and punctuation do not
+  matter), with "side" ("right" or "below": where the answer is from the label), "max_lines" (lines the answer
+  takes below its label) and "max_width" (points from the label's end to the answer's far end, with room for a
+  longer answer). Several wordings when the samples word it differently. Give the question's own
   words, not a heading that several fields share. Give a label for every field that has one, so a copy without
   form fields still reads.
 - "phrases" and "stop", for an answer inside running text: the words printed just before it, and where it ends:
@@ -126,9 +130,10 @@ For each path give one reader, with what applies of:
   allowed answer ({{"op": "map", "args": {{"values": {{"Gold tier": "gold", "Silver": "silver"}}}}}}); for a date,
   a "date" step with the format the samples write it in.
 - "places": every further place the form writes this same answer again (a long agreement repeats a name or a date on
-  each signature page), each {{"sample": <its number>, "id": "<a found blank's id, or a form field's name or id>"}}.
-  Copies of a form field you named in "widgets" are found by the program: list only places held by different form
-  fields or by blanks. A different answer that only looks alike (a city and a province both "Springfield") is not a place.
+  each signature page), each {{"sample": <its number>, "id": "<a text line's id, a found blank's id, or a form
+  field's name or id>"}}. Copies of a form field you named in "widgets" are found by the program: list only places
+  held by different form fields, by blanks or by text lines. A different answer that only looks alike (a city and a
+  province both "Springfield") is not a place.
 A path the form has no place for: {{"path": "<path>"}} alone.
 
 Reply with one JSON object and nothing else, one reader per path, each path written as listed:

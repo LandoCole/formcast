@@ -10,8 +10,9 @@ detectors. Which pages are searched is the ``detect`` mode:
     off      none
 
 A :class:`SampleDoc` keeps the PDF bytes, the form map and the value of every form field the PDF holds.
-:func:`sample_view` writes a sample as text for a model (its form map and field values) and :func:`sample_images`
-renders its pages, those with the most boxes first. Nothing here calls a model. Each sample's form map is built,
+:func:`sample_view` writes a sample as text for a model (its form map and field values, and the text lines of each
+page that is not fillable, numbered as :func:`text_lines` gives them) and :func:`sample_images` renders its pages,
+those with the most boxes first. Nothing here calls a model. Each sample's form map is built,
 and each page's blanks detected, holding :data:`~formcast.pagemap.extract.PDF_LOCK` (one sample, or one sample's
 pages, at a time), so reading samples may run beside other threads' MuPDF work; ``on_page`` is called with it held.
 """
@@ -26,6 +27,7 @@ from typing import Literal
 from formcast.data.ai import MAX_IMAGE_PAGES
 from formcast.errors import FormcastError, SessionCancelled
 from formcast.extract.page import DocText
+from formcast.geometry import Rect
 from formcast.pagemap.build import DetectPolicy, PageProgress, build_form_map, detect_on_page, looks_like_prose
 from formcast.pagemap.detect import Detector, load_default_detectors
 from formcast.pagemap.extract import PDF_LOCK, open_pdf
@@ -43,6 +45,7 @@ __all__ = [
     "read_samples",
     "sample_images",
     "sample_view",
+    "text_lines",
 ]
 
 Detect = Literal["auto", "all", "manual", "off"]
@@ -285,8 +288,9 @@ def sample_view(doc: SampleDoc, index: int, *, max_chars: int = SAMPLE_CHARS) ->
     In order: a header (``SAMPLE 2 (a.pdf, fillable, 2 pages)``; ``fillable`` when any page has form fields, else
     ``flattened``); ``FORM FIELD VALUES:`` with a ``name = "value"`` line per form field that holds one (JSON, so a
     value stays on one line and a check box reads ``true``); then, per page (from 0), ``PAGE n`` and the page's form
-    map, and for a page that is not fillable ``PAGE n TEXT:`` with its text lines as ``[x0,y0,x1,y1] text`` in whole
-    points, because the filled answers of a flattened or scanned page are printed text the form map leaves out.
+    map, and for a page that is not fillable ``PAGE n TEXT:`` with its text lines as ``t<page>_<n> [x0,y0,x1,y1] text``
+    in whole points (:func:`text_lines`), because the filled answers of a flattened or scanned page are printed text
+    the form map leaves out; a model names the line that holds an answer by its id.
 
     The header and the values are never cut. What is left of ``max_chars`` goes to the pages in order: the form maps
     first, each cut at an item line to its share when they do not all fit, then the text lines from the first page
@@ -347,20 +351,34 @@ def _shared(doc: SampleDoc, space: int) -> list[str]:
     return maps
 
 
+def text_lines(doc: SampleDoc, pdf: DocText, page: int) -> list[tuple[str, Rect]]:
+    """The text lines of ``doc``'s ``page`` (``pdf`` is ``doc.pdf`` open) as ``(text, rect)``, top to bottom, the
+    ``n``-th of them (from 0) the line ``t<page>_<n>`` a model sees: the PDF's own lines, the OCR's for a page the PDF
+    has no text on, none for a fillable page or a page the document does not have. Lines of only white space are
+    left out."""
+    if not 0 <= page < len(doc.form_map.pages):
+        return []
+    form_page = doc.form_map.pages[page]
+    if form_page.kind == "fillable":
+        return []
+    if form_page.text_source == "ocr":  # the PDF has no text of its own here; the form map holds the OCR
+        lines = [(ln.text, ln.rect) for ln in form_page.lines]
+    else:
+        lines = pdf.lines(page)
+    return [(text, rect) for text, rect in lines if text.strip()]
+
+
 def _page_texts(doc: SampleDoc) -> list[list[str]]:
-    """The text lines of each page that is not fillable, as ``[x0,y0,x1,y1] text``; ``[]`` for a fillable page."""
-    texts: list[list[str]] = []
+    """The text lines of each page that is not fillable, as ``t<page>_<n> [x0,y0,x1,y1] text``; ``[]`` for a fillable
+    page."""
     with DocText(doc.pdf) as pdf:
-        for page in doc.form_map.pages:
-            if page.kind == "fillable":
-                texts.append([])
-                continue
-            if page.text_source == "ocr":  # the PDF has no text of its own here; the form map holds the OCR
-                lines = [(ln.text, ln.rect) for ln in page.lines]
-            else:
-                lines = pdf.lines(page.index)
-            texts.append([f"[{','.join(str(round(v)) for v in rect)}] {text}" for text, rect in lines if text.strip()])
-    return texts
+        return [
+            [
+                f"t{page.index}_{n} [{','.join(str(round(v)) for v in rect)}] {text}"
+                for n, (text, rect) in enumerate(text_lines(doc, pdf, page.index))
+            ]
+            for page in doc.form_map.pages
+        ]
 
 
 def sample_images(doc: SampleDoc, *, max_pages: int = MAX_IMAGE_PAGES) -> list[tuple[int, bytes]]:

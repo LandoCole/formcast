@@ -26,7 +26,11 @@ whether a box's neighbourhood is where the layout has it (the static line neares
 line on its row found at the offset; a line that is nowhere on the page says nothing, see below), and :meth:`PageFit.found_rects` gives the document's printed lines, which a
 label read never takes as its answer.
 
-A static line can be an answer after all: samples that all name the same requester teach that name as printed text.
+A static line can be an answer after all: samples that all name the same requester teach that name as printed text,
+and a single flattened sample teaches every answer it holds, since nothing tells its answers from its labels. So
+once a template's readers are known, ``without_answers`` takes out the lines they read on the samples, which a
+label read would otherwise never take as its answer (its own value printed beside it) and a box read would find
+missing on every other copy. A filled answer no reader reads stays in the layout.
 A copy with another requester doesn't have those lines, which says nothing about the form. So only a line the page has
 somewhere else, moved, counts against a box; one it doesn't have at all is left out of :meth:`PageFit.agrees`.
 
@@ -143,6 +147,20 @@ def learn_layout(samples: list[bytes], *, blank: bytes | None = None) -> Layout:
                         kept.append(StaticLine(page=page, text=text, rect=rect))
     kept.sort(key=lambda k: (k.page, k.rect[1], k.rect[0]))
     return Layout(lines=kept, page_sizes=sizes)
+
+
+def without_answers(layout: Layout, answers: list[tuple[int, Rect]]) -> Layout:
+    """``layout`` without its lines that are answers: those whose middle lies in one of ``answers``, each ``(page,
+    rect)`` in the layout's place (where a template's readers read on its samples)."""
+    by_page: dict[int, list[Rect]] = defaultdict(list)
+    for page, rect in answers:
+        by_page[page].append(rect)
+
+    def answer(line: StaticLine) -> bool:
+        x, y = (line.rect[0] + line.rect[2]) / 2, (line.rect[1] + line.rect[3]) / 2
+        return any(r[0] <= x <= r[2] and r[1] <= y <= r[3] for r in by_page.get(line.page, ()))
+
+    return layout.model_copy(update={"lines": [line for line in layout.lines if not answer(line)]})
 
 
 #: Share of a static line's height that must overlap a box vertically for the line to be on the box's row.

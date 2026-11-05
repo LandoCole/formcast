@@ -11,15 +11,19 @@ again with a new detail while it works) and ends (``done``, or ``skipped``):
               ``find_blanks="all"`` the pages that have form fields too, a blank over a form field dropped. The
               stage's detail says the page being searched ("sample 1 of 2 · page 18 · 5 of 30 pages searched")
     fields    the schema, by where the field list starts (``spec.start``; its label is :data:`FIELDS_LABELS`'s):
-                ai           ``derive_schema`` on the sample with the most boxes (form fields and blanks)
+                ai           ``derive_schema`` on the sample with the most boxes (form fields and blanks); the pages
+                             searched for blanks are form pages though none is left on a filled copy, shown whole
+                             with their text lines, where its answers are (:data:`FILLED_NOTE`)
                 lines        ``fields_from_lines``: each of the person's lines made into the fields it asks for
                 destination  the destination's schema; ``fields_on_form`` says which of its fields the form has,
                              and every other path is marked absent ("not on this form")
     readers   the layout learned from the samples; the model proposes how to read every path that is not
               absent (and the other places each answer is written), and ``resolve`` keeps only what the samples
-              have; fields that read the same form field are merged (``repeats.merge_repeats``, not for a
-              destination), and the model places each filled form field that no field reads: as a place of a
-              field, a new field (not for a destination) or not data (``repeats.place_unread``)
+              have (a box may be the text line that holds the answer); fields that read the same form field are
+              merged (``repeats.merge_repeats``, not for a destination), and the model places each filled form
+              field that no field reads: as a place of a field, a new field (not for a destination) or not data
+              (``repeats.place_unread``); last, the lines the readers read on the samples leave the layout learned
+              from them (``without_answers``: a single flattened sample would teach its answers as printed text)
     check     ... and, once proven, a field that failed and repeats a ready field's answer in one of its places is
               folded into it (``repeats.fold_repeats``, not for a destination), and the template proven again
     check     the model reads every sample (its opinion, kept in the template's samples) and the readers are
@@ -53,13 +57,36 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from formcast.data.ai import derive_schema
 from formcast.errors import FormcastError
 from formcast.extract.ask import _generic, fields_from_lines, fields_on_form, propose_readers, read_values
-from formcast.extract.layout import learn_layout
-from formcast.extract.model import RESERVED_NAMES, ExtractionTemplate, SampleRecord, SetupInfo, concrete_paths
+from formcast.extract.layout import learn_layout, without_answers
+from formcast.extract.model import (
+    RESERVED_NAMES,
+    AnchorRead,
+    BoxRead,
+    ExtractionTemplate,
+    PhraseRead,
+    Reader,
+    SampleRecord,
+    SetupInfo,
+    concrete_paths,
+)
+from formcast.extract.page import DocText
 from formcast.extract.names import normalized
 from formcast.extract.proof import Proof, _check_samples, prove
 from formcast.extract.readers import ReaderProposal, resolve
 from formcast.extract.repeats import apply_answers, fold_repeats, merge_repeats, place_unread, unread_widgets
-from formcast.extract.samples import Detect, FindBlanks, SampleDoc, SamplePdf, ScanProgress, _detect, _read, reused_values
+from formcast.geometry import Rect
+from formcast.extract.samples import (
+    Detect,
+    FindBlanks,
+    SampleDoc,
+    SamplePdf,
+    ScanProgress,
+    _detect,
+    _page_texts,
+    _read,
+    detected_pages,
+    reused_values,
+)
 from formcast.llm import LLMConfig, Provider, Usage, make_provider
 from formcast.match import PdfFeatures
 from formcast.pagemap.build import DetectPolicy, PageProgress
@@ -250,6 +277,7 @@ def build_setup(
             schema, readers = placed.schema, placed.readers
             warnings += placed.warnings
         paths = [p for p in concrete_paths(schema) if p not in not_on_form]
+        layout = without_answers(layout, _answers(readers, docs))
         emit("readers", "done", f"readers for {len(readers)} of {_count(len(paths), 'field')}")
 
         emit("check", "running", _label("check"))
@@ -281,10 +309,12 @@ def _fields(
     """The ``fields`` stage: (schema, absent paths, each line's paths, usage, warnings)."""
     if spec.start == "ai":
         doc = max(docs, key=_boxes)  # the first of the samples with the most boxes
+        filled = {n: lines for n, lines in enumerate(_page_texts(doc)) if lines}
         derived = derive_schema(
             doc.pdf, llm, form_map=doc.form_map, vision=spec.vision, classify_required=True,
             reserved_names=RESERVED_NAMES, flat_fields=spec.names_from_titles,
-            instructions="\n\n".join(filter(None, (ONE_ANSWER_NOTE, _reused_note(doc)))),
+            instructions="\n\n".join(filter(None, (ONE_ANSWER_NOTE, _reused_note(doc), _filled_note(filled)))),
+            form_pages=detected_pages(doc), filled_text=filled,
         )  # fmt: skip
         schema, _ = _titled(derived.schema, {}, spec.names_from_titles)
         return schema, [], {}, derived.usage, []
@@ -309,8 +339,19 @@ ONE_ANSWER_NOTE = (
     "property: the program finds and reads the rest of its places. Never make a property per page or section for an "
     "answer the form repeats."
 )
+#: What the schema's designer is told of a sample whose pages have no form fields: their text holds the answers.
+FILLED_NOTE = (
+    "This copy is filled in and its pages have no form fields: the answers are printed on the page, in the PAGE TEXT "
+    "(as filled) lines, where the blanks were. Design a property for every answer it writes, on every page, a table's "
+    "rows and columns included (a table of line items is an array), not only for the answers that sit beside a label."
+)
 #: The most reused form field names the schema's designer is told of.
 MAX_REUSED_NAMES = 40
+
+
+def _filled_note(filled: dict[int, list[str]]) -> str:
+    """:data:`FILLED_NOTE` when the sample has pages without form fields, else ``""``."""
+    return FILLED_NOTE if filled else ""
 
 
 def _reused_note(doc: SampleDoc) -> str:
@@ -389,6 +430,7 @@ def add_line(
         usage = _sum(answer.usage, used)
         readers, warnings = resolve(proposals, samples, template.layout, schema)
         warnings += _unproposed(paths, proposals)
+        layout = without_answers(template.layout, _answers(readers, samples))
         opinions, used = _opinions(schema, paths, samples, provider, vision, max_parallel)
         usage = _sum(usage, used)
     setup = template.setup.model_copy(deep=True)
@@ -404,12 +446,41 @@ def add_line(
             **template.model_dump(by_alias=True),
             "schema": schema,
             "readers": {**template.readers, **readers},
+            "layout": layout,
             "setup": setup,
             "samples": records,
         }
     )
     proof = prove(built, [d.pdf for d in samples])
     return SetupResult(built, proof, samples, usage, warnings)
+
+
+def _answers(readers: dict[str, Reader], samples: list[SampleDoc]) -> list[tuple[int, Rect]]:
+    """Where ``readers`` read on the samples, taking no line as printed: each box (a strategy's or a place's), and
+    the text each label or phrase read finds on every sample that has it, as ``(page, rect)``. These are answers,
+    which :func:`~formcast.extract.layout.without_answers` takes out of a layout learned from the samples."""
+    out: list[tuple[int, Rect]] = []
+    for reader in readers.values():
+        out += [(s.page, s.rect) for s in [*reader.strategies, *reader.places] if isinstance(s, BoxRead)]
+    reads = [s for reader in readers.values() for s in reader.strategies if isinstance(s, (AnchorRead, PhraseRead))]
+    if not reads:
+        return out
+    for sample in samples:
+        with DocText(sample.pdf) as doc:
+            for strategy in reads:
+                if isinstance(strategy, PhraseRead):
+                    hits = doc.after_phrase(strategy.phrases, strategy.page, strategy.stop)
+                    out += [(page, rect) for page, _, rect in hits]
+                    continue
+                for page, label in doc.find_label(strategy.labels, strategy.page):
+                    got = (
+                        doc.text_below(page, label, strategy.max_lines)
+                        if strategy.side == "below"
+                        else doc.text_right_of(page, label, strategy.max_width)
+                    )
+                    if got is not None:
+                        out.append((page, got[1]))
+    return out
 
 
 def _titled(

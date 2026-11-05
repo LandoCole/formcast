@@ -8,7 +8,8 @@ import pytest
 
 import formcast.extract.samples as samples_mod
 from formcast.errors import FormcastError, SessionCancelled
-from formcast.extract.samples import SamplePdf, detected_pages, read_samples, sample_images, sample_view
+from formcast.extract.page import DocText
+from formcast.extract.samples import SamplePdf, detected_pages, read_samples, sample_images, sample_view, text_lines
 from formcast.pagemap.build import DetectPolicy
 from tests.extract.corpus import clients, make_form
 
@@ -117,7 +118,10 @@ def test_a_flattened_samples_view_holds_its_answers_as_page_text():
     view = sample_view(doc, 1)
     assert "PAGE 0 TEXT:" in view and "PAGE 1 TEXT:" in view
     line = next(ln for ln in view.splitlines() if p.tax_id in ln)
-    assert re.fullmatch(rf"\[\d+,\d+,\d+,\d+\] {re.escape(p.tax_id)}", line)
+    m = re.fullmatch(rf"t0_(\d+) \[\d+,\d+,\d+,\d+\] {re.escape(p.tax_id)}", line)
+    assert m is not None
+    with DocText(doc.pdf) as pdf:  # the id is the line's place among text_lines
+        assert text_lines(doc, pdf, 0)[int(m.group(1))][0] == p.tax_id
 
 
 def test_the_form_field_values_come_before_the_pages_and_a_fillable_page_has_no_text_section():

@@ -38,7 +38,16 @@ import numpy as np
 import pymupdf
 
 from formcast.geometry import Rect, area, intersect
-from formcast.pagemap.extract import PDF_LOCK, extract_page, open_pdf, page_size, render_matrix
+from formcast.pagemap.extract import (
+    PDF_LOCK,
+    RULE_MAX_THICKNESS,
+    _fill_visible,
+    _stroke_visible,
+    extract_page,
+    open_pdf,
+    page_size,
+    render_matrix,
+)
 from formcast.pagemap.model import Word
 
 #: Marks that stand for "checked" when typed or drawn as text in a check box.
@@ -403,6 +412,30 @@ class DocText:
         """
         text = self._page(page)
         return [(ln.text, ln.rect) for ln in text.lines] if text else []
+
+    def walls(self, page: int) -> list[Rect]:
+        """The thin vertical strokes drawn on ``page`` (a table's column rules), however short: a table drawn a row at a
+        time gives one per row, which the form map's rules, at least ``RULE_MIN_LENGTH`` long, leave out. ``[]`` for a
+        page the document does not have."""
+        if not 0 <= page < self.page_count:
+            return []
+        walls: list[Rect] = []
+        with PDF_LOCK:
+            drawings = self._doc[page].get_drawings()
+        for path in drawings:
+            if not (_fill_visible(path) or _stroke_visible(path)):
+                continue
+            for item in path["items"]:
+                if item[0] == "l":
+                    a, b = item[1], item[2]
+                    r = (min(a.x, b.x), min(a.y, b.y), max(a.x, b.x), max(a.y, b.y))
+                elif item[0] == "re":
+                    r = (item[1].x0, item[1].y0, item[1].x1, item[1].y1)
+                else:
+                    continue
+                if r[2] - r[0] <= RULE_MAX_THICKNESS and r[3] - r[1] > r[2] - r[0]:
+                    walls.append(r)
+        return walls
 
     def page_sizes(self) -> list[tuple[float, float]]:
         """Width and height of every page's unrotated crop box, in points."""

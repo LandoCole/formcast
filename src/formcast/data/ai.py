@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import json
 import re
-from collections.abc import Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -230,8 +230,16 @@ def derive_schema(
     classify_required: bool = False,
     reserved_names: Sequence[str] = (),
     flat_fields: bool = False,
+    form_pages: Collection[int] = (),
+    filled_text: Mapping[int, list[str]] | None = None,
 ) -> SchemaResult:
     """A JSON Schema for the data ``pdf`` collects, designed by the model from the form itself.
+
+    The pages with blanks (form fields or detected blanks) are the form: they are shown as images and their page map
+    in full, and every other page is taken for prose and cut to an excerpt. ``form_pages`` are form pages with no
+    blank to find, a filled copy's (its answers are written where the blanks were), shown as the pages with blanks
+    are. ``filled_text`` gives such a copy's text lines per page (its answers among them, which the page map leaves
+    out); each page's lines follow its page map, the pages with blanks or in ``form_pages`` in full.
 
     ``instructions`` adds the user's own words (say, "name the holder section 'buyer'"). With ``classify_required``
     the model also decides which fields are required (the ``required`` lists) and gives each property a one-line
@@ -243,7 +251,9 @@ def derive_schema(
     fm = form_map if form_map is not None else build_form_map(pdf)
     seed = new_template({"type": "object", "properties": {}}, fm, candidates=True)
     pages = sorted(p.index for p in fm.pages)
-    boxed = sorted({f.page for f in seed.fields if f.page is not None and f.rect is not None})
+    boxed = sorted(
+        {f.page for f in seed.fields if f.page is not None and f.rect is not None} | (set(form_pages) & set(pages))
+    )
     counts = {n: sum(1 for f in seed.fields if f.page == n and f.rect is not None) for n in boxed}
     shown = _image_pages(counts) if boxed else pages[:MAX_IMAGE_PAGES]
     parts: list = []
@@ -256,7 +266,7 @@ def derive_schema(
             "The images show the pages with each blank outlined (blue: text box, green: checkbox); ignore "
             "the small id marks. The page map below has the exact printed text."
         ))  # fmt: skip
-    parts.append(TextPart(f"PAGE MAP:\n{_page_text(fm, pages, set(boxed))}"))
+    parts.append(TextPart(f"PAGE MAP:\n{_page_text(fm, pages, set(boxed), filled_text or {})}"))
     if instructions.strip():
         parts.append(TextPart(f"The user adds: {instructions.strip()}"))
 
@@ -322,15 +332,18 @@ def _image_pages(counts: dict[int, int]) -> list[int]:
     return sorted(chosen)
 
 
-def _page_text(fm: FormMap, pages: list[int], boxed: set[int]) -> str:
+def _page_text(fm: FormMap, pages: list[int], boxed: set[int], filled: Mapping[int, list[str]]) -> str:
     """The page map's text, pages with boxes first in the budget: a long document that is mostly prose
     (an agreement whose last pages are the forms) keeps its form pages whole, and the rest of its pages are
-    cut to a short excerpt, kept for the names they define (the parties, the fund, the amounts).
+    cut to a short excerpt, kept for the names they define (the parties, the fund, the amounts). A page's
+    ``filled`` lines (a filled copy's text, answers and all) follow its page map, under ``PAGE n TEXT (as filled):``.
     """
     budget = _TEXT_CHARS
     texts: dict[int, str] = {}
     for n in sorted(pages, key=lambda n: n not in boxed):  # pages with boxes first
         full = summarize_page(fm, n, max_chars=_PAGE_CHARS)
+        if filled.get(n):
+            full += f"\nPAGE {n + 1} TEXT (as filled):\n" + "\n".join(filled[n])
         if boxed and n not in boxed:
             full = full[:_EXCERPT_CHARS] + (" [...]" if len(full) > _EXCERPT_CHARS else "")
         texts[n] = full[: max(budget, 0)]
@@ -340,7 +353,8 @@ def _page_text(fm: FormMap, pages: list[int], boxed: set[int]) -> str:
     if skipped:
         out += f"\n\n[pages {skipped[0]}-{skipped[-1]}: text left out, no blanks found there]"
     if boxed:
-        out = f"Blanks were found on page(s) {', '.join(str(n + 1) for n in sorted(boxed))}; the rest are prose, shown in short.\n\n" + out
+        shown = ", ".join(str(n + 1) for n in sorted(boxed))
+        out = f"Blanks were found on page(s) {shown}; the rest are prose, shown in short.\n\n" + out
     return out
 
 

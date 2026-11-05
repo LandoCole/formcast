@@ -5,11 +5,12 @@ from __future__ import annotations
 import pymupdf
 import pytest
 
-from formcast.extract.layout import learn_layout
+from formcast.extract.layout import learn_layout, without_answers
 from formcast.extract.model import AnchorRead, BoxRead, ChoiceRead, PhraseRead, WidgetRead
 from formcast.extract.read import extract
-from formcast.extract.readers import BoxRef, OptionProposal, ReaderProposal, resolve
-from formcast.extract.samples import SamplePdf, read_samples
+from formcast.extract.page import DocText
+from formcast.extract.readers import TEXT_PAD, TEXT_REACH, BoxRef, OptionProposal, ReaderProposal, resolve, text_cell
+from formcast.extract.samples import SamplePdf, read_samples, text_lines
 from formcast.pagemap.build import DetectPolicy
 from formcast.pagemap.model import Candidate
 from tests.extract.corpus import FIELD_RECTS, INVESTOR_TYPES, SHIFT, TYPE_BOXES, clients, hand_template, make_form
@@ -224,3 +225,136 @@ def test_a_box_from_a_shifted_sample_is_stored_in_the_layouts_place():
     assert warnings == []
     assert near(readers["investor.tax_id"].strategies[1].rect, FIELD_RECTS["tax_id"])
     assert near(readers["investor.dob"].strategies[0].rect, FIELD_RECTS["tax_id"])
+
+
+# ---------------------------------------------------------------- an answer named by its text line
+
+TABLE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "loan_amount": {"type": "string"},
+        "early_payment": {"type": "string"},
+        "late_payment": {"type": "string"},
+        "address": {"type": "string"},
+    },
+}
+
+
+def _statement(amount: str, early: str, late: str, street: str, city: str) -> bytes:
+    """A flattened one-page statement printed as a designed page, not a form: a label with its answer far to its
+    right, a table whose two columns hold one row's two answers, and an address over two lines."""
+    doc = pymupdf.open()
+    page = doc.new_page(width=612, height=792)
+    for (x, y), text in {
+        (40, 100): "Loan Amount", (190, 100): amount,
+        (260, 160): "Years 1-7", (450, 160): "Years 8-30",
+        (40, 180): "Principal & Interest", (260, 180): early, (450, 180): late,
+        (40, 240): "Property", (110, 240): street, (110, 252): city,
+        (40, 300): "Closing Costs Summary",
+    }.items():  # fmt: skip
+        page.insert_text((x, y), text, fontsize=10)
+    out = doc.tobytes()
+    doc.close()
+    return out
+
+
+def _line_id(sample, text: str) -> str:
+    with DocText(sample.pdf) as pdf:
+        return f"t0_{[t for t, _ in text_lines(sample, pdf, 0)].index(text)}"
+
+
+def test_a_text_line_names_the_answer_and_its_box_widens_to_its_cell_only():
+    (sample,) = read_samples([SamplePdf("a.pdf", _statement("$162,000", "$761.78", "$761.78", "456 Somewhere Ave", "Anytown, ST 12345"))], **NO_DETECTORS)
+    layout = learn_layout([sample.pdf])
+    early, late = (f"t0_{n}" for n in _row_ids(sample, "$761.78"))
+    readers, warnings = resolve(
+        [ReaderProposal(path="loan_amount", box=BoxRef(sample=0, id=_line_id(sample, "$162,000"))),
+         ReaderProposal(path="early_payment", box=BoxRef(sample=0, id=early)),
+         ReaderProposal(path="late_payment", box=BoxRef(sample=0, id=late)),
+         ReaderProposal(path="address", box=BoxRef(sample=0, id=f"{_line_id(sample, '456 Somewhere Ave')}+{_line_id(sample, 'Anytown, ST 12345')}"))],
+        [sample], layout, TABLE_SCHEMA,
+    )  # fmt: skip
+    assert warnings == []
+    boxes = {path: r.strategies[0] for path, r in readers.items()}
+    assert all(isinstance(b, BoxRead) for b in boxes.values())
+    # each column's box stops halfway to the next column: the two answers of one row never share a box
+    assert boxes["early_payment"].rect[2] <= boxes["late_payment"].rect[0]
+    # a box never reaches back over its label
+    with DocText(sample.pdf) as pdf:
+        (label,) = [r for t, r in pdf.lines(0) if t == "Loan Amount"]
+    assert boxes["loan_amount"].rect[0] > label[2]
+    # and every box reads its own answer on the sample
+    t = hand_template().model_copy(
+        update={"schema_": TABLE_SCHEMA, "readers": readers, "layout": without_answers(layout, [(b.page, b.rect) for b in boxes.values()])}
+    )
+    got = {f.path: f.value for f in extract(t, sample.pdf).fields}
+    assert got == {"loan_amount": "$162,000", "early_payment": "$761.78", "late_payment": "$761.78", "address": "456 Somewhere Ave Anytown, ST 12345"}
+
+
+def _row_ids(sample, text: str) -> list[int]:
+    with DocText(sample.pdf) as pdf:
+        return [n for n, (t, _) in enumerate(text_lines(sample, pdf, 0)) if t == text]
+
+
+def test_a_template_from_one_flattened_sample_reads_another_copys_longer_answers():
+    first = _statement("$162,000", "$761.78", "$761.78", "456 Somewhere Ave", "Anytown, ST 12345")
+    other = _statement("$1,450,000", "$12,737.91", "$9,100.00", "1200 Long Boulevard West", "Elsewhere, ST 54321")
+    (sample,) = read_samples([SamplePdf("a.pdf", first)], **NO_DETECTORS)
+    layout = learn_layout([sample.pdf])
+    early, late = (f"t0_{n}" for n in _row_ids(sample, "$761.78"))
+    readers, _ = resolve(
+        [ReaderProposal(path="loan_amount", box=BoxRef(sample=0, id=_line_id(sample, "$162,000")), labels=["Loan Amount"], max_width=150),
+         ReaderProposal(path="early_payment", box=BoxRef(sample=0, id=early)),
+         ReaderProposal(path="late_payment", box=BoxRef(sample=0, id=late)),
+         ReaderProposal(path="address", box=BoxRef(sample=0, id=f"{_line_id(sample, '456 Somewhere Ave')}+{_line_id(sample, 'Anytown, ST 12345')}"))],
+        [sample], layout, TABLE_SCHEMA,
+    )  # fmt: skip
+    answers = [(s.page, s.rect) for r in readers.values() for s in r.strategies if isinstance(s, BoxRead)]
+    t = hand_template().model_copy(update={"schema_": TABLE_SCHEMA, "readers": readers, "layout": without_answers(layout, answers)})
+    got = {f.path: (f.status, f.value) for f in extract(t, other).fields}
+    assert got == {
+        "loan_amount": ("found", "$1,450,000"), "early_payment": ("found", "$12,737.91"), "late_payment": ("found", "$9,100.00"),
+        "address": ("found", "1200 Long Boulevard West Elsewhere, ST 54321"),
+    }  # fmt: skip
+
+
+def test_a_text_line_id_no_sample_has_is_dropped_with_a_warning():
+    (sample,) = read_samples([SamplePdf("a.pdf", _statement("$1", "$2", "$3", "x", "y"))], **NO_DETECTORS)
+    for bad in ("t0_999", "t3_0", "t0_1+t1_2"):
+        readers, warnings = resolve([ReaderProposal(path="loan_amount", box=BoxRef(sample=0, id=bad))], [sample], learn_layout([sample.pdf]), TABLE_SCHEMA)
+        assert readers == {} and f"loan_amount: box '{bad}' is on no sample; left out" in warnings
+
+
+def test_text_cell_reaches_halfway_to_its_row_neighbours_and_at_most_text_reach():
+    assert text_cell((100, 10, 150, 20), [(20, 10, 60, 20), (250, 11, 300, 19)], 612) == (80, 10 - TEXT_PAD, 200, 20 + TEXT_PAD)
+    # a line on another row is no neighbour; with none, the box reaches TEXT_REACH and stops at the page's edge
+    alone = text_cell((500, 10, 560, 20), [(20, 40, 60, 50)], 612)
+    assert alone == (500 - TEXT_REACH, 10 - TEXT_PAD, 612, 20 + TEXT_PAD)
+
+
+def test_text_cell_stops_at_a_column_rule_that_crosses_its_row():
+    # the answer's neighbour cells are empty on the sample: the table's rules, not TEXT_REACH, end its box
+    walls = [(90, 0, 90.5, 100), (170, 0, 170.5, 100), (60, 40, 60.5, 100)]  # the last one ends above the row
+    assert text_cell((100, 10, 150, 20), [], 612, walls=walls) == (90.5, 10 - TEXT_PAD, 170, 20 + TEXT_PAD)
+    assert text_cell((100, 10, 150, 20), [(20, 10, 60, 20)], 612, walls=walls)[0] == 90.5  # the nearer of the two
+
+
+def test_a_text_line_in_a_table_drawn_a_row_at_a_time_keeps_to_its_column():
+    # the columns' rules are short strokes, one per row, and the cells beside the answer are empty on the sample
+    doc = pymupdf.open()
+    page = doc.new_page(width=612, height=792)
+    page.insert_text((40, 100), "Appraisal Fee", fontsize=10)
+    page.insert_text((310, 100), "$405.00", fontsize=10)
+    for x in (300, 360, 420):
+        page.draw_line((x, 90), (x, 104), width=0.5)
+    pdf = doc.tobytes()
+    doc.close()
+    (sample,) = read_samples([SamplePdf("a.pdf", pdf)], **NO_DETECTORS)
+    with DocText(sample.pdf) as text:
+        assert len(text.walls(0)) == 3 and text.walls(5) == []
+    readers, _ = resolve(
+        [ReaderProposal(path="loan_amount", box=BoxRef(sample=0, id=_line_id(sample, "$405.00")))],
+        [sample], learn_layout([sample.pdf]), TABLE_SCHEMA,
+    )  # fmt: skip
+    x0, _, x1, _ = readers["loan_amount"].strategies[0].rect
+    assert 300 <= x0 < 310 and 340 < x1 <= 360
