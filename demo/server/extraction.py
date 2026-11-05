@@ -53,6 +53,8 @@ a model except the line job's ``add_line``:
 
 A setup takes one change at a time: while a line job runs, an edit, a wording or another line job raises
 ``SetupBusy``; edits wait for one another (each takes the setup's lock while it proves).
+A setup has a ``version``, 0 when it is made and one more after each change above; ``Setup.edit(version=n)`` is
+refused with ``StaleSetup`` (nothing changed) when the setup is no longer at ``n``.
 
 **Saved extraction templates.** ``ExtractionStore`` keeps each saved template as ``<folder>/<name>.json`` with its
 sample PDFs beside it, as ``<folder>/assets/<name>/samples/<i>.pdf`` in the template's order (``<folder>`` is
@@ -181,6 +183,10 @@ class ScanNotDone(FormcastError):
 
 class SetupBusy(FormcastError):
     """A field is being added to the setup from a line; it takes no other change until that job ends."""
+
+
+class StaleSetup(Exception):
+    """An edit was made for an older version of the setup than it has now."""
 
 
 class _Superseded(Exception):
@@ -621,6 +627,8 @@ class Setup:
     ``batch_id`` is the batch the samples came from and ``indexes`` their file numbers in it, in the template's
     order; both are ``None`` for a setup reopened from a saved extraction template. Read it with ``summary``,
     ``snapshot``, ``sample`` and ``marks``, and change it with ``edit``, ``learn`` and a line job: they take its lock.
+    ``version`` is 0 at creation and goes up by one each time the template changes (an edit, a wording learned, a
+    line job's fields kept), so a change made for an older state of the setup can be told from one made for this.
     """
 
     id: str
@@ -631,11 +639,12 @@ class Setup:
     proof: Proof
     warnings: list[str]
     renamed: dict[str, str] = field(default_factory=dict)  # the paths the last edit changed, each by its new one
+    version: int = 0
     _line: bool = field(default=False, repr=False)  # an extract-line job is running on this setup
     _lock: threading.RLock = field(default_factory=threading.RLock, repr=False)
 
     def summary(self) -> dict:
-        """The setup as the API shows it: ``{id, batch, template, proof, warnings, renamed, name_updates, samples: [{index, name, kind, pages}]}``.
+        """The setup as the API shows it: ``{id, batch, version, template, proof, warnings, renamed, name_updates, samples: [{index, name, kind, pages}]}``.
 
         A sample's ``index`` is its file's number in the batch (``None`` for a reopened setup), its ``kind``
         ``fillable`` (it has form fields) or ``flattened``, and ``pages`` its pages' ``[width, height]`` in points.
@@ -645,6 +654,7 @@ class Setup:
             return {
                 "id": self.id,
                 "batch": self.batch_id,
+                "version": self.version,
                 "template": self.template.model_dump(mode="json", by_alias=True),
                 "proof": self.proof.model_dump(mode="json"),
                 "warnings": list(self.warnings),
@@ -687,18 +697,21 @@ class Setup:
             template, doc = self.template, self.sample(n)
         return sample_marks(template, doc.pdf)
 
-    def edit(self, *edits: Edit) -> None:
+    def edit(self, *edits: Edit, version: int | None = None) -> None:
         """Make ``edits`` (``apply_edit`` with the sample PDFs), all or none, and prove the template again, once. No
-        model is called.
+        model is called. ``version``, when given, is the setup's version the edits were made for.
 
         Raises:
             SetupBusy: a line job is running on the setup.
+            StaleSetup: ``version`` is not the setup's version now; nothing is changed.
             FormcastError: the library refused the edit (``apply_edit``'s message: a path that is not a field, a
                 sample the template does not have...).
             pydantic.ValidationError: the edited template is not valid.
         """
         with self._lock:
             self._free()
+            if version is not None and version != self.version:
+                raise StaleSetup(f"The setup has changed since this edit was made (it is now version {self.version}).")
             pdfs = [doc.pdf for doc in self.samples]
             template, renamed = self.template, {}
             for edit in edits:
@@ -709,6 +722,7 @@ class Setup:
                 template = edited
             self.renamed = renamed
             self.template, self.proof = template, prove(template, pdfs)
+            self.version += 1
 
     def freeze_names(self) -> None:
         """Stop names following titles, as a saved template's do not."""
@@ -731,6 +745,7 @@ class Setup:
                 raise FormcastError(f"No wordings are suggested for {path}.")
             template = learn_maps(self.template, self.proof.model_copy(update={"fields": [field_proof]}))
             self.template, self.proof = template, prove(template, [doc.pdf for doc in self.samples])
+            self.version += 1
 
     def start_line(self) -> tuple[ExtractionTemplate, list[SampleDoc]]:
         """Mark a line job as running on the setup; the template and samples it starts from.
@@ -749,6 +764,7 @@ class Setup:
             self._line = False
             if result is not None:
                 self.template, self.proof = result.template, result.proof
+                self.version += 1
                 self.warnings = list(dict.fromkeys([*self.warnings, *result.warnings]))
 
     def _free(self) -> None:

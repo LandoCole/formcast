@@ -32,7 +32,7 @@ Setups (``api.setups``) and saved extraction templates (``api.extractions``):
     POST /api/jobs {kind: "extract-line", setup, line}                      -> {id}; done: result {setup: Setup, paths}
     GET  /api/setups/{s}                                            -> Setup
     POST /api/setups                 {extraction: name}             -> Setup   (a saved template reopened)
-    POST /api/setups/{s}/edit        {edit: Edit} or {edits: [Edit]} -> Setup
+    POST /api/setups/{s}/edit        {edit: Edit} or {edits: [Edit]}, version? -> Setup
     POST /api/setups/{s}/learn       {path}                         -> Setup
     GET  /api/setups/{s}/samples/{i}/marks                          -> {marks: [Mark]}
     GET  /api/setups/{s}/samples/{i}/pages/{p}.png?dpi=             -> image/png
@@ -43,7 +43,11 @@ Setups (``api.setups``) and saved extraction templates (``api.extractions``):
     PUT  /api/extractions/{name}     {setup}                        -> {name, template_id}
     DELETE /api/extractions/{name}                                  -> {name}
 
-    Setup = {id, batch, template, proof, warnings, samples: [{index, name, kind, pages: [[w, h]]}]}
+    Setup = {id, batch, version, template, proof, warnings, samples: [{index, name, kind, pages: [[w, h]]}]}
+
+A setup's ``version`` is 0 when it is made and goes up by one each time its template changes (an edit, a wording
+learned, the fields of a line kept). An edit may carry the ``version`` it was made for (an int); when the setup is at
+another one it is refused, 409 ``stale_setup``, and nothing changes. With no ``version`` the edit always applies.
 
 An ``extract-setup`` job builds a template from the batch's files ``samples`` (``build_setup``; 1 to 20 of them). ``spec`` is ``SetupSpec``'s fields, with ``destination`` the name
 of a fill template in ``api.store`` whose schema the fields start from. Its stages are ``STAGES``, the ``fields``
@@ -65,7 +69,8 @@ Errors: no model configured, 400 ``ai_not_configured``; a bad ``spec`` 400 ``bad
 not have open 400 ``bad_batch``; samples that are not files of the batch 400 ``bad_sample``; an unknown destination
 404 ``not_found``; a second job while ``max_running`` run 429 ``busy``. An edit the library refuses is 400
 ``bad_edit`` with its message; a path with no wording suggested 400 ``bad_request``. While an ``extract-line`` job
-runs on a setup, an edit, a wording or another line job is 409 ``busy_setup``. An unknown setup is 404 ``not_found``
+runs on a setup, an edit, a wording or another line job is 409 ``busy_setup``; a ``version`` that is not an int is 400
+``bad_request``. An unknown setup is 404 ``not_found``
 "no such setup: <id>" (setups are in memory: after a restart every id is unknown), an unknown saved template 404
 "no such extraction: <name>"; a name ``store.check_name`` refuses is 400 ``bad_name``, a saved file that is not a
 valid template 422 ``bad_template_file``.
@@ -170,6 +175,7 @@ from demo.server.api import AI_NOT_CONFIGURED, DEFAULT_DPI, Api, ApiError, Reque
 from demo.server.documents import MAX_DPI, MIN_DPI, PYMUPDF_LOCK, page_png, page_words
 from demo.server.extraction import (
     MIN_SAMPLE, PAGE_DEFAULT, PAGE_LIMIT, Batch, BatchInUse, Run, RunBusy, RunNotStarted, ScanNotDone, Setup, SetupBusy,
+    StaleSetup,
 )
 from demo.server.jobs import Job, JobsBusy
 from demo.server.settings import Settings
@@ -671,17 +677,22 @@ def reopen_setup(api: Api, req: Request) -> dict:
 
 def edit_setup(api: Api, req: Request) -> dict:
     """``{edit}`` (an ``Edit`` as JSON), or ``{edits}`` (a list of them, made together or not at all), made on the
-    setup's template, which is proven again once; no model call."""
+    setup's template, which is proven again once; no model call. ``version``, when sent, must be the setup's."""
     setup = _setup(api, req)
     body = _object(req)
+    version = body.get("version")
+    if version is not None and (not isinstance(version, int) or isinstance(version, bool)):
+        raise ApiError(400, "bad_request", "Send version as the number of the setup's version the edit was made for.")
     try:
         edits = EDITS.validate_python(body["edits"]) if "edits" in body else [EDIT.validate_python(body.get("edit"))]
     except pydantic.ValidationError as exc:
         raise ApiError(400, "bad_edit", f"this is not an edit: {_first_error(exc)}") from None
     try:
-        setup.edit(*edits)
+        setup.edit(*edits, version=version)
     except SetupBusy as exc:
         raise ApiError(409, "busy_setup", str(exc)) from None
+    except StaleSetup as exc:
+        raise ApiError(409, "stale_setup", str(exc)) from None
     except FormcastError as exc:
         raise ApiError(400, "bad_edit", str(exc)) from None
     except pydantic.ValidationError as exc:

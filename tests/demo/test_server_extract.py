@@ -1007,6 +1007,45 @@ def test_several_edits_are_made_together_or_not_at_all(bench):
     assert "dob" not in now["template"]["schema"]["properties"]["investor"].get("required", [])
 
 
+def test_an_edit_raises_the_setups_version(bench):
+    setup = built(bench)
+    assert setup["version"] == 0
+    status, after = edit(bench, setup["id"], {"op": "set_field", "path": "investor.dob", "required": False})
+    assert (status, after["version"]) == (200, 1)
+    status, again = get_json(bench.base, f"/api/setups/{setup['id']}/edit", "POST", {
+        "edits": [{"op": "set_field", "path": "investor.dob", "required": True}], "version": 1,
+    })
+    assert (status, again["version"]) == (200, 2)
+    assert get_json(bench.base, f"/api/setups/{setup['id']}")[1]["version"] == 2
+
+
+def test_an_edit_sent_against_an_old_version_is_refused_and_changes_nothing(bench):
+    setup = built(bench)
+    edit(bench, setup["id"], {"op": "set_field", "path": "investor.dob", "required": False})
+    _, now = get_json(bench.base, f"/api/setups/{setup['id']}")
+    assert now["version"] == 1
+    change = {"op": "set_field", "path": "investor.tax_id", "required": False}
+    for body in ({"edit": change, "version": 0}, {"edits": [change], "version": 2}):
+        status, out = get_json(bench.base, f"/api/setups/{setup['id']}/edit", "POST", body)
+        assert (status, out["error"]) == (409, "stale_setup"), out
+    status, out = get_json(bench.base, f"/api/setups/{setup['id']}/edit", "POST", {"edit": change, "version": "1"})
+    assert (status, out["error"]) == (400, "bad_request")
+    assert get_json(bench.base, f"/api/setups/{setup['id']}")[1] == now
+
+
+def test_an_edit_with_no_version_still_applies(bench):
+    setup = built(bench)
+    edit(bench, setup["id"], {"op": "set_field", "path": "investor.dob", "required": False})
+    status, after = edit(bench, setup["id"], {"op": "set_field", "path": "investor.tax_id", "required": False})
+    assert (status, after["version"]) == (200, 2)
+
+
+def test_a_refused_edit_leaves_the_version_where_it_was(bench):
+    setup = built(bench)
+    edit(bench, setup["id"], {"op": "set_labels", "path": "investor.nope", "labels": []})
+    assert get_json(bench.base, f"/api/setups/{setup['id']}")[1]["version"] == 0
+
+
 def test_a_bad_edit_is_refused_with_the_librarys_message_and_changes_nothing(bench):
     setup = built(bench)
     status, out = edit(bench, setup["id"], {"op": "set_labels", "path": "investor.nope", "labels": []})
