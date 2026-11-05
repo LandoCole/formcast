@@ -661,12 +661,13 @@ The flow:
 **Chat** tab in the right column, beside *Box* in the fill editor and beside *Field* on the setup screen. It asks
 the AI for a fix in words, from a pointed one ("it missed this one: add it") to a broad one ("put every box on its
 value, not its label"). With the AI on, a drag on empty space of the page marks an area, shown in the tab as a chip
-("page 3 · [302, 214, 572, 226]") that can be removed, and it goes with the next message; the server adds the text
-inside it.
+("page 3 · [302, 214, 572, 226]") that can be removed, and it goes with the next message: on the setup screen the
+server adds the text lines inside it, and in the fill editor the agent is pointed at the area and reads it itself.
 
 The answer is a short reply and a list of changes, and nothing changes until you press *Apply*; *Discard* drops
 them. On the setup screen the changes are one model call (`propose_fix`), made on a copy of the template and proven
-on the samples before you see them: the tab shows what each field would read on every sample, the fields they touch
+on the samples before you see them: the tab lists each field they touch with its state and what it would read on
+every sample (`● Country · 5/5 · ready · S1 "Canada" · S2 "United States"`, a long value cut short), those fields
 are marked in the field list (a field they add gets a row marked *new*), and the boxes they place are drawn dashed on
 the page. *Apply* is an ordinary edit, proven again, and is refused, with "The template changed since this was
 proposed; ask again.", if the template changed since the answer was made (`/api/setups/{id}/edit` takes the

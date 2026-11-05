@@ -1585,7 +1585,8 @@ def test_the_chat_tab_sends_a_message_and_applies_the_proposal(start_demo_server
     answer = turns(b).first
     expect(answer.locator(".fc-chat-reply")).to_have_text("Added the country, read beside its label.", timeout=30_000)
     expect(answer.locator(".fc-chat-changes li")).to_have_text(["Add “Country”, text", "“Country”: read beside “Country”"])
-    expect(answer.locator(".fc-chat-proof li")).to_have_text(["● Country · 5/5 · ready"])
+    reads = " · ".join(f'S{n} "{p.country}"' for n, p in enumerate(PEOPLE, start=1))
+    expect(answer.locator(".fc-chat-proof li")).to_have_text([f"● Country · 5/5 · ready · {reads}"])  # what each sample reads
     expect(row(b, "investor.country")).to_have_count(0)  # nothing changed yet: proposed only
     expect(b.page.locator("#fields .fc-sl-leaf.is-new")).to_have_text(re.compile("Country"))
     expect(proposed_boxes(b)).to_have_count(1)

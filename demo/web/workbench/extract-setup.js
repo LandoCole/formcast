@@ -41,11 +41,12 @@
 // The right column has two tabs, Field (the inspector and the lines per sample) and Chat (#setup-chat, core/chat.js),
 // where a message asks the AI for a fix of the template in words (`engine.extract.chat`, a job), with the area last
 // dragged on the page (with AI on, a drag on empty space marks one on the sample shown, and brings up the Chat tab).
-// The answer's edits, proven on a copy of the template, are a proposal: the fields they touch are marked in the field
-// list (a field they add has a row of its own, "new"), and where those fields read on the sample shown is drawn
-// dashed on the page, until Apply sends the edits with the version they were proven on, on the change queue (refused
-// as `stale_setup` when the template changed meanwhile, as the chat then says), or Discard drops them. The
-// conversation is the page's alone, emptied when another setup opens.
+// The answer's edits, proven on a copy of the template, are a proposal: the chat lists the fields they touch, each
+// with its state and what it reads on every sample; they are marked in the field list (a field they add has a row of
+// its own, "new"); and where those fields read on the sample shown is drawn dashed on the page, until Apply sends the
+// edits with the version they were proven on, on the change queue (refused as `stale_setup` when the template changed
+// meanwhile, as the chat then says), or Discard drops them. The conversation is the page's alone, emptied when
+// another setup opens.
 //
 // Save asks for a name (#setup-save-box, as the fill template's save) and stores the template with its sample PDFs
 // (`engine.extract.save`); `promptSave()` resolves the name saved (null when the prompt closed unsaved), so Run on
@@ -74,7 +75,7 @@ import { makeView, viewSize } from "../core/geometry.js";
 import { PageView } from "../core/pageview.js";
 import { selectTextNote } from "../core/textlayer.js";
 import { DETECT_SUM } from "./extract.js";
-import { categoryOf, REASON_KEY, checksOf, fieldSchema, fieldState, groupFields, linkBlock, optionsOf, outcomeLine, rowProof, unusedName } from "./extract-model.js";
+import { categoryOf, REASON_KEY, checksOf, fieldSchema, fieldState, groupFields, linkBlock, optionsOf, outcomeLine, readsLine, rowProof, unusedName } from "./extract-model.js";
 
 /** What the screen says when the server no longer has the setup. */
 export const GONE = "This setup is no longer on the server; start again.";
@@ -1422,13 +1423,14 @@ export function mountSetup(app) {
     }
   }
 
-  /** What the proposal reads, a line per field it touches: its state across the samples, as the field list says it. */
+  /** A line per field the proposal touches: its state across the samples, as the field list says it, and its reads. */
   function previewLines(p) {
     return Object.entries(p.preview).map(([path, fp]) => {
       const st = fieldState(fp);
       const title = titleOf(path);
       if (fp.absent) return `${st.glyph} ${title} · not on this form`;
-      return `${st.glyph} ${title} · ${st.text} · ${fp.ready ? "ready" : "needs a look"}`;
+      const reads = readsLine(fp.samples ?? []);
+      return `${st.glyph} ${title} · ${st.text} · ${fp.ready ? "ready" : "needs a look"}${reads ? ` · ${reads}` : ""}`;
     });
   }
 

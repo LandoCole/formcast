@@ -22,6 +22,7 @@ import {
   pagesText,
   parsePages,
   problemLabel,
+  readsLine,
   rowProof,
   runLine,
   runStats,
@@ -524,4 +525,14 @@ test("unusedName offers the name itself when it is free, else the first numbered
   assert.equal(unusedName("Uploaded files", new Set(["Uploaded files", "Uploaded files 2", "Other"])), "Uploaded files 3");
   const long = "x".repeat(80);
   assert.equal(unusedName(long, [long]), `${"x".repeat(78)} 2`); // cut to fit 80 characters
+});
+
+test("readsLine says what each sample read, numbered from 1, a long value cut and none as a dash", () => {
+  const sample = (value) => ({ outcome: "agree", read: { value } });
+  assert.equal(readsLine([sample("100000"), sample(12.5), sample(true)]), 'S1 "100000" · S2 "12.5" · S3 "true"');
+  assert.equal(readsLine([sample(null), { outcome: "missing", read: null }, {}, sample("")]), "S1 — · S2 — · S3 — · S4 —");
+  assert.equal(readsLine([sample("x".repeat(31))]), `S1 "${"x".repeat(29)}…"`); // at most 30 characters
+  assert.equal(readsLine([sample("x".repeat(30))]), `S1 "${"x".repeat(30)}"`);
+  assert.equal(readsLine([sample(["a", "b"])]), 'S1 "[\"a\",\"b\"]"');
+  assert.equal(readsLine([]), "");
 });

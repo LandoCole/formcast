@@ -6,8 +6,9 @@
 //
 // The conversation lives here, in memory only: nothing is stored, and a reload forgets it. Each message is sent with
 // the last MAX_HISTORY exchanges answered before it ({message, reply, changes, outcome}, `changes` the proposal in one
-// line), so the server keeps no chat. Clear (and `clear()`, which an editor calls when another template opens) empties
-// it, dropping any proposal still pending.
+// line, its first MAX_CHANGES changes and how many more, each part at most MAX_TURN_CHARS: `exchange`), so the server
+// keeps no chat. Clear (and `clear()`, which an editor calls when another template opens) empties it, dropping any
+// proposal still pending.
 //
 // The thread: the person's messages (an area as a chip, "page N · [x0, y0, x1, y1]"), the replies, each with its list of
 // changes and the preview of what they read (`preview`, when the editor gives one), and Apply / Discard. While a
@@ -20,6 +21,10 @@
 
 /** At most this many earlier exchanges go with a message (the server refuses more). */
 export const MAX_HISTORY = 3;
+/** At most this many of an exchange's changes go with it, then how many more there are. */
+export const MAX_CHANGES = 10;
+/** The longest message, reply or changes an exchange carries, in characters (the server refuses longer). */
+export const MAX_TURN_CHARS = 2000;
 /** What an Apply refused as stale says. */
 export const STALE = "The template changed since this was proposed; ask again.";
 /** What an answer the AI could not make usable says. */
@@ -47,6 +52,23 @@ function button(text, className, onClick) {
   const b = make("button", { type: "button", className: `fc-btn ${className}`, textContent: text });
   b.addEventListener("click", onClick);
   return b;
+}
+
+/** `text` cut to MAX_TURN_CHARS characters, the last of them "…" when it was longer. */
+function clipped(text) {
+  return text.length > MAX_TURN_CHARS ? `${text.slice(0, MAX_TURN_CHARS - 1)}…` : text;
+}
+
+/**
+ * An answered turn as it goes with a later message: its changes in one line, the first MAX_CHANGES of them and
+ * "and N more" ("no changes" for none), each part cut to MAX_TURN_CHARS.
+ * @returns {Exchange}
+ */
+export function exchange(turn) {
+  const shown = turn.changes.slice(0, MAX_CHANGES);
+  const more = turn.changes.length - shown.length;
+  const changes = (more > 0 ? [...shown, `and ${more} more`] : shown).join("; ") || "no changes";
+  return { message: clipped(turn.message), reply: clipped(turn.reply), changes: clipped(changes), outcome: turn.outcome };
 }
 
 /** An area in words: "page 3 · [302, 214, 572, 226]". */
@@ -139,7 +161,7 @@ export class ChatPanel {
       .slice(0, end)
       .filter((t) => t.state === "answered")
       .slice(-MAX_HISTORY)
-      .map((t) => ({ message: t.message, reply: t.reply, changes: t.changes.join("; ") || "no changes", outcome: t.outcome }));
+      .map(exchange);
   }
 
   #submit() {

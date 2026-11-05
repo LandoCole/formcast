@@ -7,10 +7,10 @@
 // the schema's checks: the form holds a bad answer, not a bad reader) or `absent` (the path is marked not on this
 // form); `read` is the readers' FieldResult `{status, value, raw, reasons, page, rect}`. A field's row in the list
 // (`fieldState`) counts the samples proven (agree or failed_check) out of all of them, with a glyph as the mockup's
-// legend has it: ● every sample, ◐ some, ? an unsure read, × none, ○ not on this form. `outcomeLine` is one sample's
-// line under the field. A repeated group's fields are read per item (`owners[0].name` ... `owners[3].name`), and
-// `groupFields` folds them back into one row per field of the group (`owners[ ] · up to 4`), whose items' proofs
-// `rowProof` takes together for the row's state.
+// legend has it: ● every sample, ◐ some, ? an unsure read, × none, ○ not on this form; `readsLine` says what it
+// read on each sample. `outcomeLine` is one sample's line under the field. A repeated group's fields are read per
+// item (`owners[0].name` ... `owners[3].name`), and `groupFields` folds them back into one row per field of the group
+// (`owners[ ] · up to 4`), whose items' proofs `rowProof` takes together for the row's state.
 //
 // A field's schema says how it is checked (`checksOf`), and its reader whether it is an option set (`optionsOf`), each as lines of
 // plain words; `fieldSchema` finds a concrete path's schema node. A batch (`batchLine`, `stripCells`, `batchNote`) is
@@ -59,6 +59,26 @@ export function fieldState(fieldProof) {
   else if (!fieldProof.ready && samples.some((s) => s.read?.status === "unsure")) glyph = "?";
   else if (proven > 0) glyph = "◐";
   return { glyph, text: `${proven}/${samples.length}`, state: fieldProof.ready ? "ready" : "weak" };
+}
+
+/** The most characters of a value `readsLine` shows. */
+const READ_CHARS = 30;
+
+/**
+ * What a field read on each sample, numbered from 1: `S1 "Canada" · S2 —`, a value quoted and cut to
+ * READ_CHARS characters, a dash for a sample that read none.
+ * @param {{read?: {value?: unknown} | null}[]} samples a FieldProof's samples
+ * @returns {string}
+ */
+export function readsLine(samples) {
+  return samples
+    .map((s, n) => {
+      const value = s.read?.value;
+      if (value === null || value === undefined || value === "") return `S${n + 1} —`;
+      const text = typeof value === "string" ? value : JSON.stringify(value);
+      return `S${n + 1} "${text.length > READ_CHARS ? `${text.slice(0, READ_CHARS - 1)}…` : text}"`;
+    })
+    .join(" · ");
 }
 
 /**
