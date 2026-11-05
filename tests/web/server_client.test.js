@@ -328,6 +328,10 @@ test("a build with startFrom is an adapt job; revise sends instruction and regio
   assert.deepEqual(fetch.calls.find((c) => c.body?.kind === "revise").body, { kind: "revise", doc: "abc", template: TEMPLATE, instruction: "split the name", region: { page: 0, rect: [1, 2, 3, 4] } });
   await engine.revise(TEMPLATE, { id: "abc" }, "again");
   assert.equal("region" in fetch.calls.filter((c) => c.body?.kind === "revise")[1].body, false);
+  assert.equal("history" in fetch.calls.filter((c) => c.body?.kind === "revise")[1].body, false);
+  const turns = [{ message: "m", reply: "r", changes: "c", outcome: "applied" }];
+  await engine.revise(TEMPLATE, { id: "abc" }, "next", null, turns);
+  assert.deepEqual(fetch.calls.filter((c) => c.body?.kind === "revise")[2].body.history, turns);
   await Promise.all([a.done, r.done]);
 });
 

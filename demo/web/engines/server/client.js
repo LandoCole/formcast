@@ -662,11 +662,14 @@ export async function createServerEngine({
      * @param {object} doc
      * @param {string} instruction
      * @param {{page: number, rect: number[]} | null} [region] PDF points, origin top-left
+     * @param {{message: string, reply: string, changes: string, outcome: "applied" | "discarded" | "pending"}[]} [history]
+     *   the last turns of a chat (at most 3, oldest first), sent before `instruction` for the agent
      * @returns {Promise<JobHandle>}
      */
-    async revise(template, doc, instruction, region = null) {
+    async revise(template, doc, instruction, region = null, history = []) {
       const body = { kind: "revise", doc: doc.id, template, instruction };
       if (region !== null) body.region = region;
+      if (history.length > 0) body.history = history;
       return startJob(body);
     },
 

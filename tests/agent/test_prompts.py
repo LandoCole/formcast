@@ -2,7 +2,7 @@ import json
 import re
 from pathlib import Path
 
-from formcast.agent.prompts import SYSTEM_PROMPT, first_user_message
+from formcast.agent.prompts import SYSTEM_PROMPT, chat_instruction, first_user_message
 from formcast.agent.report import step_report
 from formcast.agent.session import StepRecord
 from formcast.llm import Usage
@@ -188,6 +188,26 @@ def test_first_user_message_with_instruction_and_region():
     msg = first_user_message("MAP", paths, "Widen the box.", (1, (10.0, 20.25, 30.0, 40.0)))
     assert "Widen the box." in msg
     assert "page 1" in msg and "[10, 20.2, 30, 40]" in msg
+
+
+def test_chat_instruction_is_the_message_alone_with_no_history():
+    assert chat_instruction("Widen the box.") == "Widen the box."
+    assert chat_instruction("Widen the box.", []) == "Widen the box."
+
+
+def test_chat_instruction_lists_earlier_turns_oldest_first():
+    turns = [
+        {"message": "Add a phone field", "reply": "Added it.", "changes": "added phone", "outcome": "applied"},
+        {"message": "Make it wider", "reply": "Widened.", "changes": "widened phone", "outcome": "discarded"},
+    ]
+    text = chat_instruction("Now move it left", turns)
+    assert text == (
+        "EARLIER IN THIS CHAT:\n"
+        "Person: Add a phone field\nYou: Added it.\nChanges: added phone (applied)\n"
+        "Person: Make it wider\nYou: Widened.\nChanges: widened phone (discarded)\n"
+        "\nNOW:\nNow move it left"
+    )  # fmt: skip
+    assert text.index("Add a phone field") < text.index("Make it wider") < text.index("Now move it left")
 
 
 # --- step report ---------------------------------------------------------------

@@ -265,6 +265,49 @@ def test_a_revise_job_works_without_a_region(start_demo_server):
     assert wait_ended(base, job_id)["status"] == "done"
 
 
+TURN = {"message": "Add a phone field", "reply": "Added it.", "changes": "added phone", "outcome": "applied"}
+
+
+def test_a_revise_job_folds_history_into_its_instruction(start_demo_server):
+    factory = Factory([finish("no change needed")])
+    base = start_demo_server(provider_factory=factory)
+    doc = open_doc(base)
+    job_id = start(base, kind="revise", doc=doc, template=seed(base, doc), instruction="Now move it left", history=[TURN])
+    assert wait_ended(base, job_id)["status"] == "done"
+    first_message = factory.providers[0].calls[0][1].content
+    assert "EARLIER IN THIS CHAT:" in first_message
+    assert "Person: Add a phone field" in first_message and "Changes: added phone (applied)" in first_message
+    assert first_message.index("NOW:") < first_message.index("Now move it left")
+
+
+def test_a_revise_job_without_history_sends_its_instruction_as_it_was(start_demo_server):
+    factory = Factory(*[[finish("no change needed")] for _ in range(3)])
+    base = start_demo_server(provider_factory=factory)
+    doc = open_doc(base)
+    for extra in ({}, {"history": None}, {"history": []}):
+        job_id = start(base, kind="revise", doc=doc, template=seed(base, doc), instruction="Check the name field", **extra)
+        assert wait_ended(base, job_id)["status"] == "done"
+    assert all("EARLIER IN THIS CHAT:" not in p.calls[0][1].content for p in factory.providers)
+
+
+@pytest.mark.parametrize(
+    "history",
+    [
+        [TURN] * 4,
+        "not a list",
+        [{**TURN, "outcome": "maybe"}],
+        [{"message": "x"}],
+        ["x"],
+        [{**TURN, "reply": 5}],
+    ],
+)
+def test_a_revise_job_refuses_bad_history(ai, history):  # Review Focus 4: at most 3 turns, each a whole turn
+    base, doc, template, factory = ai
+    status, out = post(base, "/api/jobs", {"kind": "revise", "doc": doc, "template": template, "instruction": "do it", "history": history})
+    assert status == 400 and out["error"] == "bad_request", out
+    assert factory.providers == []
+
+
 # ------------------------------------------------------------------ cancel
 
 

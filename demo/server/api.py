@@ -64,6 +64,7 @@ from demo.server.store import (
 from formcast import (
     FormcastError, OpContext, OpError, Template, apply, fill, flatten_schema, rebind, similarity, to_smart_pdf,
 )
+from formcast.agent.prompts import chat_instruction
 from formcast.data import DataMapping
 from formcast.llm import Provider
 from formcast.pagepass import map_pages
@@ -553,12 +554,14 @@ class Api:
     # ---- AI jobs
 
     def create_job(self, req: Request) -> dict:
-        """``{kind, doc, schema?, template?, instruction?, region?}`` -> ``{id}``; poll ``GET /api/jobs/{id}``.
+        """``{kind, doc, schema?, template?, instruction?, region?, history?}`` -> ``{id}``; poll ``GET /api/jobs/{id}``.
 
         ``build`` takes ``schema`` (an object or a stored schema's name). ``adapt`` takes ``template`` and
         uses its own schema. For ``adapt`` and ``revise`` the template must have as many pages as the PDF
         (400 ``page_count_mismatch``). ``revise`` takes ``template`` and ``instruction``, and optionally
-        ``region: {page, rect: [x0, y0, x1, y1]}`` in PDF points (origin top-left). A job runs on a thread,
+        ``region: {page, rect: [x0, y0, x1, y1]}`` in PDF points (origin top-left), and ``history``, the earlier
+        turns of a chat (at most 3, each ``{message, reply, changes, outcome}`` as in ``extract-chat``), which are
+        put before the instruction for the agent; a bad one is 400 ``bad_request``. A job runs on a thread,
         two at a time; a third is refused with 429 ``busy``. Every input is checked here, before a thread starts.
         """
         payload = _object(req)
@@ -593,6 +596,9 @@ class Api:
             if not isinstance(instruction, str) or not instruction.strip():
                 raise ApiError(400, "bad_instruction", "send instruction as the text of the change to make")
             region = _region(payload.get("region"), doc)
+            from demo.server.extract_api import _chat_history  # here, not at the top: extract_api imports this module
+
+            instruction = chat_instruction(instruction, [turn.model_dump() for turn in _chat_history(payload.get("history"))])
         try:
             job = self.jobs.start(
                 kind, doc=doc, schema=schema, template=template, instruction=instruction, region=region,
