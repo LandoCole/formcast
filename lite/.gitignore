@@ -1,0 +1,5 @@
+build/
+dist/
+models/
+.venv-build/
+*.spec

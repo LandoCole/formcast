@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>formcast lite</title>
+<!-- The workbench's fonts; offline, the stacks fall back to Palatino / Georgia and Consolas / Menlo. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* formcast lite, in the workbench's design (demo/web/workbench/workbench.css): its controls and page strip, on a
+   grey off-white with a navy primary. One centred column: the controls, then the queue (documents, and the pages of the one converting),
+   then the table of documents. */
+
+[hidden] { display: none !important; }
+
+:root {
+  /* Neutrals: a cool grey off-white. Primary: navy (buttons, outlines, progress, filled cells). */
+  --paper: #FDFDFD;
+  --ink: #16181D;
+  --graphite: #6B6F76;
+  --rule: rgba(22, 28, 40, .15);
+  --panel: #EEF0F2;
+  --wash: rgba(253, 253, 253, .94);
+  --primary: #1F3A68;
+  --serif: "EB Garamond", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  --line-box-gap: 0 0 0 1.75px var(--paper), inset 0 0 0 1.75px var(--paper);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --paper: #15171B; --ink: #DADDE2; --graphite: #8C9097; --rule: rgba(218, 221, 226, .15); --panel: #24272D; --wash: rgba(21, 23, 27, .94); --primary: #8FAADB; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --paper: #15171B; --ink: #DADDE2; --graphite: #8C9097; --rule: rgba(218, 221, 226, .15); --panel: #24272D; --wash: rgba(21, 23, 27, .94); --primary: #8FAADB; color-scheme: dark; }
+
+body {
+  margin: 0; background: var(--paper); color: var(--ink);
+  font-family: var(--serif); font-size: 19px; line-height: 1.55; -webkit-font-smoothing: antialiased;
+}
+:focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+
+.topbar {
+  display: flex; justify-content: space-between; align-items: center; gap: 16px; min-height: 48px; padding: 0 24px;
+  background: var(--wash); box-shadow: 0 .5px 0 0 var(--rule);
+  font-family: var(--mono); font-size: 12px; letter-spacing: .12em; text-transform: uppercase;
+}
+.topbar span:last-child { color: var(--graphite); }
+
+/* ---------- controls ---------- */
+.label { font-family: var(--mono); font-weight: 400; font-size: 11px; letter-spacing: .14em; text-transform: uppercase; color: var(--graphite); margin: 0 0 8px; line-height: 24px; }
+.btn {
+  box-sizing: border-box; display: inline-grid; place-items: center; height: 40px; padding: 0 14px;
+  background: var(--paper); border: 0; outline: 1px solid var(--primary); outline-offset: -.5px; box-shadow: var(--line-box-gap);
+  color: var(--primary); font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; white-space: nowrap; cursor: pointer;
+  text-decoration: none;
+}
+.btn:hover:not(:disabled) { background: var(--primary); color: var(--paper); }
+.btn:disabled { color: var(--graphite); outline-color: var(--rule); cursor: default; }
+.btn.quiet { outline-color: var(--rule); }
+.btn.quiet:hover:not(:disabled) { outline-color: var(--primary); }
+.btn.dark { background: var(--primary); color: var(--paper); }
+.btn.dark:disabled { background: var(--paper); color: var(--graphite); }
+.btn.small { height: 32px; padding: 0 10px; font-size: 10px; }
+.check { display: inline-flex; gap: 10px; align-items: baseline; font-size: 16px; line-height: 22px; cursor: pointer; }
+.check input { margin: 0; accent-color: var(--primary); transform: translateY(2px); }
+.hint { margin: 12px 0 0; font-style: italic; font-size: 15px; line-height: 22px; color: var(--graphite); }
+.file-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+
+/* ---------- the one column ---------- */
+.wrap { box-sizing: border-box; max-width: 880px; margin: 0 auto; padding: 24px 24px 64px; }
+.controls { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px 20px; margin-bottom: 24px; }
+.controls .side { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; }
+.controls .side:last-child { gap: 8px; }
+
+/* the queue: a sheet, as the workbench draws its overlays */
+.sheet {
+  box-sizing: border-box; padding: 24px; margin-bottom: 32px;
+  background: var(--paper); outline: 1px solid var(--primary); box-shadow: 4px 4px 0 var(--rule);
+}
+.part + .part { margin-top: 20px; padding-top: 16px; box-shadow: inset 0 .5px 0 0 var(--rule); }
+.part .label { display: flex; justify-content: space-between; gap: 12px; margin: 0 0 6px; }
+.part .label span:last-child { letter-spacing: .04em; text-transform: none; }
+.empty { margin: 8px 0; font-style: italic; color: var(--graphite); }
+
+/* a cell per page (the workbench's .reading), and per document */
+.reading { font-family: var(--mono); font-size: 11px; line-height: 18px; }
+.reading-now { margin: 0 0 6px; color: var(--ink); font-size: 12px; overflow-wrap: anywhere; }
+.reading-bar { height: 2px; background: var(--rule); margin: 0 0 10px; }
+.reading-bar span { display: block; height: 100%; width: 0; background: var(--primary); transition: width .3s ease; }
+.reading-strip { display: flex; flex-wrap: wrap; gap: 3px; margin: 0 0 10px; padding: 0; list-style: none; }
+.reading-strip li { width: 9px; height: 12px; box-sizing: border-box; outline: 1px solid var(--rule); outline-offset: -1px; }
+.reading-strip.docs li { width: 14px; height: 18px; }
+.reading-strip li[data-state="working"] { outline-color: var(--primary); animation: reading-pulse 1s ease-in-out infinite alternate; }
+.reading-strip li[data-state="boxes"] { background: var(--primary); outline-color: var(--primary); }
+.reading-strip li[data-state="empty"] { outline-color: var(--graphite); }
+.reading-strip li[data-state="fillable"] { outline-color: var(--primary); box-shadow: inset 0 0 0 2.5px var(--paper), inset 0 0 0 12px var(--primary); }
+.reading-strip li[data-state="prose"] { background: repeating-linear-gradient(135deg, var(--graphite) 0 1px, transparent 1px 3px); outline-color: var(--rule); }
+.reading-strip li[data-state="failed"] { outline-color: var(--ink); background: linear-gradient(to top right, transparent calc(50% - .75px), var(--ink) calc(50% - .75px) calc(50% + .75px), transparent calc(50% + .75px)); }
+@keyframes reading-pulse { from { background: transparent; } to { background: var(--graphite); } }
+@media (prefers-reduced-motion: reduce) { .reading-strip li[data-state="working"] { animation: none; background: var(--graphite); } .reading-bar span { transition: none; } }
+.reading-sum { margin: 0; color: var(--graphite); }
+.key { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 10px 0 0; padding: 0; list-style: none; font-family: var(--mono); font-size: 10px; line-height: 16px; letter-spacing: .04em; color: var(--graphite); }
+.key li { display: flex; align-items: center; gap: 6px; }
+.key .reading-strip { margin: 0; }
+
+/* the documents table (the workbench's .maptable) */
+.doctable { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 11px; line-height: 18px; }
+.doctable th { text-align: left; font-weight: 400; letter-spacing: .14em; text-transform: uppercase; color: var(--graphite); padding: 4px 12px 6px 0; box-shadow: inset 0 -.5px 0 var(--primary); }
+.doctable td { padding: 10px 12px 10px 0; vertical-align: middle; box-shadow: inset 0 -.5px 0 var(--rule); }
+.doctable th:last-child, .doctable td:last-child { padding-right: 0; text-align: right; }
+.doctable .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.doctable tbody tr { cursor: pointer; }
+.doctable tbody tr:hover td, .doctable tbody tr[aria-selected="true"] td { background: var(--panel); }
+.doctable .name { font-family: var(--serif); font-size: 17px; line-height: 23px; overflow-wrap: anywhere; padding-left: 6px; }
+.doctable .tag { margin-left: 6px; padding: 0 4px; outline: .5px solid var(--graphite); color: var(--graphite); font: 9px/16px var(--mono); letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; vertical-align: 2px; }
+.doctable .state { white-space: nowrap; }
+.doctable .state.failed { white-space: normal; font-family: var(--serif); font-style: italic; font-size: 14px; line-height: 20px; }
+.doctable td:last-child { padding-right: 6px; }
+
+/* dropping files anywhere */
+.dropwash { position: fixed; inset: 0; z-index: 20; display: grid; place-items: center; background: var(--wash); pointer-events: none; }
+.dropwash p { margin: 0; padding: 24px 32px; background: var(--paper); outline: 1px solid var(--primary); box-shadow: 4px 4px 0 var(--rule); font-size: 22px; font-style: italic; }
+
+@media (max-width: 639px) {
+  .topbar { padding: 0 16px; }
+  .wrap { padding: 16px 16px 48px; }
+  .sheet { padding: 16px; }
+  .doctable .hide-sm { display: none; }
+}
+</style>
+</head>
+<body>
+<header class="topbar">
+  <span>formcast · lite</span>
+  <span id="det"></span>
+</header>
+
+<div class="wrap">
+  <div class="controls" role="toolbar" aria-label="Conversion">
+    <div class="side">
+      <button type="button" class="btn dark" id="add">Add PDFs</button>
+      <input type="file" class="file-input" id="file" accept="application/pdf,.pdf" multiple tabindex="-1" aria-hidden="true">
+      <label class="check" title="Only pages that look like forms are searched. Applies to PDFs added next.">
+        <input type="checkbox" id="skip">
+        <span>Skip prose pages</span>
+      </label>
+    </div>
+    <div class="side">
+      <button type="button" class="btn quiet" id="reset">Reset</button>
+      <button type="button" class="btn" id="all" disabled>Download all</button>
+    </div>
+  </div>
+
+  <section class="sheet" aria-live="polite">
+    <div class="part">
+      <p class="label"><span>Document queue</span><span id="dq-count"></span></p>
+      <p class="empty" id="empty">Add PDFs, or drop them anywhere on this window.</p>
+      <div class="reading" id="dq" hidden>
+        <ol class="reading-strip docs" id="dq-strip" aria-label="Documents"></ol>
+        <p class="reading-sum" id="dq-sum"></p>
+      </div>
+    </div>
+    <div class="part" id="pq" hidden>
+      <p class="label"><span>Page queue</span><span id="pq-name"></span></p>
+      <div class="reading">
+        <p class="reading-now" id="now"></p>
+        <div class="reading-bar"><span id="bar"></span></div>
+        <ol class="reading-strip" id="strip" aria-label="Pages"></ol>
+        <p class="reading-sum" id="sum"></p>
+      </div>
+      <ul class="key" aria-label="Key">
+        <li><ol class="reading-strip"><li data-state="boxes"></li></ol>fields added</li>
+        <li><ol class="reading-strip"><li data-state="empty"></li></ol>no blanks found</li>
+        <li><ol class="reading-strip"><li data-state="prose"></li></ol>skipped as prose</li>
+        <li><ol class="reading-strip"><li data-state="fillable"></li></ol>already fillable</li>
+        <li><ol class="reading-strip"><li data-state="working"></li></ol>converting</li>
+        <li><ol class="reading-strip"><li data-state="pending"></li></ol>waiting</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="table" hidden>
+    <table class="doctable">
+      <thead><tr><th>Document</th><th class="num hide-sm">Pages</th><th>Status</th><th class="num hide-sm">Fields</th><th class="num hide-sm">Time</th><th></th></tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <p class="hint">Nothing is saved. Closing the app forgets every document.</p>
+  </section>
+</div>
+
+<div class="dropwash" id="dropwash" hidden><p>Drop the PDFs to add them</p></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const plural = (n, w, many = `${w}s`) => `${n.toLocaleString()} ${n === 1 ? w : many}`;
+const clock = (s) => { s = Math.max(0, Math.round(s)); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`; };
+const size = (n) => n >= 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`;
+const finished = (p) => p.state !== "pending" && p.state !== "working";
+
+const ERRORS = {
+  "not a readable PDF": "Not a readable PDF. Check that it opens in a PDF viewer, then add it again.",
+  "the PDF is password-protected": "Password-protected. Remove the password, then add it again.",
+};
+const explain = (e) => ERRORS[e] || e;
+
+let state = { docs: [], detector: "loading" };
+let selected = null;   // the document the page queue shows; null follows the one converting
+let sending = 0;       // files still uploading
+let generation = 0;    // bumped by Reset so uploads still in flight are dropped
+
+try { $("skip").checked = localStorage.getItem("skipProse") === "1"; } catch {}
+$("skip").addEventListener("change", () => { try { localStorage.setItem("skipProse", $("skip").checked ? "1" : "0"); } catch {} });
+
+// ---------------------------------------------------------------- adding files
+$("add").addEventListener("click", () => $("file").click());
+$("file").addEventListener("change", () => { send([...$("file").files]); $("file").value = ""; });
+let drags = 0;
+document.addEventListener("dragenter", (e) => { if ([...e.dataTransfer.types].includes("Files")) { drags++; $("dropwash").hidden = false; } });
+document.addEventListener("dragleave", () => { if (--drags <= 0) { drags = 0; $("dropwash").hidden = true; } });
+document.addEventListener("dragover", (e) => e.preventDefault());
+document.addEventListener("drop", (e) => { e.preventDefault(); drags = 0; $("dropwash").hidden = true; send([...e.dataTransfer.files]); });
+
+async function send(files) {
+  const pdfs = files.filter((f) => /\.pdf$/i.test(f.name) || f.type === "application/pdf");
+  if (!pdfs.length) return;
+  const skip = $("skip").checked ? "1" : "0";
+  const mine = generation;
+  sending += pdfs.length; draw();
+  for (const f of pdfs) {             // one at a time, so the queue keeps the order chosen
+    if (mine !== generation) return;
+    try {
+      await fetch(`/api/upload?name=${encodeURIComponent(f.name)}&skip_prose=${skip}`, { method: "POST", body: f });
+    } catch (err) { console.error(err); }
+    if (mine !== generation) return;
+    sending--; poll();
+  }
+}
+
+// ---------------------------------------------------------------- reset and downloads
+$("reset").addEventListener("click", async () => {
+  if (state.docs.length && !confirm("Stop converting and forget every document?")) return;
+  generation++; sending = 0; selected = null;
+  await fetch("/api/reset", { method: "POST" });
+  poll();
+});
+$("all").addEventListener("click", () => { location.href = "/api/download-all"; });
+
+// ---------------------------------------------------------------- strips
+function fillStrip(ol, items, stateOf, titleOf) {
+  if (ol.children.length !== items.length) ol.replaceChildren(...items.map(() => document.createElement("li")));
+  items.forEach((item, i) => {
+    const li = ol.children[i];
+    const s = stateOf(item);
+    if (li.dataset.state !== s) li.dataset.state = s;
+    li.title = titleOf(item, i);
+  });
+}
+
+const DOC_CELL = { queued: "pending", converting: "working", done: "boxes", failed: "failed" };
+const DOC_WORD = { queued: "waiting", converting: "converting", done: "done", failed: "failed" };
+
+function pageTitle(p, i) {
+  const where = `Page ${i + 1}`;
+  return {
+    pending: `${where}: waiting`,
+    working: `${where}: being converted now`,
+    boxes: `${where}: ${plural(p.fields, "field")} added`,
+    empty: `${where}: searched, no blanks found`,
+    prose: `${where}: skipped, it reads as running text`,
+    fillable: `${where}: already fillable, ${plural(p.fields, "field")} of its own`,
+  }[p.state] || where;
+}
+
+function shownDoc() {
+  const docs = state.docs;
+  return docs.find((d) => d.id === selected)
+    || docs.find((d) => d.status === "converting")
+    || [...docs].reverse().find((d) => d.status === "done")
+    || docs.find((d) => d.pages.length)
+    || docs[0];
+}
+
+// ---------------------------------------------------------------- the queue
+function drawQueue() {
+  const docs = state.docs;
+  const n = (s) => docs.filter((d) => d.status === s).length;
+  $("empty").hidden = docs.length > 0;
+  $("empty").textContent = sending ? `Sending ${plural(sending, "file")}…` : "Add PDFs, or drop them anywhere on this window.";
+  $("dq").hidden = docs.length === 0;
+  $("dq-count").textContent = docs.length ? `${n("done") + n("failed")} / ${docs.length}` : "";
+  fillStrip($("dq-strip"), docs, (d) => DOC_CELL[d.status], (d) => `${d.name}: ${DOC_WORD[d.status]}`);
+  const parts = [];
+  if (n("done")) parts.push(`${n("done")} done`);
+  if (n("converting")) parts.push("1 converting");
+  if (n("queued")) parts.push(`${n("queued")} waiting`);
+  if (n("failed")) parts.push(`${n("failed")} failed`);
+  if (sending) parts.push(`${plural(sending, "file")} sending`);
+  $("dq-sum").textContent = parts.join(" · ");
+
+  const d = shownDoc();
+  $("pq").hidden = !d || !d.pages.length;
+  if (!d || !d.pages.length) return;
+  const pages = d.pages, total = pages.length, done = pages.filter(finished).length;
+  const working = pages.findIndex((p) => p.state === "working");
+  $("pq-name").textContent = d.name;
+  let now;
+  if (d.status === "converting") {
+    now = state.detector === "loading" ? "Loading the field detector…"
+      : working >= 0 ? `Page ${working + 1} of ${total}: finding the blanks` : "Saving the fillable PDF…";
+  } else if (d.status === "queued") now = `${plural(total, "page")}, waiting for the documents ahead of it`;
+  else if (d.status === "done") now = `Done: ${plural(total, "page")} in ${clock(d.elapsed || 0)}`;
+  else now = explain(d.error);
+  $("now").textContent = now;
+  $("bar").style.width = `${Math.round((d.status === "done" ? 1 : total ? done / total : 0) * 100)}%`;
+  fillStrip($("strip"), pages, (p) => p.state, pageTitle);
+
+  const count = (s) => pages.filter((p) => p.state === s).length;
+  const sum = [`${plural(d.fields, "field")} on ${plural(count("boxes"), "page")}`];
+  if (count("prose")) sum.push(`${plural(count("prose"), "page")} skipped as prose`);
+  if (count("empty")) sum.push(`${plural(count("empty"), "page")} with no blanks`);
+  if (count("fillable")) sum.push(`${plural(count("fillable"), "page")} already fillable`);
+  const timed = pages.filter((p) => p.seconds != null && (p.state === "boxes" || p.state === "empty"));
+  const left = total - done;
+  if (d.status === "converting" && timed.length >= 2 && left > 0) {
+    const each = timed.reduce((s, p) => s + p.seconds, 0) / timed.length;
+    sum.push(`about ${clock(each * left)} left`);
+  }
+  $("sum").textContent = sum.join(" · ");
+}
+
+// ---------------------------------------------------------------- the table
+function docRow(d) {
+  const tr = document.createElement("tr");
+  tr.dataset.id = d.id;
+  tr.innerHTML = `<td class="name"></td><td class="num hide-sm"></td><td class="state"></td><td class="num hide-sm"></td><td class="num hide-sm"></td>
+    <td><a class="btn small" hidden>Download</a></td>`;
+  tr.addEventListener("click", (e) => { if (!e.target.closest("a")) { selected = d.id; draw(); } });
+  tr.querySelector("a").href = `/api/docs/${d.id}/download`;
+  return tr;
+}
+
+function drawTable() {
+  const body = $("rows");
+  const rows = new Map([...body.children].map((el) => [el.dataset.id, el]));
+  const shown = shownDoc();
+  const ids = new Set(state.docs.map((d) => d.id));
+  for (const [id, el] of rows) if (!ids.has(id)) el.remove();
+  state.docs.forEach((d, i) => {
+    const tr = rows.get(d.id) || docRow(d);
+    if (body.children[i] !== tr) body.insertBefore(tr, body.children[i] || null);
+    const [name, pages, st, fields, time, act] = tr.children;
+    name.textContent = d.name;
+    if (d.skip_prose) { const t = document.createElement("span"); t.className = "tag"; t.textContent = "skip prose"; name.append(t); }
+    pages.textContent = d.pages.length || "";
+    const pct = d.pages.length ? Math.round(100 * d.pages.filter(finished).length / d.pages.length) : 0;
+    st.className = `state ${d.status}`;
+    st.textContent = { queued: "Waiting", converting: `Converting ${pct}%`, done: "Done", failed: explain(d.error) }[d.status];
+    fields.textContent = d.status === "done" || d.status === "converting" ? d.fields.toLocaleString() : "";
+    time.textContent = d.elapsed != null ? clock(d.elapsed) : "";
+    const a = act.firstElementChild;
+    a.hidden = d.status !== "done";
+    a.download = d.out_name;
+    a.title = `Download ${d.out_name}`;
+    tr.setAttribute("aria-selected", String(state.docs.length > 1 && !!shown && shown.id === d.id));
+  });
+  $("table").hidden = state.docs.length === 0;
+  const ready = state.docs.filter((d) => d.status === "done").length;
+  $("all").disabled = ready === 0;
+  $("all").textContent = ready ? `Download all (${ready})` : "Download all";
+}
+
+function drawDetector() {
+  $("det").textContent = state.detector === "loading" ? "Loading the field detector"
+    : state.detector === "error" ? `Field detector failed: ${state.detector_error}` : "";
+}
+
+function draw() {
+  if (selected && !state.docs.some((d) => d.id === selected)) selected = null;
+  drawDetector(); drawQueue(); drawTable();
+}
+
+// ---------------------------------------------------------------- polling
+let timer = null, down = false;
+async function poll() {
+  clearTimeout(timer);
+  try {
+    state = await (await fetch("/api/state", { cache: "no-store" })).json();
+    down = false;
+    draw();
+  } catch {
+    down = true;
+    $("det").textContent = "Not running · start the app again";
+  }
+  const busy = sending || state.detector === "loading" || state.docs.some((d) => d.status === "queued" || d.status === "converting");
+  timer = setTimeout(poll, down ? 3000 : busy ? 400 : 1500);
+}
+poll();
+</script>
+</body>
+</html>

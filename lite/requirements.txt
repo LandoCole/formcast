@@ -1,0 +1,5 @@
+# FormCast Lite runtime: no torch, no AI services.
+pymupdf>=2.0,<2.1   # same series FormCast verified its widget writing on
+onnxruntime>=1.18   # runs the FFDNet-S ONNX export on CPU
+numpy>=1.26
+pillow>=10.1
